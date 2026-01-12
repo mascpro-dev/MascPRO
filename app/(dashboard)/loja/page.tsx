@@ -2,10 +2,52 @@
 
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useEffect, useState } from "react"
-// CORREÇÃO AQUI: Tirei as chaves { } do CourseCard
-import CourseCard from "@/components/course-card" 
-import { Loader2 } from "lucide-react"
+import { Loader2, ShoppingCart } from "lucide-react"
+import Link from "next/link"
+import Image from "next/image"
 
+// --- COMPONENTE VISUAL DO CARD (CRIADO AQUI MESMO PARA NÃO DAR ERRO) ---
+const ProductCard = ({ product }: { product: any }) => {
+  return (
+    <div className="group hover:shadow-sm transition overflow-hidden border rounded-lg p-3 h-full flex flex-col bg-white">
+      <div className="relative w-full aspect-video rounded-md overflow-hidden bg-gray-100">
+        <Image
+          fill
+          className="object-cover"
+          alt={product.title || product.name || "Produto"}
+          src={product.image_url || "https://placehold.co/600x400?text=Foto"}
+        />
+      </div>
+      <div className="flex flex-col pt-2 flex-grow">
+        <div className="text-lg md:text-base font-medium group-hover:text-sky-700 transition line-clamp-2">
+          {product.title || product.name}
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          {product.ProductCategory?.name || "Produto Masc PRO"}
+        </p>
+        <div className="my-3 flex items-center gap-x-2 text-sm md:text-xs">
+          <div className="flex items-center gap-x-1 text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+            <ShoppingCart size={14} />
+            <span>Físico</span>
+          </div>
+        </div>
+        <div className="mt-auto flex items-center justify-between">
+            <span className="text-md md:text-sm font-medium text-slate-700">
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price || 0)}
+            </span>
+            <Link 
+                href={`/loja/${product.slug}`} 
+                className="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
+            >
+                Comprar
+            </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// --- PÁGINA DA LOJA ---
 export default function LojaPage() {
   const [categories, setCategories] = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
@@ -19,27 +61,16 @@ export default function LojaPage() {
     try {
       setLoading(true)
       
-      // 1. Busca Categorias de PRODUTOS
+      // 1. Busca Categorias
       const { data: categoriesData } = await supabase
         .from('ProductCategory')
         .select('*')
 
-      // 2. Busca PRODUTOS FÍSICOS
-      const { data: productsData, error } = await supabase
+      // 2. Busca Produtos
+      const { data: productsData } = await supabase
         .from('Product')
-        .select(`
-          *,
-          ProductCategory (
-            id,
-            name,
-            slug
-          )
-        `)
+        .select(`*, ProductCategory (id, name, slug)`)
         .eq('isPublished', true)
-
-      if (error) {
-        console.error('Erro ao buscar produtos:', error)
-      }
 
       if (categoriesData) setCategories(categoriesData)
       if (productsData) {
@@ -48,7 +79,7 @@ export default function LojaPage() {
       }
       
     } catch (error) {
-      console.log("Erro geral:", error)
+      console.log("Erro:", error)
     } finally {
       setLoading(false)
     }
@@ -75,7 +106,7 @@ export default function LojaPage() {
   if (loading) {
     return (
       <div className="flex h-[50vh] w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     )
   }
@@ -83,66 +114,44 @@ export default function LojaPage() {
   return (
     <div className="p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">Loja</h1>
+        <h1 className="text-3xl font-bold text-slate-800">Loja Oficial</h1>
         <p className="text-gray-500 mt-2">
-          Descubra produtos profissionais e home care da Masc PRO
+          Produtos Profissionais e Home Care
         </p>
       </div>
 
-      {/* Filtros de Categoria */}
       <div className="flex flex-wrap gap-2 mb-8">
         <button
           onClick={() => setSelectedCategory(null)}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors
+          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border
             ${selectedCategory === null 
-              ? 'bg-primary text-white' 
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              ? 'bg-blue-600 text-white border-blue-600' 
+              : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-200'}`}
         >
-          Todas
+          Todos
         </button>
         {categories.map((category) => (
           <button
             key={category.id}
             onClick={() => setSelectedCategory(category.id)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border
               ${selectedCategory === category.id 
-                ? 'bg-primary text-white' 
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                ? 'bg-blue-600 text-white border-blue-600' 
+                : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-200'}`}
           >
             {category.name}
           </button>
         ))}
       </div>
 
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">
-          {selectedCategory 
-            ? categories.find(c => c.id === selectedCategory)?.name 
-            : 'Todos os Produtos'} 
-          <span className="ml-2 text-sm font-normal text-gray-500">
-            ({filteredProducts.length} {filteredProducts.length === 1 ? 'produto' : 'produtos'})
-          </span>
-        </h2>
-      </div>
-
       {filteredProducts.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <p className="text-gray-500">
-            {selectedCategory 
-              ? 'Nenhum produto encontrado nesta categoria' 
-              : 'Nenhum produto disponível no momento'}
-          </p>
+        <div className="text-center py-12 bg-gray-50 rounded-lg border border-dashed">
+          <p className="text-gray-500">Nenhum produto encontrado.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filteredProducts.map((product) => (
-            <CourseCard
-              key={product.id}
-              course={product as any}
-              showPrice={true}
-              actionLabel="Comprar"
-              actionHref={`/loja/${product.slug}`}
-            />
+            <ProductCard key={product.id} product={product} />
           ))}
         </div>
       )}
