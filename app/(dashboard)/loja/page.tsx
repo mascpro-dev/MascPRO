@@ -1,18 +1,57 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import { Category, Product } from '@/lib/types'
-import CategoryFilter from '@/components/category-filter'
-import CourseCard from '@/components/Product'
-import { Loader2, ShoppingCart } from 'lucide-react'
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useEffect, useState } from "react"
+import { CourseCard } from "@/components/course-card" // Vamos reusar o card visualmente
+import { Loader2 } from "lucide-react"
 
 export default function LojaPage() {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [courses, setCourses] = useState<Product[]>([])
-  const [filteredCourses, setFilteredCourses] = useState<Course[]>([])
+  const [categories, setCategories] = useState<any[]>([])
+  const [products, setProducts] = useState<any[]>([])
+  const [filteredProducts, setFilteredProducts] = useState<any[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  
+  const supabase = createClientComponentClient()
+
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      
+      // 1. Busca Categorias de PRODUTOS
+      const { data: categoriesData } = await supabase
+        .from('ProductCategory')
+        .select('*')
+
+      // 2. Busca PRODUTOS FÍSICOS
+      const { data: productsData, error } = await supabase
+        .from('Product')
+        .select(`
+          *,
+          ProductCategory (
+            id,
+            name,
+            slug
+          )
+        `)
+        .eq('isPublished', true)
+
+      if (error) {
+        console.error('Erro ao buscar produtos:', error)
+      }
+
+      if (categoriesData) setCategories(categoriesData)
+      if (productsData) {
+        setProducts(productsData)
+        setFilteredProducts(productsData)
+      }
+      
+    } catch (error) {
+      console.log("Erro geral:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     fetchData()
@@ -20,123 +59,92 @@ export default function LojaPage() {
 
   useEffect(() => {
     if (selectedCategory === null) {
-      setFilteredCourses(courses)
+      setFilteredProducts(products)
     } else {
-      setFilteredCourses(
-        courses.filter(
-          (course) => 
-            course.categoryId === selectedCategory || 
-            course.category_id === selectedCategory
+      setFilteredProducts(
+        products.filter(
+          (product) => 
+            product.categoryId === selectedCategory || 
+            product.ProductCategory?.id === selectedCategory
         )
       )
     }
-  }, [selectedCategory, courses])
-
-  const fetchData = async () => {
-    try {
-     const [categoriesRes, coursesRes] = await Promise.all([
-      // 1. CORREÇÃO: Buscar categorias de PRODUTO (ProductCategory)
-      supabase.from('ProductCategory').select('*'),
-
-      // 2. CORREÇÃO: Buscar Produto e conectar com ProductCategory
-      supabase.from('Product').select(`
-        *,
-        ProductCategory (
-          id,
-          name,
-          slug
-        )
-      `)
-      .eq('isPublished', true)
-    ])
-        )
-      `)
-      .eq('isPublished', true)
-    ])
-
-      if (categoriesRes.data) {
-        setCategories(categoriesRes.data)
-      }
-
-      if (coursesRes.data) {
-        const publishedCourses = coursesRes.data.filter(
-          (course: Course) => 
-            (course.published || course.isPublished) && 
-            (course.price !== undefined && course.price > 0)
-        )
-        setCourses(publishedCourses)
-        setFilteredCourses(publishedCourses)
-      }
-    } catch (error) {
-      console.error('Erro ao carregar produtos:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [selectedCategory, products])
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex h-[50vh] w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-          <ShoppingCart className="w-8 h-8" />
-          Loja
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Descubra cursos e materiais para sua jornada profissional
+    <div className="p-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Loja</h1>
+        <p className="text-gray-500 mt-2">
+          Descubra produtos profissionais e home care da Masc PRO
         </p>
       </div>
 
-      {categories.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Filtrar por Categoria</h2>
-          <CategoryFilter
-            categories={categories}
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-          />
-        </div>
-      )}
+      {/* Filtros de Categoria */}
+      <div className="flex flex-wrap gap-2 mb-8">
+        <button
+          onClick={() => setSelectedCategory(null)}
+          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors
+            ${selectedCategory === null 
+              ? 'bg-primary text-white' 
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+        >
+          Todas
+        </button>
+        {categories.map((category) => (
+          <button
+            key={category.id}
+            onClick={() => setSelectedCategory(category.id)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors
+              ${selectedCategory === category.id 
+                ? 'bg-primary text-white' 
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          >
+            {category.name}
+          </button>
+        ))}
+      </div>
 
-      <div>
-        <h2 className="text-lg font-semibold mb-4">
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-xl font-semibold">
           {selectedCategory 
-            ? `Produtos - ${categories.find(c => c.id === selectedCategory)?.name}`
-            : 'Todos os Produtos'}
-          <span className="text-sm font-normal text-gray-500 ml-2">
-            ({filteredCourses.length} {filteredCourses.length === 1 ? 'produto' : 'produtos'})
+            ? categories.find(c => c.id === selectedCategory)?.name 
+            : 'Todos os Produtos'} 
+          <span className="ml-2 text-sm font-normal text-gray-500">
+            ({filteredProducts.length} {filteredProducts.length === 1 ? 'produto' : 'produtos'})
           </span>
         </h2>
-
-        {filteredCourses.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-500">
-              {selectedCategory 
-                ? 'Nenhum produto encontrado nesta categoria'
-                : 'Nenhum produto disponível no momento'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCourses.map((course) => (
-              <CourseCard 
-                key={course.id} 
-                course={course as any} 
-                showPrice={true}
-                actionLabel="Comprar"
-                actionHref={\/loja/${course.slug}`}
-              />
-            ))}
-          </div>
-        )}
       </div>
+
+      {filteredProducts.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-lg">
+          <p className="text-gray-500">
+            {selectedCategory 
+              ? 'Nenhum produto encontrado nesta categoria' 
+              : 'Nenhum produto disponível no momento'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredProducts.map((product) => (
+            <CourseCard
+              key={product.id}
+              course={product as any} // O TRUQUE: 'as any' evita erro vermelho
+              showPrice={true}
+              actionLabel="Comprar"
+              actionHref={`/loja/${product.slug}`} // Link corrigido para Loja
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
