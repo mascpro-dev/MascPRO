@@ -1,122 +1,135 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Clock, User, Plus, X, Phone } from "lucide-react"
+import { useEffect, useState } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useRouter } from "next/navigation"
+import { 
+  Calendar as CalendarIcon, 
+  ChevronLeft, 
+  ChevronRight, 
+  Plus, 
+  Clock, 
+  User, 
+  Loader2,
+  Video
+} from "lucide-react"
+import XPBar from "@/components/xp-bar"
+import { toast } from "react-hot-toast"
 
 export default function AgendaPage() {
-  const router = useRouter()
   const supabase = createClientComponentClient()
-  
-  const [agendamentos, setAgendamentos] = useState<any[]>([])
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [perfil, setPerfil] = useState<any>(null)
 
-  // Estados do formulário
-  const [nome, setNome] = useState("")
-  const [whatsapp, setWhatsapp] = useState("")
-  const [servico, setServico] = useState("")
-  const [dataHora, setDataHora] = useState("")
-
-  const fetchAgendamentos = async () => {
-    setLoading(true)
-    const { data } = await supabase
-      .from('agendamentos')
-      .select('*')
-      .order('horario_inicio', { ascending: true })
-    if (data) setAgendamentos(data)
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchAgendamentos() }, [])
-
-  const handleSalvar = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const { error } = await supabase.from('agendamentos').insert([
-      { 
-        cliente_nome: nome, 
-        whatsapp: whatsapp, 
-        procedimento: servico, 
-        horario_inicio: dataHora 
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+        return
       }
-    ])
-
-    if (!error) {
-      setIsModalOpen(false)
-      setNome(""); setWhatsapp(""); setServico(""); setDataHora("")
-      fetchAgendamentos()
+      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      setPerfil(data)
+      setLoading(false)
     }
-  }
+    checkUser()
+  }, [supabase, router])
+
+  if (loading) return (
+    <div className="flex h-screen items-center justify-center bg-white">
+      <Loader2 className="animate-spin text-blue-600" size={40} />
+    </div>
+  )
 
   return (
-    <div className="p-6 md:p-10 max-w-5xl mx-auto min-h-screen">
-      
-      {/* CABEÇALHO */}
-      <div className="flex items-center justify-between mb-10">
-        <div className="flex items-center gap-4">
-          <button onClick={() => router.back()} className="p-2 hover:bg-white rounded-full border shadow-sm bg-white">
-            <ArrowLeft size={20} />
+    <div className="min-h-screen bg-slate-50 p-4 md:p-10 space-y-8">
+      <div className="max-w-7xl mx-auto space-y-8">
+        
+        {/* CABEÇALHO */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <p className="text-blue-600 font-black text-[10px] uppercase tracking-[0.3em] mb-2 italic">Performance & Tempo</p>
+            <h1 className="text-5xl font-black text-slate-900 italic uppercase tracking-tighter leading-none">
+              Minha <span className="text-slate-300">Agenda</span>
+            </h1>
+          </div>
+          <button 
+            onClick={() => toast.success("Módulo de agendamento em breve!")}
+            className="flex items-center gap-2 bg-slate-900 text-white px-6 py-4 rounded-2xl font-black uppercase italic tracking-widest hover:bg-blue-600 transition-all shadow-lg active:scale-95"
+          >
+            <Plus size={20} /> Novo Agendamento
           </button>
-          <h1 className="text-2xl font-bold text-slate-900">Minha Agenda</h1>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200"
-        >
-          <Plus size={20} /> Novo
-        </button>
-      </div>
 
-      {/* LISTA DE HORÁRIOS */}
-      <div className="space-y-4">
-        {agendamentos.map((item) => (
-          <div key={item.id} className="flex gap-4 group animate-in fade-in slide-in-from-bottom-2">
-            <div className="w-16 pt-3 text-right">
-              <span className="text-sm font-black text-slate-400">
-                {new Date(item.horario_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-              </span>
-            </div>
-            <div className="flex-1 bg-white border border-slate-100 p-5 rounded-2xl shadow-sm flex items-center justify-between hover:border-blue-200 transition">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
-                  <User size={24} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-800">{item.cliente_nome}</h3>
-                  <p className="text-xs text-blue-600 font-bold uppercase">{item.procedimento}</p>
-                </div>
+        {/* BARRA DE XP */}
+        <XPBar />
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* CALENDÁRIO VISUAL (ESTILIZADO) */}
+          <div className="lg:col-span-2 bg-white rounded-[40px] p-8 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-xl font-black text-slate-900 uppercase italic">Janeiro 2026</h2>
+              <div className="flex gap-2">
+                <button className="p-2 hover:bg-slate-50 rounded-lg"><ChevronLeft size={20} /></button>
+                <button className="p-2 hover:bg-slate-50 rounded-lg"><ChevronRight size={20} /></button>
               </div>
-              {item.whatsapp && (
-                <a href={`https://wa.me/${item.whatsapp}`} className="text-green-500 p-2 hover:bg-green-50 rounded-lg transition">
-                  <Phone size={18} />
-                </a>
-              )}
+            </div>
+            
+            <div className="grid grid-cols-7 gap-2 mb-4">
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
+                <div key={d} className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">{d}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {/* Renderização simplificada de dias */}
+              {Array.from({ length: 31 }).map((_, i) => (
+                <div 
+                  key={i} 
+                  className={`aspect-square rounded-2xl flex items-center justify-center text-sm font-bold transition-all cursor-pointer
+                    ${i + 1 === 12 ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'hover:bg-slate-50 text-slate-600'}
+                  `}
+                >
+                  {i + 1}
+                </div>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* MODAL DE CADASTRO */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl relative">
-            <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600">
-              <X size={24} />
-            </button>
-            <h2 className="text-2xl font-bold mb-6 text-slate-900">Novo Horário</h2>
-            <form onSubmit={handleSalvar} className="space-y-4">
-              <input required placeholder="Nome do Cliente" className="w-full p-4 bg-slate-50 rounded-xl border-none" value={nome} onChange={e => setNome(e.target.value)} />
-              <input placeholder="WhatsApp (somente números)" className="w-full p-4 bg-slate-50 rounded-xl border-none" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} />
-              <input required placeholder="Procedimento (Ex: Corte + Barba)" className="w-full p-4 bg-slate-50 rounded-xl border-none" value={servico} onChange={e => setServico(e.target.value)} />
-              <input required type="datetime-local" className="w-full p-4 bg-slate-50 rounded-xl border-none" value={dataHora} onChange={e => setDataHora(e.target.value)} />
-              <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition">
-                Confirmar Agendamento
-              </button>
-            </form>
+          {/* PRÓXIMOS EVENTOS (CARDS) */}
+          <div className="space-y-6">
+            <h3 className="text-lg font-black text-slate-900 uppercase italic">Próximos Compromissos</h3>
+            
+            {/* EVENTO ACADEMY */}
+            <div className="bg-white p-6 rounded-[32px] border-l-8 border-blue-600 shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-center gap-2 text-blue-600 font-bold text-[10px] uppercase mb-3">
+                <Video size={14} /> Aula Ao Vivo
+              </div>
+              <h4 className="font-black text-slate-900 italic uppercase leading-tight mb-4">Masterclass: Técnicas de Barboterapia PRO</h4>
+              <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
+                <div className="flex items-center gap-1"><Clock size={14} /> 20:00</div>
+                <div className="bg-slate-100 px-3 py-1 rounded-full">+100 XP</div>
+              </div>
+            </div>
+
+            {/* EVENTO ATENDIMENTO */}
+            <div className="bg-white p-6 rounded-[32px] border-l-8 border-slate-900 shadow-sm hover:shadow-md transition-all opacity-60">
+              <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase mb-3">
+                <User size={14} /> Atendimento Cliente
+              </div>
+              <h4 className="font-black text-slate-900 italic uppercase leading-tight mb-4">Corte & Barba - Cliente VIP 01</h4>
+              <div className="flex items-center justify-between text-slate-400 text-xs font-bold">
+                <div className="flex items-center gap-1"><Clock size={14} /> 14:30</div>
+                <div className="text-slate-300">Concluído</div>
+              </div>
+            </div>
+
           </div>
         </div>
-      )}
+
+      </div>
     </div>
   )
 }
