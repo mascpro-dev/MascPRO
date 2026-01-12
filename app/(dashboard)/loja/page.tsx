@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Category, Course } from '@/lib/types'
+import { Category, Product } from '@/lib/types'
 import CategoryFilter from '@/components/category-filter'
 import CourseCard from '@/components/Product'
 import { Loader2, ShoppingCart } from 'lucide-react'
@@ -36,7 +36,7 @@ export default function LojaPage() {
     try {
       const [categoriesRes, coursesRes] = await Promise.all([
         supabase.from('Category').select('*'),
-        supabase.from('Course').select(`
+        supabase.from('Product').select(`
           *,
           Category (
             id,
