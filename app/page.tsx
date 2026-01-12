@@ -45,7 +45,7 @@ const NetflixSection = ({ title, icon: Icon, children, link }: any) => (
 
 export default function DashboardHome() {
   return (
-    // 1. AUMENTO DO ESPAÇAMENTO GERAL (p-6 md:p-10)
+    // AQUI ESTÁ A CORREÇÃO DOS ESPAÇOS: p-6 md:p-10
     <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 max-w-7xl mx-auto space-y-8">
       
       {/* BARRA DE XP */}
