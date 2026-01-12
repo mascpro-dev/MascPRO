@@ -4,40 +4,33 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useEffect, useState } from "react"
 import { Loader2, ShoppingCart } from "lucide-react"
 import Link from "next/link"
-// REMOVI O IMPORT DE IMAGE QUE TRAVAVA
 
-// --- CARD COM IMG SIMPLES (PARA NÃO TRAVAR O DEPLOY) ---
+// --- CARD RESPONSIVO ---
 const ProductCard = ({ product }: { product: any }) => {
   return (
-    <div className="group hover:shadow-sm transition overflow-hidden border rounded-lg p-3 h-full flex flex-col bg-white">
-      <div className="relative w-full aspect-video rounded-md overflow-hidden bg-gray-100">
-        {/* USANDO IMG NORMAL PARA EVITAR ERRO DE CONFIGURAÇÃO */}
+    <div className="group hover:shadow-lg transition-all duration-300 overflow-hidden border border-gray-100 rounded-xl p-3 h-full flex flex-col bg-white">
+      <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden bg-gray-50">
         <img
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           alt={product.title || product.name || "Produto"}
           src={product.image_url || "https://placehold.co/600x400?text=Foto"}
         />
       </div>
-      <div className="flex flex-col pt-2 flex-grow">
-        <div className="text-lg md:text-base font-medium group-hover:text-sky-700 transition line-clamp-2">
+      <div className="flex flex-col pt-3 flex-grow">
+        <div className="text-base md:text-lg font-semibold text-slate-800 group-hover:text-blue-600 transition line-clamp-2 leading-tight">
           {product.title || product.name}
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-gray-500 mt-1 mb-2">
           {product.ProductCategory?.name || "Produto Masc PRO"}
         </p>
-        <div className="my-3 flex items-center gap-x-2 text-sm md:text-xs">
-          <div className="flex items-center gap-x-1 text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-            <ShoppingCart size={14} />
-            <span>Físico</span>
-          </div>
-        </div>
-        <div className="mt-auto flex items-center justify-between">
-            <span className="text-md md:text-sm font-medium text-slate-700">
+        
+        <div className="mt-auto flex items-center justify-between pt-2 border-t border-gray-50">
+            <span className="text-lg font-bold text-blue-600">
               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price || 0)}
             </span>
             <Link 
                 href={`/loja/${product.slug}`} 
-                className="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition"
+                className="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-blue-600 transition shadow-sm active:scale-95"
             >
                 Comprar
             </Link>
@@ -104,21 +97,25 @@ export default function LojaPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800">Loja Oficial</h1>
-        <p className="text-gray-500 mt-2">Produtos Profissionais e Home Care</p>
+    <div className="p-4 md:p-8 max-w-7xl mx-auto">
+      <div className="mb-6 md:mb-10">
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Loja Oficial</h1>
+        <p className="text-sm md:text-base text-gray-500 mt-1">Produtos Profissionais e Home Care</p>
       </div>
-      <div className="flex flex-wrap gap-2 mb-8">
-        <button onClick={() => setSelectedCategory(null)} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${selectedCategory === null ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-200'}`}>Todas</button>
+
+      {/* Filtros Responsivos (Scroll horizontal no celular) */}
+      <div className="flex overflow-x-auto pb-4 gap-2 mb-6 no-scrollbar touch-pan-x">
+        <button onClick={() => setSelectedCategory(null)} className={`whitespace-nowrap px-4 py-2 rounded-full text-xs md:text-sm font-medium transition-colors border ${selectedCategory === null ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-200'}`}>Todas</button>
         {categories.map((category) => (
-          <button key={category.id} onClick={() => setSelectedCategory(category.id)} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${selectedCategory === category.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-200'}`}>{category.name}</button>
+          <button key={category.id} onClick={() => setSelectedCategory(category.id)} className={`whitespace-nowrap px-4 py-2 rounded-full text-xs md:text-sm font-medium transition-colors border ${selectedCategory === category.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-200'}`}>{category.name}</button>
         ))}
       </div>
+
       {filteredProducts.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg border border-dashed"><p className="text-gray-500">Nenhum produto encontrado.</p></div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        // GRID RESPONSIVO: 1 coluna no celular, 2 no tablet, 3 no PC, 4 na tela grande
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
           {filteredProducts.map((product) => (<ProductCard key={product.id} product={product} />))}
         </div>
       )}
