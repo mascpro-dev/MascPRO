@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Category, Course } from '@/lib/types'
 import CategoryFilter from '@/components/category-filter'
-import CourseCard from '@/components/product'
+import CourseCard from '@/components/Product'
 import { Loader2, ShoppingCart } from 'lucide-react'
 
 export default function LojaPage() {
   const [categories, setCategories] = useState<Category[]>([])
-  const [courses, setCourses] = useState<Course[]>([])
+  const [courses, setCourses] = useState<Product[]>([])
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
