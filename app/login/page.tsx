@@ -3,8 +3,7 @@
 import { useState } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useRouter } from "next/navigation"
-import { Loader2, Mail, Lock, ArrowLeft, UserPlus, LogIn } from "lucide-react"
-import Link from "next/link"
+import { Loader2, Mail, Lock, ArrowLeft } from "lucide-react"
 
 export default function LoginPage() {
   const [view, setView] = useState<'login' | 'register' | 'forgot'>('login')
@@ -67,7 +66,7 @@ export default function LoginPage() {
               {message.text}
             </div>
           )}
-          
+
           <form onSubmit={handleAuth} className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">E-mail</label>
