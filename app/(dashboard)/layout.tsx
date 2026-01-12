@@ -1,4 +1,4 @@
-"use client" // Adicione isso na primeira linha se não tiver
+"use client"
 
 import { useState } from "react"
 import Link from "next/link"
@@ -18,7 +18,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push("/login")
   }
 
-  // Lista de Links do Menu
   const navItems = [
     { href: "/", label: "Meu Nível", icon: LayoutDashboard },
     { href: "/academy", label: "Academy", icon: GraduationCap },
@@ -27,42 +26,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
+    <div className="min-h-screen bg-[#0f172a] flex flex-col md:flex-row font-sans">
       
-      {/* 1. MENU MOBILE (Só aparece no celular) */}
-      <div className="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center sticky top-0 z-50">
-        <span className="font-bold text-lg">Masc PRO</span>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+      {/* MENU MOBILE - FIXO NO TOPO */}
+      <div className="md:hidden bg-slate-900/95 backdrop-blur-md text-white p-4 flex justify-between items-center fixed top-0 w-full z-[100] border-b border-white/10">
+        <span className="font-bold text-xl tracking-tighter italic">MASC<span className="text-blue-500">PRO</span></span>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 hover:bg-white/10 rounded-lg">
           {isMobileMenuOpen ? <X /> : <Menu />}
         </button>
       </div>
 
-      {/* 2. MENU LATERAL (Sidebar - Fixo no PC, Gaveta no Celular) */}
+      {/* SIDEBAR - GAVETA NO CELULAR */}
       <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 bg-white border-r transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:h-auto
+        fixed inset-y-0 left-0 z-[90] w-72 bg-slate-900 text-slate-300 transform transition-transform duration-500 ease-in-out md:translate-x-0 md:static md:h-screen
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="p-6 h-full flex flex-col">
-          <div className="mb-8 md:block hidden">
-            <h1 className="text-2xl font-bold text-slate-900">Masc PRO</h1>
-            <p className="text-xs text-gray-500">App Educacional</p>
+        <div className="p-8 h-full flex flex-col border-r border-white/5">
+          <div className="mb-12 md:block hidden">
+            <h1 className="text-2xl font-black italic tracking-tighter text-white">MASC<span className="text-blue-500">PRO</span></h1>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mt-1">Professional Education</p>
           </div>
 
-          <nav className="space-y-2 flex-grow">
+          <nav className="space-y-1.5 flex-grow">
             {navItems.map((item) => {
               const isActive = pathname === item.href
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={() => setIsMobileMenuOpen(false)} // Fecha menu ao clicar (mobile)
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-4 px-4 py-4 rounded-xl text-sm font-bold transition-all duration-300
                     ${isActive 
-                      ? "bg-blue-600 text-white shadow-md" 
-                      : "text-gray-600 hover:bg-gray-100 hover:text-slate-900"
+                      ? "bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]" 
+                      : "text-slate-400 hover:bg-white/5 hover:text-white"
                     }`}
                 >
-                  <item.icon size={20} />
+                  <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
                   {item.label}
                 </Link>
               )
@@ -71,25 +70,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           <button 
             onClick={handleSignOut} 
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg mt-auto"
+            className="flex items-center gap-4 px-4 py-4 text-sm font-bold text-slate-500 hover:text-red-400 transition-colors mt-auto border-t border-white/5"
           >
-            <LogOut size={20} />
-            Sair
+            <LogOut size={22} />
+            Sair da Conta
           </button>
         </div>
       </aside>
 
-      {/* 3. CONTEÚDO PRINCIPAL */}
-      <main className="flex-1 p-0 md:p-0 overflow-x-hidden">
-        {/* Camada escura quando menu mobile abre */}
+      {/* CONTEÚDO PRINCIPAL - AJUSTE DE MARGEM (pt-20) */}
+      <main className="flex-1 pt-20 md:pt-0 h-screen overflow-y-auto bg-slate-50 rounded-t-[32px] md:rounded-t-none md:rounded-l-[32px] transition-all duration-500">
+        {/* Overlay para fechar menu mobile ao clicar fora */}
         {isMobileMenuOpen && (
-          <div 
-            className="fixed inset-0 bg-black/50 z-30 md:hidden"
-            onClick={() => setIsMobileMenuOpen(false)}
-          />
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
         )}
         
-        {children}
+        <div className="min-h-full">
+            {children}
+        </div>
       </main>
     </div>
   )
