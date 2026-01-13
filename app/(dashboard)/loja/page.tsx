@@ -1,112 +1,79 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { ShoppingBag, Loader2, Package, AlertCircle } from "lucide-react"
-import XPBar from "@/components/xp-bar"
-import { toast } from "react-hot-toast"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, ShoppingBag, Loader2, Star } from "lucide-react"
+import { useState, useEffect } from "react"
 
 export default function LojaPage() {
-  const supabase = createClientComponentClient()
+  const router = useRouter()
   const [produtos, setProdutos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [perfil, setPerfil] = useState<any>(null)
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      
-      // 1. Pega o usuário logado
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (user) {
-        // Carrega o perfil do usuário
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
-        setPerfil(profileData)
-
-        // 2. CORREÇÃO DO ERRO 406: Carrega produtos sem filtros 'undefined'
-        // Busca todos os produtos ativos
-        const { data: productsData, error: prodError } = await supabase
-          .from('Product') // Certifique-se que o nome da tabela é 'Product' com P maiúsculo como no erro
-          .select('*')
-          .order('name', { ascending: true })
-
-        if (prodError) {
-          console.error("Erro ao carregar produtos:", prodError)
-          toast.error("Erro ao carregar vitrine.")
-        } else {
-          setProdutos(productsData || [])
-        }
+    async function loadProducts() {
+      try {
+        const response = await fetch('/api/products')
+        const data = await response.json()
+        setProdutos(data)
+      } catch (err) {
+        console.error("Erro na Loja:", err)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
+    loadProducts()
+  }, [])
 
-    fetchData()
-  }, [supabase])
-
-  const handleCompra = async (produto: any) => {
-    if (!perfil) return;
-    
-    try {
-      const novoXP = (perfil.xp || 0) + (produto.xp_value || 500)
-      const { error } = await supabase
-        .from('profiles')
-        .update({ xp: novoXP })
-        .eq('id', perfil.id)
-
-      if (error) throw error
-      
-      setPerfil({ ...perfil, xp: novoXP })
-      toast.success(`${produto.name} adquirido! XP atualizado.`)
-    } catch (e) {
-      toast.error("Erro ao processar XP.")
-    }
+  if (loading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="animate-spin text-blue-600" size={40} />
+      </div>
+    )
   }
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center">
-      <Loader2 className="animate-spin text-blue-600" size={40} />
-    </div>
-  )
-
   return (
-    <div className="p-4 md:p-10 space-y-8 max-w-7xl mx-auto min-h-screen">
-      <h1 className="text-4xl font-black italic uppercase tracking-tighter">Shop Masc PRO</h1>
-      <XPBar />
+    <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
+      
+      {/* HEADER COM VOLTAR */}
+      <div className="flex items-center gap-4 mb-4">
+        <button onClick={() => router.back()} className="p-2.5 bg-white border rounded-full shadow-sm">
+          <ArrowLeft size={20} />
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Loja Real-Time</h1>
+          <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest">Sincronizado com Nuvemshop</p>
+        </div>
+      </div>
 
-      {produtos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-20 bg-white rounded-[40px] border border-dashed border-slate-200">
-          <Package size={48} className="text-slate-200 mb-4" />
-          <p className="text-slate-500 font-bold uppercase text-xs italic">Nenhum produto cadastrado no banco</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {produtos.map((prod) => (
-            <div key={prod.id} className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 hover:shadow-xl transition-all group">
-              <div className="aspect-square bg-slate-50 rounded-2xl flex items-center justify-center mb-4 relative overflow-hidden">
-                <Package size={40} className="text-slate-200" />
-                <div className="absolute top-4 right-4 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full italic">
-                  +{prod.xp_value || 500} XP
+      {/* GRID DE PRODUTOS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
+        {produtos.map((prod) => (
+          <div 
+            key={prod.id} 
+            onClick={() => router.push(`/loja/${prod.id}`)}
+            className="group bg-white rounded-3xl border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-500 cursor-pointer"
+          >
+            <div className="aspect-square relative p-6 bg-slate-50">
+              <img src={prod.image_url} className="w-full h-full object-contain group-hover:scale-110 transition duration-700" />
+              {prod.stock <= 0 && (
+                <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+                  <span className="bg-slate-900 text-white text-[10px] px-3 py-1 rounded-full font-bold">ESGOTADO</span>
                 </div>
-              </div>
-              <p className="font-black text-slate-900 uppercase italic text-lg">{prod.name}</p>
-              <div className="flex justify-between items-center mt-6">
-                <span className="font-black text-2xl text-slate-900 italic">R$ {prod.price}</span>
-                <button 
-                  onClick={() => handleCompra(prod)}
-                  className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-blue-600 transition-all active:scale-95 shadow-lg"
-                >
-                  <ShoppingBag size={20} />
-                </button>
-              </div>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+            <div className="p-5 text-center">
+              <h3 className="font-bold text-slate-800 text-sm truncate">{prod.title}</h3>
+              <div className="mt-2 text-blue-600 font-black text-lg">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prod.price)}
+              </div>
+              <button className="mt-4 w-full bg-slate-900 text-white py-3 rounded-xl text-[10px] font-bold uppercase hover:bg-blue-600 transition">
+                Ver Produto
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
