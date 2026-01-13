@@ -46,7 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // --- CORREÇÃO: signOut deve ser chamado dentro de supabase.auth ---
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut() 
+      await supabase.auth.signOut() .auth
       router.push("/login")
       router.refresh()
     } catch (error) {
