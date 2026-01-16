@@ -4,8 +4,9 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { ArrowLeft, Play, Lock, Share2 } from "lucide-react";
-// Importamos o nosso novo botão inteligente
-import LessonButton from "@/components/LessonButton";
+
+// --- CORREÇÃO AQUI: Mudamos de 'components' para 'componentes' ---
+import LessonButton from "../../../../componentes/LessonButton";
 
 export default async function AulaPage({ params }: { params: { id: string } }) {
   const supabase = createServerComponentClient({ cookies });
@@ -62,7 +63,7 @@ export default async function AulaPage({ params }: { params: { id: string } }) {
             <div className="p-6 md:p-8 space-y-6">
                 <div className="flex flex-wrap items-center gap-4">
                     
-                    {/* --- O NOVO BOTÃO FUNCIONAL AQUI --- */}
+                    {/* --- O BOTÃO AGORA VAI FUNCIONAR --- */}
                     <LessonButton amount={50} />
                     
                     <button className="flex-1 md:flex-none bg-slate-800 hover:bg-slate-700 text-white font-bold px-6 py-4 rounded-xl flex items-center justify-center gap-2 transition-all border border-white/5">
