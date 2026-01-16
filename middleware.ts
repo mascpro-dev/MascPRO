@@ -6,24 +6,30 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
-  // Usamos 'any' aqui para ignorar o erro de tipagem que está travando o seu Build na Vercel
-  const { data: { session } } = await (supabase.auth as any).getSession()
+  // Verifica se o usuário está logado
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
 
-  const isLoginPage = req.nextUrl.pathname === '/login'
-
-  // 🛡️ Se não tiver sessão e não for a página de login, manda para o login
-  if (!session && !isLoginPage) {
+  // Se NÃO estiver logado e tentar entrar em área protegida (home, perfil, etc)
+  // Manda de volta pro Login
+  if (!session && req.nextUrl.pathname.startsWith('/home')) {
+    return NextResponse.redirect(new URL('/login', req.url))
+  }
+  
+  if (!session && req.nextUrl.pathname === '/') {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  // 🛡️ Se já estiver logado e tentar ir para o login, manda para a home
-  if (session && isLoginPage) {
-    return NextResponse.redirect(new URL('/', req.url))
+  // Se JÁ estiver logado e tentar ir pro Login
+  // Manda direto pra Home
+  if (session && req.nextUrl.pathname === '/login') {
+    return NextResponse.redirect(new URL('/home', req.url))
   }
 
   return res
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.png$).*)'],
+  matcher: ['/', '/login', '/home/:path*', '/perfil/:path*'],
 }
