@@ -7,7 +7,7 @@ export default function InviteCard({ userId }: { userId: string }) {
   const [inviteLink, setInviteLink] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // Gera o link assim que a tela carrega (No navegador do cliente)
+  // Gera o link seguro usando a URL do navegador
   useEffect(() => {
     if (typeof window !== "undefined") {
       setInviteLink(`${window.location.origin}/cadastro?ref=${userId}`);
@@ -21,25 +21,23 @@ export default function InviteCard({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="border border-white/10 rounded-2xl p-6 md:p-8 bg-black flex flex-col md:flex-row items-center justify-between gap-6 shadow-lg relative overflow-hidden">
+    <div className="border border-white/10 rounded-2xl p-6 md:p-8 bg-black flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
         
-        {/* Efeito de Fundo */}
-        <div className="absolute top-0 right-0 p-20 bg-[#C9A66B] opacity-5 blur-[60px] rounded-full pointer-events-none"></div>
-
         <div className="relative z-10">
             <h3 className="text-white font-bold text-lg mb-1 flex items-center gap-2">
                 <Users size={18} className="text-[#C9A66B]"/>
                 Convite Exclusivo
             </h3>
+            {/* TEXTO CORRIGIDO AQUI */}
             <p className="text-slate-500 text-sm max-w-sm">
-                Ganhe <span className="text-white font-bold">10% de comissão</span> vitalícia sobre os PROs de quem você indicar.
+                Ganhe <span className="text-white font-bold">10% das moedas PRO</span> geradas pelos seus indicados.
             </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto relative z-10">
             {/* O Link Visual */}
             <div className="bg-slate-900/80 px-4 py-3 rounded-xl border border-white/10 text-slate-400 font-mono text-xs w-full sm:w-64 truncate select-all">
-                {inviteLink || "Gerando link..."}
+                {inviteLink || "Carregando link..."}
             </div>
             
             <div className="flex gap-2 w-full sm:w-auto">
@@ -52,14 +50,14 @@ export default function InviteCard({ userId }: { userId: string }) {
                     <span className="sm:hidden md:inline">{copied ? "Copiado!" : "Copiar"}</span>
                 </button>
 
-                {/* Botão Testar (Abre em nova aba) */}
+                {/* Botão Testar (Abre em NOVA ABA para não sumir seu menu) */}
                 {inviteLink && (
                     <a 
                         href={inviteLink} 
-                        target="_blank" // Abre em outra aba para não fechar seu painel
+                        target="_blank" 
                         rel="noopener noreferrer"
-                        className="bg-slate-800 hover:bg-slate-700 text-white p-3 rounded-xl transition-colors border border-white/10"
-                        title="Testar Link"
+                        className="bg-slate-800 hover:bg-slate-700 text-white p-3 rounded-xl transition-colors border border-white/10 flex items-center justify-center"
+                        title="Testar Link (Nova Aba)"
                     >
                         <ExternalLink size={20} />
                     </a>

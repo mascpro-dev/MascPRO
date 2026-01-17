@@ -1,25 +1,45 @@
-export const dynamic = "force-dynamic";
+"use client"; // Transformamos em Client Component para evitar erros de importação agora
 
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
-import { Trophy } from "lucide-react";
-import InviteCard from "../../componentes/InviteCard"; // Importando o novo card inteligente
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useEffect, useState } from "react";
+import { Trophy, Users, Copy, Check, ExternalLink } from "lucide-react";
 
-export default async function VisaoGeralPage() {
-  const supabase = createServerComponentClient({ cookies });
-  
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session) {
-      return <div className="p-8 text-white">Carregando...</div>
-  }
+export default function VisaoGeralPage() {
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [inviteLink, setInviteLink] = useState("");
+  const [copied, setCopied] = useState(false);
+  const supabase = createClientComponentClient();
 
-  // Busca dados do perfil
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", session.user.id)
-    .single();
+  useEffect(() => {
+    async function getData() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // 1. Busca Perfil
+        const { data } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single();
+        setProfile(data);
+
+        // 2. Gera Link (Seguro)
+        if (typeof window !== "undefined") {
+            setInviteLink(`${window.location.origin}/cadastro?ref=${session.user.id}`);
+        }
+      }
+      setLoading(false);
+    }
+    getData();
+  }, [supabase]);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (loading) return <div className="p-8 text-white">Carregando painel...</div>;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -75,9 +95,47 @@ export default async function VisaoGeralPage() {
           </div>
       </div>
 
-      {/* --- NOVO CARD DE CONVITE INTELIGENTE --- */}
-      {/* Ele gera o link sozinho e tem botão de teste que abre em nova aba */}
-      <InviteCard userId={session.user.id} />
+      {/* --- CARD DE CONVITE (Embutido e Seguro) --- */}
+      <div className="border border-white/10 rounded-2xl p-6 md:p-8 bg-black flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+          <div className="relative z-10">
+              <h3 className="text-white font-bold text-lg mb-1 flex items-center gap-2">
+                  <Users size={18} className="text-[#C9A66B]"/>
+                  Convite Exclusivo
+              </h3>
+              <p className="text-slate-500 text-sm max-w-sm">
+                  Ganhe <span className="text-white font-bold">10% das moedas PRO</span> geradas pelos seus indicados.
+              </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto relative z-10">
+              <div className="bg-slate-900/80 px-4 py-3 rounded-xl border border-white/10 text-slate-400 font-mono text-xs w-full sm:w-64 truncate select-all">
+                  {inviteLink || "Carregando link..."}
+              </div>
+              
+              <div className="flex gap-2 w-full sm:w-auto">
+                  <button 
+                      onClick={handleCopy}
+                      className="flex-1 sm:flex-none bg-[#C9A66B] hover:bg-[#b08d55] text-black font-bold px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95"
+                  >
+                      {copied ? <Check size={18} /> : <Copy size={18} />}
+                      <span className="sm:hidden md:inline">{copied ? "Copiado!" : "Copiar"}</span>
+                  </button>
+
+                  {/* Botão Testar - Abre Nova Aba */}
+                  {inviteLink && (
+                      <a 
+                          href={inviteLink} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="bg-slate-800 hover:bg-slate-700 text-white p-3 rounded-xl transition-colors border border-white/10 flex items-center justify-center"
+                          title="Testar Link"
+                      >
+                          <ExternalLink size={20} />
+                      </a>
+                  )}
+              </div>
+          </div>
+      </div>
 
     </div>
   );
