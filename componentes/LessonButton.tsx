@@ -2,10 +2,9 @@
 
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useState } from "react";
-import { CheckCircle, Zap, Loader2, Lock } from "lucide-react"; // Importei o cadeado
+import { CheckCircle, Zap, Loader2, Lock } from "lucide-react"; 
 import { useRouter } from "next/navigation";
 
-// Adicionei uma propriedade 'locked' opcional para o futuro
 export default function LessonButton({ amount, locked = false }: { amount: number, locked?: boolean }) {
   const [loading, setLoading] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -13,34 +12,21 @@ export default function LessonButton({ amount, locked = false }: { amount: numbe
   const router = useRouter();
 
   const handleCollect = async () => {
-    if (locked) return; // Se estiver travado, não faz nada
+    if (locked || completed) return;
     
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-        setLoading(false);
-        return;
-    }
 
-    // Busca saldo atual
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('pro_balance')
-        .eq('id', user.id)
-        .single();
-    
-    const newBalance = (profile?.pro_balance || 0) + amount;
-
-    const { error } = await supabase
-        .from('profiles')
-        .update({ pro_balance: newBalance })
-        .eq('id', user.id);
+    // CHAMA A FUNÇÃO INTELIGENTE DO BANCO (RPC)
+    // Ela já dá os 100% pro aluno e 10% pro padrinho automaticamente
+    const { error } = await supabase.rpc('redeem_points', { 
+      amount: amount 
+    });
 
     if (!error) {
       setCompleted(true);
-      router.refresh(); 
+      router.refresh(); // Atualiza o saldo na tela
     } else {
+      console.error(error);
       alert("Erro ao resgatar. Tente novamente.");
     }
     setLoading(false);
@@ -49,35 +35,35 @@ export default function LessonButton({ amount, locked = false }: { amount: numbe
   // 1. ESTADO: JÁ RESGATADO
   if (completed) {
     return (
-      <button disabled className="w-full flex-1 border border-green-500 text-green-500 font-bold py-4 rounded-xl flex items-center justify-center gap-2 cursor-default bg-transparent opacity-50">
+      <button disabled className="w-full flex-1 border border-green-500 text-green-500 font-bold py-4 rounded-xl flex items-center justify-center gap-2 cursor-default bg-transparent opacity-50 transition-all">
         <CheckCircle size={20} />
         Resgatado (+{amount} PRO)
       </button>
     );
   }
 
-  // 2. ESTADO: TRAVADO (VÍDEO NÃO TERMINOU)
+  // 2. ESTADO: TRAVADO (AGUARDANDO VÍDEO)
   if (locked) {
       return (
-        <button disabled className="w-full flex-1 border border-slate-700 text-slate-500 font-bold py-4 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed bg-transparent opacity-50">
+        <button disabled className="w-full flex-1 border border-slate-700 text-slate-500 font-bold py-4 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed bg-transparent opacity-50 transition-all">
             <Lock size={20} />
-            Assista até o final para liberar
+            Assista até o final
         </button>
       );
   }
 
-  // 3. ESTADO: DISPONÍVEL (BOTÃO NORMAL)
+  // 3. ESTADO: PRONTO PARA RESGATAR
   return (
     <button 
       onClick={handleCollect}
       disabled={loading}
-      className="w-full flex-1 group bg-transparent hover:bg-[#A6CE44]/10 border border-[#A6CE44] text-[#A6CE44] font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_10px_rgba(166,206,68,0.1)] hover:shadow-[0_0_20px_rgba(166,206,68,0.3)]"
+      className="w-full flex-1 group bg-[#A6CE44]/10 hover:bg-[#A6CE44] border border-[#A6CE44] text-[#A6CE44] hover:text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(166,206,68,0.1)] hover:shadow-[0_0_30px_rgba(166,206,68,0.6)] active:scale-95"
     >
       {loading ? (
         <Loader2 className="animate-spin" />
       ) : (
         <>
-            <Zap size={20} className="group-hover:scale-110 transition-transform" /> 
+            <Zap size={20} className="group-hover:fill-black transition-transform" /> 
             RESGATAR +{amount} PRO
         </>
       )}
