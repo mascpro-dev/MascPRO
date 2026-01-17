@@ -1,5 +1,5 @@
 // CORREÇÃO: Agora apontando para "components" (em inglês)
-import Sidebar from "@/components/Sidebar"; 
+import Sidebar from "@/componentes/Sidebar"; 
 
 export default function MainLayout({
   children,
