@@ -67,9 +67,10 @@ export default function LoginPage() {
             />
           </div>
 
+          {/* BOTÃO ENTRAR (Estilo Clean/Outline Dourado) */}
           <button 
             disabled={loading}
-            className="w-full bg-[#C9A66B] hover:bg-[#b08d55] text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(201,166,107,0.2)]"
+            className="w-full bg-[#C9A66B]/10 hover:bg-[#C9A66B]/20 border border-[#C9A66B]/50 text-[#C9A66B] font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(201,166,107,0.1)] hover:shadow-[0_0_30px_rgba(201,166,107,0.2)]"
           >
             {loading ? <Loader2 className="animate-spin" /> : <>Entrar <ArrowRight size={20} /></>}
           </button>
@@ -81,7 +82,7 @@ export default function LoginPage() {
             <div className="relative flex justify-center text-xs uppercase"><span className="bg-black px-2 text-slate-500">Ou</span></div>
         </div>
 
-        {/* Botão do WhatsApp (Restaurado!) */}
+        {/* Botão do WhatsApp (Estilo Clean/Outline Verde) */}
         <a 
             href="https://wa.me/5511999999999?text=Olá,%20gostaria%20de%20um%20convite%20para%20o%20MASC%20PRO" 
             target="_blank"
