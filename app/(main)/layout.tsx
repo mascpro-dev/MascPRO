@@ -7,21 +7,20 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    // "flex-row" garante que no PC fique um do lado do outro
     <div className="flex h-screen bg-black overflow-hidden relative">
       
-      {/* Esquerda: Menu PC */}
+      {/* PC: Menu Esquerdo */}
       <Sidebar />
 
-      {/* Direita: Conteúdo */}
+      {/* Conteúdo Principal */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
-        {/* pb-24 garante que o menu do celular não tampe o conteúdo */}
+        {/* pb-24 garante espaço pro menu do celular não tapar nada */}
         <div className="p-6 md:p-12 max-w-7xl mx-auto pb-24 md:pb-12">
           {children}
         </div>
       </main>
 
-      {/* Rodapé: Menu Celular (Fixo por cima de tudo) */}
+      {/* Celular: Menu Rodapé */}
       <MobileBottomNav />
       
     </div>

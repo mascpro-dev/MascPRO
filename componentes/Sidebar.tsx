@@ -25,7 +25,7 @@ export default function Sidebar() {
   ];
 
   return (
-    // PC: Menu Fixo na Esquerda (w-64) | Celular: Escondido (hidden)
+    // "hidden md:flex" -> Oculto no celular, Flexível (Aberto) no PC
     <aside className="hidden md:flex w-64 bg-black border-r border-white/10 flex-col h-full shrink-0">
       
       <div className="p-8">
@@ -58,7 +58,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-white/10 mt-auto">
-        <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-4 w-full text-slate-500 hover:text-red-400 font-bold">
+        <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-4 w-full text-slate-500 hover:text-red-400 font-bold hover:bg-white/5 rounded-xl">
           <LogOut size={20} />
           Sair
         </button>
