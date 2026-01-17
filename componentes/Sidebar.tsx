@@ -25,10 +25,9 @@ export default function Sidebar() {
   ];
 
   return (
-    // MUDEI AQUI: Removi o "hidden" para "flex". Agora ele aparece sempre!
+    // AQUI: GARANTIMOS QUE O MENU APARECE SEMPRE (flex)
     <aside className="w-64 bg-black border-r border-white/10 flex flex-col h-full shrink-0">
       
-      {/* HEADER LOGO */}
       <div className="p-8">
         <h1 className="text-2xl font-black text-white italic tracking-tighter">
           MASC <span className="text-[#C9A66B]">PRO</span>
@@ -38,7 +37,6 @@ export default function Sidebar() {
         </p>
       </div>
 
-      {/* NAVEGAÇÃO */}
       <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
@@ -64,7 +62,6 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* FOOTER SAIR */}
       <div className="p-4 border-t border-white/10 mt-auto">
         <button
           onClick={handleLogout}

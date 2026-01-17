@@ -1,5 +1,5 @@
-// Importando da pasta componentes (em português) que está na raiz
-import Sidebar from "../../../componentes/Sidebar"; 
+// USANDO O ATALHO ABSOLUTO (Blindado contra erros de pasta)
+import Sidebar from "@/componentes/Sidebar"; 
 
 export default function MainLayout({
   children,
@@ -8,10 +8,10 @@ export default function MainLayout({
 }) {
   return (
     <div className="flex h-screen bg-black overflow-hidden">
-      {/* Sidebar na esquerda */}
+      {/* 1. O Menu Lateral Fixo */}
       <Sidebar />
 
-      {/* Conteúdo na direita */}
+      {/* 2. O Conteúdo (Visão Geral) */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="p-6 md:p-12 max-w-7xl mx-auto">
           {children}
