@@ -1,110 +1,112 @@
-// --- A LINHA MÁGICA ESTÁ AQUI EMBAIXO ---
 export const dynamic = "force-dynamic";
 
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { Trophy, Star, ArrowUpRight, Shield, TrendingUp } from "lucide-react";
+import { Trophy } from "lucide-react";
 
 export default async function HomePage() {
   const supabase = createServerComponentClient({ cookies });
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // 1. Quem é o usuário logado?
+  const { data: { session } } = await supabase.auth.getSession();
 
+  if (!session) {
+    return <div className="p-8 text-white">Carregando usuário...</div>;
+  }
+
+  // 2. BUSCA O PERFIL E O SALDO NA TABELA NOVA
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
-    .eq("id", session?.user?.id)
+    .eq("id", session.user.id)
     .single();
 
+  // Se der erro ou não achar, assume 0. Se achar, mostra o valor do banco.
+  const balance = profile?.pro_balance ?? 0;
+  const userName = profile?.full_name || "Membro MASC";
+  const referralCode = profile?.referral_code || "Gerando...";
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      {/* CABEÇALHO */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white">
-            Olá, {profile?.full_name || "Membro MASC"}
-          </h1>
-          <p className="text-masc-bone/60">
-            Seu progresso é recompensado.
-          </p>
-        </div>
-        
-        {profile?.role === 'admin' && (
-           <span className="bg-masc-purple/20 text-masc-blue border border-masc-purple/50 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-             <Shield size={12} /> Admin Mode
-           </span>
-        )}
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+      
+      {/* --- CABEÇALHO --- */}
+      <div>
+        <h1 className="text-3xl md:text-4xl font-black text-white tracking-tighter">
+          Olá, {userName}
+        </h1>
+        <p className="text-slate-400 mt-2">
+          Seu progresso é recompensado.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* CARD PRO - ESTILO BLACK/GOLD */}
-        <div className="col-span-1 md:col-span-2 bg-gradient-to-br from-slate-900 via-black to-slate-950 rounded-2xl p-8 border border-masc-gold/30 relative overflow-hidden group shadow-2xl">
-          {/* Brilho Dourado de Fundo */}
-          <div className="absolute -top-24 -right-24 w-64 h-64 bg-masc-gold/20 blur-[80px] rounded-full pointer-events-none"></div>
-          
-          <div className="relative z-10 flex flex-col justify-between h-full min-h-[180px]">
-            <div className="flex justify-between items-start">
-                <div className="flex items-center gap-2 text-masc-gold mb-2 bg-masc-gold/10 px-3 py-1 rounded-full border border-masc-gold/20 w-fit">
-                    <Star size={14} fill="currentColor" />
-                    <span className="font-bold tracking-widest text-[10px] uppercase">Masc Coin</span>
-                </div>
-                <Trophy className="text-masc-gold/20 group-hover:text-masc-gold/40 transition-colors" size={40} />
+      {/* --- CARTÃO DE SALDO (O cofre) --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-gradient-to-br from-slate-900 to-black border border-white/10 rounded-3xl p-8 relative overflow-hidden group">
+            {/* Ícone de fundo decorativo */}
+            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Trophy size={120} />
             </div>
             
-            <div>
-                <div className="text-5xl md:text-7xl font-black text-white tracking-tighter drop-shadow-lg">
-                {profile?.pro_balance || 0} <span className="text-2xl text-slate-500 font-medium">PRO</span>
+            <div className="relative z-10">
+                <div className="inline-flex items-center gap-2 border border-white/20 bg-white/5 rounded-full px-3 py-1 mb-6">
+                    <Trophy size={14} className="text-white" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-white">MASC COIN</span>
                 </div>
-                <p className="text-slate-400 text-sm mt-2 flex items-center gap-2">
-                    <TrendingUp size={14} className="text-masc-lime" />
-                    Seu poder de compra na loja.
+
+                <div className="flex items-baseline gap-1">
+                    {/* AQUI APARECE O 1000 */}
+                    <span className="text-6xl font-black text-white tracking-tighter">
+                        {balance}
+                    </span>
+                    <span className="text-xl font-bold text-slate-500">PRO</span>
+                </div>
+                
+                <p className="text-slate-500 text-sm mt-2 font-medium">
+                  ↗ Seu poder de compra na loja.
                 </p>
             </div>
-          </div>
         </div>
 
-        {/* CARD PRÓXIMO NÍVEL - ESTILO ROXO */}
-        <div className="bg-slate-900/50 border border-white/5 rounded-2xl p-6 flex flex-col justify-between hover:border-masc-purple/50 transition-colors relative overflow-hidden">
-           <div className="absolute inset-0 bg-gradient-to-b from-masc-purple/5 to-transparent pointer-events-none"></div>
-          <div>
-            <h3 className="text-lg font-bold text-white mb-1">Próxima Placa</h3>
-            <p className="text-masc-blue text-sm font-medium">Marco de 10k</p>
-          </div>
-          
-          <div className="mt-6">
-            <div className="flex justify-between text-xs text-slate-500 mb-2 font-mono">
-              <span>0 PRO</span>
-              <span>10.000 PRO</span>
+        {/* --- PRÓXIMA PLACA --- */}
+        <div className="bg-slate-900/50 border border-white/5 rounded-3xl p-8 flex flex-col justify-between">
+            <div>
+                <h3 className="text-white font-bold text-lg mb-1">Próxima Placa</h3>
+                <p className="text-slate-400 text-sm">Marco de 10k</p>
             </div>
-            <div className="w-full bg-black rounded-full h-2 border border-white/5">
-              <div 
-                className="bg-gradient-to-r from-masc-blue to-masc-purple h-full rounded-full" 
-                style={{ width: `${Math.min(((profile?.pro_balance || 0) / 10000) * 100, 100)}%` }}
-              ></div>
+
+            <div className="space-y-2 mt-8">
+                <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500">
+                    <span>{balance} PRO</span>
+                    <span>10.000 PRO</span>
+                </div>
+                {/* Barra de Progresso */}
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div 
+                        className="h-full bg-[#C9A66B]" 
+                        style={{ width: `${(balance / 10000) * 100}%` }}
+                    />
+                </div>
+                <button className="w-full mt-4 border border-white/10 hover:bg-white/5 text-slate-300 text-xs font-bold py-3 rounded-xl uppercase tracking-widest transition-colors">
+                    Ver Placas
+                </button>
             </div>
-             <button className="w-full mt-6 bg-white/5 hover:bg-white/10 text-white py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors border border-white/5">
-              Ver Placas
-            </button>
-          </div>
         </div>
       </div>
-      
-      {/* CARD DE INDICAÇÃO */}
-      <div className="bg-gradient-to-r from-masc-teal/10 to-transparent border border-masc-teal/20 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div>
-              <h3 className="font-bold text-white">Convite Exclusivo</h3>
-              <p className="text-sm text-slate-400">Ganhe PROs convidando profissionais qualificados.</p>
-          </div>
-          <div className="flex gap-2 w-full md:w-auto">
-              <code className="flex-1 md:flex-none bg-black border border-masc-teal/30 rounded-lg p-3 text-masc-gold font-mono text-sm tracking-wider">
-                  mascpro.app/ref/{profile?.referral_code || "..."}
-              </code>
-              <button className="bg-masc-teal text-white px-6 py-2 rounded-lg font-bold hover:bg-masc-teal/80 transition-colors text-sm">
-                  Copiar
-              </button>
-          </div>
+
+      {/* --- CÓDIGO DE CONVITE --- */}
+      <div className="bg-black border border-white/10 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+            <h3 className="text-white font-bold text-sm">Convite Exclusivo</h3>
+            <p className="text-slate-500 text-xs mt-1">Ganhe PROs convidando profissionais qualificados.</p>
+        </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+            <div className="bg-slate-900 border border-white/10 px-4 py-3 rounded-xl font-mono text-xs text-white flex-1 md:flex-none">
+                mascpro.app/ref/{referralCode}
+            </div>
+            <button className="bg-white text-black font-bold text-xs px-6 py-3 rounded-xl hover:bg-slate-200 transition-colors">
+                Copiar
+            </button>
+        </div>
       </div>
     </div>
   );
