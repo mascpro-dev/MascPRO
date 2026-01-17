@@ -10,7 +10,6 @@ export default function Sidebar() {
   const router = useRouter();
   const supabase = createClientComponentClient();
 
-  // Função para deslogar
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.refresh();
@@ -18,36 +17,17 @@ export default function Sidebar() {
   };
 
   const menuItems = [
-    {
-      label: "Visão Geral",
-      href: "/",
-      icon: LayoutDashboard,
-    },
-    {
-      label: "Evolução",
-      href: "/evolucao",
-      icon: GraduationCap,
-    },
-    {
-      label: "Comunidade",
-      href: "/comunidade",
-      icon: Users,
-    },
-    {
-      label: "Área Embaixador",
-      href: "/embaixador",
-      icon: Medal,
-    },
-    {
-      label: "Meu Perfil",
-      href: "/perfil",
-      icon: User,
-    },
+    { label: "Visão Geral", href: "/", icon: LayoutDashboard },
+    { label: "Evolução", href: "/evolucao", icon: GraduationCap },
+    { label: "Comunidade", href: "/comunidade", icon: Users },
+    { label: "Área Embaixador", href: "/embaixador", icon: Medal },
+    { label: "Meu Perfil", href: "/perfil", icon: User },
   ];
 
   return (
     <aside className="w-64 bg-black border-r border-white/10 hidden md:flex flex-col h-full shrink-0">
-      {/* LOGO */}
+      
+      {/* HEADER LOGO */}
       <div className="p-8">
         <h1 className="text-2xl font-black text-white italic tracking-tighter">
           MASC <span className="text-[#C9A66B]">PRO</span>
@@ -57,7 +37,7 @@ export default function Sidebar() {
         </p>
       </div>
 
-      {/* MENU DE NAVEGAÇÃO */}
+      {/* NAVEGAÇÃO */}
       <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
@@ -74,4 +54,26 @@ export default function Sidebar() {
               <item.icon
                 size={20}
                 className={`transition-colors ${
-                  isActive ? "text-
+                  isActive ? "text-black" : "text-slate-500 group-hover:text-white"
+                }`}
+              />
+              <span className="text-sm">{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* FOOTER SAIR */}
+      <div className="p-4 border-t border-white/10 mt-auto">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-4 w-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+        >
+          <LogOut size={20} />
+          <span className="text-sm font-bold">Sair da Conta</span>
+        </button>
+      </div>
+
+    </aside>
+  );
+}
