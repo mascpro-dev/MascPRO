@@ -1,4 +1,5 @@
-import Sidebar from "../../../componentes/Sidebar"; // Verifique se o caminho do seu Sidebar está correto aqui
+// CORREÇÃO: Usamos apenas dois "../" para chegar na pasta certa
+import Sidebar from "../../componentes/Sidebar"; 
 
 export default function MainLayout({
   children,
@@ -7,10 +8,10 @@ export default function MainLayout({
 }) {
   return (
     <div className="flex h-screen bg-black overflow-hidden">
-      {/* 1. O MENU LATERAL FIXO */}
+      {/* Menu Lateral */}
       <Sidebar />
 
-      {/* 2. O CONTEÚDO (Visão Geral, Aulas, etc) */}
+      {/* Conteúdo da Página */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="p-6 md:p-12 max-w-7xl mx-auto">
           {children}
