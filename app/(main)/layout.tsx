@@ -1,5 +1,6 @@
+// Importando com @/componentes (que é o jeito seguro)
 import Sidebar from "@/componentes/Sidebar"; 
-import MobileBottomNav from "@/componentes/MobileBottomNav"; // Importando o novo menu de baixo
+import MobileBottomNav from "@/componentes/MobileBottomNav"; 
 
 export default function MainLayout({
   children,
@@ -9,18 +10,18 @@ export default function MainLayout({
   return (
     <div className="flex h-screen bg-black overflow-hidden">
       
-      {/* MENU PC (Esquerda) */}
+      {/* PC: Menu na Esquerda */}
       <Sidebar />
 
-      {/* CONTEÚDO PRINCIPAL */}
+      {/* CONTEÚDO */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
-        <div className="p-6 md:p-12 max-w-7xl mx-auto pb-24 md:pb-12"> 
-          {/* Adicionei pb-24 no mobile pra barra de baixo não tapar o conteúdo */}
+        {/* Adicionei margem embaixo no celular (pb-24) pro menu não tampar o texto */}
+        <div className="p-6 md:p-12 max-w-7xl mx-auto pb-24 md:pb-12">
           {children}
         </div>
       </main>
 
-      {/* MENU CELULAR (Embaixo) */}
+      {/* CELULAR: Menu Embaixo */}
       <MobileBottomNav />
       
     </div>
