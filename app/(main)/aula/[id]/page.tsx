@@ -4,7 +4,6 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-// IMPORTANTE: O caminho abaixo deve apontar para onde você criou o VideoPlayer
 import VideoPlayer from "../../../../componentes/VideoPlayer"; 
 
 export default async function AulaPage({ params }: { params: { id: string } }) {
@@ -19,6 +18,9 @@ export default async function AulaPage({ params }: { params: { id: string } }) {
   if (!lesson) {
     return <div className="p-10 text-white">Aula não encontrada.</div>;
   }
+
+  // Se não tiver link no banco, usa um padrão para não quebrar
+  const videoUrl = lesson.video_url || "https://www.youtube.com/watch?v=LXb3EKWsInQ";
 
   return (
     <div className="min-h-screen bg-black text-white pb-20">
@@ -39,12 +41,13 @@ export default async function AulaPage({ params }: { params: { id: string } }) {
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-0 lg:gap-8">
         
-        {/* Coluna Vídeo (O Player cuida do botão agora) */}
+        {/* Coluna Vídeo */}
         <div className="col-span-2">
-            <VideoPlayer title={lesson.title} lessonId={params.id} />
+            {/* CORREÇÃO AQUI: Passamos videoUrl em vez de lessonId */}
+            <VideoPlayer title={lesson.title} videoUrl={videoUrl} />
         </div>
 
-        {/* Coluna Playlist */}
+        {/* Coluna Playlist (Estática por enquanto) */}
         <div className="bg-slate-950 border-l border-white/10 min-h-screen p-6 hidden lg:block">
             <h3 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">Neste Módulo</h3>
             <div className="space-y-4">
@@ -52,7 +55,7 @@ export default async function AulaPage({ params }: { params: { id: string } }) {
                     <div className="text-[#C9A66B] font-bold text-sm">01</div>
                     <div>
                         <p className="text-white font-bold text-sm line-clamp-2">{lesson.title}</p>
-                        <p className="text-[#A6CE44] text-xs mt-1 font-bold flex items-center gap-1">Reproduzindo</p>
+                        <p className="text-[#A6CE44] text-xs mt-1 font-bold flex items-center gap-1">Assistindo agora</p>
                     </div>
                 </div>
             </div>
