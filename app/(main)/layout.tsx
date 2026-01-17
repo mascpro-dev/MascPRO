@@ -1,5 +1,5 @@
-// CORREÇÃO: Usamos apenas dois "../" para chegar na pasta certa
-import Sidebar from "../../componentes/Sidebar"; 
+// CORREÇÃO: Agora apontando para "components" (em inglês)
+import Sidebar from "@/components/Sidebar"; 
 
 export default function MainLayout({
   children,
