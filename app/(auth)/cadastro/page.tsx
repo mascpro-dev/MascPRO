@@ -2,27 +2,27 @@
 
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, Suspense } from "react"; // Adicionado Suspense
 import Link from "next/link";
 import { Loader2, User, Mail, Lock, ArrowRight } from "lucide-react";
 
-export default function CadastroPage() {
+// 1. COMPONENTE DO FORMULÁRIO (É ele que usa o useSearchParams)
+function CadastroForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParams(); // Aqui está o motivo do erro anterior
   const supabase = createClientComponentClient();
 
-  // 1. CAPTURA O CÓDIGO DO PADRINHO NA URL (?ref=...)
+  // Captura o código
   const referralCode = searchParams.get("ref");
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    // 2. CRIA A CONTA
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -40,38 +40,30 @@ export default function CadastroPage() {
       return;
     }
 
-    // 3. SE TIVER CÓDIGO DE INDICAÇÃO, GRAVA O PADRINHO
     if (referralCode && authData.user) {
-      // Aguarda um pouco para garantir que o perfil foi criado pelo Trigger (se houver)
-      // Ou atualiza direto se o perfil já existir
       await supabase
         .from("profiles")
         .update({ referred_by: referralCode })
         .eq("id", authData.user.id);
     }
 
-    alert("Cadastro realizado! Verifique seu email para confirmar.");
-    router.push("/login"); // Ou redireciona para dashboard se não usar confirmação de email
+    alert("Cadastro realizado! Verifique seu email.");
+    router.push("/login");
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
-      
-      {/* LOGO */}
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-black text-white italic tracking-tighter">
-            MASC <span className="text-[#C9A66B]">PRO</span>
-        </h1>
-        <p className="text-slate-500 text-sm mt-2">Junte-se à elite.</p>
-      </div>
-
-      <div className="w-full max-w-md bg-slate-900 border border-white/10 p-8 rounded-2xl shadow-2xl">
+    <div className="w-full max-w-md bg-slate-900 border border-white/10 p-8 rounded-2xl shadow-2xl">
         <h2 className="text-2xl font-bold text-white mb-6">Criar Conta</h2>
+        
+        {/* Aviso se tiver indicação */}
+        {referralCode && (
+            <div className="mb-4 p-3 bg-[#C9A66B]/10 border border-[#C9A66B]/30 rounded-lg text-[#C9A66B] text-xs font-bold text-center uppercase tracking-wide">
+               Você foi indicado por um parceiro VIP
+            </div>
+        )}
 
         <form onSubmit={handleSignUp} className="space-y-4">
-          
-          {/* Nome */}
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase">Nome Completo</label>
             <div className="relative">
@@ -87,7 +79,6 @@ export default function CadastroPage() {
             </div>
           </div>
 
-          {/* Email */}
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase">Email Profissional</label>
             <div className="relative">
@@ -103,7 +94,6 @@ export default function CadastroPage() {
             </div>
           </div>
 
-          {/* Senha */}
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase">Senha</label>
             <div className="relative">
@@ -131,7 +121,27 @@ export default function CadastroPage() {
         <div className="mt-6 text-center text-sm text-slate-500">
             Já tem uma conta? <Link href="/login" className="text-[#C9A66B] hover:underline font-bold">Faça Login</Link>
         </div>
+    </div>
+  );
+}
+
+// 2. A PÁGINA PRINCIPAL (Onde aplicamos a correção com Suspense)
+export default function CadastroPage() {
+  return (
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
+      
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-black text-white italic tracking-tighter">
+            MASC <span className="text-[#C9A66B]">PRO</span>
+        </h1>
+        <p className="text-slate-500 text-sm mt-2">Junte-se à elite.</p>
       </div>
+
+      {/* AQUI ESTÁ A CORREÇÃO: Envolvemos o formulário em Suspense */}
+      <Suspense fallback={<div className="text-white"><Loader2 className="animate-spin"/> Carregando...</div>}>
+         <CadastroForm />
+      </Suspense>
+
     </div>
   );
 }
