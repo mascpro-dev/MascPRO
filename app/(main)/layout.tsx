@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { Trophy } from "lucide-react";
-import ClientCopyButton from "./embaixador/ClientCopyButton"; // Importando o botão que criamos
+import InviteCard from "../../componentes/InviteCard"; // Importando o novo card inteligente
 
 export default async function VisaoGeralPage() {
   const supabase = createServerComponentClient({ cookies });
@@ -21,11 +21,6 @@ export default async function VisaoGeralPage() {
     .eq("id", session.user.id)
     .single();
 
-  // Gera o Link de Indicação Real
-  // Se estiver local, usa localhost. Se estiver no ar, usa seu dominio.
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://mascpro.app'; // Ajuste aqui se precisar
-  const inviteLink = `${baseUrl}/cadastro?ref=${session.user.id}`;
-
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       
@@ -33,7 +28,7 @@ export default async function VisaoGeralPage() {
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
         <div>
           <h1 className="text-3xl font-black text-white tracking-tighter">
-            Olá, {profile?.full_name?.split(' ')[0] || "Membro Fundador"}
+            Olá, {profile?.full_name?.split(' ')[0] || "Membro Elite"}
           </h1>
           <p className="text-slate-400 mt-1">Seu progresso é recompensado.</p>
         </div>
@@ -41,8 +36,8 @@ export default async function VisaoGeralPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* CARD DE SALDO (Visual Antigo Mantido) */}
-          <div className="bg-slate-900 border border-white/10 p-8 rounded-2xl flex flex-col justify-center relative overflow-hidden">
+          {/* CARD DE SALDO */}
+          <div className="bg-slate-900 border border-white/10 p-8 rounded-2xl flex flex-col justify-center relative overflow-hidden group hover:border-[#C9A66B]/50 transition-colors">
              <div className="absolute top-0 right-0 p-16 bg-blue-500/5 blur-3xl rounded-full pointer-events-none"></div>
              <div className="relative z-10">
                  <div className="inline-flex items-center gap-2 border border-white/20 rounded-full px-3 py-1 mb-4">
@@ -54,12 +49,11 @@ export default async function VisaoGeralPage() {
                  </h2>
                  <p className="text-slate-500 text-sm">Seu poder de compra na loja.</p>
              </div>
-             {/* Icone de Troféu Fundo */}
-             <Trophy className="absolute right-8 bottom-8 text-slate-800 opacity-50" size={120} />
+             <Trophy className="absolute right-8 bottom-8 text-slate-800 opacity-50 group-hover:scale-110 transition-transform duration-500" size={120} />
           </div>
 
-          {/* CARD PRÓXIMA PLACA (Visual Antigo Mantido) */}
-          <div className="bg-slate-900 border border-white/10 p-8 rounded-2xl flex flex-col justify-between">
+          {/* CARD PRÓXIMA PLACA */}
+          <div className="bg-slate-900 border border-white/10 p-8 rounded-2xl flex flex-col justify-between hover:border-[#C9A66B]/50 transition-colors">
               <div>
                   <h3 className="text-xl font-bold text-white mb-1">Próxima Placa</h3>
                   <p className="text-slate-400 text-sm">Marco de 10k</p>
@@ -71,7 +65,7 @@ export default async function VisaoGeralPage() {
                       <span>10.000 PRO</span>
                   </div>
                   <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#C9A66B] w-[11%]" /> {/* Barra Fixa de Exemplo ou Dinâmica */}
+                      <div className="h-full bg-[#C9A66B]" style={{ width: `${Math.min(((profile?.pro_balance || 0) / 10000) * 100, 100)}%` }} /> 
                   </div>
               </div>
 
@@ -81,21 +75,9 @@ export default async function VisaoGeralPage() {
           </div>
       </div>
 
-      {/* --- CARD CONVITE EXCLUSIVO (FUNCIONAL) --- */}
-      <div className="border border-white/10 rounded-2xl p-6 md:p-8 bg-black flex flex-col md:flex-row items-center justify-between gap-6">
-          <div>
-              <h3 className="text-white font-bold text-lg mb-1">Convite Exclusivo</h3>
-              <p className="text-slate-500 text-sm">Ganhe PROs convidando profissionais.</p>
-          </div>
-
-          <div className="flex items-center gap-3 w-full md:w-auto bg-slate-900/50 p-2 rounded-xl border border-white/5">
-              <div className="bg-slate-950 px-4 py-2 rounded-lg text-slate-400 font-mono text-sm truncate max-w-[200px] md:max-w-xs border border-white/5">
-                  {inviteLink}
-              </div>
-              {/* Botão de Copiar que funciona */}
-              <ClientCopyButton text={inviteLink} />
-          </div>
-      </div>
+      {/* --- NOVO CARD DE CONVITE INTELIGENTE --- */}
+      {/* Ele gera o link sozinho e tem botão de teste que abre em nova aba */}
+      <InviteCard userId={session.user.id} />
 
     </div>
   );
