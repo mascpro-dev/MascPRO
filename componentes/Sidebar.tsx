@@ -25,8 +25,8 @@ export default function Sidebar() {
   ];
 
   return (
-    // AQUI: GARANTIMOS QUE O MENU APARECE SEMPRE (flex)
-    <aside className="w-64 bg-black border-r border-white/10 flex flex-col h-full shrink-0">
+    // VOLTOU: "hidden md:flex" (Esconde no celular, mostra no PC)
+    <aside className="hidden md:flex w-64 bg-black border-r border-white/10 flex-col h-full shrink-0">
       
       <div className="p-8">
         <h1 className="text-2xl font-black text-white italic tracking-tighter">
