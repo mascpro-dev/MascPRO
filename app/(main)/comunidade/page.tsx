@@ -1,18 +1,16 @@
-export const dynamic = "force-dynamic"; // Força atualização a cada visita
+export const dynamic = "force-dynamic";
 
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { Trophy, Crown, Medal, Shield, TrendingUp, AlertTriangle, User } from "lucide-react";
+import { Trophy, Crown, Medal, Shield, TrendingUp, User } from "lucide-react";
 
 export default async function ComunidadePage() {
   const supabase = createServerComponentClient({ cookies });
   
-  // 1. Pega sessão
   const { data: { session } } = await supabase.auth.getSession();
   const currentUserId = session?.user?.id;
 
-  // 2. Tenta buscar os perfis COM TRATAMENTO DE ERRO
-  const { data: profiles, error } = await supabase
+  const { data: profiles } = await supabase
     .from("profiles")
     .select("*")
     .order("pro_balance", { ascending: false })
@@ -21,23 +19,6 @@ export default async function ComunidadePage() {
   return (
     <div className="space-y-8 pb-24 animate-in fade-in duration-500">
       
-      {/* --- CAIXA DE DIAGNÓSTICO (Tire print disso!) --- */}
-      <div className="bg-red-950/80 border border-red-500 p-6 rounded-2xl text-red-200 font-mono text-xs overflow-auto shadow-2xl">
-         <h3 className="font-bold text-lg text-white mb-4 flex items-center gap-2">
-            <AlertTriangle className="text-red-500" /> RAIO-X DO PROBLEMA
-         </h3>
-         <div className="space-y-2">
-             <p><strong className="text-white">1. Erro do Supabase:</strong> {error ? JSON.stringify(error) : "Nenhum erro técnico (null)."}</p>
-             <p><strong className="text-white">2. Perfis Encontrados:</strong> {profiles?.length || 0}</p>
-             <p><strong className="text-white">3. Seu ID de Login:</strong> {currentUserId || "Não logado"}</p>
-             <p><strong className="text-white">4. Exemplo de Perfil (se houver):</strong></p>
-             <pre className="bg-black/50 p-2 rounded text-green-400">
-                {profiles && profiles.length > 0 ? JSON.stringify(profiles[0], null, 2) : "Lista vazia"}
-             </pre>
-         </div>
-      </div>
-      {/* ------------------------------------------------ */}
-
       {/* CABEÇALHO */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/10 pb-6">
         <div>
@@ -52,6 +33,7 @@ export default async function ComunidadePage() {
 
       {/* PODIUM (Top 3) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 items-end">
+        
         {/* 2º Lugar */}
         {profiles && profiles[1] && (
            <div className="order-2 md:order-1 relative p-6 rounded-2xl border border-white/5 bg-slate-900/50 flex flex-col items-center text-center">
