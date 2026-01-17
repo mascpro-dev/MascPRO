@@ -25,7 +25,8 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="w-64 bg-black border-r border-white/10 hidden md:flex flex-col h-full shrink-0">
+    // MUDEI AQUI: Removi o "hidden" para "flex". Agora ele aparece sempre!
+    <aside className="w-64 bg-black border-r border-white/10 flex flex-col h-full shrink-0">
       
       {/* HEADER LOGO */}
       <div className="p-8">
