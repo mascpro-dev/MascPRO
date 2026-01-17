@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { Trophy, ArrowRight, Layout } from "lucide-react";
+import { Trophy, ArrowRight, Layout, Copy } from "lucide-react";
 
 export default async function HomePage() {
   const supabase = createServerComponentClient({ cookies });
@@ -11,7 +11,7 @@ export default async function HomePage() {
   // 1. Quem é o usuário?
   const { data: { session } } = await supabase.auth.getSession();
 
-  // 2. Busca os dados no Banco (Tabela Nova)
+  // 2. Busca os dados no Banco
   let balance = 0;
   let userName = "Membro MASC";
   let referralCode = "gerando...";
@@ -46,8 +46,8 @@ export default async function HomePage() {
       {/* PLACARES (GRID) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
-        {/* CARTÃO DE SALDO (O Bonito) */}
-        <div className="bg-gradient-to-br from-slate-900 to-black border border-white/10 rounded-3xl p-8 relative overflow-hidden group">
+        {/* CARTÃO DE SALDO (O cofre) */}
+        <div className="bg-gradient-to-br from-slate-900 to-black border border-white/10 rounded-3xl p-8 relative overflow-hidden group hover:border-[#C9A66B]/30 transition-colors">
             <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
                 <Trophy size={120} />
             </div>
@@ -72,7 +72,7 @@ export default async function HomePage() {
         </div>
 
         {/* CARTÃO DE METAS */}
-        <div className="bg-slate-900/50 border border-white/5 rounded-3xl p-8 flex flex-col justify-between">
+        <div className="bg-slate-900/50 border border-white/5 rounded-3xl p-8 flex flex-col justify-between hover:bg-slate-900 transition-colors">
             <div>
                 <h3 className="text-white font-bold text-lg mb-1">Próxima Placa</h3>
                 <p className="text-slate-400 text-sm">Marco de 10k</p>
@@ -83,13 +83,16 @@ export default async function HomePage() {
                     <span>{balance} PRO</span>
                     <span>10.000 PRO</span>
                 </div>
+                {/* Barra de Progresso */}
                 <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                     <div 
                         className="h-full bg-[#C9A66B]" 
                         style={{ width: `${Math.min((balance / 10000) * 100, 100)}%` }}
                     />
                 </div>
-                <button className="w-full mt-4 border border-white/10 hover:bg-white/5 text-slate-300 text-xs font-bold py-3 rounded-xl uppercase tracking-widest transition-colors">
+                
+                {/* BOTÃO CLEAN (OUTLINE) */}
+                <button className="w-full mt-4 bg-transparent border border-white/10 hover:border-white/30 hover:bg-white/5 text-slate-300 text-xs font-bold py-3 rounded-xl uppercase tracking-widest transition-all">
                     Ver Placas
                 </button>
             </div>
@@ -103,10 +106,13 @@ export default async function HomePage() {
             <p className="text-slate-500 text-xs mt-1">Ganhe PROs convidando profissionais.</p>
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
-            <div className="bg-slate-900 border border-white/10 px-4 py-3 rounded-xl font-mono text-xs text-white flex-1 md:flex-none">
+            <div className="bg-slate-900 border border-white/10 px-4 py-3 rounded-xl font-mono text-xs text-white flex-1 md:flex-none text-center">
                 mascpro.app/ref/{referralCode}
             </div>
-            <button className="bg-white text-black font-bold text-xs px-6 py-3 rounded-xl hover:bg-slate-200 transition-colors">
+            
+            {/* BOTÃO CLEAN (OUTLINE DOURADO) */}
+            <button className="bg-[#C9A66B]/10 border border-[#C9A66B]/50 text-[#C9A66B] hover:bg-[#C9A66B]/20 font-bold text-xs px-6 py-3 rounded-xl transition-all flex items-center gap-2">
+                <Copy size={14} />
                 Copiar
             </button>
         </div>
