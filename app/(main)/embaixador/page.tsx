@@ -10,17 +10,38 @@ export default function EmbaixadorPage() {
   const [stats, setStats] = useState({ total: 0, active: 0, earnings: 0 });
   const supabase = createClientComponentClient();
 
+  // Mesma lógica de limpar o nome
+  const formatRefCode = (userProfile: any, userId: string) => {
+    if (userProfile?.username) return userProfile.username;
+    if (userProfile?.full_name) {
+      return userProfile.full_name
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, '-');
+    }
+    return userId;
+  };
+
   useEffect(() => {
     async function getData() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        // Gera o link
+        
+        // Busca o perfil para pegar o nome
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name, username")
+            .eq("id", session.user.id)
+            .single();
+
+        // Gera o link curto
         if (typeof window !== "undefined") {
-            setInviteLink(`${window.location.origin}/cadastro?ref=${session.user.id}`);
+            const code = formatRefCode(profile, session.user.id);
+            setInviteLink(`${window.location.origin}/cadastro?ref=${code}`);
         }
         
-        // (Aqui você pode buscar estatísticas reais do banco depois)
-        // Por enquanto, dados fictícios ou zerados
+        // Dados fictícios por enquanto
         setStats({ total: 12, active: 8, earnings: 450 });
       }
     }
@@ -47,7 +68,7 @@ export default function EmbaixadorPage() {
         </div>
       </div>
 
-      {/* ÁREA DE COPIAR LINK (ESTILO NOVO: Borda Dourada) */}
+      {/* ÁREA DE COPIAR LINK */}
       <div className="bg-[#0A0A0A] border border-white/10 p-8 rounded-2xl">
           <h2 className="text-xl font-bold text-white mb-4">Seu Link de Indicação</h2>
           <div className="flex flex-col md:flex-row gap-4">
@@ -57,7 +78,6 @@ export default function EmbaixadorPage() {
                 className="flex-1 bg-black border border-white/10 rounded-xl px-6 py-4 text-slate-300 font-mono text-sm focus:outline-none focus:border-[#C9A66B]"
               />
               
-              {/* --- BOTÃO OUTLINE (IGUAL DA VISÃO GERAL) --- */}
               <button 
                 onClick={handleCopy}
                 className="bg-transparent border border-[#C9A66B] text-[#C9A66B] hover:bg-[#C9A66B] hover:text-black font-bold px-8 py-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95"
@@ -68,7 +88,7 @@ export default function EmbaixadorPage() {
           </div>
       </div>
 
-      {/* ESTATÍSTICAS SIMPLES */}
+      {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-[#0A0A0A] border border-white/10 p-6 rounded-xl">
               <div className="flex items-center gap-3 mb-2">
