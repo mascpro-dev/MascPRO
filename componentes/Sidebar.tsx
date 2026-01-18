@@ -25,6 +25,8 @@ export default function Sidebar() {
   ];
 
   return (
+    // ESTE É O MENU DO PC: Vertical (flex-col), Fixo na esquerda (w-64)
+    // O "hidden md:flex" garante que ele SUMA no celular.
     <aside className="hidden md:flex w-64 bg-black border-r border-white/10 flex-col h-full shrink-0 relative z-40">
       
       <div className="p-8">
