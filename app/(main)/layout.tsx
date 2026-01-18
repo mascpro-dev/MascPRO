@@ -9,17 +9,20 @@ export default function MainLayout({
   return (
     <div className="flex h-screen bg-black overflow-hidden relative">
       
-      {/* 1. Sidebar (O código dele diz: "Só apareço no PC") */}
+      {/* ESQUERDA: Sidebar (Só aparece no PC) */}
       <Sidebar />
 
-      {/* 2. Conteúdo Principal */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
-        <div className="p-6 md:p-12 max-w-7xl mx-auto pb-24 md:pb-12">
+      {/* CENTRO: Conteúdo */}
+      <main className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth">
+        {/* Padding responsivo: 
+            md:p-12 (PC, muito espaço)
+            p-6 pb-28 (Celular, espaço extra embaixo pro menu não cobrir nada) */}
+        <div className="p-6 pb-28 md:p-12 md:pb-12 max-w-7xl mx-auto">
           {children}
         </div>
       </main>
 
-      {/* 3. MobileNav (O código dele diz: "Só apareço no Celular") */}
+      {/* BAIXO: MobileNav (Só aparece no Celular) */}
       <MobileBottomNav />
       
     </div>
