@@ -10,7 +10,7 @@ export default function EmbaixadorPage() {
   const [stats, setStats] = useState({ total: 0, active: 0, earnings: 0 });
   const supabase = createClientComponentClient();
 
-  // Mesma lógica de limpar o nome
+  // --- LÓGICA DO LINK CHARMOSO ---
   const formatRefCode = (userProfile: any, userId: string) => {
     if (userProfile?.username) return userProfile.username;
     if (userProfile?.full_name) {
@@ -28,29 +28,46 @@ export default function EmbaixadorPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         
-        // Busca o perfil para pegar o nome
+        // Pega o perfil para formatar o nome
         const { data: profile } = await supabase
             .from("profiles")
             .select("full_name, username")
             .eq("id", session.user.id)
             .single();
 
-        // Gera o link curto
+        // Gera o link
         if (typeof window !== "undefined") {
             const code = formatRefCode(profile, session.user.id);
             setInviteLink(`${window.location.origin}/cadastro?ref=${code}`);
         }
         
-        // Dados fictícios por enquanto
-        setStats({ total: 12, active: 8, earnings: 450 });
+        setStats({ total: 12, active: 8, earnings: 450 }); // Dados fictícios
       }
     }
     getData();
   }, [supabase]);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
+  // --- LÓGICA DE COPIAR BLINDADA ---
+  const handleCopy = async () => {
+    if (!inviteLink) return;
+
+    try {
+        await navigator.clipboard.writeText(inviteLink);
+        setCopied(true);
+    } catch (err) {
+        const textArea = document.createElement("textarea");
+        textArea.value = inviteLink;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            setCopied(true);
+        } catch (e) {
+            console.error('Erro ao copiar', e);
+        }
+        document.body.removeChild(textArea);
+    }
+
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -78,9 +95,10 @@ export default function EmbaixadorPage() {
                 className="flex-1 bg-black border border-white/10 rounded-xl px-6 py-4 text-slate-300 font-mono text-sm focus:outline-none focus:border-[#C9A66B]"
               />
               
+              {/* BOTÃO ESTILO OUTLINE (BORDA) */}
               <button 
                 onClick={handleCopy}
-                className="bg-transparent border border-[#C9A66B] text-[#C9A66B] hover:bg-[#C9A66B] hover:text-black font-bold px-8 py-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95"
+                className="bg-transparent border border-[#C9A66B] text-[#C9A66B] hover:bg-[#C9A66B] hover:text-black font-bold px-8 py-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
               >
                 {copied ? <Check size={20} /> : <Copy size={20} />}
                 {copied ? "Link Copiado" : "Copiar Link"}

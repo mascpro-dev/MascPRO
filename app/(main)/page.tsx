@@ -11,20 +11,22 @@ export default function VisaoGeralPage() {
   const [copied, setCopied] = useState(false);
   const supabase = createClientComponentClient();
 
-  // Função para criar o "Link Charmoso" (nome-sobrenome)
+  // --- LÓGICA DO LINK CHARMOSO ---
   const formatRefCode = (userProfile: any, userId: string) => {
+    // 1. Tenta usar o username
     if (userProfile?.username) return userProfile.username;
     
-    // Se não tiver username, usa o nome completo formatado
+    // 2. Tenta usar o Nome Completo (formatado: joao-silva)
     if (userProfile?.full_name) {
       return userProfile.full_name
         .toLowerCase()
-        .normalize("NFD") // Separa os acentos
+        .normalize("NFD")             // Separa os acentos
         .replace(/[\u0300-\u036f]/g, "") // Remove os acentos
-        .replace(/\s+/g, '-'); // Troca espaço por traço
+        .replace(/\s+/g, '-');        // Troca espaço por traço
     }
     
-    return userId; // Último caso: usa o ID
+    // 3. Último caso: usa o ID
+    return userId;
   };
 
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function VisaoGeralPage() {
           
           setProfile(data);
 
-          // GERA O LINK IMEDIATAMENTE COM O NOME
+          // Gera o link assim que tiver os dados
           if (typeof window !== "undefined") {
               const code = formatRefCode(data, session.user.id);
               const origin = window.location.origin;
@@ -49,7 +51,7 @@ export default function VisaoGeralPage() {
           }
         }
       } catch (error) {
-        console.error("Erro ao carregar:", error);
+        console.error("Erro:", error);
       } finally {
         setLoading(false);
       }
@@ -57,10 +59,29 @@ export default function VisaoGeralPage() {
     getData();
   }, [supabase]);
 
-  const handleCopy = () => {
+  // --- LÓGICA DE COPIAR (FUNCIONA EM CELULAR) ---
+  const handleCopy = async () => {
     if (!inviteLink) return;
-    navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
+    
+    try {
+        // Tenta o jeito moderno
+        await navigator.clipboard.writeText(inviteLink);
+        setCopied(true);
+    } catch (err) {
+        // Se falhar (comum em alguns Androids), tenta o jeito antigo "na força bruta"
+        const textArea = document.createElement("textarea");
+        textArea.value = inviteLink;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            setCopied(true);
+        } catch (e) {
+            console.error('Falha ao copiar', e);
+        }
+        document.body.removeChild(textArea);
+    }
+    
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -78,7 +99,6 @@ export default function VisaoGeralPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
           {/* CARD SALDO */}
           <div className="bg-[#0A0A0A] border border-white/10 p-8 rounded-2xl relative overflow-hidden">
              <div className="absolute top-0 right-0 p-20 bg-blue-500/5 blur-3xl rounded-full pointer-events-none"></div>
@@ -120,7 +140,7 @@ export default function VisaoGeralPage() {
           </div>
       </div>
 
-      {/* CARD DE INDICAÇÃO (AGORA COM LINK BONITO E FUNCIONAL) */}
+      {/* CARD CONVITE */}
       <div className="border border-white/10 rounded-2xl p-1 bg-black">
         <div className="bg-[#0A0A0A] rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
@@ -135,12 +155,12 @@ export default function VisaoGeralPage() {
 
             <div className="flex items-center gap-3 w-full md:w-auto">
                 <div className="bg-black border border-white/10 px-4 py-3 rounded-lg text-slate-400 font-mono text-xs w-full md:w-64 truncate">
-                    {inviteLink || "Gerando link..."}
+                    {inviteLink || "Carregando..."}
                 </div>
                 
                 <button 
                     onClick={handleCopy}
-                    className="bg-[#C9A66B]/10 border border-[#C9A66B]/20 text-[#C9A66B] hover:bg-[#C9A66B] hover:text-black font-bold px-6 py-3 rounded-lg flex items-center gap-2 transition-all active:scale-95 whitespace-nowrap text-sm"
+                    className="bg-transparent border border-[#C9A66B] text-[#C9A66B] hover:bg-[#C9A66B] hover:text-black font-bold px-6 py-3 rounded-lg flex items-center gap-2 transition-all active:scale-95 whitespace-nowrap text-sm cursor-pointer"
                 >
                     {copied ? <Check size={16} /> : <Copy size={16} />}
                     {copied ? "Copiado" : "Copiar"}
