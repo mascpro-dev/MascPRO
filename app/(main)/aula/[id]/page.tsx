@@ -6,7 +6,7 @@ import { ChevronLeft, CheckCircle, Trophy } from "lucide-react";
 
 export default function AulaPlayerPage({ params }: { params: { id: string } }) {
   const [resgatado, setResgatado] = useState(false);
-  const videoId = "uXWf_x_8L08"; // Exemplo YouTube
+  const videoId = "uXWf_x_8L08"; // ID de exemplo
 
   return (
     <div className="max-w-[1200px] mx-auto animate-in fade-in duration-700">
