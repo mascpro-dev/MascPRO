@@ -1,6 +1,6 @@
 "use client";
 
-import Sidebar from "@/componentes/Sidebar";
+import Sidebar from "@/componentes/Sidebar"; // Importação padrão corrigida
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -30,7 +30,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen bg-black text-white">
       <Sidebar />
       <main className="transition-all duration-300 w-full min-h-screen">
-        {/* pt-24 (96px) aplicado para não tampar o nome do usuário no celular */}
+        {/* pt-24 (96px) aplicado conforme pedido para não tampar o nome no celular */}
         <div className="pt-24 pb-32 px-6 md:pt-12 md:pb-12 md:pl-[280px] max-w-[1600px] mx-auto">
           {children}
         </div>
