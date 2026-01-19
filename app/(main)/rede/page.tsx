@@ -76,10 +76,10 @@ export default function RedePage() {
         </div>
       </div>
 
-      {/* CARD DE CONVITE (Visual Premium Restaurado + Texto Ajustado) */}
+      {/* CARD DE CONVITE (Visual Premium Restaurado) */}
       <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-[#0A0A0A] to-[#111] p-8 group">
           
-          {/* Efeito de brilho sutil no fundo */}
+          {/* Efeito de brilho sutil no fundo (Restaurado) */}
           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-[#C9A66B]/5 blur-3xl rounded-full group-hover:bg-[#C9A66B]/10 transition-all duration-700"></div>
 
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
@@ -89,7 +89,7 @@ export default function RedePage() {
                       <span className="text-[10px] bg-[#C9A66B] text-black font-bold px-2 py-0.5 rounded uppercase">Embaixador</span>
                   </div>
                   
-                  {/* TEXTO CORRIGIDO: Apenas PROs */}
+                  {/* TEXTO AJUSTADO: Apenas a correção de texto, mantendo o visual */}
                   <p className="text-slate-400 leading-relaxed max-w-xl">
                       Envie seu link exclusivo para outros profissionais. 
                       Você ganha <span className="text-[#C9A66B] font-bold">PROs</span> a cada cadastro aprovado e qualificado na plataforma.
@@ -111,7 +111,7 @@ export default function RedePage() {
           </div>
       </div>
 
-      {/* LISTA DA REDE (Layout Bonito Mantido) */}
+      {/* LISTA DA REDE (Visual Restaurado) */}
       <div className="space-y-4">
           <div className="flex justify-between items-center px-2">
               <h3 className="font-bold text-white text-lg flex items-center gap-2">
@@ -119,62 +119,9 @@ export default function RedePage() {
                   Membros da Equipe
               </h3>
               
-              {/* Barra de busca bonita */}
               <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input 
                     type="text" 
                     placeholder="Buscar membro..." 
-                    className="bg-[#111] border border-white/10 rounded-full py-2 pl-9 pr-4 text-xs text-white focus:border-[#C9A66B] outline-none w-40 md:w-64 transition-all" 
-                  />
-              </div>
-          </div>
-
-          {loading ? (
-              <div className="p-12 text-center text-slate-500 animate-pulse">Carregando sua rede...</div>
-          ) : myNetwork.length === 0 ? (
-              <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-12 text-center">
-                  <Users size={40} className="text-slate-700 mx-auto mb-4" />
-                  <p className="text-slate-400 font-medium">Sua rede está vazia.</p>
-                  <p className="text-slate-600 text-sm mt-1">Comece convidando profissionais talentosos.</p>
-              </div>
-          ) : (
-              <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl overflow-hidden divide-y divide-white/5">
-                  {myNetwork.map((user) => (
-                      <div key={user.id} className="p-5 hover:bg-white/5 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 group">
-                          
-                          {/* Info do Usuário */}
-                          <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#111] to-black border border-white/10 flex items-center justify-center font-bold text-[#C9A66B] text-lg shadow-lg group-hover:border-[#C9A66B]/50 transition-colors">
-                                  {user.full_name?.charAt(0) || user.email?.charAt(0)}
-                              </div>
-                              <div>
-                                  <p className="font-bold text-white text-base">{user.full_name || "Membro MASC"}</p>
-                                  <p className="text-xs text-slate-500 font-mono">{user.email}</p>
-                              </div>
-                          </div>
-
-                          {/* Meta Dados */}
-                          <div className="flex items-center gap-8 pl-16 md:pl-0">
-                              <div className="text-left md:text-right">
-                                  <p className="text-[10px] text-slate-600 uppercase font-bold mb-1">Status</p>
-                                  <div className="flex items-center gap-1.5 text-xs font-bold text-green-400 bg-green-400/5 px-2 py-1 rounded border border-green-400/10">
-                                      <CheckCircle size={10} /> Ativo
-                                  </div>
-                              </div>
-                              <div className="text-left md:text-right">
-                                  <p className="text-[10px] text-slate-600 uppercase font-bold mb-1">Entrou em</p>
-                                  <div className="flex items-center gap-1.5 text-xs text-slate-400 bg-white/5 px-2 py-1 rounded border border-white/5">
-                                      <Clock size={10} /> 
-                                      {new Date(user.created_at).toLocaleDateString('pt-BR')}
-                                  </div>
-                              </div>
-                          </div>
-                      </div>
-                  ))}
-              </div>
-          )}
-      </div>
-    </div>
-  );
-}
+                    className="bg-[#111] border border-white/10 rounded-full py-2 pl-
