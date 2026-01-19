@@ -2,7 +2,7 @@
 
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useEffect, useState } from "react";
-import { Users, Copy, CheckCircle, Clock, Search, Shield, Trophy } from "lucide-react";
+import { Users, Copy, CheckCircle, Clock, Search, Shield } from "lucide-react";
 
 interface Profile {
   id: string;
@@ -79,7 +79,7 @@ export default function RedePage() {
       {/* CARD DE CONVITE (Visual Premium Restaurado) */}
       <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-[#0A0A0A] to-[#111] p-8 group">
           
-          {/* Efeito de brilho sutil no fundo (Restaurado) */}
+          {/* Efeito de brilho sutil no fundo */}
           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-[#C9A66B]/5 blur-3xl rounded-full group-hover:bg-[#C9A66B]/10 transition-all duration-700"></div>
 
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
@@ -89,7 +89,7 @@ export default function RedePage() {
                       <span className="text-[10px] bg-[#C9A66B] text-black font-bold px-2 py-0.5 rounded uppercase">Embaixador</span>
                   </div>
                   
-                  {/* TEXTO AJUSTADO: Apenas a correção de texto, mantendo o visual */}
+                  {/* TEXTO AJUSTADO: PROs */}
                   <p className="text-slate-400 leading-relaxed max-w-xl">
                       Envie seu link exclusivo para outros profissionais. 
                       Você ganha <span className="text-[#C9A66B] font-bold">PROs</span> a cada cadastro aprovado e qualificado na plataforma.
@@ -108,20 +108,3 @@ export default function RedePage() {
                       {copied ? "Copiado" : "Copiar"}
                   </button>
               </div>
-          </div>
-      </div>
-
-      {/* LISTA DA REDE (Visual Restaurado) */}
-      <div className="space-y-4">
-          <div className="flex justify-between items-center px-2">
-              <h3 className="font-bold text-white text-lg flex items-center gap-2">
-                  <Shield size={18} className="text-[#C9A66B]" />
-                  Membros da Equipe
-              </h3>
-              
-              <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input 
-                    type="text" 
-                    placeholder="Buscar membro..." 
-                    className="bg-[#111] border border-white/10 rounded-full py-2 pl-
