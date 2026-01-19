@@ -1,11 +1,10 @@
 "use client";
 
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Check, ShieldCheck } from "lucide-react";
+import { ChevronRight, Check, ShieldCheck, AlertCircle } from "lucide-react";
 
-// OS 5 PILARES (Conteúdo Estratégico)
 const STEPS = [
   {
     title: "Performance que se mantém",
@@ -37,24 +36,41 @@ const STEPS = [
 export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(""); // Para mostrar erro na tela
   const router = useRouter();
   const supabase = createClientComponentClient();
 
-  // Função para finalizar o "Pacto"
   const handleFinish = async () => {
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (session) {
-      // Marca no banco que ele aceitou
-      await supabase
+    setErrorMsg("");
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error("Sessão perdida. Faça login novamente.");
+      }
+
+      // Tenta atualizar o banco
+      const { error } = await supabase
         .from("profiles")
         .update({ onboarding_completed: true })
         .eq("id", session.user.id);
+
+      if (error) {
+        console.error("Erro Supabase:", error);
+        throw new Error("Não foi possível salvar seu progresso. Tente novamente.");
+      }
       
-      // Manda para a Home
+      // Se deu certo:
+      // 1. Atualiza o cache do roteador para a Home saber que mudou
+      router.refresh(); 
+      // 2. Redireciona
       router.push("/");
-      router.refresh();
+
+    } catch (err: any) {
+      setErrorMsg(err.message);
+      setLoading(false);
     }
   };
 
@@ -72,7 +88,6 @@ export default function OnboardingPage() {
       </div>
 
       <div className="max-w-md animate-in fade-in slide-in-from-bottom-4 duration-700 key={currentStep}">
-          {/* ÍCONE DE DESTAQUE */}
           <div className="mx-auto w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-8 border border-white/10 shadow-[0_0_30px_rgba(201,166,107,0.1)]">
              <ShieldCheck size={32} className="text-[#C9A66B]" />
           </div>
@@ -86,8 +101,16 @@ export default function OnboardingPage() {
           </p>
       </div>
 
-      {/* RODAPÉ DE NAVEGAÇÃO */}
-      <div className="absolute bottom-10 w-full px-6 max-w-md">
+      {/* ÁREA DE AÇÃO (BOTÃO + ERRO) */}
+      <div className="absolute bottom-10 w-full px-6 max-w-md space-y-4">
+          
+          {/* MENSAGEM DE ERRO (Se o banco travar, aparece aqui) */}
+          {errorMsg && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm flex items-center gap-2">
+                <AlertCircle size={16} /> {errorMsg}
+            </div>
+          )}
+
           {currentStep < STEPS.length - 1 ? (
               <button 
                 onClick={() => setCurrentStep(prev => prev + 1)}
