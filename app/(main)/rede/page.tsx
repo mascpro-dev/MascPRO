@@ -81,7 +81,7 @@ export default function RedePage() {
           </div>
           <div>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">PROs Gerados</p>
-            <p className="text-3xl font-black text-white">{indicados.length * 40} PRO</p>
+            <p className="text-3xl font-black text-white">{indicados.length * 50} PRO</p>
           </div>
         </div>
       </div>
