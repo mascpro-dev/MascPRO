@@ -1,65 +1,112 @@
-export const dynamic = "force-dynamic";
+"use client";
 
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import VideoPlayer from "../../../../componentes/VideoPlayer"; 
+import { PlayCircle, Lock, CheckCircle, Clock, Search } from "lucide-react";
 
-export default async function AulaPage({ params }: { params: { id: string } }) {
-  const supabase = createServerComponentClient({ cookies });
-
-  const { data: lesson } = await supabase
-    .from("Module")
-    .select("*")
-    .eq("id", params.id)
-    .single();
-
-  if (!lesson) {
-    return <div className="p-10 text-white">Aula não encontrada.</div>;
+// DADOS DE EXEMPLO (Simulando o Banco de Dados)
+const MODULES = [
+  {
+    id: 1,
+    title: "Módulo 1: Fundamentos MASC",
+    lessons: [
+      { id: 101, title: "Boas Vindas e Cultura", duration: "05:20", status: "concluido", thumb: "bg-zinc-800" },
+      { id: 102, title: "O Mercado de Luxo", duration: "12:10", status: "pendente", thumb: "bg-zinc-800" },
+    ]
+  },
+  {
+    id: 2,
+    title: "Módulo 2: Técnica Avançada",
+    lessons: [
+      { id: 201, title: "Colorimetria Exata", duration: "45:00", status: "bloqueado", thumb: "bg-zinc-900" },
+      { id: 202, title: "Cortes de Precisão", duration: "32:15", status: "bloqueado", thumb: "bg-zinc-900" },
+    ]
   }
+];
 
-  // Se não tiver link no banco, usa um padrão para não quebrar
-  const videoUrl = lesson.video_url || "https://www.youtube.com/watch?v=LXb3EKWsInQ";
-
+export default function AulasPage() {
   return (
-    <div className="min-h-screen bg-black text-white pb-20">
-      {/* Navegação */}
-      <div className="flex items-center justify-between p-6 border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-30">
-        <Link 
-          href="/evolucao" 
-          className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-bold uppercase tracking-wide"
-        >
-          <ArrowLeft size={18} /> Voltar
-        </Link>
-        <div className="flex items-center gap-2">
-            <span className="text-[#C9A66B] font-bold text-xs uppercase tracking-widest border border-[#C9A66B]/30 px-3 py-1 rounded bg-[#C9A66B]/10">
-                Valendo 50 PRO
-            </span>
+    <div className="space-y-8 animate-in fade-in duration-500 pb-24">
+      
+      {/* CABEÇALHO */}
+      <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
+        <div>
+            <h1 className="text-3xl font-black text-white italic tracking-tighter">
+                SALA DE <span className="text-[#C9A66B]">AULA</span>
+            </h1>
+            <p className="text-slate-400 mt-1">Conteúdo exclusivo para sua formação.</p>
+        </div>
+        
+        <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-3 text-slate-500" size={18} />
+            <input 
+                type="text" 
+                placeholder="Buscar aula..." 
+                className="w-full bg-[#111] border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:border-[#C9A66B] outline-none"
+            />
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-0 lg:gap-8">
-        
-        {/* Coluna Vídeo */}
-        <div className="col-span-2">
-            {/* CORREÇÃO AQUI: Passamos videoUrl em vez de lessonId */}
-            <VideoPlayer title={lesson.title} videoUrl={videoUrl} />
-        </div>
+      {/* LISTA DE MÓDULOS */}
+      <div className="space-y-8">
+        {MODULES.map((module) => (
+            <div key={module.id} className="space-y-4">
+                <h3 className="text-xl font-bold text-white border-l-4 border-[#C9A66B] pl-3">
+                    {module.title}
+                </h3>
 
-        {/* Coluna Playlist (Estática por enquanto) */}
-        <div className="bg-slate-950 border-l border-white/10 min-h-screen p-6 hidden lg:block">
-            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">Neste Módulo</h3>
-            <div className="space-y-4">
-                <div className="flex gap-4 p-4 rounded-xl bg-white/5 border border-[#C9A66B]/30 cursor-default">
-                    <div className="text-[#C9A66B] font-bold text-sm">01</div>
-                    <div>
-                        <p className="text-white font-bold text-sm line-clamp-2">{lesson.title}</p>
-                        <p className="text-[#A6CE44] text-xs mt-1 font-bold flex items-center gap-1">Assistindo agora</p>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {module.lessons.map((lesson) => (
+                        <Link 
+                            key={lesson.id} 
+                            href={lesson.status === 'bloqueado' ? '#' : `/aula/${lesson.id}`} // <--- LINKA COM SUA PASTA EXISTENTE
+                            className={`group bg-[#0A0A0A] border border-white/10 rounded-2xl overflow-hidden transition-all 
+                                ${lesson.status === 'bloqueado' ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#C9A66B]/50 cursor-pointer'}
+                            `}
+                        >
+                            {/* THUMBNAIL */}
+                            <div className={`h-40 ${lesson.thumb} relative flex items-center justify-center`}>
+                                {lesson.status === 'bloqueado' ? (
+                                    <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm">
+                                        <Lock size={20} className="text-slate-400" />
+                                    </div>
+                                ) : (
+                                    <div className="w-12 h-12 rounded-full bg-[#C9A66B] text-black flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                                        <PlayCircle size={24} fill="black" className="text-[#C9A66B]" />
+                                    </div>
+                                )}
+                                
+                                <div className="absolute bottom-2 right-2 bg-black/80 text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1 text-white">
+                                    <Clock size={10} /> {lesson.duration}
+                                </div>
+                            </div>
+
+                            {/* INFO */}
+                            <div className="p-4">
+                                <h4 className={`font-bold text-sm mb-2 ${lesson.status === 'bloqueado' ? 'text-slate-500' : 'text-white'}`}>
+                                    {lesson.title}
+                                </h4>
+                                
+                                <div className="flex items-center justify-between">
+                                    {lesson.status === 'concluido' ? (
+                                        <span className="text-[10px] text-green-500 flex items-center gap-1 font-bold bg-green-900/20 px-2 py-1 rounded-full">
+                                            <CheckCircle size={10} /> Concluído
+                                        </span>
+                                    ) : lesson.status === 'bloqueado' ? (
+                                        <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">
+                                            Bloqueado
+                                        </span>
+                                    ) : (
+                                        <span className="text-[10px] text-[#C9A66B] font-bold uppercase tracking-wider">
+                                            Assistir Agora
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </Link>
+                    ))}
                 </div>
             </div>
-        </div>
+        ))}
       </div>
     </div>
   );
