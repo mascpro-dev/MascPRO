@@ -4,7 +4,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useState, Suspense } from "react"; 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, Instagram, Phone, User, Lock, Mail, FileText, Briefcase, Scissors, CheckCircle } from "lucide-react";
+import { Loader2, Phone, User, Lock, Mail, FileText, Briefcase, Scissors } from "lucide-react";
 
 function CadastroForm() {
   const [formData, setFormData] = useState({
@@ -32,16 +32,24 @@ function CadastroForm() {
     setError("");
 
     try {
-      // AQUI ESTÁ O SEGREDO: Enviamos TUDO nos metadados para a Trigger pegar
+      // TRATAMENTO DO INSTAGRAM: Garante que tenha o @
+      let instaFinal = formData.instagram.trim();
+      if (!instaFinal.startsWith("@")) {
+          instaFinal = `@${instaFinal}`;
+      }
+
+      // TRATAMENTO DO WHATSAPP E CPF (Remove formatação para salvar limpo se quiser, ou mantem)
+      // Aqui estamos enviando como string formatada mesmo.
+
       const { data, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           data: {
             full_name: formData.fullName,
-            username: formData.instagram.replace("@", ""), // Para compatibilidade
+            username: instaFinal.replace("@", ""), 
             role: formData.role,
-            instagram: formData.instagram,
+            instagram: instaFinal, // Salva já com o @
             whatsapp: formData.whatsapp,
             cpf: formData.cpf,
           },
@@ -50,7 +58,6 @@ function CadastroForm() {
 
       if (authError) throw authError;
 
-      // Se deu certo, redireciona para a Home (o Layout vai cuidar de mandar pro Onboarding)
       router.refresh();
       router.push("/");
 
@@ -95,8 +102,26 @@ function CadastroForm() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Instagram</label><div className="relative"><Instagram className="absolute left-3 top-3 text-slate-500" size={18} /><input name="instagram" placeholder="@insta" className="w-full bg-black border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white outline-none focus:border-[#C9A66B]" onChange={handleChange} /></div></div>
-            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">WhatsApp</label><div className="relative"><Phone className="absolute left-3 top-3 text-slate-500" size={18} /><input name="whatsapp" placeholder="(00) 00000-0000" className="w-full bg-black border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white outline-none focus:border-[#C9A66B]" onChange={handleChange} /></div></div>
+            {/* CAMPO INSTAGRAM COM @ FIXO */}
+            <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase">Instagram</label>
+                <div className="relative">
+                    {/* O @ VISUAL */}
+                    <span className="absolute left-3 top-3 text-slate-500 font-bold select-none">@</span>
+                    <input 
+                        name="instagram" 
+                        placeholder="seu.usuario" 
+                        // padding-left maior (pl-8) para não escrever em cima do @
+                        className="w-full bg-black border border-white/10 rounded-xl py-3 pl-8 pr-4 text-white outline-none focus:border-[#C9A66B]" 
+                        onChange={handleChange} 
+                    />
+                </div>
+            </div>
+
+            <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase">WhatsApp</label>
+                <div className="relative"><Phone className="absolute left-3 top-3 text-slate-500" size={18} /><input name="whatsapp" placeholder="(00) 00000-0000" className="w-full bg-black border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white outline-none focus:border-[#C9A66B]" onChange={handleChange} /></div>
+            </div>
           </div>
 
           <div className="space-y-1">

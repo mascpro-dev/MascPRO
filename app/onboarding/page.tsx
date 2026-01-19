@@ -5,7 +5,6 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronRight, Check, ShieldCheck, AlertCircle } from "lucide-react";
 
-// ... (Mantenha o array STEPS igualzinho estava antes, para economizar espaço aqui) ...
 const STEPS = [
   {
     title: "Performance que se mantém",
@@ -37,12 +36,11 @@ const STEPS = [
 export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true); // Novo estado de verificação
+  const [checking, setChecking] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const router = useRouter();
   const supabase = createClientComponentClient();
 
-  // 1. VERIFICAÇÃO INVERSA: Se já terminou, VAZA DAQUI.
   useEffect(() => {
     async function checkStatus() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -53,11 +51,10 @@ export default function OnboardingPage() {
           .eq("id", session.user.id)
           .single();
         
-        // Se já está TRUE no banco, manda pra home
         if (profile?.onboarding_completed) {
             router.push("/");
         } else {
-            setChecking(false); // Libera para ver o onboarding
+            setChecking(false);
         }
       } else {
           setChecking(false);
@@ -81,8 +78,9 @@ export default function OnboardingPage() {
 
       if (error) throw error;
       
-      router.refresh(); 
-      router.push("/");
+      // MUDANÇA CRUCIAL: Força o recarregamento total da página
+      // Isso limpa o cache e garante que o Layout.tsx veja que agora é TRUE
+      window.location.href = "/";
 
     } catch (err: any) {
       setErrorMsg("Erro ao salvar. Tente atualizar a página.");
@@ -90,7 +88,6 @@ export default function OnboardingPage() {
     }
   };
 
-  // Enquanto verifica se já fez, mostra tela preta (para não piscar)
   if (checking) return <div className="h-screen w-full bg-black" />;
 
   return (
@@ -144,7 +141,6 @@ export default function OnboardingPage() {
               </button>
           )}
       </div>
-
     </div>
   );
 }
