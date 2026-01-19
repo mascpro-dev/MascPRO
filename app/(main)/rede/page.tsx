@@ -25,7 +25,7 @@ export default function RedePage() {
     getData();
   }, [supabase]);
 
-  const inviteLink = `https://mascpro.app/ref/${userId || ""}`;
+  const inviteLink = "https://mascpro.app/ref/" + userId;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(inviteLink);
