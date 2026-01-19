@@ -18,12 +18,14 @@ export default function MainLayout({
   useEffect(() => {
     async function checkOnboarding() {
       const { data: { session } } = await supabase.auth.getSession();
+      
       if (session) {
         const { data: profile } = await supabase
             .from("profiles")
             .select("onboarding_completed")
             .eq("id", session.user.id)
             .single();
+
         if (profile && !profile.onboarding_completed && pathname !== "/onboarding") {
             router.push("/onboarding");
         } else {
@@ -44,12 +46,15 @@ export default function MainLayout({
       <Sidebar />
 
       <main className="transition-all duration-300 w-full min-h-screen">
-        {/* Desktop: Padding left 280px para menu lateral.
-            Mobile: Padding bottom 100px para o menu flutuante não tapar o fim da página.
+        
+        {/* AJUSTE DE PADDING MOBILE:
+            pt-24 (96px) -> Garante que o topo desça e apareça o "Olá..."
+            pb-32 (128px) -> Garante que o fundo suba e não corte atrás do menu
         */}
-        <div className="pb-32 px-4 pt-8 md:pt-12 md:pb-12 md:pl-[280px] max-w-[1600px] mx-auto">
+        <div className="pt-24 pb-32 px-6 md:pt-12 md:pb-12 md:pl-[280px] max-w-[1600px] mx-auto">
           {children}
         </div>
+
       </main>
     </div>
   );

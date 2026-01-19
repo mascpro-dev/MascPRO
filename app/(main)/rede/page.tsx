@@ -76,10 +76,9 @@ export default function RedePage() {
         </div>
       </div>
 
-      {/* CARD DE CONVITE (Visual Premium Restaurado) */}
+      {/* CARD DE CONVITE (Visual Premium + Texto Ajustado "PROs") */}
       <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-[#0A0A0A] to-[#111] p-8 group">
           
-          {/* Efeito de brilho sutil no fundo */}
           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-[#C9A66B]/5 blur-3xl rounded-full group-hover:bg-[#C9A66B]/10 transition-all duration-700"></div>
 
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
@@ -89,7 +88,6 @@ export default function RedePage() {
                       <span className="text-[10px] bg-[#C9A66B] text-black font-bold px-2 py-0.5 rounded uppercase">Embaixador</span>
                   </div>
                   
-                  {/* TEXTO AJUSTADO: Apenas PROs */}
                   <p className="text-slate-400 leading-relaxed max-w-xl">
                       Envie seu link exclusivo para outros profissionais. 
                       Você ganha <span className="text-[#C9A66B] font-bold">PROs</span> a cada cadastro aprovado e qualificado na plataforma.
@@ -111,7 +109,7 @@ export default function RedePage() {
           </div>
       </div>
 
-      {/* LISTA DA REDE (Layout Premium Mantido) */}
+      {/* LISTA DA REDE */}
       <div className="space-y-4">
           <div className="flex justify-between items-center px-2">
               <h3 className="font-bold text-white text-lg flex items-center gap-2">
