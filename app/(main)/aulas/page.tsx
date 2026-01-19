@@ -1,13 +1,13 @@
 "use client";
 
-import VideoPlayer from "@/componentes/videoplayer"; 
-// Certifique-se que o nome do arquivo é videoplayer.tsx (minúsculo) ou VideoPlayer.tsx (maiúsculo)
-// Se der erro de import, tente trocar para "@/componentes/VideoPlayer"
+// CORREÇÃO AQUI: Trocamos "videoplayer" por "VideoPlayer" (Maiúsculas importam!)
+// Se o seu arquivo for "videoplayer.tsx" (tudo minúsculo), mude de volta aqui.
+import VideoPlayer from "@/componentes/VideoPlayer"; 
 
 export default function AulasPage() {
   return (
     <div className="w-full animate-in fade-in duration-500">
-       {/* Renderiza sua estrutura pronta de aulas */}
+       {/* Aqui ele carrega o seu componente de vídeo que já existe */}
        <VideoPlayer />
     </div>
   );
