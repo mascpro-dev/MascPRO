@@ -3,8 +3,8 @@
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
+import LoadingRespiro from "@/componentes/LoadingRespiro"; // <--- IMPORTEI AQUI
 
-// 1. OS 5 PILARES (A fonte da "Bússola")
 const PILARES = [
   "Performance que se mantém: Resultado que não ilude, fideliza.",
   "Tecnologia + Método: Não vendemos produto. Sustentamos um sistema.",
@@ -16,8 +16,6 @@ const PILARES = [
 export default function VisaoGeralPage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
-  // 2. Estado que guarda a frase do dia (Começa com a primeira, depois muda)
   const [dailyPillar, setDailyPillar] = useState(PILARES[0]); 
   
   const supabase = createClientComponentClient();
@@ -25,7 +23,6 @@ export default function VisaoGeralPage() {
   useEffect(() => {
     async function getData() {
       try {
-        // 3. SORTEIO: Escolhe uma frase aleatória cada vez que a tela abre
         const randomIndex = Math.floor(Math.random() * PILARES.length);
         setDailyPillar(PILARES[randomIndex]);
 
@@ -49,7 +46,9 @@ export default function VisaoGeralPage() {
     getData();
   }, [supabase]);
 
-  if (loading) return <div className="p-12 text-slate-500">Carregando pilares...</div>;
+  // --- AQUI ESTÁ A MUDANÇA ---
+  // Em vez de texto simples, chamamos o componente inteligente
+  if (loading) return <LoadingRespiro />;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -60,7 +59,6 @@ export default function VisaoGeralPage() {
           Olá, {profile?.full_name?.split(' ')[0] || "Membro"}
         </h1>
         
-        {/* 4. AQUI APARECE A FRASE (BÚSSOLA) */}
         <div className="mt-3 border-l-2 border-[#C9A66B] pl-4 py-1">
             <p className="text-[#C9A66B] font-medium italic text-sm md:text-base animate-pulse">
               "{dailyPillar}"
@@ -68,9 +66,8 @@ export default function VisaoGeralPage() {
         </div>
       </div>
 
-      {/* CARDS (SALDO E META) */}
+      {/* CARDS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Card Saldo */}
           <div className="bg-[#0A0A0A] border border-white/10 p-8 rounded-2xl relative overflow-hidden">
              <div className="absolute top-0 right-0 p-20 bg-blue-500/5 blur-3xl rounded-full pointer-events-none"></div>
              <div className="relative z-10">
@@ -85,7 +82,6 @@ export default function VisaoGeralPage() {
              </div>
           </div>
 
-          {/* Card Meta */}
           <div className="bg-[#0A0A0A] border border-white/10 p-8 rounded-2xl flex flex-col justify-between">
               <div>
                   <h3 className="text-xl font-bold text-white mb-1">Próxima Placa</h3>
@@ -96,4 +92,15 @@ export default function VisaoGeralPage() {
                       <span>{profile?.pro_balance || 0} PRO</span>
                       <span>10.000 PRO</span>
                   </div>
-                  <div className="w-full h-2 bg-
+                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#C9A66B]" style={{ width: `${Math.min(((profile?.pro_balance || 0) / 10000) * 100, 100)}%` }} /> 
+                  </div>
+              </div>
+              <button className="mt-6 w-full border border-white/10 text-white font-bold py-3 rounded-lg hover:bg-white/5 transition-colors uppercase text-xs tracking-widest">
+                  Ver Placas
+              </button>
+          </div>
+      </div>
+    </div>
+  );
+}
