@@ -7,20 +7,15 @@ export default function MainLayout({
 }) {
   return (
     <div className="flex flex-row h-screen bg-black overflow-hidden relative">
-      
-      {/* Menu Lateral */}
       <Sidebar />
-
-      {/* Conteúdo Principal */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth">
         
-        {/* AJUSTE FINO: Mudamos para pt-28 (112px) no mobile */}
-        <div className="px-6 pt-28 pb-32 md:p-12 md:pb-12 max-w-7xl mx-auto">
+        {/* AGORA: pt-24 (Fica mais justo, logo abaixo do header) */}
+        <div className="px-6 pt-24 pb-32 md:p-12 md:pb-12 max-w-7xl mx-auto">
           {children}
         </div>
         
       </main>
-      
     </div>
   );
 }
