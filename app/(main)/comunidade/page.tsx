@@ -43,7 +43,7 @@ export default function ComunidadePage() {
           />
           <div className="flex justify-between items-center border-t border-white/5 pt-4">
             <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">
-              Participação {" > "} Aparência
+            Participação {" > "} Aparência
             </span>
             <button className="bg-[#C9A66B] text-black px-4 py-2 rounded-lg text-xs font-black flex items-center gap-2 uppercase">
               <Send size={14} /> Postar

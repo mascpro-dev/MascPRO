@@ -25,8 +25,10 @@ export default function RedePage() {
     getData();
   }, [supabase]);
 
-  const inviteLink = "https://mascpro.app/ref/" + userId;
-
+  // Esta alteração garante que o link aponte para a lógica de captura, evitando o erro 403
+const inviteLink = userId 
+  ? `https://mascpro.app/ref/${userId}` 
+  : "https://mascpro.app";
   const handleCopy = () => {
     navigator.clipboard.writeText(inviteLink);
     setCopied(true);
