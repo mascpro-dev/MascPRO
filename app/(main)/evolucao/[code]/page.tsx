@@ -23,6 +23,10 @@ export default function AulaPlayerPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [playerContainer, setPlayerContainer] = useState<HTMLDivElement | null>(null);
   const [youtubePlayer, setYoutubePlayer] = useState<any>(null);
+  
+  // Tempo do Vídeo
+  const [currentTime, setCurrentTime] = useState(0); // Tempo atual em segundos
+  const [duration, setDuration] = useState(0); // Duração total em segundos
 
   useEffect(() => {
     async function fetchLessons() {
@@ -49,7 +53,7 @@ export default function AulaPlayerPage() {
     if (courseCode) fetchLessons();
   }, [courseCode, supabase]);
 
-  // Timer de Recompensa
+  // Timer de Recompensa e Atualização de Tempo do Vídeo
   useEffect(() => {
     if (!currentLesson) return;
     const interval = setInterval(() => {
@@ -58,13 +62,29 @@ export default function AulaPlayerPage() {
         if (novo > 0 && novo % 900 === 0) pagarRecompensa(); // 15 min
         return novo;
       });
+      
+      // Atualiza tempo atual do vídeo
+      if (youtubePlayer) {
+        try {
+          const currentTime = youtubePlayer.getCurrentTime();
+          if (currentTime && !isNaN(currentTime)) {
+            setCurrentTime(currentTime);
+          }
+        } catch (e) {
+          // Ignora erros se o player não estiver pronto
+        }
+      }
     }, 1000);
     return () => clearInterval(interval);
-  }, [currentLesson]);
+  }, [currentLesson, youtubePlayer]);
 
   // Carrega API do YouTube IFrame
   useEffect(() => {
     if (!currentLesson) return;
+
+    // Reseta tempo quando muda de vídeo
+    setCurrentTime(0);
+    setDuration(0);
 
     // Carrega script do YouTube IFrame API
     const tag = document.createElement('script');
@@ -92,7 +112,17 @@ export default function AulaPlayerPage() {
         events: {
           onReady: (event: any) => {
             setYoutubePlayer(event.target);
+            const duration = event.target.getDuration();
+            setDuration(duration);
+            setCurrentTime(0);
             event.target.playVideo();
+          },
+          onStateChange: (event: any) => {
+            // Atualiza duração quando o vídeo está pronto
+            if (event.data === (window as any).YT.PlayerState.PLAYING) {
+              const duration = event.target.getDuration();
+              if (duration) setDuration(duration);
+            }
           },
         },
       });
@@ -238,6 +268,14 @@ export default function AulaPlayerPage() {
     }
   }
 
+  // Função para formatar tempo (segundos -> MM:SS)
+  const formatTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   if (loading) return (
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center text-white">
       <Loader2 className="w-8 h-8 animate-spin text-[#C9A66B]" />
@@ -279,27 +317,10 @@ export default function AulaPlayerPage() {
             className="relative aspect-video bg-black rounded-xl overflow-hidden border border-[#222] shadow-2xl shadow-black group select-none"
           >
             
-            {/* --- MÁSCARAS DE PROTEÇÃO AGRESSIVAS --- */}
-            
-            {/* 1. Máscara no topo (bloqueia título e logo YouTube) */}
-            <div 
-              className="absolute inset-x-0 top-0 h-20 z-25 bg-transparent"
-              style={{ pointerEvents: 'auto' }}
-              onClick={(e) => e.stopPropagation()}
-              onContextMenu={(e) => e.preventDefault()}
-            />
-            
-            {/* 2. Máscara no canto inferior esquerdo (bloqueia logo YouTube) */}
+            {/* --- MÁSCARA: BLOQUEIA LOGO DO YOUTUBE --- */}
+            {/* Bloqueia apenas o logo do YouTube no canto inferior esquerdo */}
             <div 
               className="absolute left-0 bottom-0 w-32 h-20 z-25 bg-transparent"
-              style={{ pointerEvents: 'auto' }}
-              onClick={(e) => e.stopPropagation()}
-              onContextMenu={(e) => e.preventDefault()}
-            />
-            
-            {/* 3. Máscara lateral direita (bloqueia botões de compartilhar e "Assistir no YouTube") */}
-            <div 
-              className="absolute right-0 top-0 bottom-0 w-20 z-25 bg-transparent"
               style={{ pointerEvents: 'auto' }}
               onClick={(e) => e.stopPropagation()}
               onContextMenu={(e) => e.preventDefault()}
@@ -343,11 +364,25 @@ export default function AulaPlayerPage() {
           </div>
 
           <div className="flex justify-between items-start">
-            <div>
+            <div className="flex-1">
                 <h1 className="text-2xl font-bold text-white">{currentLesson.title}</h1>
-                <p className="text-gray-500 text-sm mt-1">
-                Tempo estudado: <span className="text-[#C9A66B] font-bold">{Math.floor(secondsWatched / 60)} min</span>
-                </p>
+                <div className="flex flex-wrap items-center gap-4 mt-2">
+                  <p className="text-gray-500 text-sm">
+                    Tempo estudado: <span className="text-[#C9A66B] font-bold">{Math.floor(secondsWatched / 60)} min</span>
+                  </p>
+                  {duration > 0 && (
+                    <>
+                      <span className="text-gray-600">•</span>
+                      <p className="text-gray-500 text-sm">
+                        Assistido: <span className="text-white font-bold">{formatTime(currentTime)}</span> / <span className="text-gray-400">{formatTime(duration)}</span>
+                      </p>
+                      <span className="text-gray-600">•</span>
+                      <p className="text-gray-500 text-sm">
+                        Restante: <span className="text-[#C9A66B] font-bold">{formatTime(Math.max(0, duration - currentTime))}</span>
+                      </p>
+                    </>
+                  )}
+                </div>
             </div>
           </div>
         </div>
