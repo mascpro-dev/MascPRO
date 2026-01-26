@@ -55,7 +55,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
     <div className="min-h-screen bg-black text-white">
       <Sidebar />
       <main className="transition-all duration-300 w-full min-h-screen">
-        <div className="pt-24 pb-32 px-6 md:pt-12 md:pb-12 md:pl-[280px] max-w-[1600px] mx-auto">
+        <div className="pt-20 pb-24 md:pb-20 px-4 md:px-6 md:pt-12 md:pb-12 md:pl-[280px] max-w-[1600px] mx-auto">
           {children}
         </div>
       </main>
