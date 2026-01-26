@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { MessageSquare, Heart, Share2, Send, Crown, Medal, Trophy, Sparkles, Instagram, MessageCircle } from "lucide-react";
+import { MessageSquare, Heart, Share2, Send, Crown, Medal, Trophy, Instagram, MessageCircle } from "lucide-react";
 
 export default function ComunidadePage() {
   const [activeTab, setActiveTab] = useState<"feed" | "ranking">("feed");
@@ -21,7 +21,7 @@ export default function ComunidadePage() {
                          currentProfile?.role === "Distribuidor" || 
                          currentProfile?.role === "distribuidor";
 
-  // Carregar perfil do usuário logado (apenas para verificar se está logado)
+  // Carregar perfil do usuário logado
   useEffect(() => {
     async function getCurrentProfile() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -37,7 +37,7 @@ export default function ComunidadePage() {
     getCurrentProfile();
   }, [supabase]);
 
-  // Carregar posts da comunidade (TODOS os posts, sem filtro)
+  // Carregar posts da comunidade
   useEffect(() => {
     async function fetchPosts() {
       setLoading(true);
@@ -54,31 +54,26 @@ export default function ComunidadePage() {
     fetchPosts();
   }, [supabase]);
 
-  // Carregar ranking (TODOS os usuários com lógica baseada em work_type)
+  // Carregar ranking
   useEffect(() => {
     async function fetchRanking() {
       if (!currentProfile) return;
 
       let query;
 
-      // Cenário A: Se usuário é Distribuidor (acesso VIP)
       if (isDistribuidor) {
         if (rankingFilter === "distribuidores") {
-          // Buscar TODOS os Distribuidores
           query = supabase
             .from("profiles")
             .select("*, coins, personal_coins")
             .eq("work_type", "Distribuidor");
         } else {
-          // Buscar TODOS os Profissionais (excluir Distribuidores)
           query = supabase
             .from("profiles")
             .select("*, coins, personal_coins")
             .neq("work_type", "Distribuidor");
         }
       } else {
-        // Cenário B: Se é Cabeleireiro ou Embaixador
-        // Buscar Ranking Geral completo (excluir Distribuidores)
         query = supabase
           .from("profiles")
           .select("*, coins, personal_coins")
@@ -89,28 +84,16 @@ export default function ComunidadePage() {
 
       if (error) {
         console.error("Erro ao buscar ranking:", error);
-        console.log("Detalhes do erro:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-        });
         setRanking([]);
         return;
       }
 
       if (!data || data.length === 0) {
-        console.log("Ranking vazio - nenhum usuário encontrado");
-        console.log("Filtro aplicado:", {
-          isDistribuidor,
-          rankingFilter: isDistribuidor ? rankingFilter : "profissionais",
-        });
         setRanking([]);
         return;
       }
-
-      console.log(`Ranking carregado: ${data.length} usuários encontrados`);
       
-      // Calcular total_score para cada usuário (coins + personal_coins)
+      // Calcular total_score (coins + personal_coins)
       const rankingDataWithScore = data.map((user: any) => {
         const coins = user.coins || 0;
         const personalCoins = user.personal_coins || 0;
@@ -124,23 +107,15 @@ export default function ComunidadePage() {
         };
       });
       
-      // Ordenar por total_score (do maior para o menor)
+      // Ordenar por total_score (maior para menor)
       rankingDataWithScore.sort((a: any, b: any) => b.totalScore - a.totalScore);
       
-      // Adicionar posição após ordenação
+      // Adicionar posição
       const rankingData = rankingDataWithScore.map((user: any, index: number) => ({
         ...user,
         position: index + 1,
-        totalPros: user.totalScore, // Usar totalScore para exibição
+        totalPros: user.totalScore,
       }));
-      
-      console.log("Ranking ordenado por total_score:", rankingData.slice(0, 5).map((u: any) => ({
-        nome: u.full_name,
-        coins: u.coins,
-        personal_coins: u.personal_coins,
-        totalScore: u.totalScore,
-        position: u.position
-      })));
       
       setRanking(rankingData);
     }
@@ -167,7 +142,6 @@ export default function ComunidadePage() {
 
     if (!error) {
       setPostContent("");
-      // Recarregar posts automaticamente
       const { data, error: fetchError } = await supabase
         .from("community_posts")
         .select("*, profiles(full_name, work_type, avatar_url, specialty)")
@@ -195,7 +169,6 @@ export default function ComunidadePage() {
     if (!profile) return "Membro";
     const isDist = profile.work_type === "distribuidor" || profile.role === "distribuidor";
     if (isDist) return "Distribuidor";
-    // Verificar se tem specialty para mostrar profissão
     if (profile.specialty) {
       const specialties: { [key: string]: string } = {
         cabeleireiro: "Cabeleireiro",
@@ -213,408 +186,367 @@ export default function ComunidadePage() {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
 
-  // Função para formatar link do Instagram
   const getInstagramLink = (instagram: string | null) => {
     if (!instagram) return null;
-    const handle = instagram.replace(/^@/, ""); // Remove @ se existir
+    const handle = instagram.replace(/^@/, "");
     return `https://instagram.com/${handle}`;
   };
 
-  // Função para formatar link do WhatsApp
   const getWhatsAppLink = (phone: string | null) => {
     if (!phone) return null;
-    const cleanPhone = phone.replace(/\s|\(|\)|-/g, ""); // Remove espaços, parênteses e traços
+    const cleanPhone = phone.replace(/\s|\(|\)|-/g, "");
     return `https://wa.me/55${cleanPhone}`;
   };
 
+  const topThree = ranking.slice(0, 3);
+  const restOfRanking = ranking.slice(3);
+
   return (
-    <div className="max-w-[1200px] mx-auto space-y-6 pb-24">
-      {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">
-          Comunidade <span className="text-[#C9A66B]">MASC</span>
-        </h1>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-            Comunidade {" > "} {activeTab === "feed" ? "Feed" : "Ranking"}
-          </span>
+    <div className="min-h-screen bg-[#0A0A0A]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
+            Comunidade <span className="text-[#C9A66B]">MASC</span>
+          </h1>
+          <p className="text-xs text-[#888] uppercase tracking-wider">
+            {activeTab === "feed" ? "Feed" : "Ranking"}
+          </p>
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-[#222]">
-        <button
-          onClick={() => setActiveTab("feed")}
-          className={`px-6 py-3 font-bold text-sm uppercase tracking-wider transition-colors relative ${
-            activeTab === "feed"
-              ? "text-[#C9A66B]"
-              : "text-slate-500 hover:text-slate-300"
-          }`}
-        >
-          Feed
-          {activeTab === "feed" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#C9A66B]" />
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("ranking")}
-          className={`px-6 py-3 font-bold text-sm uppercase tracking-wider transition-colors relative ${
-            activeTab === "ranking"
-              ? "text-[#C9A66B]"
-              : "text-slate-500 hover:text-slate-300"
-          }`}
-        >
-          Ranking
-          {activeTab === "ranking" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#C9A66B]" />
-          )}
-        </button>
-      </div>
-
-      {/* Conteúdo das Tabs */}
-      {activeTab === "feed" ? (
-        <div className="space-y-4">
-          {/* Input de Post */}
-          <form
-            onSubmit={handlePostSubmit}
-            className="bg-[#0A0A0A] border border-[#222] rounded-2xl p-6 space-y-4"
+        {/* Tabs */}
+        <div className="flex gap-1 mb-8 border-b border-[#222]">
+          <button
+            onClick={() => setActiveTab("feed")}
+            className={`px-6 py-3 text-sm font-semibold transition-colors relative ${
+              activeTab === "feed"
+                ? "text-[#C9A66B]"
+                : "text-[#888] hover:text-white"
+            }`}
           >
-            <textarea
-              value={postContent}
-              onChange={(e) => setPostContent(e.target.value)}
-              placeholder="O que está acontecendo no seu salão?"
-              className="w-full bg-transparent border-none text-white placeholder:text-slate-600 resize-none focus:outline-none min-h-[120px] text-sm"
-              maxLength={500}
-            />
-            <div className="flex justify-between items-center border-t border-[#222] pt-4">
-              <span className="text-xs text-slate-500">
-                {postContent.length}/500
-              </span>
-              <button 
-                type="submit"
-                disabled={posting || !postContent.trim()}
-                className="bg-[#C9A66B] text-black font-black px-6 py-2 rounded-xl text-xs uppercase hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-opacity"
-              >
-                {posting ? "Postando..." : "Postar"} <Send size={14} />
-              </button>
-            </div>
-          </form>
-
-          {/* Lista de Posts */}
-          <div className="space-y-4">
-            {loading ? (
-              <div className="bg-[#0A0A0A] border border-[#222] rounded-2xl p-8 text-center">
-                <p className="text-slate-500 text-sm">Carregando feed...</p>
-              </div>
-            ) : posts.length === 0 ? (
-              <div className="bg-[#0A0A0A] border border-[#222] rounded-2xl p-8 text-center">
-                <p className="text-slate-500 text-sm">
-                  Nenhum post ainda. Seja o primeiro a compartilhar!
-                </p>
-              </div>
-            ) : (
-              posts.map((post) => (
-                <div
-                  key={post.id}
-                  className="bg-[#0A0A0A] border border-[#222] rounded-2xl p-6 space-y-4 hover:border-[#333] transition-colors"
-                >
-                  <div className="flex items-start gap-3">
-                    {/* Avatar */}
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#C9A66B] to-amber-200 flex items-center justify-center text-black font-bold text-sm flex-shrink-0">
-                      {post.profiles?.avatar_url ? (
-                        <img
-                          src={post.profiles.avatar_url}
-                          alt={post.profiles.full_name || "User"}
-                          className="w-full h-full rounded-full object-cover"
-                        />
-                      ) : (
-                        getInitials(post.profiles?.full_name)
-                      )}
-                    </div>
-
-                    {/* Nome e Cargo */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-white">
-                          {post.profiles?.full_name || "Membro MASC"}
-                        </p>
-                      </div>
-                      <p className="text-xs text-slate-500 uppercase tracking-tight mt-0.5">
-                        {getRoleLabel(post.profiles)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Conteúdo do Post */}
-                  <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                    {post.content}
-                  </p>
-
-                  {/* Ações */}
-                  <div className="flex items-center gap-6 pt-4 border-t border-[#222]">
-                    <button className="flex items-center gap-2 text-slate-500 hover:text-[#C9A66B] transition-colors group">
-                      <Heart
-                        size={18}
-                        className="group-hover:fill-[#C9A66B] group-hover:stroke-[#C9A66B]"
-                      />
-                      <span className="text-xs">0</span>
-                  </button>
-                    <button className="flex items-center gap-2 text-slate-500 hover:text-[#C9A66B] transition-colors group">
-                      <MessageSquare size={18} />
-                      <span className="text-xs">0</span>
-                  </button>
-                  <button className="flex items-center gap-2 text-slate-500 hover:text-[#C9A66B] transition-colors ml-auto">
-                      <Share2 size={18} />
-                  </button>
-                </div>
-              </div>
-              ))
+            Feed
+            {activeTab === "feed" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#C9A66B]" />
             )}
-          </div>
+          </button>
+          <button
+            onClick={() => setActiveTab("ranking")}
+            className={`px-6 py-3 text-sm font-semibold transition-colors relative ${
+              activeTab === "ranking"
+                ? "text-[#C9A66B]"
+                : "text-[#888] hover:text-white"
+            }`}
+          >
+            Ranking
+            {activeTab === "ranking" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#C9A66B]" />
+            )}
+          </button>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {/* Filtro de Ranking (apenas para Distribuidores - Acesso VIP) */}
-          {isDistribuidor && (
-            <div className="flex gap-2 bg-[#0A0A0A] border border-[#222] rounded-xl p-2">
-              <button
-                onClick={() => setRankingFilter("profissionais")}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${
-                  rankingFilter === "profissionais"
-                    ? "bg-[#C9A66B] text-black"
-                    : "bg-transparent text-slate-500 hover:text-slate-300"
-                }`}
-              >
-                Ranking Profissionais
-              </button>
-              <button
-                onClick={() => setRankingFilter("distribuidores")}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${
-                  rankingFilter === "distribuidores"
-                    ? "bg-[#C9A66B] text-black"
-                    : "bg-transparent text-slate-500 hover:text-slate-300"
-                }`}
-              >
-                Ranking Distribuidores
-              </button>
-            </div>
-          )}
 
-          {loading ? (
-            <div className="bg-[#0A0A0A] border border-[#222] rounded-2xl p-8 text-center">
-              <p className="text-slate-500 text-sm">Carregando ranking...</p>
-            </div>
-          ) : ranking.length === 0 ? (
-            <div className="bg-[#0A0A0A] border border-[#222] rounded-2xl p-8 text-center">
-              <p className="text-slate-500 text-sm">
-                Nenhum usuário no ranking ainda.
-              </p>
-            </div>
-          ) : (
-            <div className="max-h-[800px] overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-              {/* Top 3 - Destaque (Ouro, Prata, Bronze) */}
-              {ranking.length > 0 && ranking.slice(0, 3).map((user, index) => {
-                const position = index + 1;
-                const isFirst = position === 1;
-                const isSecond = position === 2;
-                const isThird = position === 3;
+        {/* Conteúdo */}
+        {activeTab === "feed" ? (
+          <div className="space-y-4">
+            {/* Input de Post */}
+            <form
+              onSubmit={handlePostSubmit}
+              className="bg-[#111] border border-[#222] rounded-xl p-4 sm:p-6"
+            >
+              <textarea
+                value={postContent}
+                onChange={(e) => setPostContent(e.target.value)}
+                placeholder="O que está acontecendo no seu salão?"
+                className="w-full bg-transparent border-none text-white placeholder:text-[#888] resize-none focus:outline-none min-h-[100px] text-sm"
+                maxLength={500}
+              />
+              <div className="flex justify-between items-center mt-4 pt-4 border-t border-[#222]">
+                <span className="text-xs text-[#888]">
+                  {postContent.length}/500
+                </span>
+                <button 
+                  type="submit"
+                  disabled={posting || !postContent.trim()}
+                  className="bg-[#C9A66B] text-black font-semibold px-6 py-2 rounded-lg text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-opacity"
+                >
+                  {posting ? "Postando..." : "Postar"} <Send size={16} />
+                </button>
+              </div>
+            </form>
 
-                return (
+            {/* Lista de Posts */}
+            <div className="space-y-4">
+              {loading ? (
+                <div className="bg-[#111] border border-[#222] rounded-xl p-8 text-center">
+                  <p className="text-[#888] text-sm">Carregando feed...</p>
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="bg-[#111] border border-[#222] rounded-xl p-8 text-center">
+                  <p className="text-[#888] text-sm">
+                    Nenhum post ainda. Seja o primeiro a compartilhar!
+                  </p>
+                </div>
+              ) : (
+                posts.map((post) => (
                   <div
-                    key={user.id}
-                    className={`bg-[#0A0A0A] border-2 rounded-2xl p-6 ${
-                      isFirst
-                        ? "border-[#C9A66B] shadow-lg shadow-[#C9A66B]/20"
-                        : isSecond
-                        ? "border-slate-400"
-                        : isThird
-                        ? "border-amber-600"
-                        : "border-[#222]"
-                    }`}
+                    key={post.id}
+                    className="bg-[#111] border border-[#222] rounded-xl p-4 sm:p-6 hover:border-[#333] transition-colors"
                   >
-                    <div className="flex items-center gap-4">
-                      {/* Posição com Ícone */}
-                      <div className="flex-shrink-0">
-                        {isFirst ? (
-                          <div className="relative">
-                            <Crown
-                              size={32}
-                              className="text-[#C9A66B] fill-[#C9A66B]"
-                            />
-                            <Sparkles
-                              size={16}
-                              className="absolute -top-1 -right-1 text-[#C9A66B] animate-pulse"
-                            />
-                          </div>
-                        ) : isSecond ? (
-                          <Medal size={32} className="text-slate-400 fill-slate-400" />
-                        ) : (
-                          <Trophy size={32} className="text-amber-600 fill-amber-600" />
-                        )}
-                      </div>
-
-                      {/* Avatar */}
-                      <div
-                        className={`w-16 h-16 rounded-full flex items-center justify-center text-black font-bold text-lg flex-shrink-0 ${
-                          isFirst
-                            ? "bg-gradient-to-tr from-[#C9A66B] to-amber-200 ring-2 ring-[#C9A66B]"
-                            : isSecond
-                            ? "bg-gradient-to-tr from-slate-300 to-slate-100 ring-2 ring-slate-400"
-                            : "bg-gradient-to-tr from-amber-300 to-amber-100 ring-2 ring-amber-600"
-                        }`}
-                      >
-                        {user.avatar_url ? (
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-[#C9A66B] to-amber-200 flex items-center justify-center text-black font-bold text-sm flex-shrink-0">
+                        {post.profiles?.avatar_url ? (
                           <img
-                            src={user.avatar_url}
-                            alt={user.full_name || "User"}
+                            src={post.profiles.avatar_url}
+                            alt={post.profiles.full_name || "User"}
                             className="w-full h-full rounded-full object-cover"
                           />
                         ) : (
-                          getInitials(user.full_name)
+                          getInitials(post.profiles?.full_name)
                         )}
                       </div>
-
-                      {/* Nome e Profissão */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p
-                            className={`text-lg font-black ${
-                              isFirst ? "text-[#C9A66B]" : "text-white"
-                            }`}
-                          >
-                            {user.full_name || "Membro MASC"}
-                          </p>
-                          {/* Botões de Ação Social */}
-                          <div className="flex items-center gap-1.5">
-                            {/* Botão Instagram */}
-                            {user.instagram && (
-                              <a
-                                href={getInstagramLink(user.instagram) || "#"}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1.5 text-slate-400 hover:text-pink-500 transition-colors rounded-lg hover:bg-pink-500/10"
-                                title={`Instagram: @${user.instagram.replace(/^@/, "")}`}
-                              >
-                                <Instagram size={16} />
-                              </a>
-                            )}
-                            
-                            {/* Botão WhatsApp */}
-                            {user.phone && (
-                              <a
-                                href={getWhatsAppLink(user.phone) || "#"}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1.5 text-slate-400 hover:text-emerald-500 transition-colors rounded-lg hover:bg-emerald-500/10"
-                                title={`WhatsApp: ${user.phone}`}
-                              >
-                                <MessageCircle size={16} />
-                              </a>
+                        <p className="text-sm font-semibold text-white truncate">
+                          {post.profiles?.full_name || "Membro MASC"}
+                        </p>
+                        <p className="text-xs text-[#888] mt-0.5">
+                          {getRoleLabel(post.profiles)}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-white leading-relaxed whitespace-pre-wrap mb-4">
+                      {post.content}
+                    </p>
+                    <div className="flex items-center gap-6 pt-4 border-t border-[#222]">
+                      <button className="flex items-center gap-2 text-[#888] hover:text-[#C9A66B] transition-colors">
+                        <Heart size={16} />
+                        <span className="text-xs">0</span>
+                      </button>
+                      <button className="flex items-center gap-2 text-[#888] hover:text-[#C9A66B] transition-colors">
+                        <MessageSquare size={16} />
+                        <span className="text-xs">0</span>
+                      </button>
+                      <button className="flex items-center gap-2 text-[#888] hover:text-[#C9A66B] transition-colors ml-auto">
+                        <Share2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Filtro de Ranking (apenas para Distribuidores) */}
+            {isDistribuidor && (
+              <div className="flex gap-2 bg-[#111] border border-[#222] rounded-lg p-1">
+                <button
+                  onClick={() => setRankingFilter("profissionais")}
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
+                    rankingFilter === "profissionais"
+                      ? "bg-[#C9A66B] text-black"
+                      : "text-[#888] hover:text-white"
+                  }`}
+                >
+                  Profissionais
+                </button>
+                <button
+                  onClick={() => setRankingFilter("distribuidores")}
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
+                    rankingFilter === "distribuidores"
+                      ? "bg-[#C9A66B] text-black"
+                      : "text-[#888] hover:text-white"
+                  }`}
+                >
+                  Distribuidores
+                </button>
+              </div>
+            )}
+
+            {loading ? (
+              <div className="bg-[#111] border border-[#222] rounded-xl p-8 text-center">
+                <p className="text-[#888] text-sm">Carregando ranking...</p>
+              </div>
+            ) : ranking.length === 0 ? (
+              <div className="bg-[#111] border border-[#222] rounded-xl p-8 text-center">
+                <p className="text-[#888] text-sm">
+                  Nenhum usuário no ranking ainda.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Pódio - Top 3 */}
+                {topThree.length > 0 && (
+                  <div className="bg-[#111] border border-[#222] rounded-xl p-6 sm:p-8">
+                    <div className="flex flex-col sm:flex-row items-end justify-center gap-4 sm:gap-6 mb-6">
+                      {/* 2º Lugar */}
+                      {topThree[1] && (
+                        <div className="flex flex-col items-center w-full sm:w-auto sm:flex-1 max-w-[200px] order-2 sm:order-1">
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-slate-300 to-slate-100 flex items-center justify-center text-black font-bold text-lg sm:text-xl mb-3 border-2 border-slate-400 ring-2 ring-slate-400/20">
+                            {topThree[1].avatar_url ? (
+                              <img
+                                src={topThree[1].avatar_url}
+                                alt={topThree[1].full_name || "User"}
+                                className="w-full h-full rounded-full object-cover"
+                              />
+                            ) : (
+                              getInitials(topThree[1].full_name)
                             )}
                           </div>
+                          <Medal size={24} className="text-slate-400 fill-slate-400 mb-2" />
+                          <p className="text-sm font-semibold text-white text-center truncate w-full">
+                            {topThree[1].full_name || "Membro MASC"}
+                          </p>
+                          <p className="text-xs text-[#888] mt-1 text-center">
+                            {getRoleLabel(topThree[1])}
+                          </p>
+                          <p className="text-lg font-bold text-slate-400 mt-2">
+                            {formatNumber(topThree[1].totalPros)}
+                          </p>
                         </div>
-                        <p className="text-xs text-slate-500 uppercase tracking-tight mt-0.5">
-                          {getRoleLabel(user)}
-                        </p>
-                      </div>
+                      )}
 
-                      {/* Total de PROs */}
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-xs text-slate-500 uppercase tracking-widest mb-1">
-                          Total PROs
-                        </p>
-                        <p
-                          className={`text-2xl font-black ${
-                            isFirst ? "text-[#C9A66B]" : "text-white"
+                      {/* 1º Lugar */}
+                      {topThree[0] && (
+                        <div className="flex flex-col items-center w-full sm:w-auto sm:flex-1 max-w-[240px] order-1 sm:order-2">
+                          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-[#C9A66B] to-amber-200 flex items-center justify-center text-black font-bold text-xl sm:text-2xl mb-3 border-2 border-[#C9A66B] ring-4 ring-[#C9A66B]/20">
+                            {topThree[0].avatar_url ? (
+                              <img
+                                src={topThree[0].avatar_url}
+                                alt={topThree[0].full_name || "User"}
+                                className="w-full h-full rounded-full object-cover"
+                              />
+                            ) : (
+                              getInitials(topThree[0].full_name)
+                            )}
+                          </div>
+                          <Crown size={28} className="text-[#C9A66B] fill-[#C9A66B] mb-2" />
+                          <p className="text-base font-bold text-[#C9A66B] text-center truncate w-full">
+                            {topThree[0].full_name || "Membro MASC"}
+                          </p>
+                          <p className="text-xs text-[#888] mt-1 text-center">
+                            {getRoleLabel(topThree[0])}
+                          </p>
+                          <p className="text-xl font-bold text-[#C9A66B] mt-2">
+                            {formatNumber(topThree[0].totalPros)}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* 3º Lugar */}
+                      {topThree[2] && (
+                        <div className="flex flex-col items-center w-full sm:w-auto sm:flex-1 max-w-[200px] order-3">
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-amber-300 to-amber-100 flex items-center justify-center text-black font-bold text-lg sm:text-xl mb-3 border-2 border-amber-600 ring-2 ring-amber-600/20">
+                            {topThree[2].avatar_url ? (
+                              <img
+                                src={topThree[2].avatar_url}
+                                alt={topThree[2].full_name || "User"}
+                                className="w-full h-full rounded-full object-cover"
+                              />
+                            ) : (
+                              getInitials(topThree[2].full_name)
+                            )}
+                          </div>
+                          <Trophy size={24} className="text-amber-600 fill-amber-600 mb-2" />
+                          <p className="text-sm font-semibold text-white text-center truncate w-full">
+                            {topThree[2].full_name || "Membro MASC"}
+                          </p>
+                          <p className="text-xs text-[#888] mt-1 text-center">
+                            {getRoleLabel(topThree[2])}
+                          </p>
+                          <p className="text-lg font-bold text-amber-600 mt-2">
+                            {formatNumber(topThree[2].totalPros)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista - Do 4º em diante */}
+                {restOfRanking.length > 0 && (
+                  <div className="bg-[#111] border border-[#222] rounded-xl overflow-hidden">
+                    <div className="divide-y divide-[#222]">
+                      {restOfRanking.map((user, index) => (
+                        <div
+                          key={user.id}
+                          className={`px-4 sm:px-6 py-4 hover:bg-[#0A0A0A] transition-colors ${
+                            index % 2 === 0 ? "bg-[#111]" : "bg-[#0F0F0F]"
                           }`}
                         >
-                          {formatNumber(user.totalPros)}
-                        </p>
-                      </div>
+                          <div className="flex items-center gap-3 sm:gap-4">
+                            {/* Posição */}
+                            <div className="w-8 sm:w-10 text-center flex-shrink-0">
+                              <p className="text-xs sm:text-sm font-semibold text-[#888]">
+                                #{user.position}
+                              </p>
+                            </div>
+
+                            {/* Avatar */}
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-[#C9A66B]/20 to-amber-200/20 flex items-center justify-center text-white font-bold text-xs sm:text-sm flex-shrink-0 border border-[#222]">
+                              {user.avatar_url ? (
+                                <img
+                                  src={user.avatar_url}
+                                  alt={user.full_name || "User"}
+                                  className="w-full h-full rounded-full object-cover"
+                                />
+                              ) : (
+                                getInitials(user.full_name)
+                              )}
+                            </div>
+
+                            {/* Nome e Cargo */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm sm:text-base font-semibold text-white truncate">
+                                  {user.full_name || "Membro MASC"}
+                                </p>
+                                {/* Redes Sociais */}
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  {user.instagram && (
+                                    <a
+                                      href={getInstagramLink(user.instagram) || "#"}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1 text-[#888] hover:text-pink-500 transition-colors"
+                                      title={`Instagram: @${user.instagram.replace(/^@/, "")}`}
+                                    >
+                                      <Instagram size={14} />
+                                    </a>
+                                  )}
+                                  {user.phone && (
+                                    <a
+                                      href={getWhatsAppLink(user.phone) || "#"}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1 text-[#888] hover:text-emerald-500 transition-colors"
+                                      title={`WhatsApp: ${user.phone}`}
+                                    >
+                                      <MessageCircle size={14} />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-xs text-[#888] mt-0.5 hidden sm:block">
+                                {getRoleLabel(user)}
+                              </p>
+                            </div>
+
+                            {/* Total de Pontos */}
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-sm sm:text-base font-bold text-[#C9A66B]">
+                                {formatNumber(user.totalPros)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                );
-              })}
-
-              {/* Restante do Ranking (4+) - Lista Compacta - TODOS os itens */}
-              {ranking.length > 3 && ranking.slice(3).map((user) => (
-                <div
-                  key={user.id}
-                  className="bg-[#0A0A0A] border border-[#222] rounded-xl p-3 hover:border-[#333] transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Posição */}
-                    <div className="w-6 text-center flex-shrink-0">
-                      <p className="text-xs font-bold text-slate-500">
-                        #{user.position}
-                      </p>
-                    </div>
-
-                    {/* Avatar Pequeno */}
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#C9A66B]/20 to-amber-200/20 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 border border-[#222]">
-                      {user.avatar_url ? (
-                        <img
-                          src={user.avatar_url}
-                          alt={user.full_name || "User"}
-                          className="w-full h-full rounded-full object-cover"
-                        />
-                      ) : (
-                        getInitials(user.full_name)
-                      )}
-                    </div>
-
-                    {/* Nome e Profissão */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-white">
-                        {user.full_name || "Membro MASC"}
-                      </p>
-                      <p className="text-xs text-slate-500 uppercase tracking-tight mt-0.5">
-                        {getRoleLabel(user)}
-                      </p>
-                    </div>
-
-                    {/* Total de PROs */}
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-black text-[#C9A66B]">
-                        {formatNumber(user.totalPros)} PRO
-                      </p>
-                    </div>
-
-                    {/* Botões de Ação Social */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {/* Botão Instagram */}
-                      {user.instagram && (
-                        <a
-                          href={getInstagramLink(user.instagram) || "#"}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 text-slate-400 hover:text-pink-500 transition-colors rounded-lg hover:bg-pink-500/10"
-                          title={`Instagram: @${user.instagram.replace(/^@/, "")}`}
-                        >
-                          <Instagram size={16} />
-                        </a>
-                      )}
-                      
-                      {/* Botão WhatsApp */}
-                      {user.phone && (
-                        <a
-                          href={getWhatsAppLink(user.phone) || "#"}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 text-slate-400 hover:text-emerald-500 transition-colors rounded-lg hover:bg-emerald-500/10"
-                          title={`WhatsApp: ${user.phone}`}
-                        >
-                          <MessageCircle size={16} />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
