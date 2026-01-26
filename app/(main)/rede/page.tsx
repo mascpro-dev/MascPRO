@@ -7,6 +7,7 @@ import { Copy, UserPlus, CheckCircle, TrendingUp, Search, Filter } from "lucide-
 export default function RedePage() {
   const [indicados, setIndicados] = useState<any[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const supabase = createClientComponentClient();
@@ -27,10 +28,13 @@ export default function RedePage() {
     getData();
   }, [supabase]);
 
-  // Lógica de link dinâmico
-  const inviteLink = userId 
-    ? `mascpro.com/?ref=${userId}` 
-    : "mascpro.com/";
+  // Monta o link de convite dinamicamente
+  useEffect(() => {
+    if (userId && typeof window !== "undefined") {
+      const link = `${window.location.origin}/cadastro?ref=${userId}`;
+      setInviteLink(link);
+    }
+  }, [userId]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(inviteLink);
@@ -88,10 +92,13 @@ export default function RedePage() {
             SEU LINK DE CONVITE
           </p>
           <div className="flex items-center gap-3">
-            <p className="text-sm text-white font-mono flex-1 truncate">{inviteLink}</p>
+            <p className="text-sm text-white font-mono flex-1 truncate min-w-0" title={inviteLink}>
+              {inviteLink || "Carregando..."}
+            </p>
             <button 
               onClick={handleCopy} 
-              className="bg-[#C9A66B] text-black px-6 py-2 rounded-lg font-black text-xs uppercase hover:opacity-90 transition-opacity whitespace-nowrap"
+              disabled={!inviteLink}
+              className="bg-[#C9A66B] text-black px-6 py-2 rounded-lg font-black text-xs uppercase hover:opacity-90 transition-opacity whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {copied ? "Copiado!" : "Copiar"}
             </button>
