@@ -19,7 +19,7 @@ export default function VisaoGeralPage() {
         if (session) {
           const { data } = await supabase
             .from("profiles")
-            .select("*")
+            .select("*, coins, personal_coins")
             .eq("id", session.user.id)
             .single();
           
@@ -34,8 +34,8 @@ export default function VisaoGeralPage() {
     getData();
   }, [supabase]);
 
-  // Calcular saldo real: coins + personal_coins
-  const balance = loading ? null : ((profile?.coins || 0) + (profile?.personal_coins || 0));
+  // Calcular Saldo Total: coins + personal_coins
+  const totalBalance = loading ? null : ((profile?.coins || 0) + (profile?.personal_coins || 0));
   const userName = profile?.full_name || "Usuário";
   const referralCode = profile?.referral_code || "";
   const referralLink = referralCode ? `mascpro.app/ref/${referralCode}` : "";
@@ -77,12 +77,12 @@ export default function VisaoGeralPage() {
                  </div>
                  <div className="flex items-baseline gap-1 mb-2">
                     <h2 className="text-5xl md:text-6xl lg:text-7xl font-black text-white tracking-tighter">
-                        {balance === null ? (
+                        {totalBalance === null ? (
                           <span className="inline-block h-12 md:h-16 lg:h-20 w-32 md:w-40 bg-white/10 rounded animate-pulse" />
-                        ) : balance === 0 ? (
+                        ) : totalBalance === 0 ? (
                           "0"
                         ) : (
-                          formatNumber(balance)
+                          formatNumber(totalBalance)
                         )}
                     </h2>
                     <span className="text-lg md:text-xl lg:text-2xl font-bold text-[#C9A66B] ml-1">PRO</span>
@@ -102,10 +102,10 @@ export default function VisaoGeralPage() {
               <div className="mt-6 md:mt-8">
                   <div className="flex justify-between text-xs font-bold text-white mb-2 uppercase tracking-wider">
                       <span>
-                        {balance === null ? (
+                        {totalBalance === null ? (
                           <span className="inline-block h-3 w-16 bg-white/10 rounded animate-pulse" />
                         ) : (
-                          `${formatNumber(balance)} PRO`
+                          `${formatNumber(totalBalance)} PRO`
                         )}
                       </span>
                       <span>10.000 PRO</span>
@@ -114,9 +114,9 @@ export default function VisaoGeralPage() {
                       <div 
                         className="h-full bg-[#C9A66B]" 
                         style={{ 
-                          width: balance === null 
+                          width: totalBalance === null 
                             ? "0%" 
-                            : `${Math.min((balance / 10000) * 100, 100)}%` 
+                            : `${Math.min((totalBalance / 10000) * 100, 100)}%` 
                         }} 
                       /> 
                   </div>

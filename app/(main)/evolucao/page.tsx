@@ -5,6 +5,67 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Trophy, Zap, PlayCircle, Image } from "lucide-react";
 
+// Componente de Card de Curso
+function CourseCard({ course }: { course: any }) {
+  const [imageError, setImageError] = useState(false);
+
+  return (
+    <Link
+      href={`/evolucao/${course.code || course.id}`}
+      className="group bg-gradient-to-b from-[#111827] to-black border border-gray-800 rounded-xl overflow-hidden hover:border-[#C9A66B]/30 transition-all duration-300"
+    >
+      {/* Badge Superior */}
+      {course.code && (
+        <div className="px-4 pt-4">
+          <div className="inline-block bg-[#C9A66B]/20 border border-[#C9A66B]/40 rounded px-2 py-1">
+            <p className="text-[#C9A66B] text-[10px] font-bold uppercase tracking-wider">
+              MÓDULO {course.code}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Centro: Imagem ou Placeholder */}
+      <div className="aspect-video bg-black/40 flex items-center justify-center relative overflow-hidden">
+        {course.thumbnail_url && !imageError ? (
+          <img
+            src={course.thumbnail_url}
+            alt={course.title || "Thumbnail do curso"}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <>
+            <div className="absolute inset-0 bg-gradient-to-br from-[#111827] via-[#1a1a2e] to-black" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Image 
+                className="w-16 h-16 text-white/10 group-hover:text-white/20 transition-colors" 
+                size={64}
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Rodapé do Card */}
+      <div className="p-6 space-y-3">
+        {/* Título */}
+        <h3 className="font-bold text-white text-base leading-tight">
+          {course.title || "Módulo de Conteúdo"}
+        </h3>
+
+        {/* Recompensa */}
+        <div className="flex items-center gap-2 text-[#C9A66B]">
+          <Zap size={14} className="flex-shrink-0" />
+          <span className="text-sm font-semibold">
+            Ganhe {course.reward_amount || 50} PRO
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 export default function EvolucaoPage() {
   const [profile, setProfile] = useState<any>(null);
   const [courses, setCourses] = useState<any[]>([]);
@@ -127,47 +188,7 @@ export default function EvolucaoPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {courses.map((course) => (
-            <Link
-              key={course.id}
-              href={`/evolucao/${course.id}`}
-              className="group bg-gradient-to-b from-[#111827] to-black border border-gray-800 rounded-xl overflow-hidden hover:border-[#C9A66B]/30 transition-all duration-300"
-            >
-              {/* Badge Superior */}
-              {course.code && (
-                <div className="px-4 pt-4">
-                  <div className="inline-block bg-[#C9A66B]/20 border border-[#C9A66B]/40 rounded px-2 py-1">
-                    <p className="text-[#C9A66B] text-[10px] font-bold uppercase tracking-wider">
-                      MÓDULO {course.code}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Centro: Placeholder de Imagem/Play */}
-              <div className="aspect-video bg-black/40 flex items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
-                <Image 
-                  className="w-16 h-16 text-white/10 group-hover:text-white/20 transition-colors" 
-                  size={64}
-                />
-              </div>
-
-              {/* Rodapé do Card */}
-              <div className="p-6 space-y-3">
-                {/* Título */}
-                <h3 className="font-bold text-white text-base leading-tight">
-                  {course.title || "Módulo de Conteúdo"}
-                </h3>
-
-                {/* Recompensa */}
-                <div className="flex items-center gap-2 text-[#C9A66B]">
-                  <Zap size={14} className="flex-shrink-0" />
-                  <span className="text-sm font-semibold">
-                    Ganhe {course.reward_amount || course.reward || 50} PRO
-                  </span>
-                </div>
-              </div>
-            </Link>
+            <CourseCard key={course.id} course={course} />
           ))}
         </div>
       )}
