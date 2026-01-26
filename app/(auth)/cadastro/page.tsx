@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Scissors, User, Mail, Phone, FileText, Lock, MapPin, Briefcase, Calendar, Clock } from "lucide-react";
+import { ChevronDown, Scissors, User, Mail, Phone, FileText, Lock, MapPin, Briefcase, Calendar, Clock, Home } from "lucide-react";
 
 export default function CadastroPage() {
   // Campos obrigatórios
@@ -12,12 +12,15 @@ export default function CadastroPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
-  const [cpfCnpj, setCpfCnpj] = useState("");
+  const [cpf, setCpf] = useState("");
   const [specialty, setSpecialty] = useState("cabeleireiro");
   const [experience, setExperience] = useState("");
   const [instagram, setInstagram] = useState("");
-  const [location, setLocation] = useState("");
-  const [hasOnlineSchedule, setHasOnlineSchedule] = useState("");
+  const [rua, setRua] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [cep, setCep] = useState("");
+  const [cityState, setCityState] = useState("");
+  const [hasSchedule, setHasSchedule] = useState("");
   
   // Campo select
   const [workType, setWorkType] = useState("proprio");
@@ -37,38 +40,54 @@ export default function CadastroPage() {
       // 1. Captura o ID do indicador salvo pelo Layout no navegador (Lógica de Rede Oculta)
       const referrerId = typeof window !== "undefined" ? localStorage.getItem("masc_referrer") : null;
 
-      // 2. Realiza o cadastro enviando os dados completos para o banco
-      const { error: signUpError } = await supabase.auth.signUp({
+      // 2. PRIMEIRO: Cria o usuário no Auth (apenas email e senha)
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            full_name: fullName,
-            phone: phone,
-            cpf_cnpj: cpfCnpj,
-            specialty: specialty,
-            experience: experience,
-            instagram: instagram,
-            location: location,
-            has_online_schedule: hasOnlineSchedule,
-            work_type: workType,
-            invited_by: referrerId, // Vincula à rede de quem indicou
-            coins: 50, // Garante os 50 PRO iniciais
-            onboarding_completed: false
-          },
         },
       });
 
       if (signUpError) throw signUpError;
-      
-      // 3. Limpa o indicador do navegador após o sucesso
+      if (!authData.user) throw new Error("Erro ao criar usuário");
+
+      // 3. SEGUNDO: Atualiza a tabela profiles com TODOS os dados
+      const profileData: any = {
+        full_name: fullName,
+        phone: phone,
+        cpf: cpf,
+        specialty: specialty,
+        experience: experience,
+        instagram: instagram,
+        rua: rua,
+        bairro: bairro,
+        cep: cep,
+        city_state: cityState,
+        work_type: workType,
+        has_schedule: hasSchedule === "sim", // Converte para boolean
+        coins: 50,
+      };
+
+      // Adiciona invited_by apenas se existir
+      if (referrerId) {
+        profileData.invited_by = referrerId;
+      }
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update(profileData)
+        .eq("id", authData.user.id);
+
+      if (updateError) throw updateError;
+
+      // 4. Limpa o indicador do navegador após o sucesso
       if (referrerId) localStorage.removeItem("masc_referrer");
 
-      // 4. Redireciona para o onboarding do novo usuário
+      // 5. Redireciona para o onboarding do novo usuário
       router.push("/onboarding");
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Erro ao realizar cadastro. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -195,8 +214,8 @@ export default function CadastroPage() {
               <input
                 type="text" 
                 required 
-                value={cpfCnpj} 
-                onChange={(e) => setCpfCnpj(e.target.value)}
+                value={cpf} 
+                onChange={(e) => setCpf(e.target.value)}
                 className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-[#C9A66B] transition-all"
                 placeholder="000.000.000-00"
               />
@@ -239,9 +258,27 @@ export default function CadastroPage() {
             </div>
           </div>
 
-          {/* Localização (Cidade/Estado) */}
+          {/* Rua */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Localização (Cidade/Estado)</label>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Rua</label>
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+                <Home size={18} />
+              </div>
+              <input
+                type="text" 
+                required 
+                value={rua} 
+                onChange={(e) => setRua(e.target.value)}
+                className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-[#C9A66B] transition-all"
+                placeholder="Nome da rua"
+              />
+            </div>
+          </div>
+
+          {/* Bairro */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Bairro</label>
             <div className="relative">
               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
                 <MapPin size={18} />
@@ -249,8 +286,44 @@ export default function CadastroPage() {
               <input
                 type="text" 
                 required 
-                value={location} 
-                onChange={(e) => setLocation(e.target.value)}
+                value={bairro} 
+                onChange={(e) => setBairro(e.target.value)}
+                className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-[#C9A66B] transition-all"
+                placeholder="Nome do bairro"
+              />
+            </div>
+          </div>
+
+          {/* CEP */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">CEP</label>
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+                <MapPin size={18} />
+              </div>
+              <input
+                type="text" 
+                required 
+                value={cep} 
+                onChange={(e) => setCep(e.target.value)}
+                className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-[#C9A66B] transition-all"
+                placeholder="00000-000"
+              />
+            </div>
+          </div>
+
+          {/* Cidade/Estado */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cidade/Estado</label>
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+                <MapPin size={18} />
+              </div>
+              <input
+                type="text" 
+                required 
+                value={cityState} 
+                onChange={(e) => setCityState(e.target.value)}
                 className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-[#C9A66B] transition-all"
                 placeholder="Ex: São Paulo/SP"
               />
@@ -286,8 +359,8 @@ export default function CadastroPage() {
               </div>
               <select 
                 required
-                value={hasOnlineSchedule} 
-                onChange={(e) => setHasOnlineSchedule(e.target.value)}
+                value={hasSchedule} 
+                onChange={(e) => setHasSchedule(e.target.value)}
                 className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-12 pr-12 py-4 text-white focus:outline-none focus:border-[#C9A66B] transition-all appearance-none cursor-pointer"
               >
                 <option value="">Selecione...</option>
