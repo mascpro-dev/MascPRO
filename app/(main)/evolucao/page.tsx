@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Link from "next/link";
-import { Zap, Trophy, PlayCircle } from "lucide-react";
+import { Zap, Trophy, ImageIcon } from "lucide-react";
 
 export default function EvolucaoPage() {
   const supabase = createClientComponentClient();
@@ -13,7 +13,7 @@ export default function EvolucaoPage() {
 
   useEffect(() => {
     async function fetchData() {
-      // 1. Busca Saldo Total (Rede + Pessoal)
+      // 1. Busca Saldo
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase
@@ -23,8 +23,7 @@ export default function EvolucaoPage() {
           .single();
 
         if (profile) {
-          const total = (profile.coins || 0) + (profile.personal_coins || 0);
-          setTotalBalance(total);
+          setTotalBalance((profile.coins || 0) + (profile.personal_coins || 0));
         }
       }
 
@@ -37,74 +36,71 @@ export default function EvolucaoPage() {
       if (coursesData) {
         setCourses(coursesData);
       }
-
       setLoading(false);
     }
-
     fetchData();
   }, [supabase]);
 
   return (
-    <div className="p-6 md:p-10 space-y-8 min-h-screen bg-[#0A0A0A] text-white">
+    <div className="p-6 md:p-10 min-h-screen bg-[#000000] text-white font-sans">
+      
       {/* Header e Saldo */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-3xl font-extrabold italic tracking-wide">
             EVOLUÇÃO <span className="text-[#C9A66B]">PRO</span>
           </h1>
-          <p className="text-gray-400 mt-1">
+          <p className="text-gray-400 mt-2 text-sm">
             Invista seus PROs para desbloquear conhecimento.
           </p>
         </div>
 
-        {/* Card de Saldo */}
-        <div className="bg-[#111] border border-[#333] px-8 py-4 rounded-xl flex items-center gap-4 shadow-lg shadow-black/50">
-          <div className="p-3 bg-[#C9A66B]/10 rounded-full">
-            <Trophy className="w-8 h-8 text-[#C9A66B]" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-widest">Seu Saldo</p>
-            <div className="text-2xl font-bold text-white">
-              {loading ? (
-                <span className="animate-pulse">...</span>
-              ) : (
-                `${totalBalance} PRO`
-              )}
-            </div>
-          </div>
+        {/* Card Saldo (Estilo do Print) */}
+        <div className="border border-[#C9A66B]/30 bg-black rounded-xl px-6 py-3 flex items-center gap-4 min-w-[280px]">
+           <div className="flex flex-col">
+              <span className="text-[10px] text-[#C9A66B] font-bold tracking-widest uppercase mb-1">Seu Saldo</span>
+              <div className="flex items-center gap-2">
+                <Trophy className="w-6 h-6 text-white" />
+                <span className="text-2xl font-bold text-white">
+                  {loading ? "..." : `${totalBalance} PRO`}
+                </span>
+              </div>
+           </div>
         </div>
       </div>
 
-      {/* Grid de Cursos */}
+      {/* Grid de Cards (Igual ao Print) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {courses.map((course) => (
-          <Link href={`/evolucao/${course.code}`} key={course.id} className="group">
-            <div className="relative h-64 bg-gradient-to-b from-[#161616] to-black border border-[#222] rounded-2xl overflow-hidden hover:border-[#C9A66B]/50 transition-all duration-300 shadow-lg group-hover:shadow-[#C9A66B]/10">
+          <Link href={`/evolucao/${course.code}`} key={course.id} className="block group">
+            <div className="relative h-[320px] rounded-2xl overflow-hidden border border-[#1F2937] transition-all duration-300 hover:border-[#C9A66B]/50 hover:shadow-lg hover:shadow-[#C9A66B]/10">
               
-              {/* Badge Código */}
-              <div className="absolute top-4 left-4 bg-[#C9A66B] text-black text-[10px] font-bold px-2 py-1 rounded shadow-md z-10">
-                MÓDULO {course.code.replace('MOD_', '')}
+              {/* Fundo Gradiente Azulado Escuro */}
+              <div className="absolute inset-0 bg-gradient-to-b from-[#111827] to-[#050505] z-0" />
+
+              {/* Badge Bege no Topo */}
+              <div className="absolute top-6 left-6 z-10">
+                <span className="bg-[#D1C4A9] text-black text-[10px] font-bold px-3 py-1.5 rounded-md uppercase tracking-wide">
+                  MÓDULO {course.code.replace('MOD_', '')}
+                </span>
               </div>
 
-              {/* Placeholder ou Imagem */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-30 group-hover:opacity-50 transition-opacity">
-                {course.thumbnail_url ? (
-                    <img src={course.thumbnail_url} alt={course.title} className="w-full h-full object-cover" />
-                ) : (
-                    <PlayCircle className="w-20 h-20 text-gray-600" />
-                )}
+              {/* Ícone Central (Placeholder) */}
+              <div className="absolute inset-0 flex items-center justify-center z-10 opacity-10 group-hover:opacity-20 transition-opacity">
+                <ImageIcon className="w-24 h-24 text-white" />
               </div>
 
               {/* Conteúdo Rodapé */}
-              <div className="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-black via-black/80 to-transparent">
-                <h3 className="text-lg font-bold text-white mb-2 leading-tight">
+              <div className="absolute bottom-0 inset-x-0 p-6 z-10">
+                <h3 className="text-xl font-bold text-white mb-3 leading-tight">
                   {course.title}
                 </h3>
-                <div className="flex items-center gap-2 text-[#C9A66B] font-medium text-sm">
-                  <Zap className="w-4 h-4 fill-current" />
+                <div className="flex items-center gap-2 text-white/90 text-sm font-medium">
+                  <Zap className="w-4 h-4 text-[#C9A66B] fill-[#C9A66B]" />
                   <span>Ganhe {course.reward_amount} PRO</span>
                 </div>
               </div>
+
             </div>
           </Link>
         ))}
