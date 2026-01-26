@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Play, Lock, Loader2 } from "lucide-react";
+import { ArrowLeft, Play, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function AulaPlayerPage() {
@@ -15,15 +15,15 @@ export default function AulaPlayerPage() {
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  // Timer e Controle
+  // Timer
   const [secondsWatched, setSecondsWatched] = useState(0);
 
   useEffect(() => {
     async function fetchLessons() {
       try {
         setLoading(true);
-        // Busca as aulas ignorando maiúsculas/minúsculas no código
-        const { data, error } = await supabase
+        // Busca aulas (insensível a maiúsculas/minúsculas)
+        const { data } = await supabase
           .from("lessons")
           .select("*")
           .ilike("course_code", courseCode) 
@@ -43,7 +43,7 @@ export default function AulaPlayerPage() {
     if (courseCode) fetchLessons();
   }, [courseCode, supabase]);
 
-  // Lógica do Timer (Moedas)
+  // Timer de Recompensa
   useEffect(() => {
     if (!currentLesson) return;
     const interval = setInterval(() => {
@@ -56,93 +56,10 @@ export default function AulaPlayerPage() {
     return () => clearInterval(interval);
   }, [currentLesson]);
 
-  // PROTEÇÕES ANTI-COMPARTILHAMENTO
-  useEffect(() => {
-    // Bloqueia botão direito
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-      return false;
-    };
-
-    // Bloqueia teclas de atalho (F12, Ctrl+Shift+I, Ctrl+U, Ctrl+S, etc)
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // F12 (DevTools)
-      if (e.key === 'F12') {
-        e.preventDefault();
-        return false;
-      }
-      // Ctrl+Shift+I (DevTools)
-      if (e.ctrlKey && e.shiftKey && e.key === 'I') {
-        e.preventDefault();
-        return false;
-      }
-      // Ctrl+Shift+J (Console)
-      if (e.ctrlKey && e.shiftKey && e.key === 'J') {
-        e.preventDefault();
-        return false;
-      }
-      // Ctrl+U (View Source)
-      if (e.ctrlKey && e.key === 'u') {
-        e.preventDefault();
-        return false;
-      }
-      // Ctrl+S (Save)
-      if (e.ctrlKey && e.key === 's') {
-        e.preventDefault();
-        return false;
-      }
-      // Ctrl+P (Print)
-      if (e.ctrlKey && e.key === 'p') {
-        e.preventDefault();
-        return false;
-      }
-      // Ctrl+Shift+C (Inspect)
-      if (e.ctrlKey && e.shiftKey && e.key === 'C') {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    // Bloqueia seleção de texto
-    const handleSelectStart = (e: Event) => {
-      e.preventDefault();
-      return false;
-    };
-
-    // Bloqueia drag and drop
-    const handleDragStart = (e: DragEvent) => {
-      e.preventDefault();
-      return false;
-    };
-
-    // Bloqueia copy
-    const handleCopy = (e: ClipboardEvent) => {
-      e.preventDefault();
-      return false;
-    };
-
-    // Adiciona listeners
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('selectstart', handleSelectStart);
-    document.addEventListener('dragstart', handleDragStart);
-    document.addEventListener('copy', handleCopy);
-
-    // Limpa listeners ao desmontar
-    return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('selectstart', handleSelectStart);
-      document.removeEventListener('dragstart', handleDragStart);
-      document.removeEventListener('copy', handleCopy);
-    };
-  }, []);
-
   async function pagarRecompensa() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       await supabase.rpc('reward_watch_time', { user_id: user.id });
-      // Feedback visual simples ou use toast se tiver
       console.log("💰 +50 PRO Pagos!");
     }
   }
@@ -161,12 +78,7 @@ export default function AulaPlayerPage() {
   );
 
   return (
-    <div 
-      className="min-h-screen bg-[#0A0A0A] text-white p-4 md:p-8 select-none"
-      onContextMenu={(e) => e.preventDefault()}
-      onDragStart={(e) => e.preventDefault()}
-      style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
-    >
+    <div className="min-h-screen bg-[#0A0A0A] text-white p-4 md:p-8">
       
       {/* Topo */}
       <div className="flex justify-between items-center mb-6">
@@ -183,53 +95,28 @@ export default function AulaPlayerPage() {
         
         {/* ÁREA DO PLAYER */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-[#222] shadow-2xl shadow-black group select-none">
+          <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-[#222] shadow-2xl shadow-black group">
             
-            {/* --- MÁSCARAS DE PROTEÇÃO AGRESSIVAS --- */}
-            {/* Máscara completa cobrindo toda a área (bloqueia cliques) */}
-            <div 
-              className="absolute inset-0 z-30 bg-transparent cursor-default"
-              onContextMenu={(e) => e.preventDefault()}
-              onDragStart={(e) => e.preventDefault()}
-              style={{ pointerEvents: 'none' }}
-            />
+            {/* --- MÁSCARAS INTELIGENTES --- */}
             
-            {/* Máscara no topo (bloqueia título e logo YouTube) */}
-            <div 
-              className="absolute inset-x-0 top-0 h-20 z-25 bg-transparent"
-              style={{ pointerEvents: 'auto' }}
-              onClick={(e) => e.stopPropagation()}
-            />
+            {/* 1. Bloqueia Título no Topo (Anti-clique externo) */}
+            <div className="absolute inset-x-0 top-0 h-16 z-20 bg-transparent" />
             
-            {/* Máscara no canto inferior direito (bloqueia logo YouTube) */}
-            <div 
-              className="absolute right-0 bottom-0 w-32 h-20 z-25 bg-transparent"
-              style={{ pointerEvents: 'auto' }}
-              onClick={(e) => e.stopPropagation()}
-            />
+            {/* 2. Bloqueia Logo YT no canto INFERIOR ESQUERDO apenas */}
+            <div className="absolute left-0 bottom-10 w-24 h-14 z-20 bg-transparent" />
             
-            {/* Máscara lateral direita (bloqueia botões de compartilhar) */}
-            <div 
-              className="absolute right-0 top-0 bottom-0 w-16 z-25 bg-transparent"
-              style={{ pointerEvents: 'auto' }}
-              onClick={(e) => e.stopPropagation()}
-            />
+            {/* OBS: O Canto INFERIOR DIREITO fica livre para o botão Fullscreen */}
 
-            {/* IFRAME DO YOUTUBE - MÁXIMA PRIVACIDADE */}
-            {/* Parâmetros para esconder completamente o YouTube */}
+            {/* IFRAME */}
             <iframe 
-              src={`https://www.youtube.com/embed/${currentLesson.video_id}?autoplay=1&mute=1&modestbranding=1&rel=0&controls=1&showinfo=0&fs=0&iv_load_policy=3&disablekb=1&cc_load_policy=0&playsinline=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+              // fs=1: Habilita botão Fullscreen
+              // rel=0: Mostra apenas vídeos do SEU canal no final
+              // modestbranding=1: Remove logo grande
+              src={`https://www.youtube.com/embed/${currentLesson.video_id}?autoplay=1&mute=1&modestbranding=1&rel=0&controls=1&showinfo=0&fs=1&iv_load_policy=3&disablekb=1`}
               title="Player MASC PRO"
-              className="w-full h-full object-cover pointer-events-auto"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen={false}
-              sandbox="allow-scripts allow-same-origin allow-presentation"
-              style={{ 
-                userSelect: 'none',
-                WebkitUserSelect: 'none',
-                MozUserSelect: 'none',
-                msUserSelect: 'none'
-              }}
+              className="w-full h-full object-cover"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen // Habilita a propriedade nativa do navegador
             />
           </div>
 
