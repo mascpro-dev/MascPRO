@@ -8,43 +8,55 @@ import { Zap, Trophy, ImageIcon } from "lucide-react";
 export default function EvolucaoPage() {
   const supabase = createClientComponentClient();
   const [courses, setCourses] = useState<any[]>([]);
-  const [totalBalance, setTotalBalance] = useState<number | null>(null);
+  const [totalBalance, setTotalBalance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
-      // 1. Busca Saldo
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("coins, personal_coins")
-          .eq("id", user.id)
-          .single();
+      try {
+        console.log("Iniciando carregamento da Evolução...");
 
-        if (profile) {
-          setTotalBalance((profile.coins || 0) + (profile.personal_coins || 0));
+        // 1. Busca Saldo
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("*") // Usa * para evitar erro se faltar coluna
+            .eq("id", user.id)
+            .single();
+
+          if (profile) {
+            setTotalBalance((profile.coins || 0) + (profile.personal_coins || 0));
+          }
         }
-      }
 
-      // 2. Busca Cursos
-      const { data: coursesData } = await supabase
-        .from("courses")
-        .select("*")
-        .order("created_at", { ascending: true });
+        // 2. Busca Cursos (CORRIGIDO: 'courses' no PLURAL)
+        const { data: coursesData, error } = await supabase
+          .from("courses") // <--- Aqui está o segredo. Tem que ser "courses"
+          .select("*")
+          .order("created_at", { ascending: true });
 
-      if (coursesData) {
-        setCourses(coursesData);
+        if (error) {
+          console.error("Erro no Supabase:", error);
+        } else {
+          console.log("Cursos carregados:", coursesData);
+          setCourses(coursesData || []);
+        }
+
+      } catch (e) {
+        console.error("Erro fatal:", e);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
+
     fetchData();
   }, [supabase]);
 
   return (
     <div className="p-6 md:p-10 min-h-screen bg-[#000000] text-white font-sans">
       
-      {/* Header e Saldo */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
         <div>
           <h1 className="text-3xl font-extrabold italic tracking-wide">
@@ -55,7 +67,7 @@ export default function EvolucaoPage() {
           </p>
         </div>
 
-        {/* Card Saldo (Estilo do Print) */}
+        {/* Card Saldo */}
         <div className="border border-[#C9A66B]/30 bg-black rounded-xl px-6 py-3 flex items-center gap-4 min-w-[280px]">
            <div className="flex flex-col">
               <span className="text-[10px] text-[#C9A66B] font-bold tracking-widest uppercase mb-1">Seu Saldo</span>
@@ -69,28 +81,30 @@ export default function EvolucaoPage() {
         </div>
       </div>
 
-      {/* Grid de Cards (Igual ao Print) */}
+      {/* Grid de Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        {!loading && courses.length === 0 && (
+            <div className="col-span-3 text-center py-10 text-gray-500 border border-gray-800 rounded-lg">
+                Nenhum curso encontrado na tabela 'courses'.
+            </div>
+        )}
+
         {courses.map((course) => (
           <Link href={`/evolucao/${course.code}`} key={course.id} className="block group">
             <div className="relative h-[320px] rounded-2xl overflow-hidden border border-[#1F2937] transition-all duration-300 hover:border-[#C9A66B]/50 hover:shadow-lg hover:shadow-[#C9A66B]/10">
               
-              {/* Fundo Gradiente Azulado Escuro */}
               <div className="absolute inset-0 bg-gradient-to-b from-[#111827] to-[#050505] z-0" />
 
-              {/* Badge Bege no Topo */}
               <div className="absolute top-6 left-6 z-10">
                 <span className="bg-[#D1C4A9] text-black text-[10px] font-bold px-3 py-1.5 rounded-md uppercase tracking-wide">
-                  MÓDULO {course.code.replace('MOD_', '')}
+                  {course.code ? `MÓDULO ${course.code.replace('MOD_', '')}` : 'MÓDULO'}
                 </span>
               </div>
 
-              {/* Ícone Central (Placeholder) */}
               <div className="absolute inset-0 flex items-center justify-center z-10 opacity-10 group-hover:opacity-20 transition-opacity">
                 <ImageIcon className="w-24 h-24 text-white" />
               </div>
-
-              {/* Conteúdo Rodapé */}
               <div className="absolute bottom-0 inset-x-0 p-6 z-10">
                 <h3 className="text-xl font-bold text-white mb-3 leading-tight">
                   {course.title}

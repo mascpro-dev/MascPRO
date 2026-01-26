@@ -13,6 +13,7 @@ export default function ComunidadePage() {
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [rankingFilter, setRankingFilter] = useState<"Profissional" | "Distribuidor">("Profissional");
+  const [courses, setCourses] = useState<any[]>([]);
   const supabase = createClientComponentClient();
 
   // Verificar se usuário é Distribuidor
@@ -41,6 +42,32 @@ export default function ComunidadePage() {
   useEffect(() => {
     fetchData();
   }, [rankingFilter, currentProfile]);
+
+  // Buscar Cursos com LOG DE ERRO
+  useEffect(() => {
+    async function fetchData() {
+      // ... (parte do saldo)
+
+      // 2. Busca Cursos com LOG DE ERRO
+      console.log("Tentando buscar cursos..."); // Abre o F12 para ver isso
+      
+      const { data: coursesData, error } = await supabase
+        .from("courses")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error("ERRO AO BUSCAR CURSOS:", error);
+        alert("Erro ao carregar cursos. Veja o console (F12).");
+      } else {
+        console.log("Cursos encontrados:", coursesData);
+        setCourses(coursesData || []);
+      }
+      
+      setLoading(false);
+    }
+    fetchData();
+  }, [supabase]);
 
   async function fetchData() {
     setLoading(true);
