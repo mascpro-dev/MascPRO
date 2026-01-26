@@ -1,6 +1,6 @@
 "use client";
 
-import { Shield, Star, Award, GraduationCap, Lock, Target, Users, ShoppingCart, ShieldCheck } from "lucide-react";
+import { Shield, Star, Award, GraduationCap, Lock, CheckCircle } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -87,7 +87,7 @@ export default function JornadaPage() {
             </div>
             <div>
               <h3 className="font-black text-white text-lg uppercase tracking-tight">EXPERT</h3>
-              <p className="text-xs text-white/60 mt-1">Domínio avançado e consistência.</p>
+              <p className="text-xs text-white/60 mt-1">Domínio avançado.</p>
             </div>
           </div>
         </div>
@@ -100,7 +100,7 @@ export default function JornadaPage() {
             </div>
             <div>
               <h3 className="font-black text-zinc-600 text-lg uppercase tracking-tight">MASTER TÉCNICO</h3>
-              <p className="text-xs text-zinc-700 mt-1">Autoridade técnica reconhecida.</p>
+              <p className="text-xs text-zinc-700 mt-1">Autoridade técnica.</p>
             </div>
           </div>
           <Lock size={20} className="text-zinc-700" />
@@ -135,15 +135,15 @@ export default function JornadaPage() {
             </span>
             <ul className="space-y-3">
               <li className="flex gap-3 items-start text-sm text-white/80">
-                <Target size={18} className="text-blue-400 shrink-0 mt-0.5" />
+                <CheckCircle size={18} className="text-[#C9A66B] shrink-0 mt-0.5" />
                 <span>Constância e aplicação técnica</span>
               </li>
               <li className="flex gap-3 items-start text-sm text-white/80">
-                <Users size={18} className="text-blue-400 shrink-0 mt-0.5" />
+                <CheckCircle size={18} className="text-[#C9A66B] shrink-0 mt-0.5" />
                 <span>Indicação e Evolução individual</span>
               </li>
               <li className="flex gap-3 items-start text-sm text-white/80">
-                <ShoppingCart size={18} className="text-blue-400 shrink-0 mt-0.5" />
+                <CheckCircle size={18} className="text-[#C9A66B] shrink-0 mt-0.5" />
                 <span>Compra de produtos oficiais</span>
               </li>
             </ul>
@@ -156,15 +156,15 @@ export default function JornadaPage() {
             </span>
             <ul className="space-y-3">
               <li className="flex gap-3 items-start text-sm text-white/80">
-                <ShieldCheck size={18} className="text-white shrink-0 mt-0.5" />
+                <Star size={18} className="text-[#C9A66B] shrink-0 mt-0.5 fill-[#C9A66B]" />
                 <span>Responsabilidade e formação de outros</span>
               </li>
               <li className="flex gap-3 items-start text-sm text-white/80">
-                <GraduationCap size={18} className="text-white shrink-0 mt-0.5" />
+                <Star size={18} className="text-[#C9A66B] shrink-0 mt-0.5 fill-[#C9A66B]" />
                 <span>Entrega educacional e representação</span>
               </li>
               <li className="flex gap-3 items-start text-sm text-white/80">
-                <ShoppingCart size={18} className="text-white shrink-0 mt-0.5" />
+                <Star size={18} className="text-[#C9A66B] shrink-0 mt-0.5 fill-[#C9A66B]" />
                 <span>Compra de produtos oficiais</span>
               </li>
             </ul>

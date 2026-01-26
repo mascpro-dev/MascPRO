@@ -15,9 +15,11 @@ export default function ComunidadePage() {
   const [rankingFilter, setRankingFilter] = useState<"profissionais" | "distribuidores">("profissionais");
   const supabase = createClientComponentClient();
 
-  // Verificar se usuário é Distribuidor
-  const isDistribuidor = currentProfile?.work_type?.toLowerCase() === "distribuidor" || 
-                         currentProfile?.role?.toLowerCase() === "distribuidor";
+  // Verificar se usuário é Distribuidor (acesso VIP)
+  const isDistribuidor = currentProfile?.work_type === "Distribuidor" || 
+                         currentProfile?.work_type === "distribuidor" ||
+                         currentProfile?.role === "Distribuidor" || 
+                         currentProfile?.role === "distribuidor";
 
   // Carregar perfil do usuário logado (apenas para verificar se está logado)
   useEffect(() => {
@@ -63,17 +65,18 @@ export default function ComunidadePage() {
         .order("coins", { ascending: false })
         .limit(10);
 
-      // Se usuário é Distribuidor: aplicar filtro baseado no estado
+      // Cenário A: Se usuário é Distribuidor (acesso VIP)
       if (isDistribuidor) {
         if (rankingFilter === "distribuidores") {
-          // Ranking Distribuidores: buscar apenas Distribuidores
+          // Mostrar Top 10 de Distribuidores
           query = query.eq("work_type", "Distribuidor");
         } else {
-          // Ranking Profissionais: excluir Distribuidores
+          // Mostrar Top 10 de Profissionais (excluir Distribuidores)
           query = query.neq("work_type", "Distribuidor");
         }
       } else {
-        // Se não é Distribuidor: mostrar apenas Profissionais (excluir Distribuidores)
+        // Cenário B: Se é Cabeleireiro ou Embaixador
+        // Mostrar apenas Ranking Geral (excluir Distribuidores)
         query = query.neq("work_type", "Distribuidor");
       }
 
@@ -304,7 +307,7 @@ export default function ComunidadePage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Filtro de Ranking (apenas para Distribuidores) */}
+          {/* Filtro de Ranking (apenas para Distribuidores - Acesso VIP) */}
           {isDistribuidor && (
             <div className="flex gap-2 bg-[#0A0A0A] border border-[#222] rounded-xl p-2">
               <button
@@ -315,7 +318,7 @@ export default function ComunidadePage() {
                     : "bg-transparent text-slate-500 hover:text-slate-300"
                 }`}
               >
-                Profissionais
+                Ranking Profissionais
               </button>
               <button
                 onClick={() => setRankingFilter("distribuidores")}
@@ -325,7 +328,7 @@ export default function ComunidadePage() {
                     : "bg-transparent text-slate-500 hover:text-slate-300"
                 }`}
               >
-                Distribuidores
+                Ranking Distribuidores
               </button>
             </div>
           )}
