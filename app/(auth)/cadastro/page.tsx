@@ -37,23 +37,12 @@ export default function CadastroPage() {
     setError(null);
 
     try {
-      // 1. Captura o ID do indicador salvo pelo Layout no navegador (Lógica de Rede Oculta)
+      // 1. RESGATE DO PADRINHO: Antes de tudo, cria variável referrerId
       const referrerId = typeof window !== "undefined" ? localStorage.getItem("masc_referrer") : null;
+      console.log("Padrinho encontrado:", referrerId);
 
-      // 2. PRIMEIRO: Cria o usuário no Auth (apenas email e senha)
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (signUpError) throw signUpError;
-      if (!authData.user) throw new Error("Erro ao criar usuário");
-
-      // 3. SEGUNDO: Atualiza a tabela profiles com TODOS os dados
-      const profileData: any = {
+      // 2. PREPARAÇÃO DOS DADOS: Monta objeto updates com TODOS os campos
+      const updates: any = {
         full_name: fullName,
         phone: phone,
         cpf: cpf,
@@ -66,27 +55,58 @@ export default function CadastroPage() {
         city_state: cityState,
         work_type: workType,
         has_schedule: hasSchedule === "sim", // Converte para boolean
+        invited_by: referrerId || null, // Usa referrerId ou null se não tiver
         coins: 50,
+        updated_at: new Date().toISOString(),
       };
 
-      // Adiciona invited_by apenas se existir
-      if (referrerId) {
-        profileData.invited_by = referrerId;
+      // 3. FLUXO DE ENVIO: Faz o signUp no Auth
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      // Se der erro de 'User already registered', prossegue (caso do usuário zumbi)
+      if (signUpError && signUpError.message !== "User already registered") {
+        throw signUpError;
       }
 
+      // Obtém o ID do usuário (do signUp ou da sessão atual se já existir)
+      let userId: string;
+      if (authData?.user) {
+        userId = authData.user.id;
+      } else {
+        // Se o usuário já existe, busca da sessão atual
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          throw new Error("Erro ao obter ID do usuário");
+        }
+        userId = session.user.id;
+      }
+
+      // Logo em seguida, força a atualização dos dados
       const { error: updateError } = await supabase
         .from("profiles")
-        .update(profileData)
-        .eq("id", authData.user.id);
+        .update(updates)
+        .eq("id", userId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("Erro ao atualizar perfil:", updateError);
+        throw updateError;
+      }
 
-      // 4. Limpa o indicador do navegador após o sucesso
-      if (referrerId) localStorage.removeItem("masc_referrer");
+      // Limpa o indicador do navegador após o sucesso
+      if (referrerId) {
+        localStorage.removeItem("masc_referrer");
+      }
 
-      // 5. Redireciona para o onboarding do novo usuário
+      // 4. REDIRECIONAMENTO: Se tudo der certo, manda para /onboarding
       router.push("/onboarding");
     } catch (err: any) {
+      console.error("Erro no cadastro:", err);
       setError(err.message || "Erro ao realizar cadastro. Tente novamente.");
     } finally {
       setLoading(false);
