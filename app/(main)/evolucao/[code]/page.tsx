@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Play, Lock } from "lucide-react";
+import { ArrowLeft, Play, Lock, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function AulaPlayerPage() {
@@ -14,54 +14,42 @@ export default function AulaPlayerPage() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
-  // Timer
+  // Timer e Controle
   const [secondsWatched, setSecondsWatched] = useState(0);
 
   useEffect(() => {
     async function fetchLessons() {
       try {
         setLoading(true);
-        console.log("Buscando aulas para o código:", courseCode);
-
-        // BUSCA COM ILIKE (Ignora maiúsculas/minúsculas)
+        // Busca as aulas ignorando maiúsculas/minúsculas no código
         const { data, error } = await supabase
           .from("lessons")
           .select("*")
-          .ilike("course_code", courseCode) // <--- O segredo está aqui
+          .ilike("course_code", courseCode) 
           .order("sequence_order", { ascending: true });
-
-        if (error) {
-          throw error;
-        }
 
         if (data && data.length > 0) {
           setLessons(data);
           setCurrentLesson(data[0]);
-        } else {
-          setErrorMsg("Nenhuma aula encontrada. Verifique se o código do curso está correto no Banco.");
         }
-      } catch (err: any) {
-        console.error("Erro ao carregar aulas:", err);
-        setErrorMsg(`Erro de acesso: ${err.message || "Tente recarregar."}`);
+      } catch (err) {
+        console.error("Erro:", err);
       } finally {
         setLoading(false);
       }
     }
 
-    if (courseCode) {
-      fetchLessons();
-    }
+    if (courseCode) fetchLessons();
   }, [courseCode, supabase]);
 
-  // Timer de Recompensa
+  // Lógica do Timer (Moedas)
   useEffect(() => {
     if (!currentLesson) return;
     const interval = setInterval(() => {
       setSecondsWatched((prev) => {
         const novo = prev + 1;
-        if (novo > 0 && novo % 900 === 0) pagarRecompensa();
+        if (novo > 0 && novo % 900 === 0) pagarRecompensa(); // 15 min
         return novo;
       });
     }, 1000);
@@ -71,20 +59,22 @@ export default function AulaPlayerPage() {
   async function pagarRecompensa() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      // Tenta pagar, se der erro ignora (silencioso)
       await supabase.rpc('reward_watch_time', { user_id: user.id });
-      alert("💰 +50 PRO creditados!");
+      // Feedback visual simples ou use toast se tiver
+      console.log("💰 +50 PRO Pagos!");
     }
   }
 
-  if (loading) return <div className="p-10 text-white animate-pulse">Carregando player...</div>;
-  
-  // Tratamento de Erro na Tela
-  if (errorMsg || !currentLesson) return (
-    <div className="p-10 text-center">
-        <h2 className="text-xl text-red-500 font-bold mb-2">Ops! Algo deu errado.</h2>
-        <p className="text-gray-400 mb-4">{errorMsg || "Conteúdo indisponível."}</p>
-        <Link href="/evolucao" className="text-[#C9A66B] hover:underline">Voltar para Cursos</Link>
+  if (loading) return (
+    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center text-white">
+      <Loader2 className="w-8 h-8 animate-spin text-[#C9A66B]" />
+    </div>
+  );
+
+  if (!currentLesson) return (
+    <div className="min-h-screen bg-[#0A0A0A] p-10 text-white text-center">
+        <h2 className="text-xl font-bold mb-2">Nenhuma aula encontrada.</h2>
+        <Link href="/evolucao" className="text-[#C9A66B] hover:underline">Voltar</Link>
     </div>
   );
 
@@ -104,28 +94,39 @@ export default function AulaPlayerPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Player (Youtube) */}
+        {/* ÁREA DO PLAYER */}
         <div className="lg:col-span-2 space-y-4">
           <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-[#222] shadow-2xl shadow-black group">
-             {/* Máscara Transparente */}
-            <div className="absolute inset-x-0 top-0 h-16 z-20 bg-transparent" />
             
+            {/* --- MÁSCARAS DE PROTEÇÃO (Ajustadas) --- */}
+            {/* Bloqueia Título no Topo */}
+            <div className="absolute inset-x-0 top-0 h-14 z-20 bg-transparent" />
+            
+            {/* Bloqueia Logo YT no Canto Inferior Direito (sem cobrir a barra de tempo) */}
+            <div className="absolute right-0 bottom-12 w-24 h-14 z-20 bg-transparent" />
+
+            {/* IFRAME DO YOUTUBE */}
+            {/* mute=1 é essencial para autoplay funcionar */}
             <iframe 
-              src={`https://www.youtube.com/embed/${currentLesson.video_id}?autoplay=1&modestbranding=1&rel=0&controls=1&showinfo=0&fs=0&iv_load_policy=3&disablekb=1`}
-              title="Player"
+              src={`https://www.youtube.com/embed/${currentLesson.video_id}?autoplay=1&mute=1&modestbranding=1&rel=0&controls=1&showinfo=0&fs=0&iv_load_policy=3&disablekb=1`}
+              title="Player MASC PRO"
               className="w-full h-full object-cover"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen={false}
             />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">{currentLesson.title}</h1>
-            <p className="text-gray-500 text-sm mt-1">
-              {Math.floor(secondsWatched / 60)} min estudados.
-            </p>
+
+          <div className="flex justify-between items-start">
+            <div>
+                <h1 className="text-2xl font-bold text-white">{currentLesson.title}</h1>
+                <p className="text-gray-500 text-sm mt-1">
+                Tempo estudado: <span className="text-[#C9A66B] font-bold">{Math.floor(secondsWatched / 60)} min</span>
+                </p>
+            </div>
           </div>
         </div>
 
-        {/* Lista Lateral */}
+        {/* LISTA LATERAL */}
         <div className="bg-[#111] border border-[#222] rounded-xl p-5 h-fit">
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-5">
             Neste Módulo
