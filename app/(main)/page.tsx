@@ -37,7 +37,8 @@ export default function VisaoGeralPage() {
 
   if (loading) return <LoadingRespiro />;
 
-  const balance = profile?.pro_balance || 1050; // Valor padrão para demonstração
+  const coins = profile?.coins || 0; // Busca o saldo real da coluna coins
+  const balance = coins; // Usa o valor dinâmico
   const userName = "Membro Fundador"; // Conforme a imagem
   const referralCode = profile?.referral_code || "masc-pro";
   const referralLink = `mascpro.app/ref/${referralCode}`;
