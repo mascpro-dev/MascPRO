@@ -54,42 +54,72 @@ export default function ComunidadePage() {
     fetchPosts();
   }, [supabase]);
 
-  // Carregar ranking (Top 10 com lógica baseada em work_type)
+  // Carregar ranking (TODOS os usuários com lógica baseada em work_type)
   useEffect(() => {
     async function fetchRanking() {
       if (!currentProfile) return;
 
-      let query = supabase
-        .from("profiles")
-        .select("id, full_name, coins, avatar_url, work_type, role, specialty")
-        .order("coins", { ascending: false })
-        .limit(10);
+      let query;
 
       // Cenário A: Se usuário é Distribuidor (acesso VIP)
       if (isDistribuidor) {
         if (rankingFilter === "distribuidores") {
-          // Mostrar Top 10 de Distribuidores
-          query = query.eq("work_type", "Distribuidor");
+          // Buscar TODOS os Distribuidores
+          query = supabase
+            .from("profiles")
+            .select("*")
+            .eq("work_type", "Distribuidor")
+            .order("coins", { ascending: false });
         } else {
-          // Mostrar Top 10 de Profissionais (excluir Distribuidores)
-          query = query.neq("work_type", "Distribuidor");
+          // Buscar TODOS os Profissionais (excluir Distribuidores)
+          query = supabase
+            .from("profiles")
+            .select("*")
+            .neq("work_type", "Distribuidor")
+            .order("coins", { ascending: false });
         }
       } else {
         // Cenário B: Se é Cabeleireiro ou Embaixador
-        // Mostrar apenas Ranking Geral (excluir Distribuidores)
-        query = query.neq("work_type", "Distribuidor");
+        // Buscar Ranking Geral completo (excluir Distribuidores)
+        query = supabase
+          .from("profiles")
+          .select("*")
+          .neq("work_type", "Distribuidor")
+          .order("coins", { ascending: false });
       }
 
       const { data, error } = await query;
 
-      if (!error && data) {
-        const rankingData = data.map((user: any, index: number) => ({
-          ...user,
-          position: index + 1,
-          totalPros: user.coins || 0,
-        }));
-        setRanking(rankingData);
+      if (error) {
+        console.error("Erro ao buscar ranking:", error);
+        console.log("Detalhes do erro:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        setRanking([]);
+        return;
       }
+
+      if (!data || data.length === 0) {
+        console.log("Ranking vazio - nenhum usuário encontrado");
+        console.log("Filtro aplicado:", {
+          isDistribuidor,
+          rankingFilter: isDistribuidor ? rankingFilter : "profissionais",
+        });
+        setRanking([]);
+        return;
+      }
+
+      console.log(`Ranking carregado: ${data.length} usuários encontrados`);
+      
+      const rankingData = data.map((user: any, index: number) => ({
+        ...user,
+        position: index + 1,
+        totalPros: user.coins || 0,
+      }));
+      
+      setRanking(rankingData);
     }
     fetchRanking();
   }, [supabase, currentProfile, isDistribuidor, rankingFilter]);
@@ -344,9 +374,9 @@ export default function ComunidadePage() {
               </p>
             </div>
           ) : (
-            <>
+            <div className="max-h-[800px] overflow-y-auto space-y-4 pr-2 custom-scrollbar">
               {/* Top 3 - Destaque (Ouro, Prata, Bronze) */}
-              {ranking.slice(0, 3).map((user, index) => {
+              {ranking.length > 0 && ranking.slice(0, 3).map((user, index) => {
                 const position = index + 1;
                 const isFirst = position === 1;
                 const isSecond = position === 2;
@@ -439,8 +469,8 @@ export default function ComunidadePage() {
                 );
               })}
 
-              {/* Restante do Ranking (4-10) - Lista Compacta */}
-              {ranking.slice(3).map((user) => (
+              {/* Restante do Ranking (4+) - Lista Compacta - TODOS os itens */}
+              {ranking.length > 3 && ranking.slice(3).map((user) => (
                 <div
                   key={user.id}
                   className="bg-[#0A0A0A] border border-[#222] rounded-xl p-3 hover:border-[#333] transition-colors"
@@ -485,7 +515,7 @@ export default function ComunidadePage() {
                   </div>
                 </div>
               ))}
-            </>
+            </div>
           )}
         </div>
       )}

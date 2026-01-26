@@ -96,27 +96,30 @@ export default function Sidebar() {
                          userProfile?.role === "Distribuidor" || 
                          userProfile?.role === "distribuidor";
 
-  // Função para obter o cargo do usuário
+  // Verificar se é Embaixador
+  const isEmbaixadorRole = userProfile?.work_type === "Embaixador" || 
+                           userProfile?.work_type === "embaixador" ||
+                           userProfile?.role === "Embaixador" || 
+                           userProfile?.role === "embaixador";
+
+  // Função para obter o cargo do usuário baseado em work_type
   const getUserRole = () => {
-    if (!userProfile) return "";
+    if (!userProfile || !userProfile.work_type) return "";
     
+    const workType = userProfile.work_type;
+    
+    // Se for Distribuidor
     if (isDistribuidor) {
       return "DISTRIBUIDOR AUTORIZADO";
     }
     
-    // Verificar specialty para outros cargos
-    if (userProfile.specialty) {
-      const specialties: { [key: string]: string } = {
-        cabeleireiro: "CABELEIREIRO",
-        barbeiro: "BARBEIRO",
-        esteticista: "ESTETICISTA",
-        manicure: "MANICURE",
-        outro: "PROFISSIONAL",
-      };
-      return specialties[userProfile.specialty] || "PROFISSIONAL";
+    // Se for Embaixador
+    if (isEmbaixadorRole) {
+      return "EMBAIXADOR MASC";
     }
     
-    return "PROFISSIONAL";
+    // Para outros casos, exibe o work_type em maiúsculo
+    return workType.toUpperCase();
   };
 
   const handleLogout = async (e?: React.MouseEvent) => {
@@ -292,64 +295,66 @@ export default function Sidebar() {
 
       {/* SIDEBAR DESKTOP */}
       <aside className="fixed left-0 top-0 bottom-0 w-[260px] bg-[#0A0A0A] border-r border-white/5 hidden lg:flex flex-col z-40">
-        <div className="p-8">
-          <div className="flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 bg-[#C9A66B] rounded-xl flex items-center justify-center font-black text-black italic text-xl shadow-[0_0_20px_rgba(201,166,107,0.3)]">M</div>
-            <div>
-              <p className="text-white font-black italic uppercase tracking-tighter leading-none text-lg">Masc <span className="text-[#C9A66B]">Pro</span></p>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">HUB EDUCACIONAL</p>
-            </div>
-          </div>
-
-          {/* Perfil do Usuário */}
-          {userProfile && (
-            <div className="mb-8 pb-8 border-b border-white/5">
-              <div className="flex items-center gap-2 mb-2">
-                <h3 className="text-sm font-black text-white truncate">
-                  {userProfile.full_name || "Usuário"}
-                </h3>
-                {isDistribuidor && (
-                  <CheckCircle size={16} className="text-[#FFD700] flex-shrink-0" />
-                )}
+        <div className="flex-1 flex flex-col overflow-y-auto">
+          <div className="p-8">
+            <div className="flex items-center gap-3 mb-12">
+              <div className="w-10 h-10 bg-[#C9A66B] rounded-xl flex items-center justify-center font-black text-black italic text-xl shadow-[0_0_20px_rgba(201,166,107,0.3)]">M</div>
+              <div>
+                <p className="text-white font-black italic uppercase tracking-tighter leading-none text-lg">Masc <span className="text-[#C9A66B]">Pro</span></p>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">HUB EDUCACIONAL</p>
               </div>
-              <p className={`text-[10px] font-bold uppercase tracking-widest ${
-                isDistribuidor ? "text-[#FFD700]" : "text-slate-500"
-              }`}>
-                {getUserRole()}
-              </p>
             </div>
-          )}
 
-          <nav className="space-y-2">
-            {getMenuItems().map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group ${
-                    isActive 
-                    ? "bg-white/5 text-white font-black" 
-                    : "text-slate-500 hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  <item.icon size={20} className={isActive ? "text-[#C9A66B]" : "text-slate-500 group-hover:text-[#C9A66B]"} />
-                  <span className="text-xs uppercase tracking-widest font-bold">{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+            {/* Perfil do Usuário */}
+            {userProfile && (
+              <div className="mb-8 pb-8 border-b border-white/5">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-sm font-black text-white truncate">
+                    {userProfile.full_name || "Usuário"}
+                  </h3>
+                  {isDistribuidor && (
+                    <CheckCircle size={16} className="text-yellow-500 flex-shrink-0" />
+                  )}
+                </div>
+                <p className={`text-[10px] font-bold uppercase tracking-widest ${
+                  isDistribuidor ? "text-yellow-500" : isEmbaixadorRole ? "text-slate-300" : "text-slate-500"
+                }`}>
+                  {getUserRole()}
+                </p>
+              </div>
+            )}
+
+            <nav className="space-y-2">
+              {getMenuItems().map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group ${
+                      isActive 
+                      ? "bg-white/5 text-white font-black" 
+                      : "text-slate-500 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <item.icon size={20} className={isActive ? "text-[#C9A66B]" : "text-slate-500 group-hover:text-[#C9A66B]"} />
+                    <span className="text-xs uppercase tracking-widest font-bold">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
         </div>
 
         {/* BOTÃO SAIR NO RODAPÉ DA SIDEBAR */}
-        <div className="mt-auto p-6 border-t border-white/5">
+        <div className="mt-auto p-6 border-t border-white/5 flex-shrink-0">
           <button 
             onClick={(e) => handleLogout(e)}
             disabled={loggingOut}
             type="button"
-            className="flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 text-red-400 hover:text-red-300 hover:bg-red-500/10 w-full group disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 text-slate-500 hover:text-red-500 hover:bg-red-500/10 w-full group disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <LogOut size={20} className="text-red-400 group-hover:text-red-300" />
+            <LogOut size={20} className="text-slate-500 group-hover:text-red-500" />
             <span className="text-xs uppercase tracking-widest font-bold">
               {loggingOut ? "Saindo..." : "SAIR"}
             </span>
