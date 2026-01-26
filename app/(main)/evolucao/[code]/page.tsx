@@ -1,291 +1,164 @@
 "use client";
 
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Play } from "lucide-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, Clock, Play, Lock, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
 
-interface Lesson {
-  id: string;
-  title: string;
-  video_id?: string;
-  video_url?: string;
-  sequence_order?: number;
-  course_code?: string;
-}
-
-export default function EvolucaoPlayerPage({ params }: { params: { code: string } }) {
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [currentLesson, setCurrentLesson] = useState<Lesson | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [watchTime, setWatchTime] = useState(0); // em segundos
-  const [showToast, setShowToast] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  
+export default function AulaPlayerPage() {
+  const params = useParams(); // Pega o parametro [code] da URL
   const router = useRouter();
   const supabase = createClientComponentClient();
-  const watchIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  
+  const courseCode = params?.code as string; // Ex: MOD_C1-BLONDE
 
-  // Buscar userId
+  const [lessons, setLessons] = useState<any[]>([]);
+  const [currentLesson, setCurrentLesson] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Timer States
+  const [watchTime, setWatchTime] = useState(0);
+  const [showToast, setShowToast] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 1. Carrega as Aulas do Módulo
   useEffect(() => {
-    async function getUserId() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setUserId(session.user.id);
-      }
-    }
-    getUserId();
-  }, [supabase]);
+    async function fetchLessons() {
+      if (!courseCode) return;
 
-  // Buscar lessons do módulo
+      const { data } = await supabase
+        .from("lessons")
+        .select("*")
+        .eq("course_code", courseCode)
+        .order("sequence_order", { ascending: true });
+
+      if (data && data.length > 0) {
+        setLessons(data);
+        setCurrentLesson(data[0]); // Começa na primeira aula
+      }
+      setLoading(false);
+    }
+    fetchLessons();
+  }, [courseCode, supabase]);
+
+  // 2. O Relógio de Lucro (A cada 15 min / 900s)
   useEffect(() => {
-    async function getLessons() {
-      try {
-        // Buscar lessons onde course_code = code, ordenado por sequence_order
-        const { data, error } = await supabase
-          .from("lessons")
-          .select("*")
-          .eq("course_code", params.code)
-          .order("sequence_order", { ascending: true });
+    // Só conta se tiver uma aula carregada
+    if (!currentLesson) return;
 
-        if (error) {
-          console.error("Erro ao buscar lessons:", error);
-        } else if (data && data.length > 0) {
-          setLessons(data);
-          setCurrentLesson(data[0]); // Primeira aula por padrão
-        }
-      } catch (error) {
-        console.error("Erro:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    getLessons();
-  }, [supabase, params.code]);
-
-  // Extrair ID do YouTube da URL ou usar video_id direto
-  const getYouTubeId = (lesson: Lesson | null): string => {
-    if (!lesson) return "";
-    
-    // Se tiver video_id direto, usa ele
-    if (lesson.video_id) {
-      return lesson.video_id;
-    }
-    
-    // Caso contrário, tenta extrair da video_url
-    if (lesson.video_url) {
-      const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-      const match = lesson.video_url.match(regExp);
-      if (match && match[1]) {
-        return match[1];
-      }
-      // Se já for um ID de 11 caracteres
-      if (lesson.video_url.length === 11) {
-        return lesson.video_url;
-      }
-    }
-    
-    return "";
-  };
-
-  // Construir URL do YouTube com parâmetros de limpeza
-  const getYouTubeEmbedUrl = (videoId: string): string => {
-    if (!videoId) return "";
-    return `https://www.youtube.com/embed/${videoId}?modestbranding=1&rel=0&controls=1&showinfo=0&fs=0`;
-  };
-
-  // Função para recompensar o usuário
-  const rewardUser = async () => {
-    if (!userId) return;
-
-    try {
-      const { error } = await supabase.rpc("reward_watch_time", {
-        user_id: userId,
-      });
-
-      if (!error) {
-        // Mostrar Toast Dourado
-        setShowToast(true);
-        
-        // Esconder toast após 5 segundos
-        setTimeout(() => {
-          setShowToast(false);
-        }, 5000);
-
-        // Zerar contador para começar o próximo ciclo
-        setWatchTime(0);
-      } else {
-        console.error("Erro ao recompensar:", error);
-      }
-    } catch (error) {
-      console.error("Erro:", error);
-    }
-  };
-
-  // Sistema de Recompensa - O Relógio
-  useEffect(() => {
-    if (!userId) return;
-
-    // Contador que roda enquanto a página está aberta
-    watchIntervalRef.current = setInterval(() => {
+    timerRef.current = setInterval(async () => {
       setWatchTime((prev) => {
-        const newTime = prev + 1;
+        const novoTempo = prev + 1;
         
-        // A cada 15 minutos (900 segundos), chama a RPC
-        if (newTime > 0 && newTime % 900 === 0) {
-          rewardUser();
+        // Se bateu 900 segundos (15 min)
+        if (novoTempo > 0 && novoTempo % 900 === 0) {
+          pagarRecompensa();
         }
-        
-        return newTime;
+        return novoTempo;
       });
     }, 1000);
 
     return () => {
-      if (watchIntervalRef.current) {
-        clearInterval(watchIntervalRef.current);
-      }
+      if (timerRef.current) clearInterval(timerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [currentLesson]);
 
-  // Mudar de aula
-  const handleLessonChange = (lesson: Lesson) => {
-    setCurrentLesson(lesson);
-    setWatchTime(0); // Resetar tempo ao mudar de aula
-  };
+  async function pagarRecompensa() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-  const currentVideoId = getYouTubeId(currentLesson);
-  const embedUrl = getYouTubeEmbedUrl(currentVideoId);
+    // Chama a função do banco que paga você e o padrinho
+    const { error } = await supabase.rpc('reward_watch_time', { user_id: user.id });
+
+    if (!error) {
+      // Mostrar toast dourado
+      setShowToast(true);
+      
+      // Remove após 5 segundos
+      setTimeout(() => {
+        setShowToast(false);
+      }, 5000);
+    }
+  }
+
+  if (loading) return <div className="p-10 text-white">Carregando aulas...</div>;
+  if (!currentLesson) return <div className="p-10 text-white">Nenhuma aula encontrada neste módulo.</div>;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => router.push("/evolucao")}
-          className="flex items-center gap-2 text-white/80 hover:text-white transition-colors"
-        >
-          <ArrowLeft size={20} />
-          <span className="font-semibold">Voltar</span>
-        </button>
-        
-        <div className="bg-[#C9A66B]/20 border border-[#C9A66B]/40 rounded-lg px-4 py-2">
-          <p className="text-[#C9A66B] text-sm font-bold uppercase tracking-wider">
-            VALENDO 50 PRO
-          </p>
+    <div className="min-h-screen bg-[#0A0A0A] text-white p-4 md:p-8">
+      {/* Topo */}
+      <div className="flex justify-between items-center mb-6">
+        <Link href="/evolucao" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+          <ArrowLeft className="w-5 h-5" />
+          <span className="font-medium text-sm">VOLTAR</span>
+        </Link>
+        <div className="bg-[#C9A66B]/20 text-[#C9A66B] px-4 py-1.5 rounded text-xs font-bold border border-[#C9A66B]/30 tracking-wider">
+          VALENDO 50 PRO / 15 MIN
         </div>
       </div>
 
-      {/* Área Principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-6">
-        {/* Player de Vídeo - Esquerda (70%) */}
-        <div className="space-y-4">
-          <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-white/10">
-            {currentVideoId ? (
-              <>
-                <iframe
-                  ref={iframeRef}
-                  width="100%"
-                  height="100%"
-                  src={embedUrl}
-                  title={currentLesson?.title || "Aula MASC PRO"}
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="absolute inset-0"
-                />
-                
-                {/* Máscara de Proteção - Bloqueia cliques no título/logomarca do YouTube */}
-                <div 
-                  className="absolute inset-x-0 top-0 h-16 z-10 pointer-events-auto"
-                  style={{ 
-                    background: "transparent"
-                  }}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                />
-              </>
-            ) : (
-              <div className="flex items-center justify-center h-full text-white/60">
-                <p>Carregando vídeo...</p>
-              </div>
-            )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Área do Vídeo (70% no Desktop) */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-[#222] shadow-2xl shadow-black">
+            
+            {/* Máscara de Proteção (Impede clique no título) */}
+            <div className="absolute inset-x-0 top-0 h-20 z-20 bg-transparent" />
+            
+            {/* Iframe Youtube Limpo */}
+            <iframe 
+              src={`https://www.youtube.com/embed/${currentLesson.video_id}?modestbranding=1&rel=0&controls=1&showinfo=0&fs=0&iv_load_policy=3`}
+              title="MASC PRO Player"
+              className="w-full h-full object-cover"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen={false} // Desabilita Fullscreen para evitar fuga
+            />
           </div>
 
-          {/* Informações da Aula */}
-          {currentLesson && (
-            <div className="bg-black border border-white/10 rounded-xl p-6">
-              <h2 className="text-xl font-bold text-white mb-2">
-                {currentLesson.title}
-              </h2>
-              <p className="text-white/60 text-sm">
-                Continue assistindo para ganhar PROs!
-              </p>
-            </div>
-          )}
+          <div>
+            <h1 className="text-2xl font-bold">{currentLesson.title}</h1>
+            <p className="text-gray-500 text-sm mt-1">Conteúdo Exclusivo MASC PRO • Módulo {courseCode}</p>
+          </div>
         </div>
 
-        {/* Lista de Aulas - Direita (30%) */}
-        <div className="bg-black border border-white/10 rounded-xl p-6 h-fit">
-          <h3 className="text-white font-bold text-lg mb-4">NESTE MÓDULO</h3>
+        {/* Lista Lateral (30%) */}
+        <div className="bg-[#111] border border-[#222] rounded-xl p-4 h-fit">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Neste Módulo</h3>
           
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-16 bg-white/5 rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : lessons.length === 0 ? (
-            <p className="text-white/60 text-sm">Nenhuma aula disponível.</p>
-          ) : (
-            <div className="space-y-3">
-              {lessons.map((lesson, index) => {
-                const isCurrent = currentLesson?.id === lesson.id;
-                return (
-                  <button
-                    key={lesson.id}
-                    onClick={() => handleLessonChange(lesson)}
-                    className={`w-full text-left p-4 rounded-lg transition-all ${
-                      isCurrent
-                        ? "bg-[#C9A66B]/20 border-2 border-[#C9A66B] text-white"
-                        : "bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 hover:border-[#C9A66B]/30"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                        isCurrent ? "bg-[#C9A66B] text-black" : "bg-white/10 text-white/60"
-                      }`}>
-                        {isCurrent ? (
-                          <Play size={14} fill="currentColor" />
-                        ) : (
-                          <span className="text-xs font-bold">{(index + 1).toString().padStart(2, '0')}</span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold mb-1 ${
-                          isCurrent ? "text-white" : "text-white/90"
-                        }`}>
-                          {lesson.title}
-                        </p>
-                        {isCurrent && (
-                          <p className="text-[#C9A66B] text-xs font-bold uppercase">
-                            Assistindo agora
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <div className="space-y-2">
+            {lessons.map((lesson, index) => {
+              const isActive = lesson.id === currentLesson.id;
+              return (
+                <button
+                  key={lesson.id}
+                  onClick={() => {
+                    setCurrentLesson(lesson);
+                    setWatchTime(0); // Reinicia contador ao mudar aula (opcional)
+                  }}
+                  className={`w-full flex items-center gap-4 p-3 rounded-lg text-left transition-all ${
+                    isActive 
+                      ? "bg-[#C9A66B]/10 border border-[#C9A66B]/30" 
+                      : "bg-transparent hover:bg-white/5 border border-transparent"
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                    isActive ? "bg-[#C9A66B] text-black" : "bg-[#222] text-gray-400"
+                  }`}>
+                    {index + 1}
+                  </div>
+                  <div>
+                    <p className={`text-sm font-medium ${isActive ? "text-white" : "text-gray-400"}`}>
+                      {lesson.title}
+                    </p>
+                    {isActive && (
+                      <span className="text-[10px] text-[#C9A66B] animate-pulse">Assistindo agora</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -295,7 +168,7 @@ export default function EvolucaoPlayerPage({ params }: { params: { code: string 
           <div className="bg-gradient-to-r from-[#C9A66B] to-[#D4B87A] text-black rounded-xl px-6 py-4 shadow-2xl border-2 border-[#C9A66B] flex items-center gap-3 min-w-[300px]">
             <span className="text-2xl">💰</span>
             <div>
-              <p className="font-bold text-sm">+50 PRO creditados!</p>
+              <p className="font-bold text-sm">+50 PRO creditados! Continue assistindo para ganhar mais.</p>
             </div>
             <button
               onClick={() => setShowToast(false)}
