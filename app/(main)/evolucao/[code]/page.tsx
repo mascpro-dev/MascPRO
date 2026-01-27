@@ -263,7 +263,7 @@ export default function AulaPlayerPage() {
   async function pagarRecompensa() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      await supabase.rpc('reward_watch_time', { user_id: user.id });
+      await supabase.rpc('reward_watch_time_v2', { user_id: user.id });
       console.log("💰 +50 PRO Pagos!");
     }
   }
