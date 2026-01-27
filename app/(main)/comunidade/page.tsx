@@ -50,6 +50,7 @@ export default function ComunidadePage() {
             query = query.neq("work_type", "Distribuidor");
           }
         } else {
+          // Se não é distribuidor, excluir distribuidores
           query = query.neq("work_type", "Distribuidor");
         }
 
@@ -99,6 +100,23 @@ export default function ComunidadePage() {
 
   const formatNumber = (num: number) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  const getRoleLabel = (profile: any) => {
+    if (!profile) return "Membro";
+    const isDist = profile.work_type === "distribuidor" || profile.role === "distribuidor";
+    if (isDist) return "Distribuidor";
+    if (profile.specialty) {
+      const specialties: { [key: string]: string } = {
+        cabeleireiro: "Cabeleireiro",
+        barbeiro: "Barbeiro",
+        esteticista: "Esteticista",
+        manicure: "Manicure",
+        outro: "Profissional",
+      };
+      return specialties[profile.specialty] || "Profissional";
+    }
+    return profile.role || "Membro";
   };
 
   return (
@@ -226,7 +244,7 @@ export default function ComunidadePage() {
                             {profile.name} {isMe && "(Você)"}
                           </p>
                           <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">
-                            {profile.role || "Membro"}
+                            {getRoleLabel(profile)}
                           </p>
                         </div>
                       </div>
