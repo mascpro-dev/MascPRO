@@ -52,14 +52,17 @@ export default function ComunidadePage() {
 
   async function refreshFeed() {
     console.log("🔄 Buscando posts no banco...");
+    
+    // ATENÇÃO AQUI: Mudamos 'profiles' para 'profiles:posts_author_fkey'
+    // Isso resolve o erro PGRST201 dizendo exatamente qual caminho seguir.
     const { data: postsData, error } = await supabase
-        .from("posts")
+      .from("posts")
       .select(`
         id, content, image_url, created_at, likes_count,
-        profiles (full_name, avatar_url, role)
+        profiles:posts_author_fkey (full_name, avatar_url, role)
       `)
-        .order("created_at", { ascending: false });
-      
+      .order("created_at", { ascending: false });
+
     if (error) {
         console.error("❌ Erro ao buscar feed:", error);
     } else {
