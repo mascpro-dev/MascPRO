@@ -1,546 +1,328 @@
 "use client";
 
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useEffect, useState, useRef } from "react";
-import { User, MapPin, Briefcase, Scissors, Edit, ShieldCheck, Phone, Home, Save, X, Loader2, CheckCircle } from "lucide-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Loader2, Save, User, MapPin, Instagram, Phone, Camera, AtSign, FileText } from "lucide-react";
+import Link from "next/link";
 
 export default function PerfilPage() {
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [loadingCep, setLoadingCep] = useState(false);
-  
-  // Estados do formulário
-  const [phone, setPhone] = useState("");
-  const [cep, setCep] = useState("");
-  const [address, setAddress] = useState("");
-  const [neighborhood, setNeighborhood] = useState("");
-  const [cityState, setCityState] = useState("");
-  const [number, setNumber] = useState("");
-  
-  const numberInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClientComponentClient();
+  
+  // Estados do Formulário
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
+  const [formData, setFormData] = useState({
+    full_name: "",
+    nickname: "",
+    avatar_url: "",
+    instagram: "",
+    whatsapp: "",
+    address: "",
+    city: "",
+    state: "",
+    bio: ""
+  });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 1. CARREGAR DADOS AO ABRIR
   useEffect(() => {
-    async function getData() {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", session.user.id)
-          .single();
+    async function loadProfile() {
+      try {
+        setLoading(true);
+        const { data: { user } } = await supabase.auth.getUser();
         
-        setProfile(data);
-        
-        // Preenche os campos com dados existentes
-        if (data) {
-          setPhone(data.phone || "");
-          setCep(data.cep || "");
-          setAddress(data.rua || "");
-          setNeighborhood(data.bairro || "");
-          setCityState(data.city_state || "");
-          setNumber(data.number || "");
+        if (user) {
+          setUserId(user.id);
+          const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+          
+          if (data) {
+            setFormData({
+                full_name: data.full_name || "",
+                nickname: data.nickname || "",
+                avatar_url: data.avatar_url || "",
+                instagram: data.instagram || "",
+                whatsapp: data.whatsapp || data.phone || "",
+                address: data.address || data.rua || "",
+                city: data.city || "",
+                state: data.state || "",
+                bio: data.bio || ""
+            });
+          }
         }
+      } catch (error) {
+        console.error("Erro ao carregar perfil:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
-    getData();
+    loadProfile();
   }, [supabase]);
 
-  // Função para aplicar máscara de CEP
-  const maskCEP = (value: string) => {
-    const numbers = value.replace(/\D/g, "");
-    if (numbers.length <= 5) return numbers;
-    return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`;
-  };
-
-  // Função para aplicar máscara de WhatsApp
-  const maskPhone = (value: string) => {
-    const numbers = value.replace(/\D/g, "");
-    if (numbers.length <= 2) return numbers;
-    if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
-    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
-  };
-
-  // Função para buscar CEP via ViaCEP
-  const fetchCEP = async (cepValue: string) => {
-    const cleanCep = cepValue.replace(/\D/g, "");
-    
-    if (cleanCep.length !== 8) {
-      console.log("CEP incompleto:", cleanCep);
-      return;
-    }
-    
-    // Evita múltiplas chamadas simultâneas
-    if (loadingCep) {
-      console.log("Busca de CEP já em andamento");
-      return;
-    }
-    
-    setLoadingCep(true);
-    console.log("Buscando CEP:", cleanCep);
-    
-    try {
-      const url = `https://viacep.com.br/ws/${cleanCep}/json/`;
-      console.log("URL da requisição:", url);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        mode: 'cors',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-      
-      console.log("Status da resposta:", response.status);
-      
-      if (!response.ok) {
-        throw new Error(`Erro na resposta da API: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log("Dados recebidos:", data);
-      
-      if (data.erro) {
-        console.warn("CEP não encontrado:", cleanCep);
-        alert("CEP não encontrado. Por favor, verifique o CEP digitado.");
-        return;
-      }
-      
-      // Preenche os campos apenas se houver dados válidos
-      if (data.logradouro) {
-        setAddress(data.logradouro);
-        console.log("Endereço preenchido:", data.logradouro);
-      }
-      if (data.bairro) {
-        setNeighborhood(data.bairro);
-        console.log("Bairro preenchido:", data.bairro);
-      }
-      if (data.localidade && data.uf) {
-        const cidadeEstado = `${data.localidade}/${data.uf}`;
-        setCityState(cidadeEstado);
-        console.log("Cidade/Estado preenchido:", cidadeEstado);
-      }
-      
-      // Move o foco para o campo número
-      setTimeout(() => {
-        numberInputRef.current?.focus();
-      }, 200);
-    } catch (error: any) {
-      console.error("Erro ao buscar CEP:", error);
-      alert(`Erro ao buscar CEP: ${error.message || "Erro desconhecido"}`);
-    } finally {
-      setLoadingCep(false);
-    }
-  };
-
-  // Handler para mudança de CEP
-  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const masked = maskCEP(e.target.value);
-    setCep(masked);
-    
-    // Busca automática quando completa 8 dígitos
-    const cleanCep = masked.replace(/\D/g, "");
-    if (cleanCep.length === 8) {
-      fetchCEP(masked);
-    }
-  };
-
-  // Handler para blur do CEP (busca automática caso não tenha buscado antes)
-  const handleCepBlur = () => {
-    const cleanCep = cep.replace(/\D/g, "");
-    if (cleanCep.length === 8) {
-      fetchCEP(cep);
-    }
-  };
-
-  // Handler para mudança de telefone
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const masked = maskPhone(e.target.value);
-    setPhone(masked);
-  };
-
-  // Função para salvar os dados
+  // 2. SALVAR ALTERAÇÕES
   const handleSave = async () => {
+    if (!userId) return;
     setSaving(true);
+    
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error("Sessão não encontrada");
-      }
+        const { error } = await supabase.from("profiles").update({
+            full_name: formData.full_name,
+            nickname: formData.nickname,
+            instagram: formData.instagram,
+            whatsapp: formData.whatsapp,
+            phone: formData.whatsapp, // Mantém compatibilidade
+            address: formData.address,
+            city: formData.city,
+            state: formData.state,
+            bio: formData.bio,
+            updated_at: new Date().toISOString()
+        }).eq("id", userId);
 
-      const updates: any = {
-        phone: phone,
-        cep: cep,
-        rua: address,
-        bairro: neighborhood,
-        city_state: cityState,
-        number: number,
-        updated_at: new Date().toISOString(),
-      };
+        if (error) throw error;
+        alert("✅ Perfil atualizado com sucesso!");
 
-      const { error } = await supabase
-        .from("profiles")
-        .update(updates)
-        .eq("id", session.user.id);
-
-      if (error) throw error;
-
-      // Atualiza o perfil local
-      setProfile({ ...profile, ...updates });
-      setEditing(false);
-    } catch (error: any) {
-      console.error("Erro ao salvar:", error);
-      alert("Erro ao salvar dados. Tente novamente.");
+    } catch (error) {
+        alert("Erro ao salvar perfil.");
+        console.error(error);
     } finally {
-      setSaving(false);
+        setSaving(false);
     }
   };
 
-  // Função para cancelar edição
-  const handleCancel = () => {
-    // Restaura os valores originais
-    if (profile) {
-      setPhone(profile.phone || "");
-      setCep(profile.cep || "");
-      setAddress(profile.rua || "");
-      setNeighborhood(profile.bairro || "");
-      setCityState(profile.city_state || "");
-      setNumber(profile.number || "");
+  // 3. UPLOAD DE FOTO (Mágica)
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0] || !userId) return;
+
+    const file = e.target.files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}-${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    try {
+        // Upload para o Bucket 'avatars'
+        const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+        if (uploadError) throw uploadError;
+
+        // Pega URL pública
+        const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
+
+        // Atualiza estado e salva no banco imediatamente
+        setFormData(prev => ({ ...prev, avatar_url: publicUrl }));
+        await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", userId);
+
+    } catch (error) {
+        alert("Erro ao enviar foto.");
+        console.error(error);
     }
-    setEditing(false);
   };
 
-  if (loading) return <div className="p-12 text-slate-500">Carregando perfil...</div>;
-
-  const isDistribuidor = profile?.work_type === "Distribuidor" || 
-                         profile?.work_type === "distribuidor" ||
-                         profile?.role === "Distribuidor" || 
-                         profile?.role === "distribuidor";
-
-  // Função para obter o cargo do usuário
-  const getUserRole = () => {
-    if (!profile) return "";
-    if (isDistribuidor) {
-      return "DISTRIBUIDOR AUTORIZADO";
-    }
-    
-    // Verificar specialty para outros cargos
-    if (profile.specialty) {
-      const specialties: { [key: string]: string } = {
-        cabeleireiro: "CABELEIREIRO",
-        barbeiro: "BARBEIRO",
-        esteticista: "ESTETICISTA",
-        manicure: "MANICURE",
-        outro: "PROFISSIONAL",
-      };
-      return specialties[profile.specialty] || "PROFISSIONAL";
-    }
-    
-    return "PROFISSIONAL";
-  };
-  
-  // Lógica inteligente para o endereço
-  const enderecoCompleto = [profile?.city, profile?.state].filter(Boolean).join(" - ");
+  if (loading) return (
+    <div className="min-h-screen bg-[#000000] flex items-center justify-center text-white">
+      <Loader2 className="w-8 h-8 animate-spin text-[#C9A66B]" />
+    </div>
+  );
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-[#000000] text-white p-4 md:p-8 pb-24 font-sans">
       
-      {/* HEADER */}
-      <div className="flex justify-between items-center">
-        <div>
-            <h1 className="text-3xl font-black text-white tracking-tighter italic">MEU <span className="text-[#C9A66B]">PERFIL</span></h1>
-            <p className="text-slate-400">Gerencie seus dados e status profissional.</p>
+      <div className="max-w-4xl mx-auto">
+        
+        {/* CABEÇALHO */}
+        <div className="mb-8">
+            <h1 className="text-3xl font-extrabold italic tracking-wide">
+                MEU <span className="text-[#C9A66B]">PERFIL</span>
+            </h1>
+            <p className="text-gray-400 mt-2 text-sm">Gerencie sua identidade visual e dados de contato.</p>
         </div>
-        {!editing && (
-          <button 
-            onClick={() => setEditing(true)}
-            className="flex items-center gap-2 bg-white/5 border border-white/10 hover:bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"
-          >
-            <Edit size={14} /> Editar Dados
-          </button>
-        )}
-      </div>
 
-      {/* CARD PRINCIPAL */}
-      <div className="bg-[#0A0A0A] border border-white/10 p-8 rounded-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-32 bg-[#C9A66B]/5 blur-3xl rounded-full pointer-events-none"></div>
-
-          <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-              
-              {/* AVATAR */}
-              <div className="relative group">
-                  <div className="w-32 h-32 rounded-full border-4 border-[#C9A66B]/20 bg-black flex items-center justify-center relative overflow-hidden">
-                      <User size={48} className="text-slate-500" />
-                  </div>
-                  <div className="absolute bottom-0 right-0 bg-[#C9A66B] p-2 rounded-full text-black border-4 border-[#0A0A0A]">
-                      <Edit size={14} />
-                  </div>
-              </div>
-
-              {/* DADOS */}
-              <div className="text-center md:text-left space-y-2">
-                  
-                  {/* SÓ MOSTRA ETIQUETA SE TIVER NÍVEL NO BANCO */}
-                  {profile?.current_level && (
-                    <div className="inline-flex items-center gap-1 bg-[#C9A66B]/10 border border-[#C9A66B]/20 px-3 py-1 rounded-full text-[#C9A66B] text-[10px] font-black uppercase tracking-widest mb-1">
-                        <ShieldCheck size={10} />
-                        {profile.current_level}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            
+            {/* --- COLUNA 1: FOTO E INFO BÁSICA --- */}
+            <div className="space-y-6">
+                
+                {/* CARD FOTO */}
+                <div className="bg-[#111] border border-[#222] rounded-xl p-6 flex flex-col items-center">
+                    <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                        <div className="w-32 h-32 rounded-full border-4 border-[#C9A66B] overflow-hidden bg-[#222]">
+                            {formData.avatar_url ? (
+                                <img src={formData.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-4xl text-gray-500 font-bold">
+                                    {formData.full_name?.substring(0,2).toUpperCase() || "EU"}
+                                </div>
+                            )}
+                        </div>
+                        {/* Overlay de Câmera */}
+                        <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Camera className="text-white w-8 h-8" />
+                        </div>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            className="hidden" 
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                        />
                     </div>
-                  )}
+                    <p className="text-xs text-gray-500 mt-3 font-bold uppercase">Clique para alterar foto</p>
+                </div>
 
-                  <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
-                      <h2 className="text-4xl font-black text-white tracking-tighter">
-                          {profile?.full_name || "Usuário"}
-                      </h2>
-                      {isDistribuidor && (
-                          <CheckCircle size={24} className="text-[#FFD700] flex-shrink-0" />
-                      )}
-                  </div>
+                {/* DICAS */}
+                <div className="bg-[#111] border border-[#222] rounded-xl p-5">
+                    <h3 className="text-[#C9A66B] font-bold text-sm mb-2 flex items-center gap-2">
+                        <User size={16} /> Dica MASC PRO
+                    </h3>
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                        Mantenha seu perfil atualizado. Um perfil completo aumenta suas chances de networking na Comunidade.
+                    </p>
+                </div>
 
-                  <div className={`flex items-center justify-center md:justify-start gap-2 font-bold uppercase tracking-widest text-[10px] ${
-                      isDistribuidor ? "text-[#FFD700]" : "text-slate-400"
-                  }`}>
-                      {isDistribuidor ? <Briefcase size={14} className="text-[#FFD700]"/> : <Scissors size={14} className="text-slate-400"/>}
-                      <span>
-                          {getUserRole()}
-                      </span>
-                  </div>
+            </div>
 
-                  <div className="pt-2">
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Saldo Atual</p>
-                      <p className="text-2xl font-black text-white">{profile?.pro_balance || 0} PRO</p>
-                  </div>
-              </div>
-          </div>
+            {/* --- COLUNA 2 E 3: FORMULÁRIO --- */}
+            <div className="md:col-span-2 bg-[#111] border border-[#222] rounded-xl p-6 md:p-8">
+                
+                <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+                    
+                    {/* SEÇÃO: IDENTIDADE */}
+                    <div>
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 border-b border-[#222] pb-2">Identidade</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-xs text-gray-400 font-bold">Nome Completo</label>
+                                <div className="relative">
+                                    <User className="absolute left-3 top-3 text-gray-600" size={16} />
+                                    <input 
+                                        type="text" 
+                                        value={formData.full_name} 
+                                        onChange={(e) => setFormData({...formData, full_name: e.target.value})}
+                                        className="w-full bg-[#0a0a0a] border border-[#333] rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:border-[#C9A66B] outline-none transition-colors"
+                                        placeholder="Seu nome"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs text-gray-400 font-bold">Apelido (Como quer ser chamado)</label>
+                                <div className="relative">
+                                    <AtSign className="absolute left-3 top-3 text-gray-600" size={16} />
+                                    <input 
+                                        type="text" 
+                                        value={formData.nickname} 
+                                        onChange={(e) => setFormData({...formData, nickname: e.target.value})}
+                                        className="w-full bg-[#0a0a0a] border border-[#333] rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:border-[#C9A66B] outline-none transition-colors"
+                                        placeholder="Ex: Jão"
+                                    />
+                                </div>
+                            </div>
+                            <div className="md:col-span-2 space-y-1">
+                                <label className="text-xs text-gray-400 font-bold">Bio (Sobre você)</label>
+                                <div className="relative">
+                                    <FileText className="absolute left-3 top-3 text-gray-600" size={16} />
+                                    <textarea 
+                                        value={formData.bio} 
+                                        onChange={(e) => setFormData({...formData, bio: e.target.value})}
+                                        className="w-full bg-[#0a0a0a] border border-[#333] rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:border-[#C9A66B] outline-none transition-colors min-h-[80px] resize-none"
+                                        placeholder="Ex: Empreendedor, focado em dropshipping..."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* SEÇÃO: CONTATO */}
+                    <div>
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 border-b border-[#222] pb-2 mt-2">Redes & Contato</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-xs text-gray-400 font-bold">Instagram (@usuario)</label>
+                                <div className="relative">
+                                    <Instagram className="absolute left-3 top-3 text-gray-600" size={16} />
+                                    <input 
+                                        type="text" 
+                                        value={formData.instagram} 
+                                        onChange={(e) => setFormData({...formData, instagram: e.target.value})}
+                                        className="w-full bg-[#0a0a0a] border border-[#333] rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:border-[#C9A66B] outline-none transition-colors"
+                                        placeholder="@seuinsta"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs text-gray-400 font-bold">WhatsApp</label>
+                                <div className="relative">
+                                    <Phone className="absolute left-3 top-3 text-gray-600" size={16} />
+                                    <input 
+                                        type="text" 
+                                        value={formData.whatsapp} 
+                                        onChange={(e) => setFormData({...formData, whatsapp: e.target.value})}
+                                        className="w-full bg-[#0a0a0a] border border-[#333] rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:border-[#C9A66B] outline-none transition-colors"
+                                        placeholder="(00) 00000-0000"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* SEÇÃO: ENDEREÇO */}
+                    <div>
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 border-b border-[#222] pb-2 mt-2">Localização</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                            <div className="md:col-span-6 space-y-1">
+                                <label className="text-xs text-gray-400 font-bold">Endereço</label>
+                                <div className="relative">
+                                    <MapPin className="absolute left-3 top-3 text-gray-600" size={16} />
+                                    <input 
+                                        type="text" 
+                                        value={formData.address} 
+                                        onChange={(e) => setFormData({...formData, address: e.target.value})}
+                                        className="w-full bg-[#0a0a0a] border border-[#333] rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:border-[#C9A66B] outline-none transition-colors"
+                                        placeholder="Rua, Número, Bairro"
+                                    />
+                                </div>
+                            </div>
+                            <div className="md:col-span-4 space-y-1">
+                                <label className="text-xs text-gray-400 font-bold">Cidade</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.city} 
+                                    onChange={(e) => setFormData({...formData, city: e.target.value})}
+                                    className="w-full bg-[#0a0a0a] border border-[#333] rounded-lg py-2.5 px-4 text-sm text-white focus:border-[#C9A66B] outline-none transition-colors"
+                                    placeholder="São Paulo"
+                                />
+                            </div>
+                            <div className="md:col-span-2 space-y-1">
+                                <label className="text-xs text-gray-400 font-bold">UF</label>
+                                <input 
+                                    type="text" 
+                                    maxLength={2}
+                                    value={formData.state} 
+                                    onChange={(e) => setFormData({...formData, state: e.target.value.toUpperCase()})}
+                                    className="w-full bg-[#0a0a0a] border border-[#333] rounded-lg py-2.5 px-4 text-sm text-white focus:border-[#C9A66B] outline-none transition-colors text-center uppercase"
+                                    placeholder="SP"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* BOTÃO SALVAR */}
+                    <div className="pt-4 flex justify-end">
+                        <button 
+                            type="submit"
+                            disabled={saving}
+                            className="bg-[#C9A66B] text-black font-bold text-sm px-8 py-3 rounded-lg hover:bg-[#b08d55] flex items-center gap-2 disabled:opacity-50 transition-all shadow-[0_0_15px_rgba(201,166,107,0.3)] hover:shadow-[0_0_25px_rgba(201,166,107,0.5)]"
+                        >
+                            {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                            SALVAR ALTERAÇÕES
+                        </button>
+                    </div>
+
+                </form>
+
+            </div>
+        </div>
+        
       </div>
-
-      {/* FORMULÁRIO DE EDIÇÃO */}
-      {editing ? (
-        <div className="bg-[#0A0A0A] border border-white/10 p-8 rounded-2xl space-y-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-black text-white tracking-tighter">Editar Dados de Contato e Endereço</h2>
-            <div className="flex gap-2">
-              <button
-                onClick={handleCancel}
-                className="flex items-center gap-2 bg-white/5 border border-white/10 hover:bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"
-              >
-                <X size={14} /> Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-2 bg-[#C9A66B] hover:bg-[#C9A66B]/90 text-black px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                {saving ? "Salvando..." : "Salvar"}
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* WhatsApp */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">WhatsApp</label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
-                  <Phone size={18} />
-                </div>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={handlePhoneChange}
-                  className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-[#C9A66B] transition-all"
-                  placeholder="(00) 00000-0000"
-                  maxLength={15}
-                />
-              </div>
-            </div>
-
-            {/* CEP */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">CEP</label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
-                  <MapPin size={18} />
-                </div>
-                <input
-                  type="text"
-                  value={cep}
-                  onChange={handleCepChange}
-                  onBlur={handleCepBlur}
-                  className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-12 pr-12 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-[#C9A66B] transition-all"
-                  placeholder="00000-000"
-                  maxLength={9}
-                />
-                {loadingCep && (
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                    <Loader2 size={16} className="animate-spin text-[#C9A66B]" />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Endereço (Rua) */}
-            <div className="space-y-1 md:col-span-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Endereço (Rua)</label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
-                  <Home size={18} />
-                </div>
-                <input
-                  type="text"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-[#C9A66B] transition-all"
-                  placeholder="Nome da rua"
-                />
-              </div>
-            </div>
-
-            {/* Número e Bairro lado a lado */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Número</label>
-              <div className="relative">
-                <input
-                  ref={numberInputRef}
-                  type="text"
-                  value={number}
-                  onChange={(e) => setNumber(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-4 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-[#C9A66B] transition-all"
-                  placeholder="123"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Bairro</label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
-                  <MapPin size={18} />
-                </div>
-                <input
-                  type="text"
-                  value={neighborhood}
-                  onChange={(e) => setNeighborhood(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-[#C9A66B] transition-all"
-                  placeholder="Nome do bairro"
-                />
-              </div>
-            </div>
-
-            {/* Cidade/Estado */}
-            <div className="space-y-1 md:col-span-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cidade/Estado</label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
-                  <MapPin size={18} />
-                </div>
-                <input
-                  type="text"
-                  value={cityState}
-                  onChange={(e) => setCityState(e.target.value)}
-                  className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-[#C9A66B] transition-all"
-                  placeholder="Ex: São Paulo/SP"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* GRID INFERIOR - VISUALIZAÇÃO */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* CARD DE CONTATO */}
-          <div className="bg-[#0A0A0A] border border-white/10 p-6 rounded-2xl">
-              <h3 className="text-[#C9A66B] font-bold text-sm uppercase tracking-wider mb-6 flex items-center gap-2">
-                  <Briefcase size={14} /> Detalhes Profissionais
-              </h3>
-              
-              <div className="space-y-4">
-                  <div className="flex justify-between border-b border-white/5 pb-3">
-                      <span className="text-slate-500 text-sm">Função</span>
-                      <span className="text-white font-bold text-sm capitalize">{profile?.role || "-"}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-white/5 pb-3">
-                      <span className="text-slate-500 text-sm">Instagram</span>
-                      <span className="text-white font-bold text-sm">{profile?.instagram || "-"}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-white/5 pb-3">
-                      <span className="text-slate-500 text-sm">WhatsApp</span>
-                      <span className="text-white font-bold text-sm">{profile?.phone || "-"}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-white/5 pb-3">
-                      <span className="text-slate-500 text-sm">CPF</span>
-                      <span className="text-white font-bold text-sm">{profile?.cpf || "-"}</span>
-                  </div>
-              </div>
-          </div>
-
-          {/* CARD DE LOCALIZAÇÃO */}
-          <div className="bg-[#0A0A0A] border border-white/10 p-6 rounded-2xl">
-              <h3 className="text-[#C9A66B] font-bold text-sm uppercase tracking-wider mb-6 flex items-center gap-2">
-                  <MapPin size={14} /> Localização
-              </h3>
-              
-              {(profile?.rua || profile?.city_state || enderecoCompleto) ? (
-                  <div className="space-y-4 animate-in fade-in">
-                      {profile?.rua && (
-                        <div className="flex justify-between border-b border-white/5 pb-3">
-                          <span className="text-slate-500 text-sm">Endereço</span>
-                          <span className="text-white text-sm">{profile.rua} {profile.number ? `, ${profile.number}` : ""}</span>
-                        </div>
-                      )}
-                      {profile?.bairro && (
-                        <div className="flex justify-between border-b border-white/5 pb-3">
-                          <span className="text-slate-500 text-sm">Bairro</span>
-                          <span className="text-white text-sm">{profile.bairro}</span>
-                        </div>
-                      )}
-                      {profile?.cep && (
-                        <div className="flex justify-between border-b border-white/5 pb-3">
-                          <span className="text-slate-500 text-sm">CEP</span>
-                          <span className="text-white text-sm">{profile.cep}</span>
-                        </div>
-                      )}
-                      {profile?.city_state && (
-                        <div className="flex justify-between border-b border-white/5 pb-3">
-                          <span className="text-slate-500 text-sm">Cidade/Estado</span>
-                          <span className="text-white text-sm">{profile.city_state}</span>
-                        </div>
-                      )}
-                      {enderecoCompleto && !profile?.city_state && (
-                        <>
-                          <div className="flex justify-between border-b border-white/5 pb-3">
-                            <span className="text-slate-500 text-sm">Cidade</span>
-                            <span className="text-white text-sm">{profile?.city}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-white/5 pb-3">
-                            <span className="text-slate-500 text-sm">Estado</span>
-                            <span className="text-white text-sm">{profile?.state}</span>
-                          </div>
-                        </>
-                      )}
-                  </div>
-              ) : (
-                  <div className="h-32 flex flex-col items-center justify-center text-center text-slate-600 border border-dashed border-white/10 rounded-xl bg-white/5">
-                      <p className="text-sm font-medium">Endereço não cadastrado</p>
-                      <button 
-                        onClick={() => setEditing(true)}
-                        className="text-xs text-[#C9A66B] font-bold mt-2 hover:underline"
-                      >
-                          Adicionar Endereço
-                      </button>
-                  </div>
-              )}
-          </div>
-
-        </div>
-      )}
     </div>
   );
 }
