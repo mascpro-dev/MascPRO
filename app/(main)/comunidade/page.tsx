@@ -8,8 +8,8 @@ export default function ComunidadePage() {
   const supabase = createClientComponentClient();
   const [activeTab, setActiveTab] = useState<'ranking' | 'feed'>('ranking');
   
-  // Dados Principais
-  const [ranking, setRanking] = useState<any[]>([]); // Usaremos o ranking como lista de usuários para marcar
+  // Dados
+  const [ranking, setRanking] = useState<any[]>([]); 
   const [posts, setPosts] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -24,13 +24,14 @@ export default function ComunidadePage() {
   const [openComments, setOpenComments] = useState<string | null>(null);
   const [commentsData, setCommentsData] = useState<Record<string, any[]>>({});
   
-  // Inputs e Menções
-  const [commentText, setCommentText] = useState("");
+  // Inputs
   const [newPostText, setNewPostText] = useState("");
+  const [commentText, setCommentText] = useState(""); 
+  const [replyText, setReplyText] = useState("");     
   
-  // Estado para controlar o MENU DE MENÇÃO (@)
+  // Controle de Menção (@)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [mentionTargetField, setMentionTargetField] = useState<'post' | 'comment' | null>(null);
+  const [mentionTarget, setMentionTarget] = useState<'post' | 'comment' | 'reply' | null>(null);
 
   // Upload
   const [newPostImage, setNewPostImage] = useState<File | null>(null);
@@ -43,15 +44,17 @@ export default function ComunidadePage() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. CARREGAMENTO INICIAL
+  // 1. CARREGAMENTO
   useEffect(() => {
     fetchData();
     
-    // Inscreve para notificações em tempo real
+    // ESCUTA EM TEMPO REAL (Para o sininho funcionar na hora)
     const channel = supabase.channel('realtime_notifications')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
+        // Se a notificação for para mim, atualiza
         if (currentUser && payload.new.user_id === currentUser.id) {
-            fetchNotifications(currentUser.id); // Atualiza sininho se for pra mim
+            console.log("Nova notificação recebida!");
+            fetchNotifications(currentUser.id);
         }
     })
     .subscribe();
@@ -67,14 +70,12 @@ export default function ComunidadePage() {
         const { data: myProfile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
         setCurrentUser(myProfile || { id: user.id, full_name: "Eu", avatar_url: null });
         
-        // Carrega likes e notificações
         const { data: likesData } = await supabase.from("likes").select("post_id").eq("user_id", user.id);
         if (likesData) setMyLikes(new Set(likesData.map(l => l.post_id)));
         
         fetchNotifications(user.id);
       }
 
-      // Carrega Ranking (Lista de Usuários)
       const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url, coins, personal_coins, role");
       if (profiles) {
         const sorted = profiles.map(p => ({
@@ -113,46 +114,76 @@ export default function ComunidadePage() {
 
   // --- LÓGICA DE MENÇÃO (@) ---
   
-  // Função que monitora o que você digita para detectar o "@"
-  const handleTyping = (text: string, field: 'post' | 'comment') => {
-      if (field === 'post') setNewPostText(text);
-      else setCommentText(text);
+  const handleTyping = (text: string, target: 'post' | 'comment' | 'reply') => {
+      if (target === 'post') setNewPostText(text);
+      else if (target === 'comment') setCommentText(text);
+      else if (target === 'reply') setReplyText(text);
 
-      // Pega a última palavra digitada
       const words = text.split(" ");
       const lastWord = words[words.length - 1];
 
       if (lastWord.startsWith("@")) {
-          setMentionQuery(lastWord.substring(1)); // Remove o @ e busca o nome
-          setMentionTargetField(field);
+          setMentionQuery(lastWord.substring(1));
+          setMentionTarget(target);
       } else {
           setMentionQuery(null);
-          setMentionTargetField(null);
+          setMentionTarget(null);
       }
   };
 
-  // Quando clica no nome da lista
   const selectMention = (userName: string) => {
-      const textToUpdate = mentionTargetField === 'post' ? newPostText : commentText;
-      const words = textToUpdate.split(" ");
-      words.pop(); // Remove o "@parcial"
-      words.push(`@${userName} `); // Adiciona o "@NomeCompleto "
-      
+      let currentText = "";
+      if (mentionTarget === 'post') currentText = newPostText;
+      else if (mentionTarget === 'comment') currentText = commentText;
+      else if (mentionTarget === 'reply') currentText = replyText;
+
+      const words = currentText.split(" ");
+      words.pop();
+      words.push(`@${userName} `);
       const newText = words.join(" ");
 
-      if (mentionTargetField === 'post') setNewPostText(newText);
-      else setCommentText(newText);
+      if (mentionTarget === 'post') setNewPostText(newText);
+      else if (mentionTarget === 'comment') setCommentText(newText);
+      else if (mentionTarget === 'reply') setReplyText(newText);
       
-      setMentionQuery(null); // Fecha menu
+      setMentionQuery(null);
+      setMentionTarget(null);
   };
 
-  // Filtra usuários baseados no que foi digitado
-  const filteredUsers = mentionQuery 
-    ? ranking.filter(u => u.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 5) 
-    : [];
+  // COMPONENTE DO MENU DE MENÇÃO (REUTILIZÁVEL)
+  const MentionMenu = () => {
+      if (!mentionQuery && mentionQuery !== "") return null;
+      
+      const filtered = ranking.filter(u => u.name.toLowerCase().includes(mentionQuery!.toLowerCase())).slice(0, 5);
+      
+      if (filtered.length === 0) return null;
 
-  // --- NOTIFICAÇÕES ---
+      return (
+          <div className="absolute bottom-full mb-2 left-0 w-64 bg-[#1a1a1a] border border-[#333] rounded-xl shadow-2xl overflow-hidden z-[9999]">
+             <div className="p-2 border-b border-[#222] text-[10px] text-gray-500 font-bold uppercase bg-[#111]">Mencionar Aluno</div>
+             {filtered.map(u => (
+                 <button 
+                   key={u.id} 
+                   onClick={() => selectMention(u.name)} 
+                   className="w-full text-left p-3 hover:bg-[#333] flex items-center gap-3 transition-colors border-b border-[#222] last:border-0"
+                 >
+                     <div className="w-6 h-6 rounded-full bg-[#333] overflow-hidden shrink-0 border border-[#444]">
+                       {u.avatar_url ? (
+                         <img src={u.avatar_url} className="w-full h-full object-cover" alt={u.name} />
+                       ) : (
+                         <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-500">
+                           {u.name.substring(0,2).toUpperCase()}
+                         </div>
+                       )}
+                     </div>
+                     <span className="text-sm font-bold text-gray-300">{u.name}</span>
+                 </button>
+             ))}
+          </div>
+      );
+  };
 
+  // --- AÇÕES ---
   const createNotification = async (targetUserId: string, type: string, content: string) => {
       if (!currentUser || targetUserId === currentUser.id) return; 
       await supabase.from("notifications").insert({
@@ -165,22 +196,13 @@ export default function ComunidadePage() {
 
   const processMentions = (text: string) => {
       const words = text.split(" ");
-      // Pega todas as palavras que começam com @
       const potentialMentions = words.filter(w => w.startsWith("@"));
-      
       potentialMentions.forEach(mention => {
-          // Remove o @ para buscar no banco
-          const nameToFind = mention.substring(1).replace(/[^a-zA-Z0-9À-ÿ ]/g, ""); // Limpa pontuação
-          // Procura na lista de ranking (que tem todos os usuarios carregados)
+          const nameToFind = mention.substring(1).replace(/[^a-zA-Z0-9À-ÿ ]/g, ""); 
           const userFound = ranking.find(u => u.name === nameToFind || u.name.split(" ")[0] === nameToFind);
-          
-          if (userFound) {
-              createNotification(userFound.id, 'mention', `marcou você: "${text.substring(0, 30)}..."`);
-          }
+          if (userFound) createNotification(userFound.id, 'mention', `marcou você: "${text.substring(0, 20)}..."`);
       });
   };
-
-  // --- POSTS E COMENTÁRIOS ---
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -212,8 +234,7 @@ export default function ComunidadePage() {
       const { error } = await supabase.from("posts").insert({ user_id: currentUser.id, content: newPostText, image_url: finalImageUrl });
       if (error) throw error;
       
-      processMentions(newPostText); // Verifica quem foi marcado
-
+      processMentions(newPostText);
       setNewPostText(""); 
       setNewPostImage(null); 
       if (previewUrl) {
@@ -231,21 +252,20 @@ export default function ComunidadePage() {
   };
 
   const sendComment = async (post: any, parentId: string | null = null) => {
-    if (!commentText.trim() || !currentUser) return;
+    const textToSend = parentId ? replyText.trim() : commentText.trim();
+    if (!textToSend || !currentUser) return;
     setSendingComment(true);
-    const { error } = await supabase.from("comments").insert({ post_id: post.id, user_id: currentUser.id, content: commentText, parent_id: parentId });
+    const { error } = await supabase.from("comments").insert({ post_id: post.id, user_id: currentUser.id, content: textToSend, parent_id: parentId });
     if (!error) {
-        processMentions(commentText); // Verifica menções no comentário
-
-        // Notifica dono do post ou comentário pai
+        processMentions(textToSend);
         if (parentId) {
              const parentComment = commentsData[post.id]?.find(c => c.id === parentId);
              if (parentComment) createNotification(parentComment.user_id, 'reply', 'respondeu seu comentário.');
         } else {
              createNotification(post.user_id, 'comment', 'comentou no seu post.');
         }
-
         setCommentText(""); 
+        setReplyText(""); 
         setReplyingTo(null); 
         loadComments(post.id);
     }
@@ -274,7 +294,6 @@ export default function ComunidadePage() {
     await supabase.rpc('toggle_like', { target_post_id: post.id, target_user_id: currentUser.id });
   };
 
-  // Helpers
   const renderText = (text: string) => {
     if (!text) return null;
     return text.split(/(\s+)/).map((part, index) => {
@@ -290,6 +309,11 @@ export default function ComunidadePage() {
     return `${Math.floor(diff/86400)}d`; 
   };
   const formatNumber = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const getCommentsForPost = (postId: string) => { 
+    const all = commentsData[postId] || []; 
+    const roots = all.filter(c => !c.parent_id); 
+    return { roots, all }; 
+  }
 
   return (
     <div className="p-4 md:p-8 min-h-screen bg-[#000000] text-white font-sans pb-20 relative">
@@ -301,9 +325,16 @@ export default function ComunidadePage() {
             <p className="text-gray-400 mt-2 text-sm">Ranking e Networking.</p>
         </div>
         <div className="relative">
-            <button onClick={() => { setShowNotifications(!showNotifications); markNotificationsAsRead(); }} className="relative bg-[#111] border border-[#333] p-3 rounded-full hover:bg-[#222] transition-colors">
+            <button 
+              onClick={() => { setShowNotifications(!showNotifications); markNotificationsAsRead(); }} 
+              className="relative bg-[#111] border border-[#333] p-3 rounded-full hover:bg-[#222] transition-colors"
+            >
                 <Bell size={20} className={unreadCount > 0 ? "text-[#C9A66B]" : "text-gray-400"} />
-                {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold">{unreadCount}</span>}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold">
+                    {unreadCount}
+                  </span>
+                )}
             </button>
             {showNotifications && (
                 <div className="absolute right-0 top-12 w-72 bg-[#111] border border-[#222] rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
@@ -315,7 +346,9 @@ export default function ComunidadePage() {
                           notifications.map(n => (
                             <div key={n.id} className={`p-3 border-b border-[#222] flex gap-3 ${n.read ? "opacity-50" : "bg-[#1a1a1a]"}`}>
                                 <div className="w-8 h-8 rounded-full bg-[#222] overflow-hidden shrink-0 border border-[#333]">
-                                  {n.profiles?.avatar_url && <img src={n.profiles.avatar_url} className="w-full h-full object-cover" alt={n.profiles.full_name || "User"} />}
+                                  {n.profiles?.avatar_url && (
+                                    <img src={n.profiles.avatar_url} className="w-full h-full object-cover" alt={n.profiles.full_name || "User"} />
+                                  )}
                                 </div>
                                 <div>
                                   <p className="text-xs text-gray-300">
@@ -434,40 +467,9 @@ export default function ComunidadePage() {
       {activeTab === 'feed' && (
         <div className="max-w-2xl mx-auto relative">
           
-          {/* MENU FLUTUANTE DE MENÇÃO */}
-          {mentionQuery !== null && filteredUsers.length > 0 && (
-             <div 
-               className="absolute z-50 bg-[#1a1a1a] border border-[#333] rounded-xl shadow-2xl w-64 overflow-hidden animate-in fade-in slide-in-from-bottom-2" 
-               style={{ 
-                 top: mentionTargetField === 'post' ? '120px' : 'auto', 
-                 bottom: mentionTargetField === 'comment' ? '60px' : 'auto' 
-               }}
-             >
-                <div className="p-2 border-b border-[#222] text-[10px] text-gray-500 font-bold uppercase">Marcar Aluno</div>
-                {filteredUsers.map(u => (
-                    <button 
-                      key={u.id} 
-                      onClick={() => selectMention(u.name)} 
-                      className="w-full text-left p-3 hover:bg-[#333] flex items-center gap-3 transition-colors"
-                    >
-                        <div className="w-6 h-6 rounded-full bg-[#333] overflow-hidden border border-[#444]">
-                          {u.avatar_url ? (
-                            <img src={u.avatar_url} className="w-full h-full object-cover" alt={u.name} />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-500">
-                              {u.name.substring(0,2).toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-sm font-bold text-gray-300">{u.name}</span>
-                    </button>
-                ))}
-             </div>
-          )}
-
           {/* CRIAR POST */}
-          <div className="bg-[#111] border border-[#222] p-4 rounded-xl mb-6">
-            <div className="flex gap-3 mb-3">
+          <div className="bg-[#111] border border-[#222] p-4 rounded-xl mb-6 relative z-10">
+            <div className="flex gap-3 mb-3 relative">
               <div className="w-10 h-10 rounded-full bg-[#222] shrink-0 overflow-hidden border border-[#333]">
                 {currentUser?.avatar_url ? (
                   <img src={currentUser.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
@@ -477,12 +479,15 @@ export default function ComunidadePage() {
                   </div>
                 )}
               </div>
-              <textarea 
-                value={newPostText} 
-                onChange={(e) => handleTyping(e.target.value, 'post')} 
-                placeholder="Compartilhe sua evolução... (Use @ para marcar)" 
-                className="w-full bg-transparent text-sm text-white placeholder-gray-600 outline-none resize-none h-20" 
-              />
+              <div className="w-full relative">
+                <textarea 
+                  value={newPostText} 
+                  onChange={(e) => handleTyping(e.target.value, 'post')} 
+                  placeholder="Compartilhe sua evolução... (Use @ para marcar)" 
+                  className="w-full bg-transparent text-sm text-white placeholder-gray-600 outline-none resize-none h-20" 
+                />
+                {mentionTarget === 'post' && <MentionMenu />}
+              </div>
             </div>
             {previewUrl && (
               <div className="relative mb-3 w-fit">
@@ -544,9 +549,7 @@ export default function ComunidadePage() {
               posts.map((post) => {
                 const isLiked = myLikes.has(post.id);
                 const showComments = openComments === post.id;
-                const postComments = commentsData[post.id] || [];
-                const rootComments = postComments.filter((c: any) => !c.parent_id);
-                const getReplies = (pid: string) => postComments.filter((c: any) => c.parent_id === pid);
+                const { roots, all } = getCommentsForPost(post.id);
 
                 return (
                   <div key={post.id} className="bg-[#111] border border-[#222] rounded-xl overflow-hidden">
@@ -597,18 +600,23 @@ export default function ComunidadePage() {
                     </div>
 
                     {showComments && (
-                      <div className="bg-[#0f0f0f] border-t border-[#222] p-4 relative">
-                         <div className="flex gap-2 mb-4">
-                            <input 
-                              type="text" 
-                              value={commentText} 
-                              onChange={(e) => handleTyping(e.target.value, 'comment')} 
-                              onKeyDown={(e) => e.key === 'Enter' && sendComment(post)} 
-                              placeholder="Escreva um comentário..." 
-                              className="flex-1 bg-[#1a1a1a] border border-[#333] rounded-full px-4 py-2 text-xs text-white outline-none focus:border-[#C9A66B] transition-colors" 
-                            />
+                      <div className="bg-[#0f0f0f] border-t border-[#222] p-4">
+                         
+                         {/* COMENTÁRIO PRINCIPAL */}
+                         <div className="flex gap-2 mb-4 relative z-20">
+                            <div className="flex-1 relative">
+                                <input 
+                                  type="text" 
+                                  value={commentText} 
+                                  onChange={(e) => handleTyping(e.target.value, 'comment')} 
+                                  onKeyDown={(e) => e.key === 'Enter' && sendComment(post, null)} 
+                                  placeholder="Escreva um comentário..." 
+                                  className="w-full bg-[#1a1a1a] border border-[#333] rounded-full px-4 py-2 text-xs text-white outline-none focus:border-[#C9A66B] transition-colors" 
+                                />
+                                {mentionTarget === 'comment' && <MentionMenu />}
+                            </div>
                             <button 
-                              onClick={() => sendComment(post)} 
+                              onClick={() => sendComment(post, null)} 
                               disabled={!commentText.trim() || sendingComment} 
                               className="bg-[#C9A66B] text-black p-2 rounded-full hover:bg-[#b08d55] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
@@ -619,6 +627,7 @@ export default function ComunidadePage() {
                               )}
                             </button>
                         </div>
+
                         <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
                             {!commentsData[post.id] && (
                               <p className="text-xs text-gray-600">Carregando...</p>
@@ -626,7 +635,7 @@ export default function ComunidadePage() {
                             {commentsData[post.id]?.length === 0 && (
                               <p className="text-xs text-gray-600">Seja o primeiro a comentar!</p>
                             )}
-                            {rootComments.map((comment: any) => (
+                            {roots.map((comment: any) => (
                                 <div key={comment.id}>
                                     <div className="flex gap-2 items-start">
                                         <div className="w-8 h-8 rounded-full bg-[#222] overflow-hidden shrink-0 mt-1 border border-[#333]">
@@ -651,8 +660,8 @@ export default function ComunidadePage() {
                                             </button>
                                         </div>
                                     </div>
-                                    {/* Respostas */}
-                                    {getReplies(comment.id).map((reply: any) => (
+                                    
+                                    {all.filter(c => c.parent_id === comment.id).map((reply: any) => (
                                         <div key={reply.id} className="ml-10 mt-2 flex gap-2 items-start">
                                             <div className="w-6 h-6 rounded-full bg-[#222] overflow-hidden shrink-0 mt-1 border border-[#333]">
                                               {reply.profiles?.avatar_url ? (
@@ -669,30 +678,34 @@ export default function ComunidadePage() {
                                             </div>
                                         </div>
                                     ))}
-                                    {/* Campo Resposta */}
+
+                                    {/* CAMPO DE RESPOSTA */}
                                     {replyingTo === comment.id && (
-                                        <div className="ml-10 mt-2 flex gap-2">
-                                          <CornerDownRight size={14} className="text-gray-600 mt-2" />
-                                          <input 
-                                            autoFocus 
-                                            type="text" 
-                                            value={commentText}
-                                            onChange={(e) => setCommentText(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && sendComment(post, comment.id)} 
-                                            placeholder="Responder..." 
-                                            className="flex-1 bg-[#111] border border-[#333] rounded px-3 py-1 text-xs text-white focus:border-[#C9A66B] outline-none transition-colors" 
-                                          />
-                                          <button 
-                                            onClick={() => sendComment(post, comment.id)} 
-                                            disabled={!commentText.trim() || sendingComment}
-                                            className="bg-[#222] text-white px-3 py-1 rounded hover:bg-[#333] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                          >
-                                            {sendingComment ? (
-                                              <Loader2 size={12} className="animate-spin"/>
-                                            ) : (
-                                              <Send size={12}/>
-                                            )}
-                                          </button>
+                                        <div className="ml-10 mt-2 flex gap-2 relative z-10">
+                                            <CornerDownRight size={14} className="text-gray-600 mt-2" />
+                                            <div className="flex-1 relative">
+                                                <input 
+                                                    autoFocus 
+                                                    type="text" 
+                                                    value={replyText}
+                                                    onChange={(e) => handleTyping(e.target.value, 'reply')} 
+                                                    onKeyDown={(e) => e.key === 'Enter' && sendComment(post, comment.id)} 
+                                                    placeholder="Sua resposta..." 
+                                                    className="w-full bg-[#111] border border-[#333] rounded px-3 py-1 text-xs text-white focus:border-[#C9A66B] outline-none transition-colors" 
+                                                />
+                                                {mentionTarget === 'reply' && <MentionMenu />}
+                                            </div>
+                                            <button 
+                                              onClick={() => sendComment(post, comment.id)} 
+                                              disabled={!replyText.trim() || sendingComment}
+                                              className="bg-[#222] px-2 rounded hover:bg-[#333] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                              {sendingComment ? (
+                                                <Loader2 size={12} className="animate-spin"/>
+                                              ) : (
+                                                <Send size={12}/>
+                                              )}
+                                            </button>
                                         </div>
                                     )}
                                 </div>
