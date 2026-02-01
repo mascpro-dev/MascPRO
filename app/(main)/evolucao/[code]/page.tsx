@@ -21,13 +21,13 @@ export default function AulaPlayerPage() {
   const [loading, setLoading] = useState(true);
   const [userCoins, setUserCoins] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [allUsers, setAllUsers] = useState<any[]>([]); // Lista de usuários para menção
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   
-  // Interação (Comentários e Respostas)
+  // Interação
   const [activeTab, setActiveTab] = useState<'info' | 'comments'>('info');
   const [comments, setComments] = useState<any[]>([]);
   
-  // Inputs e Menções
+  // Inputs
   const [newComment, setNewComment] = useState("");
   const [replyText, setReplyText] = useState("");
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -36,13 +36,13 @@ export default function AulaPlayerPage() {
   const [sendingComment, setSendingComment] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
-  // Player & Memória
+  // Player
   const [hasJumped, setHasJumped] = useState(false);
   const [jumpTimeDisplay, setJumpTimeDisplay] = useState(0);
 
   const COINS_PER_LESSON = 10; 
 
-  // 1. CARREGAMENTO DOS DADOS
+  // 1. CARREGAMENTO
   useEffect(() => {
     async function fetchInitialData() {
       try {
@@ -50,23 +50,17 @@ export default function AulaPlayerPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        setCurrentUser({ id: user.id }); // Salva ID para notificações
+        setCurrentUser({ id: user.id });
 
         const [profileRes, lessonsRes, progressRes, usersRes] = await Promise.all([
-            supabase.from("profiles").select("coins, personal_coins").eq("id", user.id).single(),
+            supabase.from("profiles").select("coins").eq("id", user.id).single(),
             supabase.from("lessons").select("*").ilike("course_code", courseCode).order("sequence_order", { ascending: true }),
             supabase.from("lesson_progress").select("lesson_id, completed, seconds_watched").eq("user_id", user.id),
-            // Busca usuários para o @Menção
             supabase.from("profiles").select("id, full_name, avatar_url") 
         ]);
 
-        if (profileRes.data) {
-            setUserCoins((profileRes.data.coins || 0) + (profileRes.data.personal_coins || 0));
-        }
-
-        if (usersRes.data) {
-            setAllUsers(usersRes.data);
-        }
+        if (profileRes.data) setUserCoins(profileRes.data.coins || 0);
+        if (usersRes.data) setAllUsers(usersRes.data);
 
         const pMap: Record<string, any> = {};
         if (progressRes.data) {
@@ -88,7 +82,7 @@ export default function AulaPlayerPage() {
     if (courseCode) fetchInitialData();
   }, [courseCode, supabase]);
 
-  // 2. DETALHES DA AULA
+  // 2. DETALHES
   useEffect(() => {
     if (!currentLesson) return;
     setHasJumped(false); 
@@ -100,12 +94,26 @@ export default function AulaPlayerPage() {
       const { data } = await supabase
         .from("lesson_comments")
         .select(`id, content, created_at, parent_id, user_id, profiles(full_name, avatar_url)`)
-        .eq("lesson_id", currentLesson.id)
-        .order("created_at", { ascending: true });
+        .eq("lesson_id", currentLesson.id);
+      
       if (data) setComments(data);
   }
 
-  // 3. PLAYER DE VÍDEO
+  // ORDENAÇÃO INTELIGENTE
+  const getSortedThreads = () => {
+      const roots = comments.filter(c => !c.parent_id);
+      const threadsWithActivity = roots.map(root => {
+          const replies = comments.filter(c => c.parent_id === root.id);
+          const dates = [new Date(root.created_at).getTime()];
+          replies.forEach(r => dates.push(new Date(r.created_at).getTime()));
+          const lastActivity = Math.max(...dates);
+          return { root, replies, lastActivity };
+      });
+      return threadsWithActivity.sort((a, b) => b.lastActivity - a.lastActivity);
+  };
+  const sortedThreads = getSortedThreads();
+
+  // 3. PLAYER
   useEffect(() => {
     if (!currentLesson || !currentLesson.video_id) return;
     const savedTime = progressMap[currentLesson.id]?.seconds_watched || 0;
@@ -146,9 +154,8 @@ export default function AulaPlayerPage() {
     };
     setTimeout(() => loadPlayer(), 100);
     return () => { if (playerInstance.current) { try { playerInstance.current.destroy(); } catch(e) {} } };
-  }, [currentLesson?.id]);
+  }, [currentLesson?.id]); 
 
-  // --- AÇÕES DO PLAYER ---
   const salvarProgresso = async (time: number, isCompleted: boolean) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user && currentLesson) {
@@ -183,7 +190,7 @@ export default function AulaPlayerPage() {
     }
   }
 
-  // --- LÓGICA DE MENÇÃO (@) ---
+  // --- MENÇÕES E COMENTÁRIOS ---
   const handleTyping = (text: string, target: 'comment' | 'reply') => {
       if (target === 'comment') setNewComment(text);
       else setReplyText(text);
@@ -222,8 +229,7 @@ export default function AulaPlayerPage() {
           actor_id: currentUser.id,
           type,
           content,
-          // Link para levar a pessoa de volta à aula (opcional, se quiser implementar redirecionamento)
-          link: `/evolucao/${courseCode}` 
+          link: `/evolucao/${courseCode}`
       });
   };
 
@@ -232,13 +238,11 @@ export default function AulaPlayerPage() {
       const potentialMentions = words.filter(w => w.startsWith("@"));
       potentialMentions.forEach(mention => {
           const nameToFind = mention.substring(1).replace(/[^a-zA-Z0-9À-ÿ ]/g, ""); 
-          // Procura na lista de todos os usuários carregados
           const userFound = allUsers.find(u => u.full_name === nameToFind || u.full_name.split(" ")[0] === nameToFind);
           if (userFound) createNotification(userFound.id, 'mention', `marcou você em uma aula.`);
       });
   };
 
-  // --- COMENTÁRIOS ---
   async function handleSendComment(parentId: string | null = null) {
       const textToSend = parentId ? replyText.trim() : newComment.trim();
       if (!textToSend) return;
@@ -256,15 +260,11 @@ export default function AulaPlayerPage() {
 
           const { error } = await supabase.from("lesson_comments").insert(payload);
           if (!error) {
-              // 1. Processa menções
               processMentions(textToSend);
-
-              // 2. Notifica se for resposta
               if (parentId) {
                   const parentComment = comments.find(c => c.id === parentId);
                   if (parentComment) createNotification(parentComment.user_id, 'reply', 'respondeu sua dúvida na aula.');
               }
-
               setNewComment("");
               setReplyText("");
               setReplyingTo(null);
@@ -274,14 +274,7 @@ export default function AulaPlayerPage() {
       setSendingComment(false);
   }
 
-  // --- HELPERS ---
-  const filteredUsers = mentionQuery 
-    ? allUsers.filter(u => u.full_name.toLowerCase().includes(mentionQuery!.toLowerCase())).slice(0, 5) 
-    : [];
-
-  const rootComments = comments.filter(c => !c.parent_id);
-  const getReplies = (parentId: string) => comments.filter(c => c.parent_id === parentId);
-
+  const filteredUsers = mentionQuery ? allUsers.filter(u => u.full_name.toLowerCase().includes(mentionQuery!.toLowerCase())).slice(0, 5) : [];
   const renderText = (text: string) => {
     if (!text) return null;
     return text.split(/(\s+)/).map((part, index) => {
@@ -290,11 +283,10 @@ export default function AulaPlayerPage() {
     });
   };
 
-  // COMPONENTE DO MENU DE MENÇÃO
+  // MENU FLUTUANTE DE MENÇÃO
   const MentionMenu = () => {
     if (!mentionQuery && mentionQuery !== "") return null;
     if (filteredUsers.length === 0) return null;
-
     return (
         <div className="absolute bottom-full mb-2 left-0 w-64 bg-[#1a1a1a] border border-[#333] rounded-xl shadow-2xl overflow-hidden z-[9999]">
            <div className="p-2 border-b border-[#222] text-[10px] text-gray-500 font-bold uppercase bg-[#111]">Mencionar</div>
@@ -308,51 +300,29 @@ export default function AulaPlayerPage() {
     );
   };
 
-  if (loading) return (
-    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center text-white">
-      <Loader2 className="w-8 h-8 animate-spin text-[#C9A66B]" />
-    </div>
-  );
+  if (loading) return <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center text-white"><Loader2 className="w-8 h-8 animate-spin text-[#C9A66B]" /></div>;
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white p-4 md:p-8 pb-20">
-      
-      <style jsx global>{`
-        :root { --plyr-color-main: #C9A66B; }
-        .plyr--full-ui input[type=range] { color: #C9A66B; }
-        .plyr__control--overlaid { background: rgba(201, 166, 107, 0.9); }
-        .plyr--video { border-radius: 12px; overflow: hidden; border: 1px solid #333; }
-        .plyr__video-embed iframe { pointer-events: none; }
-      `}</style>
+      <style jsx global>{` :root { --plyr-color-main: #C9A66B; } .plyr--full-ui input[type=range] { color: #C9A66B; } .plyr__control--overlaid { background: rgba(201, 166, 107, 0.9); } .plyr--video { border-radius: 12px; overflow: hidden; border: 1px solid #333; } .plyr__video-embed iframe { pointer-events: none; } `}</style>
 
       {/* TOPO */}
       <div className="flex justify-between items-center mb-6">
-        <Link href="/evolucao" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-          <span className="font-bold text-sm tracking-wide">VOLTAR</span>
-        </Link>
+        <Link href="/evolucao" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"><ArrowLeft className="w-5 h-5" /><span className="font-bold text-sm tracking-wide">VOLTAR</span></Link>
         <div className="flex items-center gap-4">
             <div className="bg-[#1a1a1a] border border-[#333] px-3 py-1 rounded-lg flex items-center gap-2">
                 <Trophy size={14} className="text-[#C9A66B]" />
                 <span className="font-bold text-[#C9A66B] text-xs">{userCoins} <span className="text-gray-500 font-normal">PRO</span></span>
             </div>
-            {/* BADGE DE MEMÓRIA ATIVA */}
-            {hasJumped && (
-                <div className="flex items-center gap-1 text-xs text-green-500 font-bold animate-in fade-in bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
-                    <History size={12} /> 
-                    <span className="hidden sm:inline">Continuando de {Math.floor(jumpTimeDisplay/60)}min</span>
-                </div>
-            )}
-             <div className="flex items-center gap-1 text-[10px] text-gray-600">
-                <Save size={10} />
-            </div>
+            {hasJumped && <div className="flex items-center gap-1 text-xs text-green-500 font-bold animate-in fade-in bg-green-500/10 px-2 py-1 rounded border border-green-500/20"><History size={12} /> <span className="hidden sm:inline">Continuando de {Math.floor(jumpTimeDisplay/60)}min</span></div>}
+             <div className="flex items-center gap-1 text-[10px] text-gray-600"><Save size={10} /></div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* ESQUERDA */}
         <div className="lg:col-span-2 space-y-4">
+          
+          {/* PLAYER (Z-INDEX 10) */}
           <div className="aspect-video bg-black rounded-xl shadow-2xl shadow-black relative z-10">
             {currentLesson?.video_id ? (
                 <div key={currentLesson.id} className="plyr__video-embed" id="player-target">
@@ -361,9 +331,10 @@ export default function AulaPlayerPage() {
             ) : <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Carregando vídeo...</div>}
           </div>
 
-          <div className="bg-[#111] border border-[#222] rounded-lg overflow-hidden">
+          {/* ÁREA DE COMENTÁRIOS (Z-INDEX 20 e sem OVERFLOW-HIDDEN) */}
+          <div className="bg-[#111] border border-[#222] rounded-lg relative z-20">
              <div className="flex border-b border-[#222]">
-                <button onClick={() => setActiveTab('info')} className={`px-4 py-3 text-xs font-bold uppercase transition-colors ${activeTab === 'info' ? "bg-[#C9A66B] text-black" : "text-gray-400 hover:bg-[#1a1a1a]"}`}>Material</button>
+                <button onClick={() => setActiveTab('info')} className={`px-4 py-3 text-xs font-bold uppercase transition-colors rounded-tl-lg ${activeTab === 'info' ? "bg-[#C9A66B] text-black" : "text-gray-400 hover:bg-[#1a1a1a]"}`}>Material</button>
                 <button onClick={() => setActiveTab('comments')} className={`px-4 py-3 text-xs font-bold uppercase transition-colors ${activeTab === 'comments' ? "bg-[#C9A66B] text-black" : "text-gray-400 hover:bg-[#1a1a1a]"}`}>Dúvidas</button>
              </div>
              <div className="p-4">
@@ -374,71 +345,46 @@ export default function AulaPlayerPage() {
                             <span className="bg-[#C9A66B]/10 text-[#C9A66B] text-[10px] font-bold px-2 py-0.5 rounded border border-[#C9A66B]/20 whitespace-nowrap">+{COINS_PER_LESSON} PRO</span>
                         </div>
                         <p className="text-gray-400 text-xs leading-relaxed mb-4">{currentLesson.description || "Assista a aula completa para liberar o próximo módulo."}</p>
-                        
                         <div className="flex gap-3">
-                            {currentLesson.material_url && (
-                                <a href={currentLesson.material_url} target="_blank" className="inline-flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#333] text-white px-3 py-2 rounded text-xs font-bold transition-all"><Download size={14} className="text-[#C9A66B]" /> Baixar PDF</a>
-                            )}
-                            <button onClick={reiniciarAula} className="inline-flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#333] text-gray-300 hover:text-white px-3 py-2 rounded text-xs font-bold transition-all">
-                                <RotateCcw size={14} /> Reiniciar Aula
-                            </button>
+                            {currentLesson.material_url && <a href={currentLesson.material_url} target="_blank" className="inline-flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#333] text-white px-3 py-2 rounded text-xs font-bold transition-all"><Download size={14} className="text-[#C9A66B]" /> Baixar PDF</a>}
+                            <button onClick={reiniciarAula} className="inline-flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#333] text-gray-300 hover:text-white px-3 py-2 rounded text-xs font-bold transition-all"><RotateCcw size={14} /> Reiniciar Aula</button>
                         </div>
                     </div>
                 )}
-                {/* ABA DE DÚVIDAS COM MENÇÃO */}
                 {activeTab === 'comments' && (
                     <div className="animate-in fade-in">
-                        
-                        {/* INPUT PRINCIPAL */}
-                        <div className="flex gap-2 mb-6 relative z-20">
+                        <div className="flex gap-2 mb-6 relative z-30">
                             <div className="flex-1 relative">
                                 <input type="text" value={newComment} onChange={(e) => handleTyping(e.target.value, 'comment')} onKeyDown={(e) => e.key === 'Enter' && handleSendComment(null)} placeholder="Faça uma pergunta... (Use @ para marcar)" className="w-full bg-[#0a0a0a] border border-[#333] rounded px-3 py-2 text-xs text-white focus:border-[#C9A66B] outline-none" />
                                 {mentionTarget === 'comment' && <MentionMenu />}
                             </div>
                             <button onClick={() => handleSendComment(null)} disabled={sendingComment} className="bg-[#C9A66B] text-black px-3 py-2 rounded hover:bg-[#b08d55] disabled:opacity-50">{sendingComment ? <Loader2 size={14} className="animate-spin"/> : <Send size={14} />}</button>
                         </div>
-
-                        <div className="space-y-6 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                            {rootComments.length === 0 && <p className="text-gray-600 text-xs text-center py-2">Nenhuma dúvida ainda.</p>}
+                        <div className="space-y-6 max-h-[400px] overflow-y-auto custom-scrollbar pr-2 relative z-10">
+                            {sortedThreads.length === 0 && <p className="text-gray-600 text-xs text-center py-2">Nenhuma dúvida ainda.</p>}
                             
-                            {rootComments.map((comment) => (
-                                <div key={comment.id} className="group">
+                            {sortedThreads.map(({ root: comment, replies }) => (
+                                <div key={comment.id} className="group animate-in fade-in slide-in-from-top-1">
                                     <div className="flex gap-3 items-start">
-                                        <div className="w-8 h-8 rounded-full bg-[#222] overflow-hidden shrink-0 mt-1">
-                                            {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">{comment.profiles?.full_name?.charAt(0)}</div>}
-                                        </div>
+                                        <div className="w-8 h-8 rounded-full bg-[#222] overflow-hidden shrink-0 mt-1">{comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">{comment.profiles?.full_name?.charAt(0)}</div>}</div>
                                         <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="font-bold text-[#C9A66B] text-xs">{comment.profiles?.full_name}</span>
-                                                <span className="text-[10px] text-gray-600">{new Date(comment.created_at).toLocaleDateString()}</span>
-                                            </div>
+                                            <div className="flex items-center gap-2 mb-1"><span className="font-bold text-[#C9A66B] text-xs">{comment.profiles?.full_name}</span><span className="text-[10px] text-gray-600">{new Date(comment.created_at).toLocaleDateString()}</span></div>
                                             <div className="text-xs text-gray-300 bg-[#1a1a1a] p-3 rounded-lg rounded-tl-none border border-[#222]">{renderText(comment.content)}</div>
-                                            <button onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)} className="mt-1 text-[10px] text-gray-500 hover:text-[#C9A66B] font-bold flex items-center gap-1 transition-colors">
-                                                <MessageCircle size={10} /> Responder
-                                            </button>
+                                            <button onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)} className="mt-1 text-[10px] text-gray-500 hover:text-[#C9A66B] font-bold flex items-center gap-1 transition-colors"><MessageCircle size={10} /> Responder</button>
                                         </div>
                                     </div>
-
-                                    {/* Respostas */}
-                                    {getReplies(comment.id).length > 0 && (
+                                    {replies.length > 0 && (
                                         <div className="ml-11 mt-3 space-y-3 pl-3 border-l-2 border-[#222]">
-                                            {getReplies(comment.id).map(reply => (
+                                            {replies.map(reply => (
                                                 <div key={reply.id} className="flex gap-2 items-start animate-in fade-in">
-                                                     <div className="w-6 h-6 rounded-full bg-[#222] overflow-hidden shrink-0">
-                                                        {reply.profiles?.avatar_url ? <img src={reply.profiles.avatar_url} className="w-full h-full object-cover" /> : null}
-                                                    </div>
-          <div>
-                                                        <span className="font-bold text-gray-400 text-[10px] mr-2">{reply.profiles?.full_name}</span>
-                                                        <span className="text-xs text-gray-400">{renderText(reply.content)}</span>
-                                                    </div>
+                                                     <div className="w-6 h-6 rounded-full bg-[#222] overflow-hidden shrink-0">{reply.profiles?.avatar_url ? <img src={reply.profiles.avatar_url} className="w-full h-full object-cover" /> : null}</div>
+                                                    <div><span className="font-bold text-gray-400 text-[10px] mr-2">{reply.profiles?.full_name}</span><span className="text-xs text-gray-400">{renderText(reply.content)}</span></div>
                                                 </div>
                                             ))}
                                         </div>
                                     )}
-
-                                    {/* Input Resposta */}
                                     {replyingTo === comment.id && (
-                                        <div className="ml-11 mt-3 flex gap-2 animate-in fade-in relative z-10">
+                                        <div className="ml-11 mt-3 flex gap-2 animate-in fade-in relative z-20">
                                             <CornerDownRight size={14} className="text-gray-600 mt-2" />
                                             <div className="flex-1 relative">
                                                 <input autoFocus type="text" value={replyText} onChange={(e) => handleTyping(e.target.value, 'reply')} onKeyDown={(e) => e.key === 'Enter' && handleSendComment(comment.id)} placeholder="Sua resposta..." className="w-full bg-[#111] border border-[#333] rounded px-3 py-2 text-xs text-white focus:border-[#C9A66B] outline-none" />
@@ -456,8 +402,7 @@ export default function AulaPlayerPage() {
           </div>
         </div>
 
-        {/* DIREITA: TRILHA */}
-        <div className="bg-[#111] border border-[#222] rounded-lg p-5 h-fit">
+        <div className="bg-[#111] border border-[#222] rounded-lg p-5 h-fit relative z-10">
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Trilha do Módulo</h3>
           <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar pr-1">
             {lessons.map((lesson, index) => {
