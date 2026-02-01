@@ -14,57 +14,56 @@ export default function AulaPlayerPage() {
 
   const playerInstance = useRef<any>(null);
   
-  // Dados
+  // Estados de Dados
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [progressMap, setProgressMap] = useState<Record<string, any>>({}); 
   const [loading, setLoading] = useState(true);
   const [userCoins, setUserCoins] = useState(0);
   
-  // Interação
+  // Estados de Interação
   const [activeTab, setActiveTab] = useState<'info' | 'comments'>('info');
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
 
-  // Player Logic
+  // Estados do Player
   const [savedTime, setSavedTime] = useState(0); 
   const [hasJumped, setHasJumped] = useState(false);
 
   const COINS_PER_LESSON = 10; 
 
-  // 1. CARREGAMENTO INICIAL
+  // 1. CARREGAR TUDO
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
+        console.log("🔍 Buscando curso:", courseCode);
+
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-            // Perfil
+            // A. Perfil (Moedas)
             const { data: profile } = await supabase.from("profiles").select("coins, personal_coins").eq("id", user.id).single();
             if (profile) setUserCoins((profile.coins || 0) + (profile.personal_coins || 0));
 
-            // --- AQUI ESTÁ A CORREÇÃO MÁGICA (TRADUÇÃO) ---
-            // O código pega o SEU nome (direita) e joga pro nome do SISTEMA (esquerda)
-            const { data: lessonsData } = await supabase
+            // B. Aulas (Busca Explícita)
+            // Aqui garantimos que pegamos as colunas certas, independente de lixo no banco
+            const { data: lessonsData, error: lessonsError } = await supabase
               .from("lessons")
-              .select(`
-                id,
-                course_code:código_do_curso,
-                title:título,
-                video_id:id_do_vídeo,
-                description,
-                material_url,
-                sequence_order
-              `)
-              .ilike("código_do_curso", courseCode) // Busca pelo nome em PT
-              .order("sequence_order", { ascending: true }); // Se der erro aqui, avise (talvez você tenha traduzido sequence_order também?)
+              .select("id, title, video_id, description, material_url, sequence_order, course_code")
+              .ilike("course_code", courseCode) 
+              .order("sequence_order", { ascending: true });
+
+            if (lessonsError) {
+                console.error("❌ Erro ao buscar aulas:", lessonsError);
+            }
 
             if (lessonsData && lessonsData.length > 0) {
+              console.log("✅ Aulas encontradas:", lessonsData.length);
               setLessons(lessonsData);
               
-              // Busca progresso
+              // C. Progresso (Travas)
               const { data: allProgress } = await supabase
                 .from("lesson_progress")
                 .select("lesson_id, completed, seconds_watched")
@@ -74,13 +73,16 @@ export default function AulaPlayerPage() {
               allProgress?.forEach((p: any) => pMap[p.lesson_id] = p);
               setProgressMap(pMap);
 
-              // Define aula atual
+              // D. Define Primeira Aula (Lógica da Trava)
+              // Encontra a primeira que NÃO está completa
               const nextToWatch = lessonsData.find((l: any) => !pMap[l.id]?.completed) || lessonsData[0];
               setCurrentLesson(nextToWatch);
+            } else {
+                console.warn("⚠️ Nenhuma aula encontrada para este código.");
             }
         }
       } catch (err) {
-        console.error("Erro:", err);
+        console.error("Erro Geral:", err);
       } finally {
         setLoading(false);
       }
@@ -88,40 +90,44 @@ export default function AulaPlayerPage() {
     if (courseCode) fetchData();
   }, [courseCode, supabase]);
 
-  // 2. TROCA DE AULA (Carrega Detalhes)
+  // 2. DETALHES DA AULA ATUAL (Comentários e Tempo)
   useEffect(() => {
-    async function loadLessonDetails() {
-        if (!currentLesson) return;
-        setHasJumped(false);
-        setSavedTime(0);
+    if (!currentLesson) return;
+    
+    // Reseta estados
+    setHasJumped(false);
+    setSavedTime(0);
 
-        const myProgress = progressMap[currentLesson.id];
-        setSavedTime(myProgress?.seconds_watched || 0);
-
-        fetchComments();
+    // Carrega tempo salvo localmente (sem chamar banco de novo)
+    const myProgress = progressMap[currentLesson.id];
+    if (myProgress?.seconds_watched) {
+        setSavedTime(myProgress.seconds_watched);
+        console.log("⏱️ Tempo recuperado:", myProgress.seconds_watched);
     }
-    loadLessonDetails();
-  }, [currentLesson]); // Dependência simplificada
+
+    // Carrega comentários
+    fetchComments();
+  }, [currentLesson]); // Removemos dependencies desnecessárias para evitar loops
 
   async function fetchComments() {
       if (!currentLesson) return;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("lesson_comments")
         .select(`id, content, created_at, profiles(full_name, avatar_url)`)
         .eq("lesson_id", currentLesson.id)
         .order("created_at", { ascending: false });
       
+      if (error) console.error("Erro comentários:", error);
       if (data) setComments(data);
   }
 
-  // 3. INICIALIZAÇÃO DO PLAYER (Blindada)
+  // 3. PLAYER DE VÍDEO
   useEffect(() => {
-    // Agora 'video_id' vai existir porque fizemos a tradução lá em cima
     if (!currentLesson || !currentLesson.video_id) return;
 
     let player: any = null;
     
-    // Força destruição completa do player anterior
+    // Destrói anterior
     if (playerInstance.current) {
         try { playerInstance.current.destroy(); } catch(e) {}
         playerInstance.current = null;
@@ -130,7 +136,6 @@ export default function AulaPlayerPage() {
     const loadPlayer = async () => {
         const Plyr = (await import("plyr")).default;
 
-        // Cria player novo
         player = new Plyr("#player-target", {
             autoplay: true,
             controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
@@ -138,33 +143,34 @@ export default function AulaPlayerPage() {
         });
         playerInstance.current = player;
 
-        // Retomar
+        // Evento: Pronto para Tocar
         player.on('ready', () => {
-            if (savedTime > 5) { // Só retoma se passou de 5 segundos
+            // Só pula se tiver tempo salvo relevante (> 5s)
+            if (savedTime > 5) { 
                 setTimeout(() => {
                     player.currentTime = savedTime;
-                    setHasJumped(true);
+                    setHasJumped(true); // Mostra o aviso "Retomando"
                 }, 1000); 
             }
         });
 
-        // Salvar Progresso
+        // Evento: Atualização de Tempo (Salva a cada 5s)
         player.on('timeupdate', (event: any) => {
             const currentTime = event.detail.plyr.currentTime;
-            // Salva a cada 5s
             if (Math.floor(currentTime) > 0 && Math.floor(currentTime) % 5 === 0) {
                  salvarProgresso(currentTime, false);
             }
         });
 
-        // Concluir
+        // Evento: Fim do Vídeo (Libera próxima aula)
         player.on('ended', () => {
+            console.log("🏁 Aula finalizada!");
             salvarProgresso(player.duration, true);
             pagarRecompensa();
         });
     };
 
-    // Pequeno delay para garantir que o DOM limpou
+    // Pequeno delay para garantir renderização do HTML
     setTimeout(() => loadPlayer(), 100);
 
     return () => {
@@ -172,9 +178,9 @@ export default function AulaPlayerPage() {
              try { playerInstance.current.destroy(); } catch(e) {}
         }
     };
-  }, [currentLesson?.id]); // Recria APENAS se o ID da aula mudar
+  }, [currentLesson?.id]); 
 
-  // --- AÇÕES ---
+  // --- FUNÇÕES DE AÇÃO ---
 
   const salvarProgresso = async (time: number, isCompleted: boolean) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -185,14 +191,22 @@ export default function AulaPlayerPage() {
             seconds_watched: Math.floor(time),
             last_updated: new Date().toISOString()
         };
+        // Importante: Se completou, marca true. Se não, mantém o que estava antes (ou false)
         if (isCompleted) payload.completed = true;
 
         const { error } = await supabase.from("lesson_progress").upsert(payload);
         
-        if (!error) {
+        if (error) {
+            console.error("Erro ao salvar progresso:", error);
+        } else {
+            // Atualiza o mapa local para destravar a próxima aula instantaneamente na UI
             setProgressMap(prev => ({
                 ...prev,
-                [currentLesson.id]: { ...prev[currentLesson.id], seconds_watched: time, completed: isCompleted ? true : prev[currentLesson.id]?.completed }
+                [currentLesson.id]: { 
+                    ...prev[currentLesson.id], 
+                    seconds_watched: time, 
+                    completed: isCompleted ? true : prev[currentLesson.id]?.completed 
+                }
             }));
         }
     }
@@ -201,10 +215,16 @@ export default function AulaPlayerPage() {
   async function pagarRecompensa() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-        await supabase.rpc('add_pro_system', { user_id_param: user.id, amount: COINS_PER_LESSON, type_id: 1 }); 
-        setUserCoins(prev => prev + COINS_PER_LESSON);
-        // Feedback visual mais sutil em vez de alert
-        console.log(`🎉 +${COINS_PER_LESSON} PRO`);
+        // Tenta chamar a função segura do banco
+        const { error } = await supabase.rpc('add_pro_system', { user_id_param: user.id, amount: COINS_PER_LESSON, type_id: 1 }); 
+        
+        if (!error) {
+            setUserCoins(prev => prev + COINS_PER_LESSON);
+            // Feedback Visual (Pode substituir por um Toast se tiver)
+            console.log(`🎉 +${COINS_PER_LESSON} PRO Recebidos!`);
+        } else {
+             console.error("Erro ao pagar moedas:", error);
+        }
     }
   }
 
@@ -219,9 +239,13 @@ export default function AulaPlayerPage() {
               lesson_id: currentLesson.id,
               content: newComment
           });
+          
           if (!error) {
               setNewComment("");
               fetchComments();
+          } else {
+              alert("Erro ao enviar comentário. Tente novamente.");
+              console.error(error);
           }
       }
       setSendingComment(false);
@@ -230,6 +254,7 @@ export default function AulaPlayerPage() {
   if (loading) return (
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center text-white">
       <Loader2 className="w-8 h-8 animate-spin text-[#C9A66B]" />
+      <span className="ml-3 text-sm text-gray-400">Carregando Sala de Aula...</span>
     </div>
   );
 
@@ -272,7 +297,6 @@ export default function AulaPlayerPage() {
         <div className="lg:col-span-2 space-y-4">
           <div className="aspect-video bg-black rounded-xl shadow-2xl shadow-black relative z-10">
             {currentLesson?.video_id ? (
-                // O segredo: KEY força o React a destruir a div quando o ID muda
                 <div key={currentLesson.id} className="plyr__video-embed" id="player-target">
                     <iframe
                         src={`https://www.youtube.com/embed/${currentLesson.video_id}?origin=https://plyr.io&iv_load_policy=3&modestbranding=1&playsinline=1&showinfo=0&rel=0&enablejsapi=1`}
@@ -280,24 +304,21 @@ export default function AulaPlayerPage() {
                         allow="autoplay"
                     ></iframe>
                 </div>
-            ) : <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Carregando vídeo...</div>}
+            ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-2">
+                    <Loader2 className="w-6 h-6 animate-spin text-[#C9A66B]" />
+                    <span className="text-xs">Carregando vídeo...</span>
+                    {/* Debug visual para ajudar a entender o erro */}
+                    <span className="text-[10px] text-gray-700">ID: {currentLesson?.id || 'N/A'}</span>
+                </div>
+            )}
           </div>
 
-          {/* ABAS COMPACTAS */}
+          {/* ABAS */}
           <div className="bg-[#111] border border-[#222] rounded-lg overflow-hidden">
              <div className="flex border-b border-[#222]">
-                <button 
-                    onClick={() => setActiveTab('info')}
-                    className={`px-4 py-3 text-xs font-bold uppercase transition-colors ${activeTab === 'info' ? "bg-[#C9A66B] text-black" : "text-gray-400 hover:bg-[#1a1a1a]"}`}
-                >
-                    Material
-                </button>
-                <button 
-                    onClick={() => setActiveTab('comments')}
-                    className={`px-4 py-3 text-xs font-bold uppercase transition-colors ${activeTab === 'comments' ? "bg-[#C9A66B] text-black" : "text-gray-400 hover:bg-[#1a1a1a]"}`}
-                >
-                    Dúvidas
-                </button>
+                <button onClick={() => setActiveTab('info')} className={`px-4 py-3 text-xs font-bold uppercase transition-colors ${activeTab === 'info' ? "bg-[#C9A66B] text-black" : "text-gray-400 hover:bg-[#1a1a1a]"}`}>Material</button>
+                <button onClick={() => setActiveTab('comments')} className={`px-4 py-3 text-xs font-bold uppercase transition-colors ${activeTab === 'comments' ? "bg-[#C9A66B] text-black" : "text-gray-400 hover:bg-[#1a1a1a]"}`}>Dúvidas</button>
              </div>
 
              <div className="p-4">
@@ -305,17 +326,11 @@ export default function AulaPlayerPage() {
                     <div className="animate-in fade-in">
                         <div className="flex justify-between items-start mb-2">
                             <h1 className="text-lg font-bold text-white">{currentLesson.title}</h1>
-                            <span className="bg-[#C9A66B]/10 text-[#C9A66B] text-[10px] font-bold px-2 py-0.5 rounded border border-[#C9A66B]/20 whitespace-nowrap">
-                                +{COINS_PER_LESSON} PRO
-                            </span>
+                            <span className="bg-[#C9A66B]/10 text-[#C9A66B] text-[10px] font-bold px-2 py-0.5 rounded border border-[#C9A66B]/20 whitespace-nowrap">+{COINS_PER_LESSON} PRO</span>
                         </div>
-                        <p className="text-gray-400 text-xs leading-relaxed mb-4">
-                            {currentLesson.description || "Assista a aula completa para liberar o próximo módulo."}
-                        </p>
+                        <p className="text-gray-400 text-xs leading-relaxed mb-4">{currentLesson.description || "Assista a aula completa para liberar o próximo módulo."}</p>
                         {currentLesson.material_url && (
-                            <a href={currentLesson.material_url} target="_blank" className="inline-flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#333] text-white px-3 py-2 rounded text-xs font-bold transition-all">
-                                <Download size={14} className="text-[#C9A66B]" /> Baixar PDF
-                            </a>
+                            <a href={currentLesson.material_url} target="_blank" className="inline-flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#333] text-white px-3 py-2 rounded text-xs font-bold transition-all"><Download size={14} className="text-[#C9A66B]" /> Baixar PDF</a>
                         )}
                     </div>
                 )}
@@ -323,29 +338,16 @@ export default function AulaPlayerPage() {
                 {activeTab === 'comments' && (
                     <div className="animate-in fade-in">
                         <div className="flex gap-2 mb-4">
-                            <input 
-                                type="text"
-                                value={newComment}
-                                onChange={(e) => setNewComment(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSendComment()}
-                                placeholder="Sua dúvida..."
-                                className="flex-1 bg-[#0a0a0a] border border-[#333] rounded px-3 py-2 text-xs text-white focus:border-[#C9A66B] outline-none"
-                            />
-                            <button onClick={handleSendComment} disabled={sendingComment} className="bg-[#C9A66B] text-black px-3 py-2 rounded hover:bg-[#b08d55] disabled:opacity-50">
-                                {sendingComment ? <Loader2 size={14} className="animate-spin"/> : <Send size={14} />}
-                            </button>
+                            <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendComment()} placeholder="Sua dúvida..." className="flex-1 bg-[#0a0a0a] border border-[#333] rounded px-3 py-2 text-xs text-white focus:border-[#C9A66B] outline-none"/>
+                            <button onClick={handleSendComment} disabled={sendingComment} className="bg-[#C9A66B] text-black px-3 py-2 rounded hover:bg-[#b08d55] disabled:opacity-50">{sendingComment ? <Loader2 size={14} className="animate-spin"/> : <Send size={14} />}</button>
                         </div>
                         <div className="space-y-3 max-h-[250px] overflow-y-auto custom-scrollbar">
+                            {comments.length === 0 && <p className="text-gray-600 text-xs text-center py-2">Nenhum comentário ainda.</p>}
                             {comments.map((comment) => (
                                 <div key={comment.id} className="flex gap-2 items-start border-b border-[#222] pb-3 last:border-0">
-                                    <div className="w-5 h-5 rounded-full bg-[#222] overflow-hidden shrink-0">
-                                        {comment.profiles?.avatar_url && <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" />}
-                                    </div>
+                                    <div className="w-5 h-5 rounded-full bg-[#222] overflow-hidden shrink-0">{comment.profiles?.avatar_url && <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" />}</div>
                                     <div>
-                                        <div className="flex items-center gap-2 mb-0.5">
-                                            <span className="font-bold text-[#C9A66B] text-[10px]">{comment.profiles?.full_name}</span>
-                                            <span className="text-[10px] text-gray-600">{new Date(comment.created_at).toLocaleDateString()}</span>
-                                        </div>
+                                        <div className="flex items-center gap-2 mb-0.5"><span className="font-bold text-[#C9A66B] text-[10px]">{comment.profiles?.full_name}</span><span className="text-[10px] text-gray-600">{new Date(comment.created_at).toLocaleDateString()}</span></div>
                                         <p className="text-xs text-gray-300">{comment.content}</p>
                                     </div>
                                 </div>
@@ -357,49 +359,30 @@ export default function AulaPlayerPage() {
           </div>
         </div>
 
-        {/* --- COLUNA DIREITA: LISTA COM TRAVAS --- */}
+        {/* --- LISTA LATERAL (TRILHA) --- */}
         <div className="bg-[#111] border border-[#222] rounded-lg p-5 h-fit">
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Trilha do Módulo</h3>
           <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar pr-1">
             {lessons.map((lesson, index) => {
               const isActive = lesson.id === currentLesson?.id;
               
-              // LÓGICA DE TRAVA:
-              // Se index > 0 (não é a primeira), verifica se a anterior (index-1) foi concluída
-              const previousLesson = lessons[index - 1];
-              const isLocked = index > 0 && !progressMap[previousLesson.id]?.completed;
-              
+              // Regra da Trava: Index 0 livre. Outros dependem do anterior.
+              const isLocked = index > 0 && !progressMap[lessons[index-1].id]?.completed;
               const isCompleted = progressMap[lesson.id]?.completed;
 
               return (
-                <button
-                  key={lesson.id}
-                  disabled={isLocked}
-                  onClick={() => {
-                    setHasJumped(false);
-                    setCurrentLesson(lesson);
-                    setActiveTab('info');
-                  }}
-                  className={`w-full flex items-center gap-3 p-3 rounded text-left transition-all border ${
-                    isActive 
-                      ? "bg-[#C9A66B]/10 border-[#C9A66B]/30" 
-                      : isLocked 
-                        ? "opacity-50 cursor-not-allowed border-transparent" 
-                        : "hover:bg-white/5 border-transparent"
-                  }`}
+                <button 
+                    key={lesson.id} 
+                    disabled={isLocked} 
+                    onClick={() => { setHasJumped(false); setCurrentLesson(lesson); setActiveTab('info'); }} 
+                    className={`w-full flex items-center gap-3 p-3 rounded text-left transition-all border ${isActive ? "bg-[#C9A66B]/10 border-[#C9A66B]/30" : isLocked ? "opacity-50 cursor-not-allowed border-transparent" : "hover:bg-white/5 border-transparent"}`}
                 >
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                    isCompleted ? "bg-green-500 text-black" : isActive ? "bg-[#C9A66B] text-black" : "bg-[#222] text-gray-500"
-                  }`}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${isCompleted ? "bg-green-500 text-black" : isActive ? "bg-[#C9A66B] text-black" : "bg-[#222] text-gray-500"}`}>
                     {isCompleted ? <CheckCircle size={12} /> : isLocked ? <Lock size={10} /> : index + 1}
                   </div>
-                  
                   <div className="flex-1">
-                      <p className={`text-xs font-bold leading-tight ${isActive ? "text-white" : "text-gray-400"}`}>
-                        {lesson.title}
-                      </p>
+                      <p className={`text-xs font-bold leading-tight ${isActive ? "text-white" : "text-gray-400"}`}>{lesson.title}</p>
                   </div>
-                  
                   {isActive && <PlayCircle size={14} className="text-[#C9A66B]" />}
                 </button>
               );
