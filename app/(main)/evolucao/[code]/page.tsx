@@ -14,7 +14,7 @@ export default function AulaPlayerPage() {
 
   const playerInstance = useRef<any>(null);
   
-  // Dados
+  // Dados Principais
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [progressMap, setProgressMap] = useState<Record<string, any>>({}); 
@@ -26,18 +26,16 @@ export default function AulaPlayerPage() {
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
-  
-  // Estados para Resposta (Reply)
-  const [replyingTo, setReplyingTo] = useState<string | null>(null); // ID do comentário sendo respondido
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
 
   // Player & Memória
-  const [savedTime, setSavedTime] = useState(0); 
   const [hasJumped, setHasJumped] = useState(false);
+  const [jumpTimeDisplay, setJumpTimeDisplay] = useState(0);
 
   const COINS_PER_LESSON = 10; 
 
-  // 1. CARREGAMENTO
+  // 1. CARREGAMENTO DOS DADOS (Turbo Paralelo)
   useEffect(() => {
     async function fetchInitialData() {
       try {
@@ -63,6 +61,7 @@ export default function AulaPlayerPage() {
 
         if (lessonsRes.data && lessonsRes.data.length > 0) {
             setLessons(lessonsRes.data);
+            // Lógica para cair na primeira aula não concluída
             const nextToWatch = lessonsRes.data.find((l: any) => !pMap[l.id]?.completed) || lessonsRes.data[0];
             setCurrentLesson(nextToWatch);
         }
@@ -75,37 +74,41 @@ export default function AulaPlayerPage() {
     if (courseCode) fetchInitialData();
   }, [courseCode, supabase]);
 
-  // 2. DETALHES E MEMÓRIA
+  // 2. DETALHES DA AULA (Carregar comentários ao trocar)
   useEffect(() => {
     if (!currentLesson) return;
-    setHasJumped(false);
-    setSavedTime(0);
-    const myProgress = progressMap[currentLesson.id];
-    if (myProgress?.seconds_watched > 0) {
-        setSavedTime(myProgress.seconds_watched);
-    }
+    setHasJumped(false); // Reseta o aviso visual
     fetchComments();
   }, [currentLesson]); 
 
   async function fetchComments() {
       if (!currentLesson) return;
-      // Busca TUDO (Comentários e Respostas)
+      // Busca comentários e respostas
       const { data } = await supabase
         .from("lesson_comments")
         .select(`id, content, created_at, parent_id, profiles(full_name, avatar_url)`)
         .eq("lesson_id", currentLesson.id)
-        .order("created_at", { ascending: true }); // Ordem cronológica ajuda na leitura
+        .order("created_at", { ascending: true });
       if (data) setComments(data);
   }
 
-  // 3. PLAYER
+  // 3. PLAYER DE VÍDEO (COM MEMÓRIA ATIVA)
   useEffect(() => {
     if (!currentLesson || !currentLesson.video_id) return;
+
+    // Recupera o tempo salvo no banco para esta aula específica
+    const savedTime = progressMap[currentLesson.id]?.seconds_watched || 0;
+    console.log(`⏱️ Tempo salvo recuperado: ${savedTime}s`);
+
     let player: any = null;
-    if (playerInstance.current) { try { playerInstance.current.destroy(); } catch(e) {} playerInstance.current = null; }
+    if (playerInstance.current) {
+        try { playerInstance.current.destroy(); } catch(e) {}
+        playerInstance.current = null;
+    }
 
     const loadPlayer = async () => {
         const Plyr = (await import("plyr")).default;
+        
         player = new Plyr("#player-target", {
             autoplay: true,
             controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
@@ -113,15 +116,20 @@ export default function AulaPlayerPage() {
         });
         playerInstance.current = player;
 
+        // --- MÁGICA DA MEMÓRIA ---
         player.on('ready', () => {
-            if (savedTime > 5) { 
+            // Só pula se tiver mais de 5 segundos assistidos
+            if (savedTime > 5) {
+                // Pequeno delay para garantir que o YouTube carregou o vídeo
                 setTimeout(() => {
-                    player.currentTime = savedTime;
-                    setHasJumped(true);
-                }, 1000); 
+                    player.currentTime = savedTime; // PULA O VÍDEO
+                    setJumpTimeDisplay(savedTime);
+                    setHasJumped(true); // MOSTRA O AVISO
+                }, 1000);
             }
         });
 
+        // Salvar progresso a cada 5 segundos
         player.on('timeupdate', (event: any) => {
             const currentTime = event.detail.plyr.currentTime;
             if (Math.floor(currentTime) > 0 && Math.floor(currentTime) % 5 === 0) {
@@ -129,14 +137,19 @@ export default function AulaPlayerPage() {
             }
         });
 
+        // Aula Concluída
         player.on('ended', () => {
             salvarProgresso(player.duration, true);
             pagarRecompensa();
         });
     };
-    setTimeout(() => loadPlayer(), 50);
-    return () => { if (playerInstance.current) { try { playerInstance.current.destroy(); } catch(e) {} } };
-  }, [currentLesson?.id]);
+
+    setTimeout(() => loadPlayer(), 100);
+
+    return () => {
+        if (playerInstance.current) { try { playerInstance.current.destroy(); } catch(e) {} }
+    };
+  }, [currentLesson?.id]); // Recria o player se mudar de aula
 
   // --- AÇÕES ---
 
@@ -151,7 +164,7 @@ export default function AulaPlayerPage() {
         };
         if (isCompleted) updates.completed = true;
 
-        // Atualiza UI Local
+        // Atualiza Memória Local (para não precisar recarregar a página)
         setProgressMap(prev => ({
             ...prev,
             [currentLesson.id]: { 
@@ -161,7 +174,7 @@ export default function AulaPlayerPage() {
             }
         }));
 
-        // Salva no Banco (Sem await para não travar)
+        // Salva na Nuvem (Supabase)
         supabase.from("lesson_progress").upsert(updates).then(({ error }) => {
             if (error) console.error("Erro save:", error);
         });
@@ -194,8 +207,7 @@ export default function AulaPlayerPage() {
     }
   }
 
-  // --- LÓGICA DE COMENTÁRIOS E RESPOSTAS ---
-
+  // --- COMENTÁRIOS E RESPOSTAS ---
   async function handleSendComment(parentId: string | null = null, content: string) {
       if (!content.trim()) return;
       setSendingComment(true);
@@ -213,14 +225,14 @@ export default function AulaPlayerPage() {
           if (!error) {
               setNewComment("");
               setReplyContent("");
-              setReplyingTo(null); // Fecha caixa de resposta
+              setReplyingTo(null);
               fetchComments();
           }
       }
       setSendingComment(false);
   }
 
-  // Filtra comentários raiz (sem pai) e suas respostas
+  // Helpers para Comentários
   const rootComments = comments.filter(c => !c.parent_id);
   const getReplies = (parentId: string) => comments.filter(c => c.parent_id === parentId);
 
@@ -252,10 +264,11 @@ export default function AulaPlayerPage() {
                 <Trophy size={14} className="text-[#C9A66B]" />
                 <span className="font-bold text-[#C9A66B] text-xs">{userCoins} <span className="text-gray-500 font-normal">PRO</span></span>
             </div>
-            {/* BADGE DE RETOMADA */}
+            {/* BADGE DE MEMÓRIA ATIVA */}
             {hasJumped && (
-                <div className="flex items-center gap-1 text-xs text-green-500 font-bold animate-in fade-in">
-                    <History size={12} /> <span className="hidden sm:inline">Retomando de {Math.floor(savedTime/60)}min</span>
+                <div className="flex items-center gap-1 text-xs text-green-500 font-bold animate-in fade-in bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
+                    <History size={12} /> 
+                    <span className="hidden sm:inline">Continuando de {Math.floor(jumpTimeDisplay/60)}min</span>
                 </div>
             )}
              <div className="flex items-center gap-1 text-[10px] text-gray-600">
@@ -300,20 +313,16 @@ export default function AulaPlayerPage() {
                         </div>
                     </div>
                 )}
-                {/* --- ÁREA DE COMENTÁRIOS E RESPOSTAS --- */}
+                {/* ABA DE COMENTÁRIOS E RESPOSTAS */}
                 {activeTab === 'comments' && (
                     <div className="animate-in fade-in">
-                        {/* Input Principal */}
                         <div className="flex gap-2 mb-6">
-                            <input 
-                                type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendComment(null, newComment)} placeholder="Faça uma pergunta sobre a aula..." className="flex-1 bg-[#0a0a0a] border border-[#333] rounded px-3 py-2 text-xs text-white focus:border-[#C9A66B] outline-none"
-                            />
+                            <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendComment(null, newComment)} placeholder="Faça uma pergunta..." className="flex-1 bg-[#0a0a0a] border border-[#333] rounded px-3 py-2 text-xs text-white focus:border-[#C9A66B] outline-none" />
                             <button onClick={() => handleSendComment(null, newComment)} disabled={sendingComment} className="bg-[#C9A66B] text-black px-3 py-2 rounded hover:bg-[#b08d55] disabled:opacity-50">{sendingComment ? <Loader2 size={14} className="animate-spin"/> : <Send size={14} />}</button>
                         </div>
 
-                        {/* Lista de Comentários */}
                         <div className="space-y-6 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                            {rootComments.length === 0 && <p className="text-gray-600 text-xs text-center py-2">Nenhum comentário ainda.</p>}
+                            {rootComments.length === 0 && <p className="text-gray-600 text-xs text-center py-2">Nenhuma dúvida ainda.</p>}
                             
                             {rootComments.map((comment) => (
                                 <div key={comment.id} className="group">
@@ -359,20 +368,11 @@ export default function AulaPlayerPage() {
                                         </div>
                                     )}
 
-                                    {/* Caixa de Responder (Aparece se clicado) */}
+                                    {/* Campo de Resposta */}
                                     {replyingTo === comment.id && (
-                                        <div className="ml-11 mt-3 flex gap-2 animate-in fade-in slide-in-from-top-2">
+                                        <div className="ml-11 mt-3 flex gap-2 animate-in fade-in">
                                             <CornerDownRight size={14} className="text-gray-600 mt-2" />
-                                            <input 
-                                                type="text" autoFocus
-                                                value={replyContent} onChange={(e) => setReplyContent(e.target.value)} 
-                                                onKeyDown={(e) => e.key === 'Enter' && handleSendComment(comment.id, replyContent)} 
-                                                placeholder="Escreva sua resposta..." 
-                                                className="flex-1 bg-[#111] border border-[#333] rounded px-3 py-2 text-xs text-white focus:border-[#C9A66B] outline-none"
-                                            />
-                                            <button onClick={() => handleSendComment(comment.id, replyContent)} disabled={sendingComment} className="bg-[#222] hover:bg-[#333] text-white px-3 py-2 rounded">
-                                                {sendingComment ? <Loader2 size={12} className="animate-spin"/> : <Send size={12} />}
-                                            </button>
+                                            <input autoFocus type="text" value={replyContent} onChange={(e) => setReplyContent(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendComment(comment.id, replyContent)} placeholder="Sua resposta..." className="flex-1 bg-[#111] border border-[#333] rounded px-3 py-2 text-xs text-white focus:border-[#C9A66B] outline-none" />
                                         </div>
                                     )}
                                 </div>
@@ -384,7 +384,7 @@ export default function AulaPlayerPage() {
           </div>
         </div>
 
-        {/* DIREITA (TRILHA) */}
+        {/* DIREITA: TRILHA */}
         <div className="bg-[#111] border border-[#222] rounded-lg p-5 h-fit">
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Trilha do Módulo</h3>
           <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar pr-1">
