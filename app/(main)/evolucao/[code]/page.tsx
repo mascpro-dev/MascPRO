@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Loader2, Save, History, Download, Send, Trophy, Lock, CheckCircle, PlayCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Save, History, Download, Send, Trophy, Lock, CheckCircle, PlayCircle, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import "plyr/dist/plyr.css"; 
 
@@ -33,49 +33,35 @@ export default function AulaPlayerPage() {
 
   const COINS_PER_LESSON = 10; 
 
-  // 1. CARREGAMENTO TURBO (TUDO DE UMA VEZ)
+  // 1. CARREGAMENTO DOS DADOS
   useEffect(() => {
     async function fetchInitialData() {
       try {
         setLoading(true);
-        
-        // 1. Pega o usuário primeiro (obrigatório)
         const { data: { user } } = await supabase.auth.getUser();
-        
         if (!user) return;
 
-        // 2. DISPARA TODAS AS OUTRAS REQUISIÇÕES AO MESMO TEMPO (PARALELO)
         const [profileRes, lessonsRes, progressRes] = await Promise.all([
-            // A. Busca Perfil
             supabase.from("profiles").select("coins, personal_coins").eq("id", user.id).single(),
-            // B. Busca Aulas
             supabase.from("lessons").select("*").ilike("course_code", courseCode).order("sequence_order", { ascending: true }),
-            // C. Busca Progresso
             supabase.from("lesson_progress").select("lesson_id, completed, seconds_watched").eq("user_id", user.id)
         ]);
 
-        // 3. PROCESSA OS RESULTADOS
-        
-        // A. Perfil
         if (profileRes.data) {
             setUserCoins((profileRes.data.coins || 0) + (profileRes.data.personal_coins || 0));
         }
 
-        // B. Progresso (Mapa)
         const pMap: Record<string, any> = {};
         if (progressRes.data) {
             progressRes.data.forEach((p: any) => pMap[p.lesson_id] = p);
             setProgressMap(pMap);
         }
 
-        // C. Aulas
         if (lessonsRes.data && lessonsRes.data.length > 0) {
             setLessons(lessonsRes.data);
-            // Define aula atual (Primeira não concluída)
             const nextToWatch = lessonsRes.data.find((l: any) => !pMap[l.id]?.completed) || lessonsRes.data[0];
             setCurrentLesson(nextToWatch);
         }
-
       } catch (err) {
         console.error("Erro carregamento:", err);
       } finally {
@@ -85,20 +71,19 @@ export default function AulaPlayerPage() {
     if (courseCode) fetchInitialData();
   }, [courseCode, supabase]);
 
-  // 2. CARREGAR DETALHES DA AULA (Memória e Comentários)
+  // 2. PREPARAR AULA (Ler Memória)
   useEffect(() => {
     if (!currentLesson) return;
     
     setHasJumped(false);
     setSavedTime(0);
 
-    // Memória Instantânea (do mapa local, sem ir no banco)
+    // Verifica no mapa local se tem tempo salvo
     const myProgress = progressMap[currentLesson.id];
     if (myProgress?.seconds_watched > 0) {
         setSavedTime(myProgress.seconds_watched);
     }
     
-    // Busca comentários em background (não trava a tela)
     fetchComments();
   }, [currentLesson]); 
 
@@ -109,11 +94,10 @@ export default function AulaPlayerPage() {
         .select(`id, content, created_at, profiles(full_name, avatar_url)`)
         .eq("lesson_id", currentLesson.id)
         .order("created_at", { ascending: false });
-      
       if (data) setComments(data);
   }
 
-  // 3. PLAYER OTIMIZADO
+  // 3. PLAYER DE VÍDEO (COM MEMÓRIA ATIVA)
   useEffect(() => {
     if (!currentLesson || !currentLesson.video_id) return;
 
@@ -132,15 +116,18 @@ export default function AulaPlayerPage() {
         });
         playerInstance.current = player;
 
+        // --- AQUI ESTÁ A MÁGICA DA MEMÓRIA ---
         player.on('ready', () => {
+            // Se tiver tempo salvo maior que 5 segundos, pula para ele
             if (savedTime > 5) { 
                 setTimeout(() => {
-                    player.currentTime = savedTime;
-                    setHasJumped(true);
+                    player.currentTime = savedTime; // Pula para o minuto 30 (exemplo)
+                    setHasJumped(true); // Avisa visualmente "Retomando"
                 }, 1000); 
             }
         });
 
+        // Salva a cada 5 segundos
         player.on('timeupdate', (event: any) => {
             const currentTime = event.detail.plyr.currentTime;
             if (Math.floor(currentTime) > 0 && Math.floor(currentTime) % 5 === 0) {
@@ -154,15 +141,12 @@ export default function AulaPlayerPage() {
         });
     };
 
-    // Pequeno delay para UI renderizar antes do player pesado
     setTimeout(() => loadPlayer(), 50);
 
     return () => {
-        if (playerInstance.current) {
-             try { playerInstance.current.destroy(); } catch(e) {}
-        }
+        if (playerInstance.current) { try { playerInstance.current.destroy(); } catch(e) {} }
     };
-  }, [currentLesson?.id]); // Note: removi savedTime das dependências para evitar reload do player
+  }, [currentLesson?.id, savedTime]); // Adicionei savedTime para garantir que ele tenha o valor ao carregar
 
   // --- AÇÕES ---
 
@@ -177,7 +161,7 @@ export default function AulaPlayerPage() {
         };
         if (isCompleted) updates.completed = true;
 
-        // Optimistic UI Update (Atualiza visualmente antes do banco)
+        // Atualiza UI
         setProgressMap(prev => ({
             ...prev,
             [currentLesson.id]: { 
@@ -187,11 +171,20 @@ export default function AulaPlayerPage() {
             }
         }));
 
-        // Salva no banco em background (sem await para não travar vídeo)
+        // Salva Banco
         supabase.from("lesson_progress").upsert(updates).then(({ error }) => {
             if (error) console.error("Erro save:", error);
         });
     }
+  };
+
+  const reiniciarAula = async () => {
+    if (playerInstance.current) {
+        playerInstance.current.currentTime = 0; 
+        playerInstance.current.play(); 
+    }
+    setHasJumped(false);
+    await salvarProgresso(0, false);
   };
 
   async function pagarRecompensa() {
@@ -260,7 +253,7 @@ export default function AulaPlayerPage() {
             </div>
             {hasJumped && (
                 <div className="flex items-center gap-1 text-xs text-green-500 font-bold animate-in fade-in">
-                    <History size={12} /> <span className="hidden sm:inline">Retomando</span>
+                    <History size={12} /> <span className="hidden sm:inline">Retomando de {Math.floor(savedTime/60)}min</span>
                 </div>
             )}
              <div className="flex items-center gap-1 text-[10px] text-gray-600">
@@ -298,9 +291,15 @@ export default function AulaPlayerPage() {
                             <span className="bg-[#C9A66B]/10 text-[#C9A66B] text-[10px] font-bold px-2 py-0.5 rounded border border-[#C9A66B]/20 whitespace-nowrap">+{COINS_PER_LESSON} PRO</span>
                         </div>
                         <p className="text-gray-400 text-xs leading-relaxed mb-4">{currentLesson.description || "Assista a aula completa para liberar o próximo módulo."}</p>
-                        {currentLesson.material_url && (
-                            <a href={currentLesson.material_url} target="_blank" className="inline-flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#333] text-white px-3 py-2 rounded text-xs font-bold transition-all"><Download size={14} className="text-[#C9A66B]" /> Baixar PDF</a>
-                        )}
+                        
+                        <div className="flex gap-3">
+                            {currentLesson.material_url && (
+                                <a href={currentLesson.material_url} target="_blank" className="inline-flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#333] text-white px-3 py-2 rounded text-xs font-bold transition-all"><Download size={14} className="text-[#C9A66B]" /> Baixar PDF</a>
+                            )}
+                            <button onClick={reiniciarAula} className="inline-flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#333] text-gray-300 hover:text-white px-3 py-2 rounded text-xs font-bold transition-all">
+                                <RotateCcw size={14} /> Reiniciar Aula
+                            </button>
+                        </div>
                     </div>
                 )}
                 {activeTab === 'comments' && (
