@@ -151,11 +151,13 @@ export default function ComunidadePage() {
   // --- AÇÕES ---
   const createNotification = async (targetUserId: string, type: string, content: string) => {
       if (!currentUser || targetUserId === currentUser.id) return; 
+      
       await supabase.from("notifications").insert({
           user_id: targetUserId,
           actor_id: currentUser.id,
           type,
-          content
+          content,
+          link: "/comunidade" // Link para a página de comunidade
       });
   };
 

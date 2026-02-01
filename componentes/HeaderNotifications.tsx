@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Bell } from "lucide-react";
+import Link from "next/link"; // Importante para o redirecionamento
 
 export default function HeaderNotifications() {
   const supabase = createClientComponentClient();
@@ -11,8 +12,8 @@ export default function HeaderNotifications() {
   const [isOpen, setIsOpen] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
+  // 1. Carregar Inicial
   useEffect(() => {
-    // 1. Identificar Usuário e Buscar Notificações Iniciais
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -23,22 +24,38 @@ export default function HeaderNotifications() {
     init();
   }, []);
 
-  // 2. Realtime: Escutar novas notificações
+  // 2. Realtime (Modo Blindado)
   useEffect(() => {
     if (!userId) return;
 
+    console.log("🟢 Conectando ao Realtime de notificações...");
+
     const channel = supabase.channel('global_notifications')
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'notifications',
-        filter: `user_id=eq.${userId}` // Filtra apenas as minhas
-      }, (payload) => {
-        // Toca um som ou vibra (opcional)
-        console.log("🔔 Nova notificação recebida!");
-        fetchNotifications(userId); // Recarrega a lista
-      })
-      .subscribe();
+      .on(
+        'postgres_changes', 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'notifications'
+          // Removi o filtro aqui para garantir que o evento chegue. Filtramos abaixo.
+        }, 
+        (payload) => {
+          // Só atualiza se a notificação for para MIM
+          if (payload.new.user_id === userId) {
+            console.log("🔔 Ding Dong! Notificação recebida:", payload.new);
+            
+            // Toca um som suave (opcional)
+            const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
+            audio.volume = 0.2;
+            audio.play().catch(() => {}); // Ignora erro se navegador bloquear
+
+            fetchNotifications(userId);
+          }
+        }
+      )
+      .subscribe((status) => {
+          console.log("Status da conexão:", status);
+      });
 
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
@@ -94,20 +111,23 @@ export default function HeaderNotifications() {
 
       {isOpen && (
         <>
-          {/* Overlay invisível para fechar ao clicar fora */}
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           
           <div className="absolute right-0 top-12 w-80 bg-[#111] border border-[#222] rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
-            <div className="p-3 border-b border-[#222] font-bold text-xs text-gray-400 uppercase flex justify-between items-center">
+            <div className="p-3 border-b border-[#222] font-bold text-xs text-gray-400 uppercase flex justify-between items-center bg-[#0a0a0a]">
                 <span>Notificações</span>
-                <span className="text-[9px] text-[#C9A66B]">Tempo Real</span>
             </div>
             <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
               {notifications.length === 0 ? (
-                <p className="p-6 text-center text-xs text-gray-600">Você não tem novas notificações.</p>
+                <p className="p-6 text-center text-xs text-gray-600">Nenhuma notificação.</p>
               ) : (
                 notifications.map(n => (
-                  <div key={n.id} className={`p-3 border-b border-[#222] flex gap-3 hover:bg-[#1a1a1a] transition-colors ${n.read ? "opacity-60" : "bg-[#161616]"}`}>
+                  <Link 
+                    key={n.id} 
+                    href={n.link || "#"} // AQUI ESTÁ A MÁGICA DO REDIRECIONAMENTO
+                    onClick={() => setIsOpen(false)}
+                    className={`block p-3 border-b border-[#222] flex gap-3 hover:bg-[#1a1a1a] transition-colors ${n.read ? "opacity-60" : "bg-[#161616]"}`}
+                  >
                     <div className="w-8 h-8 rounded-full bg-[#222] overflow-hidden shrink-0 mt-1">
                       {n.profiles?.avatar_url && <img src={n.profiles.avatar_url} className="w-full h-full object-cover" />}
                     </div>
@@ -117,7 +137,7 @@ export default function HeaderNotifications() {
                       </p>
                       <p className="text-[9px] text-gray-600 mt-1 font-bold">{timeAgo(n.created_at)}</p>
                     </div>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>
