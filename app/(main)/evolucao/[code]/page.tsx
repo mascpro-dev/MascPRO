@@ -33,68 +33,74 @@ export default function AulaPlayerPage() {
 
   const COINS_PER_LESSON = 10; 
 
-  // 1. CARREGAMENTO INICIAL
+  // 1. CARREGAMENTO TURBO (TUDO DE UMA VEZ)
   useEffect(() => {
-    async function fetchData() {
+    async function fetchInitialData() {
       try {
         setLoading(true);
+        
+        // 1. Pega o usuário primeiro (obrigatório)
         const { data: { user } } = await supabase.auth.getUser();
         
-        if (user) {
-            // A. Perfil (Moedas)
-            const { data: profile } = await supabase.from("profiles").select("coins, personal_coins").eq("id", user.id).single();
-            if (profile) setUserCoins((profile.coins || 0) + (profile.personal_coins || 0));
+        if (!user) return;
 
-            // B. Aulas
-            const { data: lessonsData } = await supabase
-              .from("lessons")
-              .select("*")
-              .ilike("course_code", courseCode) 
-              .order("sequence_order", { ascending: true });
+        // 2. DISPARA TODAS AS OUTRAS REQUISIÇÕES AO MESMO TEMPO (PARALELO)
+        const [profileRes, lessonsRes, progressRes] = await Promise.all([
+            // A. Busca Perfil
+            supabase.from("profiles").select("coins, personal_coins").eq("id", user.id).single(),
+            // B. Busca Aulas
+            supabase.from("lessons").select("*").ilike("course_code", courseCode).order("sequence_order", { ascending: true }),
+            // C. Busca Progresso
+            supabase.from("lesson_progress").select("lesson_id, completed, seconds_watched").eq("user_id", user.id)
+        ]);
 
-            if (lessonsData && lessonsData.length > 0) {
-              setLessons(lessonsData);
-              
-              // C. Progresso (Travas e Tempos)
-              const { data: allProgress } = await supabase
-                .from("lesson_progress")
-                .select("lesson_id, completed, seconds_watched")
-                .eq("user_id", user.id);
-              
-              const pMap: Record<string, any> = {};
-              allProgress?.forEach((p: any) => pMap[p.lesson_id] = p);
-              setProgressMap(pMap);
-
-              // Define aula atual (Primeira não concluída)
-              const nextToWatch = lessonsData.find((l: any) => !pMap[l.id]?.completed) || lessonsData[0];
-              setCurrentLesson(nextToWatch);
-            }
+        // 3. PROCESSA OS RESULTADOS
+        
+        // A. Perfil
+        if (profileRes.data) {
+            setUserCoins((profileRes.data.coins || 0) + (profileRes.data.personal_coins || 0));
         }
+
+        // B. Progresso (Mapa)
+        const pMap: Record<string, any> = {};
+        if (progressRes.data) {
+            progressRes.data.forEach((p: any) => pMap[p.lesson_id] = p);
+            setProgressMap(pMap);
+        }
+
+        // C. Aulas
+        if (lessonsRes.data && lessonsRes.data.length > 0) {
+            setLessons(lessonsRes.data);
+            // Define aula atual (Primeira não concluída)
+            const nextToWatch = lessonsRes.data.find((l: any) => !pMap[l.id]?.completed) || lessonsRes.data[0];
+            setCurrentLesson(nextToWatch);
+        }
+
       } catch (err) {
-        console.error("Erro:", err);
+        console.error("Erro carregamento:", err);
       } finally {
         setLoading(false);
       }
     }
-    if (courseCode) fetchData();
+    if (courseCode) fetchInitialData();
   }, [courseCode, supabase]);
 
-  // 2. PREPARAR AULA (Ler Memória)
+  // 2. CARREGAR DETALHES DA AULA (Memória e Comentários)
   useEffect(() => {
     if (!currentLesson) return;
     
-    // Reseta estado do pulo
     setHasJumped(false);
     setSavedTime(0);
 
-    // Verifica se já tem tempo salvo no mapa local
+    // Memória Instantânea (do mapa local, sem ir no banco)
     const myProgress = progressMap[currentLesson.id];
     if (myProgress?.seconds_watched > 0) {
         setSavedTime(myProgress.seconds_watched);
     }
     
+    // Busca comentários em background (não trava a tela)
     fetchComments();
-  }, [currentLesson]); // Executa sempre que trocar de aula
+  }, [currentLesson]); 
 
   async function fetchComments() {
       if (!currentLesson) return;
@@ -107,12 +113,11 @@ export default function AulaPlayerPage() {
       if (data) setComments(data);
   }
 
-  // 3. PLAYER DE VÍDEO
+  // 3. PLAYER OTIMIZADO
   useEffect(() => {
     if (!currentLesson || !currentLesson.video_id) return;
 
     let player: any = null;
-    
     if (playerInstance.current) {
         try { playerInstance.current.destroy(); } catch(e) {}
         playerInstance.current = null;
@@ -120,106 +125,89 @@ export default function AulaPlayerPage() {
 
     const loadPlayer = async () => {
         const Plyr = (await import("plyr")).default;
-
         player = new Plyr("#player-target", {
-            autoplay: true, // Tenta dar autoplay
+            autoplay: true,
             controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
             youtube: { noCookie: true, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 }
         });
         playerInstance.current = player;
 
-        // --- RETOMAR DE ONDE PAROU ---
         player.on('ready', () => {
-            // Se tiver tempo salvo e for maior que 5 segundos
             if (savedTime > 5) { 
                 setTimeout(() => {
                     player.currentTime = savedTime;
-                    setHasJumped(true); // Ativa o aviso visual "Retomando"
-                }, 1500); // Delay de segurança para o YouTube carregar
+                    setHasJumped(true);
+                }, 1000); 
             }
         });
 
-        // --- SALVAR A CADA 5 SEGUNDOS ---
         player.on('timeupdate', (event: any) => {
             const currentTime = event.detail.plyr.currentTime;
-            // Só salva se o vídeo estiver rodando e passou 5s
             if (Math.floor(currentTime) > 0 && Math.floor(currentTime) % 5 === 0) {
                  salvarProgresso(currentTime, false);
             }
         });
 
-        // --- AULA CONCLUÍDA ---
         player.on('ended', () => {
             salvarProgresso(player.duration, true);
             pagarRecompensa();
         });
     };
 
-    setTimeout(() => loadPlayer(), 100);
+    // Pequeno delay para UI renderizar antes do player pesado
+    setTimeout(() => loadPlayer(), 50);
 
     return () => {
         if (playerInstance.current) {
              try { playerInstance.current.destroy(); } catch(e) {}
         }
     };
-  }, [currentLesson?.id, savedTime]); // Recria se mudar a aula ou se carregarmos um tempo novo
+  }, [currentLesson?.id]); // Note: removi savedTime das dependências para evitar reload do player
 
   // --- AÇÕES ---
 
   const salvarProgresso = async (time: number, isCompleted: boolean) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user && currentLesson) {
-        
-        // Objeto de atualização
         const updates: any = {
             user_id: user.id,
             lesson_id: currentLesson.id,
             seconds_watched: Math.floor(time),
             last_updated: new Date().toISOString()
         };
+        if (isCompleted) updates.completed = true;
 
-        // Se completou, marca como true. Se não, não mexe no completed (para não "descompletar" se ele assistir de novo)
-        if (isCompleted) {
-            updates.completed = true;
-        }
+        // Optimistic UI Update (Atualiza visualmente antes do banco)
+        setProgressMap(prev => ({
+            ...prev,
+            [currentLesson.id]: { 
+                ...prev[currentLesson.id], 
+                seconds_watched: time, 
+                completed: isCompleted ? true : prev[currentLesson.id]?.completed 
+            }
+        }));
 
-        const { error } = await supabase.from("lesson_progress").upsert(updates);
-        
-        if (!error) {
-            // Atualiza o estado local para refletir na hora
-            setProgressMap(prev => ({
-                ...prev,
-                [currentLesson.id]: { 
-                    ...prev[currentLesson.id], 
-                    seconds_watched: time, 
-                    completed: isCompleted ? true : prev[currentLesson.id]?.completed 
-                }
-            }));
-        }
+        // Salva no banco em background (sem await para não travar vídeo)
+        supabase.from("lesson_progress").upsert(updates).then(({ error }) => {
+            if (error) console.error("Erro save:", error);
+        });
     }
   };
 
   async function pagarRecompensa() {
     const { data: { user } } = await supabase.auth.getUser();
-    
-    // Verifica se já não pagamos essa aula hoje (opcional, mas bom pra evitar flood)
     const isAlreadyCompleted = progressMap[currentLesson.id]?.completed;
     
     if (user && !isAlreadyCompleted) {
-        // Chama o Banqueiro SQL
-        const { error } = await supabase.rpc('add_pro_system', { 
+        // Atualiza UI instantaneamente
+        setUserCoins(prev => prev + COINS_PER_LESSON);
+        
+        // Processa banco em background
+        supabase.rpc('add_pro_system', { 
             user_id_param: user.id, 
             amount: COINS_PER_LESSON, 
             type_id: 1 
         }); 
-        
-        if (!error) {
-            setUserCoins(prev => prev + COINS_PER_LESSON);
-            // Poderia colocar um Toast/Alerta bonito aqui
-            console.log("💰 Pagamento realizado!");
-        } else {
-            console.error("Erro no pagamento:", error);
-        }
     }
   }
 
