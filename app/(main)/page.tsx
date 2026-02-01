@@ -1,32 +1,41 @@
 "use client";
 
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useEffect, useState } from "react";
-import { Trophy, Copy, Check } from "lucide-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Trophy, TrendingUp, Users, ShoppingBag, Loader2 } from "lucide-react";
+import Link from "next/link";
 
-export default function VisaoGeralPage() {
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-  
+export default function HomePage() {
   const supabase = createClientComponentClient();
+  const [loading, setLoading] = useState(true);
+  
+  // Saldos Separados
+  const [totalCoins, setTotalCoins] = useState(0); // Saldo Geral (Gastável)
+  const [personalScore, setPersonalScore] = useState(0); // Evolução
+  const [networkScore, setNetworkScore] = useState(0); // Rede
+  const [storeScore, setStoreScore] = useState(0); // Cashback
 
   useEffect(() => {
     async function getData() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session) {
-          const { data } = await supabase
-            .from("profiles")
-            .select("*, coins, personal_coins")
-            .eq("id", session.user.id)
-            .single();
-          
-          setProfile(data);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            // Buscamos TODAS as colunas atualizadas
+            const { data: profile } = await supabase
+                .from("profiles")
+                .select("coins, personal_coins, network_coins, store_coins")
+                .eq("id", user.id)
+                .single();
+
+            if (profile) {
+                setTotalCoins(profile.coins || 0); // O TOTAL REAL
+                setPersonalScore(profile.personal_coins || 0);
+                setNetworkScore(profile.network_coins || 0);
+                setStoreScore(profile.store_coins || 0);
+            }
         }
       } catch (error) {
-        console.error("Erro:", error);
+        console.error(error);
       } finally {
         setLoading(false);
       }
@@ -34,119 +43,79 @@ export default function VisaoGeralPage() {
     getData();
   }, [supabase]);
 
-  // Calcular Saldo Total: coins + personal_coins
-  const totalBalance = loading ? null : ((profile?.coins || 0) + (profile?.personal_coins || 0));
-  const userName = profile?.full_name || "Usuário";
-  const referralCode = profile?.referral_code || "";
-  const referralLink = referralCode ? `mascpro.app/ref/${referralCode}` : "";
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(referralLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const formatNumber = (num: number) => {
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  };
+  if (loading) return (
+    <div className="flex justify-center items-center h-screen bg-[#000000] text-white">
+        <Loader2 className="animate-spin text-[#C9A66B]" size={32} />
+    </div>
+  );
 
   return (
-    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-24 md:pb-20">
+    <div className="p-4 md:p-8 min-h-screen bg-[#000000] text-white pb-20">
       
-      {/* HEADER */}
-      <div>
-        <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-tighter">
-          Olá, {userName}
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold italic tracking-wide">
+          VISÃO <span className="text-[#C9A66B]">GERAL</span>
         </h1>
-        <p className="text-white mt-2 text-sm md:text-base">
-          Seu progresso é recompensado.
-        </p>
+        <p className="text-gray-400 mt-2 text-sm">Acompanhe seu progresso e saldo total.</p>
       </div>
 
-      {/* CARDS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* CARD MASC COIN */}
-          <div className="bg-black border border-white/10 p-6 md:p-8 rounded-2xl relative overflow-hidden">
-             <div className="absolute top-0 right-0 p-4 md:p-8 opacity-10 pointer-events-none">
-                <Trophy size={100} className="md:w-[120px] md:h-[120px] text-[#C9A66B]" />
-             </div>
-             <div className="relative z-10">
-                 <div className="inline-flex items-center gap-2 border border-white/20 bg-white/5 rounded-full px-3 py-1 mb-4 md:mb-6">
-                    <Trophy size={14} className="text-[#C9A66B]"/>
-                    <span className="text-[10px] font-bold text-white uppercase tracking-widest">MASC COIN</span>
-                 </div>
-                 <div className="flex items-baseline gap-1 mb-2">
-                    <h2 className="text-5xl md:text-6xl lg:text-7xl font-black text-white tracking-tighter">
-                        {totalBalance === null ? (
-                          <span className="inline-block h-12 md:h-16 lg:h-20 w-32 md:w-40 bg-white/10 rounded animate-pulse" />
-                        ) : totalBalance === 0 ? (
-                          "0"
-                        ) : (
-                          formatNumber(totalBalance)
-                        )}
-                    </h2>
-                    <span className="text-lg md:text-xl lg:text-2xl font-bold text-[#C9A66B] ml-1">PRO</span>
-                 </div>
-                 <p className="text-white text-sm font-medium flex items-center gap-1">
-                   <span className="text-[#C9A66B]">↗</span> Seu poder de compra na loja.
-                 </p>
-             </div>
-          </div>
-
-          {/* CARD PRÓXIMA PLACA */}
-          <div className="bg-black border border-white/10 p-6 md:p-8 rounded-2xl flex flex-col justify-between">
-              <div>
-                  <h3 className="text-lg md:text-xl font-bold text-white mb-1">Próxima Placa</h3>
-                  <p className="text-white text-sm">Marco de 10k</p>
-              </div>
-              <div className="mt-6 md:mt-8">
-                  <div className="flex justify-between text-xs font-bold text-white mb-2 uppercase tracking-wider">
-                      <span>
-                        {totalBalance === null ? (
-                          <span className="inline-block h-3 w-16 bg-white/10 rounded animate-pulse" />
-                        ) : (
-                          `${formatNumber(totalBalance)} PRO`
-                        )}
-                      </span>
-                      <span>10.000 PRO</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-[#C9A66B]" 
-                        style={{ 
-                          width: totalBalance === null 
-                            ? "0%" 
-                            : `${Math.min((totalBalance / 10000) * 100, 100)}%` 
-                        }} 
-                      /> 
-                  </div>
-              </div>
-              <button className="mt-6 w-full border border-white/10 bg-transparent text-white font-bold py-3 rounded-lg hover:bg-white/5 transition-colors uppercase text-xs tracking-widest">
-                  VER PLACAS
-              </button>
-          </div>
+      {/* CARD PRINCIPAL - SALDO TOTAL */}
+      <div className="bg-gradient-to-r from-[#C9A66B] to-[#b08d55] rounded-2xl p-6 mb-8 shadow-lg shadow-[#C9A66B]/20 relative overflow-hidden">
+         <div className="relative z-10">
+            <p className="text-black font-bold uppercase text-xs tracking-widest mb-1">Saldo Disponível</p>
+            <h2 className="text-5xl font-black text-black">{totalCoins} <span className="text-2xl">PRO</span></h2>
+            <p className="text-black/70 text-xs mt-2 font-medium">Use este saldo na Loja MASC.</p>
+         </div>
+         <Trophy className="absolute -right-6 -bottom-6 text-black/10 w-48 h-48 rotate-12" />
       </div>
 
-      {/* CARD CONVITE EXCLUSIVO - Apenas Desktop */}
-      <div className="hidden md:block bg-black border border-white/10 rounded-2xl p-6">
-        <div className="mb-6">
-          <h3 className="text-white font-bold text-lg mb-1">Convite Exclusivo</h3>
-          <p className="text-white text-sm">Ganhe PROs convidando profissionais.</p>
+      {/* CARDS DETALHADOS (FONTES DE RENDA) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        
+        {/* EVOLUÇÃO (Aulas) */}
+        <div className="bg-[#111] border border-[#222] p-5 rounded-xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-blue-900/20 text-blue-500 flex items-center justify-center">
+                <TrendingUp size={24} />
+            </div>
+            <div>
+                <p className="text-gray-500 text-xs uppercase font-bold">Mérito Pessoal</p>
+                <p className="text-xl font-bold text-white">{personalScore}</p>
+            </div>
         </div>
-        <div className="flex items-center gap-2 flex-col sm:flex-row">
-          <div className="bg-slate-900 border border-white/10 px-4 py-3 rounded-xl font-mono text-xs text-white flex-1 w-full sm:w-auto text-center sm:text-left">
-            {referralLink}
-          </div>
-          <button 
-            onClick={handleCopy}
-            disabled={!referralLink}
-            className="bg-slate-900 border border-white/10 text-white hover:bg-slate-800 font-bold text-xs px-4 py-3 rounded-xl transition-all flex items-center gap-2 w-full sm:w-auto justify-center min-w-[100px] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-            {copied ? "Copiado!" : "Copiar"}
-          </button>
+
+        {/* REDE (Indicações) */}
+        <div className="bg-[#111] border border-[#222] p-5 rounded-xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-purple-900/20 text-purple-500 flex items-center justify-center">
+                <Users size={24} />
+            </div>
+            <div>
+                <p className="text-gray-500 text-xs uppercase font-bold">Bônus de Rede</p>
+                <p className="text-xl font-bold text-white">{networkScore}</p>
+            </div>
         </div>
+
+        {/* LOJA (Cashback) */}
+        <div className="bg-[#111] border border-[#222] p-5 rounded-xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-green-900/20 text-green-500 flex items-center justify-center">
+                <ShoppingBag size={24} />
+            </div>
+            <div>
+                <p className="text-gray-500 text-xs uppercase font-bold">Cashback Loja</p>
+                <p className="text-xl font-bold text-white">{storeScore}</p>
+            </div>
+        </div>
+
       </div>
+
+      <div className="mt-8 flex gap-4">
+          <Link href="/loja" className="flex-1 bg-[#222] hover:bg-[#333] text-white py-4 rounded-xl text-center font-bold text-sm transition-colors border border-[#333]">
+            IR PARA LOJA
+          </Link>
+          <Link href="/evolucao" className="flex-1 bg-[#222] hover:bg-[#333] text-white py-4 rounded-xl text-center font-bold text-sm transition-colors border border-[#333]">
+            VER AULAS
+          </Link>
+      </div>
+
     </div>
   );
 }
