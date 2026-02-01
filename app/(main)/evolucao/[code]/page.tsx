@@ -27,13 +27,13 @@ export default function AulaPlayerPage() {
   const [newComment, setNewComment] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
 
-  // Player & Memória
-  const [savedTime, setSavedTime] = useState(0); 
+  // Controle Visual
   const [hasJumped, setHasJumped] = useState(false);
+  const [jumpTimeDisplay, setJumpTimeDisplay] = useState(0);
 
   const COINS_PER_LESSON = 10; 
 
-  // 1. CARREGAMENTO DOS DADOS
+  // 1. CARREGAMENTO DOS DADOS (PARALELO)
   useEffect(() => {
     async function fetchInitialData() {
       try {
@@ -71,19 +71,10 @@ export default function AulaPlayerPage() {
     if (courseCode) fetchInitialData();
   }, [courseCode, supabase]);
 
-  // 2. PREPARAR AULA (Ler Memória)
+  // 2. BUSCA COMENTÁRIOS
   useEffect(() => {
     if (!currentLesson) return;
-    
-    setHasJumped(false);
-    setSavedTime(0);
-
-    // Verifica no mapa local se tem tempo salvo
-    const myProgress = progressMap[currentLesson.id];
-    if (myProgress?.seconds_watched > 0) {
-        setSavedTime(myProgress.seconds_watched);
-    }
-    
+    setHasJumped(false); // Limpa aviso visual
     fetchComments();
   }, [currentLesson]); 
 
@@ -97,9 +88,14 @@ export default function AulaPlayerPage() {
       if (data) setComments(data);
   }
 
-  // 3. PLAYER DE VÍDEO (COM MEMÓRIA ATIVA)
+  // 3. PLAYER DE VÍDEO (COM MEMÓRIA FORÇADA)
   useEffect(() => {
     if (!currentLesson || !currentLesson.video_id) return;
+
+    // Pega o tempo salvo diretamente do mapa de progresso
+    // Isso evita esperar o React atualizar estados
+    const tempoParaRetomar = progressMap[currentLesson.id]?.seconds_watched || 0;
+    console.log(`🎯 Iniciando aula. Tempo salvo: ${tempoParaRetomar}s`);
 
     let player: any = null;
     if (playerInstance.current) {
@@ -109,6 +105,7 @@ export default function AulaPlayerPage() {
 
     const loadPlayer = async () => {
         const Plyr = (await import("plyr")).default;
+        
         player = new Plyr("#player-target", {
             autoplay: true,
             controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
@@ -116,18 +113,30 @@ export default function AulaPlayerPage() {
         });
         playerInstance.current = player;
 
-        // --- AQUI ESTÁ A MÁGICA DA MEMÓRIA ---
+        // --- LÓGICA DE RETOMADA BLINDADA ---
         player.on('ready', () => {
-            // Se tiver tempo salvo maior que 5 segundos, pula para ele
-            if (savedTime > 5) { 
+            // Se tiver histórico significativo (> 10 segundos)
+            if (tempoParaRetomar > 10) {
+                
+                // Tentativa 1: Imediata
+                player.currentTime = tempoParaRetomar;
+                
+                // Configura feedback visual
+                setJumpTimeDisplay(tempoParaRetomar);
+                setHasJumped(true);
+
+                // Tentativa 2: Delay de segurança (Caso o YouTube demore para carregar o buffer)
                 setTimeout(() => {
-                    player.currentTime = savedTime; // Pula para o minuto 30 (exemplo)
-                    setHasJumped(true); // Avisa visualmente "Retomando"
-                }, 1000); 
+                    // Se o player ainda estiver no início (falha no seek), força de novo
+                    if (player.currentTime < 5) {
+                         console.log("🔄 Forçando retomada...");
+                         player.currentTime = tempoParaRetomar;
+                    }
+                }, 1500);
             }
         });
 
-        // Salva a cada 5 segundos
+        // Salvar progresso a cada 5s
         player.on('timeupdate', (event: any) => {
             const currentTime = event.detail.plyr.currentTime;
             if (Math.floor(currentTime) > 0 && Math.floor(currentTime) % 5 === 0) {
@@ -146,7 +155,7 @@ export default function AulaPlayerPage() {
     return () => {
         if (playerInstance.current) { try { playerInstance.current.destroy(); } catch(e) {} }
     };
-  }, [currentLesson?.id, savedTime]); // Adicionei savedTime para garantir que ele tenha o valor ao carregar
+  }, [currentLesson?.id]); // Recria apenas se mudar a aula
 
   // --- AÇÕES ---
 
@@ -161,7 +170,7 @@ export default function AulaPlayerPage() {
         };
         if (isCompleted) updates.completed = true;
 
-        // Atualiza UI
+        // Atualiza UI Local
         setProgressMap(prev => ({
             ...prev,
             [currentLesson.id]: { 
@@ -171,7 +180,7 @@ export default function AulaPlayerPage() {
             }
         }));
 
-        // Salva Banco
+        // Salva no Banco (Sem await para não travar)
         supabase.from("lesson_progress").upsert(updates).then(({ error }) => {
             if (error) console.error("Erro save:", error);
         });
@@ -183,8 +192,8 @@ export default function AulaPlayerPage() {
         playerInstance.current.currentTime = 0; 
         playerInstance.current.play(); 
     }
-    setHasJumped(false);
-    await salvarProgresso(0, false);
+    setHasJumped(false); // Esconde o aviso
+    await salvarProgresso(0, false); // Zera no banco
   };
 
   async function pagarRecompensa() {
@@ -251,9 +260,11 @@ export default function AulaPlayerPage() {
                 <Trophy size={14} className="text-[#C9A66B]" />
                 <span className="font-bold text-[#C9A66B] text-xs">{userCoins} <span className="text-gray-500 font-normal">PRO</span></span>
             </div>
+            {/* BADGE DE RETOMADA */}
             {hasJumped && (
-                <div className="flex items-center gap-1 text-xs text-green-500 font-bold animate-in fade-in">
-                    <History size={12} /> <span className="hidden sm:inline">Retomando de {Math.floor(savedTime/60)}min</span>
+                <div className="flex items-center gap-1 text-xs text-green-500 font-bold animate-in fade-in bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
+                    <History size={12} /> 
+                    <span className="hidden sm:inline">Continuando de {Math.floor(jumpTimeDisplay/60)}min</span>
                 </div>
             )}
              <div className="flex items-center gap-1 text-[10px] text-gray-600">
@@ -269,7 +280,7 @@ export default function AulaPlayerPage() {
           <div className="aspect-video bg-black rounded-xl shadow-2xl shadow-black relative z-10">
             {currentLesson?.video_id ? (
                 <div key={currentLesson.id} className="plyr__video-embed" id="player-target">
-                    <iframe
+            <iframe 
                         src={`https://www.youtube.com/embed/${currentLesson.video_id}?origin=https://plyr.io&iv_load_policy=3&modestbranding=1&playsinline=1&showinfo=0&rel=0&enablejsapi=1`}
                         allowFullScreen
                         allow="autoplay"
@@ -312,7 +323,7 @@ export default function AulaPlayerPage() {
                             {comments.map((comment) => (
                                 <div key={comment.id} className="flex gap-2 items-start border-b border-[#222] pb-3 last:border-0">
                                     <div className="w-5 h-5 rounded-full bg-[#222] overflow-hidden shrink-0">{comment.profiles?.avatar_url && <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" />}</div>
-                                    <div>
+          <div>
                                         <div className="flex items-center gap-2 mb-0.5"><span className="font-bold text-[#C9A66B] text-[10px]">{comment.profiles?.full_name}</span><span className="text-[10px] text-gray-600">{new Date(comment.created_at).toLocaleDateString()}</span></div>
                                         <p className="text-xs text-gray-300">{comment.content}</p>
                                     </div>
