@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Loader2, Save, History, Download, MessageSquare, Send, Trophy } from "lucide-react";
+import { ArrowLeft, Loader2, Save, History, Download, Send, Trophy, Lock, CheckCircle, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import "plyr/dist/plyr.css"; 
 
@@ -14,46 +14,70 @@ export default function AulaPlayerPage() {
 
   const playerInstance = useRef<any>(null);
   
-  // Dados Principais
+  // Dados
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
+  const [progressMap, setProgressMap] = useState<Record<string, any>>({}); 
   const [loading, setLoading] = useState(true);
-  const [userCoins, setUserCoins] = useState(0); // Gamificação
+  const [userCoins, setUserCoins] = useState(0);
   
-  // Abas e Comentários
+  // Interação
   const [activeTab, setActiveTab] = useState<'info' | 'comments'>('info');
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
 
   // Player Logic
-  const [sessionSeconds, setSessionSeconds] = useState(0); 
   const [savedTime, setSavedTime] = useState(0); 
   const [hasJumped, setHasJumped] = useState(false);
 
-  // 1. CARREGAR AULAS E PERFIL
+  const COINS_PER_LESSON = 10; 
+
+  // 1. CARREGAMENTO INICIAL
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
-        
-        // Carrega Usuário e Moedas
         const { data: { user } } = await supabase.auth.getUser();
+        
         if (user) {
+            // Perfil
             const { data: profile } = await supabase.from("profiles").select("coins, personal_coins").eq("id", user.id).single();
             if (profile) setUserCoins((profile.coins || 0) + (profile.personal_coins || 0));
-        }
 
-        // Carrega Aulas
-        const { data } = await supabase
-          .from("lessons")
-          .select("*")
-          .ilike("course_code", courseCode) 
-          .order("sequence_order", { ascending: true });
+            // --- AQUI ESTÁ A CORREÇÃO MÁGICA (TRADUÇÃO) ---
+            // O código pega o SEU nome (direita) e joga pro nome do SISTEMA (esquerda)
+            const { data: lessonsData } = await supabase
+              .from("lessons")
+              .select(`
+                id,
+                course_code:código_do_curso,
+                title:título,
+                video_id:id_do_vídeo,
+                description,
+                material_url,
+                sequence_order
+              `)
+              .ilike("código_do_curso", courseCode) // Busca pelo nome em PT
+              .order("sequence_order", { ascending: true }); // Se der erro aqui, avise (talvez você tenha traduzido sequence_order também?)
 
-        if (data && data.length > 0) {
-          setLessons(data);
-          setCurrentLesson(data[0]);
+            if (lessonsData && lessonsData.length > 0) {
+              setLessons(lessonsData);
+              
+              // Busca progresso
+              const { data: allProgress } = await supabase
+                .from("lesson_progress")
+                .select("lesson_id, completed, seconds_watched")
+                .eq("user_id", user.id);
+              
+              const pMap: Record<string, any> = {};
+              allProgress?.forEach((p: any) => pMap[p.lesson_id] = p);
+              setProgressMap(pMap);
+
+              // Define aula atual
+              const nextToWatch = lessonsData.find((l: any) => !pMap[l.id]?.completed) || lessonsData[0];
+              setCurrentLesson(nextToWatch);
+            }
         }
       } catch (err) {
         console.error("Erro:", err);
@@ -64,33 +88,20 @@ export default function AulaPlayerPage() {
     if (courseCode) fetchData();
   }, [courseCode, supabase]);
 
-  // 2. CARREGAR MEMÓRIA E COMENTÁRIOS (Ao trocar de aula)
+  // 2. TROCA DE AULA (Carrega Detalhes)
   useEffect(() => {
-    async function loadLessonData() {
+    async function loadLessonDetails() {
         if (!currentLesson) return;
         setHasJumped(false);
-        setSessionSeconds(0);
         setSavedTime(0);
 
-        // A. Memória do Vídeo
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            const { data } = await supabase
-                .from("lesson_progress")
-                .select("seconds_watched")
-                .eq("user_id", user.id)
-                .eq("lesson_id", currentLesson.id)
-                .maybeSingle(); 
-            
-            const time = data?.seconds_watched || 0;
-            setSavedTime(time);
-        }
+        const myProgress = progressMap[currentLesson.id];
+        setSavedTime(myProgress?.seconds_watched || 0);
 
-        // B. Carregar Comentários
         fetchComments();
     }
-    loadLessonData();
-  }, [currentLesson, supabase]);
+    loadLessonDetails();
+  }, [currentLesson]); // Dependência simplificada
 
   async function fetchComments() {
       if (!currentLesson) return;
@@ -103,85 +114,97 @@ export default function AulaPlayerPage() {
       if (data) setComments(data);
   }
 
-  // 3. INICIAR O PLAYER PLYR
+  // 3. INICIALIZAÇÃO DO PLAYER (Blindada)
   useEffect(() => {
-    if (!currentLesson) return;
+    // Agora 'video_id' vai existir porque fizemos a tradução lá em cima
+    if (!currentLesson || !currentLesson.video_id) return;
 
     let player: any = null;
+    
+    // Força destruição completa do player anterior
+    if (playerInstance.current) {
+        try { playerInstance.current.destroy(); } catch(e) {}
+        playerInstance.current = null;
+    }
+
     const loadPlayer = async () => {
         const Plyr = (await import("plyr")).default;
 
-        if (playerInstance.current) playerInstance.current.destroy();
-
+        // Cria player novo
         player = new Plyr("#player-target", {
             autoplay: true,
             controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
             youtube: { noCookie: true, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 }
         });
-
         playerInstance.current = player;
 
+        // Retomar
         player.on('ready', () => {
-            if (savedTime > 0) {
+            if (savedTime > 5) { // Só retoma se passou de 5 segundos
                 setTimeout(() => {
                     player.currentTime = savedTime;
                     setHasJumped(true);
-                }, 1500); 
+                }, 1000); 
             }
         });
 
+        // Salvar Progresso
         player.on('timeupdate', (event: any) => {
             const currentTime = event.detail.plyr.currentTime;
-            if (Math.floor(currentTime) % 5 === 0 && currentTime > 0) {
-                 salvarProgresso(currentTime);
+            // Salva a cada 5s
+            if (Math.floor(currentTime) > 0 && Math.floor(currentTime) % 5 === 0) {
+                 salvarProgresso(currentTime, false);
             }
+        });
+
+        // Concluir
+        player.on('ended', () => {
+            salvarProgresso(player.duration, true);
+            pagarRecompensa();
         });
     };
 
-    loadPlayer();
+    // Pequeno delay para garantir que o DOM limpou
+    setTimeout(() => loadPlayer(), 100);
 
     return () => {
-        if (playerInstance.current) playerInstance.current.destroy();
+        if (playerInstance.current) {
+             try { playerInstance.current.destroy(); } catch(e) {}
+        }
     };
-  }, [currentLesson, savedTime]);
-
-  // 4. LÓGICA DE RECOMPENSA (MOEDAS)
-  useEffect(() => {
-      if (!currentLesson) return;
-      const interval = setInterval(() => {
-          const player = playerInstance.current;
-          if (player && player.playing) {
-              setSessionSeconds(prev => {
-                  const novo = prev + 1;
-                  // A cada 1 minuto (60s) atualiza visualmente, a cada 10min (600s) paga no banco
-                  if (novo > 0 && novo % 600 === 0) pagarRecompensa();
-                  return novo;
-              });
-          }
-      }, 1000);
-      return () => clearInterval(interval);
-  }, [currentLesson]);
+  }, [currentLesson?.id]); // Recria APENAS se o ID da aula mudar
 
   // --- AÇÕES ---
 
-  const salvarProgresso = async (time: number) => {
+  const salvarProgresso = async (time: number, isCompleted: boolean) => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-        await supabase.from("lesson_progress").upsert({
+    if (user && currentLesson) {
+        const payload: any = {
             user_id: user.id,
             lesson_id: currentLesson.id,
             seconds_watched: Math.floor(time),
             last_updated: new Date().toISOString()
-        });
+        };
+        if (isCompleted) payload.completed = true;
+
+        const { error } = await supabase.from("lesson_progress").upsert(payload);
+        
+        if (!error) {
+            setProgressMap(prev => ({
+                ...prev,
+                [currentLesson.id]: { ...prev[currentLesson.id], seconds_watched: time, completed: isCompleted ? true : prev[currentLesson.id]?.completed }
+            }));
+        }
     }
   };
 
   async function pagarRecompensa() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-        await supabase.rpc('reward_watch_time_v2', { user_id: user.id });
-        // Atualiza visualmente as moedas
-        setUserCoins(prev => prev + 2); // Exemplo: ganha 2 moedas visualmente (ajuste conforme sua regra)
+        await supabase.rpc('add_pro_system', { user_id_param: user.id, amount: COINS_PER_LESSON, type_id: 1 }); 
+        setUserCoins(prev => prev + COINS_PER_LESSON);
+        // Feedback visual mais sutil em vez de alert
+        console.log(`🎉 +${COINS_PER_LESSON} PRO`);
     }
   }
 
@@ -196,10 +219,9 @@ export default function AulaPlayerPage() {
               lesson_id: currentLesson.id,
               content: newComment
           });
-          
           if (!error) {
               setNewComment("");
-              fetchComments(); // Recarrega lista
+              fetchComments();
           }
       }
       setSendingComment(false);
@@ -222,36 +244,35 @@ export default function AulaPlayerPage() {
         .plyr__video-embed iframe { pointer-events: none; }
       `}</style>
 
-      {/* TOPO: Voltar + Pontuação */}
+      {/* TOPO */}
       <div className="flex justify-between items-center mb-6">
         <Link href="/evolucao" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
           <ArrowLeft className="w-5 h-5" />
           <span className="font-bold text-sm tracking-wide">VOLTAR</span>
         </Link>
-        
         <div className="flex items-center gap-4">
-            {/* BADGE DE MOEDAS */}
-            <div className="bg-[#1a1a1a] border border-[#333] px-4 py-1.5 rounded-full flex items-center gap-2">
+            <div className="bg-[#1a1a1a] border border-[#333] px-3 py-1 rounded-lg flex items-center gap-2">
                 <Trophy size={14} className="text-[#C9A66B]" />
-                <span className="font-bold text-[#C9A66B] text-sm">{userCoins} <span className="text-gray-500 text-xs font-normal">PRO</span></span>
+                <span className="font-bold text-[#C9A66B] text-xs">{userCoins} <span className="text-gray-500 font-normal">PRO</span></span>
             </div>
-
             {hasJumped && (
                 <div className="flex items-center gap-1 text-xs text-green-500 font-bold animate-in fade-in">
-                    <History size={12} /> Retomando
+                    <History size={12} /> <span className="hidden sm:inline">Retomando</span>
                 </div>
             )}
+             <div className="flex items-center gap-1 text-[10px] text-gray-600">
+                <Save size={10} />
+            </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* --- COLUNA ESQUERDA: VÍDEO + INFO --- */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* PLAYER */}
+        {/* --- ÁREA PRINCIPAL --- */}
+        <div className="lg:col-span-2 space-y-4">
           <div className="aspect-video bg-black rounded-xl shadow-2xl shadow-black relative z-10">
-            {currentLesson ? (
+            {currentLesson?.video_id ? (
+                // O segredo: KEY força o React a destruir a div quando o ID muda
                 <div key={currentLesson.id} className="plyr__video-embed" id="player-target">
                     <iframe
                         src={`https://www.youtube.com/embed/${currentLesson.video_id}?origin=https://plyr.io&iv_load_policy=3&modestbranding=1&playsinline=1&showinfo=0&rel=0&enablejsapi=1`}
@@ -259,92 +280,73 @@ export default function AulaPlayerPage() {
                         allow="autoplay"
                     ></iframe>
                 </div>
-            ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-500">Carregando...</div>
-            )}
+            ) : <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Carregando vídeo...</div>}
           </div>
 
-          {/* ABAS (DESCRIÇÃO / COMENTÁRIOS) */}
-          <div className="bg-[#111] border border-[#222] rounded-xl overflow-hidden">
+          {/* ABAS COMPACTAS */}
+          <div className="bg-[#111] border border-[#222] rounded-lg overflow-hidden">
              <div className="flex border-b border-[#222]">
                 <button 
                     onClick={() => setActiveTab('info')}
-                    className={`flex-1 py-4 text-sm font-bold uppercase transition-colors ${activeTab === 'info' ? "bg-[#C9A66B] text-black" : "text-gray-500 hover:bg-[#1a1a1a]"}`}
+                    className={`px-4 py-3 text-xs font-bold uppercase transition-colors ${activeTab === 'info' ? "bg-[#C9A66B] text-black" : "text-gray-400 hover:bg-[#1a1a1a]"}`}
                 >
-                    Material & Info
+                    Material
                 </button>
                 <button 
                     onClick={() => setActiveTab('comments')}
-                    className={`flex-1 py-4 text-sm font-bold uppercase transition-colors ${activeTab === 'comments' ? "bg-[#C9A66B] text-black" : "text-gray-500 hover:bg-[#1a1a1a]"}`}
+                    className={`px-4 py-3 text-xs font-bold uppercase transition-colors ${activeTab === 'comments' ? "bg-[#C9A66B] text-black" : "text-gray-400 hover:bg-[#1a1a1a]"}`}
                 >
-                    Comentários ({comments.length})
+                    Dúvidas
                 </button>
              </div>
 
-             <div className="p-6 min-h-[200px]">
-                
-                {/* CONTEÚDO: INFO */}
+             <div className="p-4">
                 {activeTab === 'info' && currentLesson && (
-                    <div className="animate-in fade-in slide-in-from-left-2">
-                        <h1 className="text-2xl font-bold text-white mb-2">{currentLesson.title}</h1>
-                        <p className="text-gray-400 text-sm leading-relaxed mb-6">
-                            {currentLesson.description || "Sem descrição disponível para esta aula."}
+                    <div className="animate-in fade-in">
+                        <div className="flex justify-between items-start mb-2">
+                            <h1 className="text-lg font-bold text-white">{currentLesson.title}</h1>
+                            <span className="bg-[#C9A66B]/10 text-[#C9A66B] text-[10px] font-bold px-2 py-0.5 rounded border border-[#C9A66B]/20 whitespace-nowrap">
+                                +{COINS_PER_LESSON} PRO
+                            </span>
+                        </div>
+                        <p className="text-gray-400 text-xs leading-relaxed mb-4">
+                            {currentLesson.description || "Assista a aula completa para liberar o próximo módulo."}
                         </p>
-                        
                         {currentLesson.material_url && (
-                            <a 
-                                href={currentLesson.material_url} 
-                                target="_blank"
-                                className="inline-flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#333] hover:border-[#C9A66B] text-white px-4 py-3 rounded-lg transition-all"
-                            >
-                                <Download size={18} className="text-[#C9A66B]" />
-                                <div className="text-left">
-                                    <p className="text-xs text-gray-500 font-bold uppercase">Material de Apoio</p>
-                                    <p className="text-sm font-bold">Baixar Arquivos da Aula</p>
-                                </div>
+                            <a href={currentLesson.material_url} target="_blank" className="inline-flex items-center gap-2 bg-[#222] hover:bg-[#333] border border-[#333] text-white px-3 py-2 rounded text-xs font-bold transition-all">
+                                <Download size={14} className="text-[#C9A66B]" /> Baixar PDF
                             </a>
                         )}
                     </div>
                 )}
 
-                {/* CONTEÚDO: COMENTÁRIOS */}
                 {activeTab === 'comments' && (
-                    <div className="animate-in fade-in slide-in-from-right-2">
-                        
-                        {/* INPUT */}
-                        <div className="flex gap-2 mb-6">
+                    <div className="animate-in fade-in">
+                        <div className="flex gap-2 mb-4">
                             <input 
                                 type="text"
                                 value={newComment}
                                 onChange={(e) => setNewComment(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSendComment()}
-                                placeholder="Tem alguma dúvida sobre esta aula?"
-                                className="flex-1 bg-[#0a0a0a] border border-[#333] rounded-lg px-4 py-3 text-sm text-white focus:border-[#C9A66B] outline-none"
+                                placeholder="Sua dúvida..."
+                                className="flex-1 bg-[#0a0a0a] border border-[#333] rounded px-3 py-2 text-xs text-white focus:border-[#C9A66B] outline-none"
                             />
-                            <button 
-                                onClick={handleSendComment} 
-                                disabled={sendingComment}
-                                className="bg-[#C9A66B] text-black p-3 rounded-lg hover:bg-[#b08d55] disabled:opacity-50"
-                            >
-                                {sendingComment ? <Loader2 size={18} className="animate-spin"/> : <Send size={18} />}
+                            <button onClick={handleSendComment} disabled={sendingComment} className="bg-[#C9A66B] text-black px-3 py-2 rounded hover:bg-[#b08d55] disabled:opacity-50">
+                                {sendingComment ? <Loader2 size={14} className="animate-spin"/> : <Send size={14} />}
                             </button>
                         </div>
-
-                        {/* LISTA */}
-                        <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-                            {comments.length === 0 && <p className="text-center text-gray-600 text-sm py-4">Seja o primeiro a comentar!</p>}
-                            
+                        <div className="space-y-3 max-h-[250px] overflow-y-auto custom-scrollbar">
                             {comments.map((comment) => (
-                                <div key={comment.id} className="flex gap-3 items-start border-b border-[#222] pb-4 last:border-0">
-                                    <div className="w-8 h-8 rounded-full bg-[#222] overflow-hidden shrink-0 mt-1">
+                                <div key={comment.id} className="flex gap-2 items-start border-b border-[#222] pb-3 last:border-0">
+                                    <div className="w-5 h-5 rounded-full bg-[#222] overflow-hidden shrink-0">
                                         {comment.profiles?.avatar_url && <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" />}
                                     </div>
                                     <div>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="font-bold text-[#C9A66B] text-xs">{comment.profiles?.full_name || "Aluno"}</span>
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                            <span className="font-bold text-[#C9A66B] text-[10px]">{comment.profiles?.full_name}</span>
                                             <span className="text-[10px] text-gray-600">{new Date(comment.created_at).toLocaleDateString()}</span>
                                         </div>
-                                        <p className="text-sm text-gray-300">{comment.content}</p>
+                                        <p className="text-xs text-gray-300">{comment.content}</p>
                                     </div>
                                 </div>
                             ))}
@@ -353,40 +355,52 @@ export default function AulaPlayerPage() {
                 )}
              </div>
           </div>
-
         </div>
 
-        {/* --- COLUNA DIREITA: LISTA DE AULAS --- */}
-        <div className="bg-[#111] border border-[#222] rounded-xl p-5 h-fit">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-            Módulos da Jornada
-          </h3>
-          <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+        {/* --- COLUNA DIREITA: LISTA COM TRAVAS --- */}
+        <div className="bg-[#111] border border-[#222] rounded-lg p-5 h-fit">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Trilha do Módulo</h3>
+          <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar pr-1">
             {lessons.map((lesson, index) => {
               const isActive = lesson.id === currentLesson?.id;
+              
+              // LÓGICA DE TRAVA:
+              // Se index > 0 (não é a primeira), verifica se a anterior (index-1) foi concluída
+              const previousLesson = lessons[index - 1];
+              const isLocked = index > 0 && !progressMap[previousLesson.id]?.completed;
+              
+              const isCompleted = progressMap[lesson.id]?.completed;
+
               return (
                 <button
                   key={lesson.id}
+                  disabled={isLocked}
                   onClick={() => {
                     setHasJumped(false);
                     setCurrentLesson(lesson);
-                    setActiveTab('info'); // Volta para info ao trocar aula
+                    setActiveTab('info');
                   }}
-                  className={`w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all border ${
-                    isActive ? "bg-[#C9A66B]/10 border-[#C9A66B]/40" : "bg-transparent border-transparent hover:bg-white/5"
+                  className={`w-full flex items-center gap-3 p-3 rounded text-left transition-all border ${
+                    isActive 
+                      ? "bg-[#C9A66B]/10 border-[#C9A66B]/30" 
+                      : isLocked 
+                        ? "opacity-50 cursor-not-allowed border-transparent" 
+                        : "hover:bg-white/5 border-transparent"
                   }`}
                 >
-                  <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                    isActive ? "bg-[#C9A66B] text-black" : "bg-[#222] text-gray-500"
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                    isCompleted ? "bg-green-500 text-black" : isActive ? "bg-[#C9A66B] text-black" : "bg-[#222] text-gray-500"
                   }`}>
-                    {isActive ? "▶" : index + 1}
+                    {isCompleted ? <CheckCircle size={12} /> : isLocked ? <Lock size={10} /> : index + 1}
                   </div>
-                  <div>
-                      <p className={`text-sm font-bold leading-tight ${isActive ? "text-white" : "text-gray-400"}`}>
+                  
+                  <div className="flex-1">
+                      <p className={`text-xs font-bold leading-tight ${isActive ? "text-white" : "text-gray-400"}`}>
                         {lesson.title}
                       </p>
-                      <p className="text-[10px] text-gray-600 mt-1">Videoaula</p>
                   </div>
+                  
+                  {isActive && <PlayCircle size={14} className="text-[#C9A66B]" />}
                 </button>
               );
             })}
