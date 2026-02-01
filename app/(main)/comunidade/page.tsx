@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Trophy, Medal, MessageSquare, Heart, ImageIcon, MoreHorizontal, X, Loader2, Send, Crown, CornerDownRight, MessageCircle, Bell, User } from "lucide-react";
+import { Trophy, Medal, MessageSquare, Heart, ImageIcon, MoreHorizontal, X, Loader2, Send, Crown, CornerDownRight, MessageCircle } from "lucide-react";
 
 export default function ComunidadePage() {
   const supabase = createClientComponentClient();
@@ -14,10 +14,6 @@ export default function ComunidadePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Notificações
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   // Interação
   const [myLikes, setMyLikes] = useState<Set<string>>(new Set());
@@ -47,20 +43,7 @@ export default function ComunidadePage() {
   // 1. CARREGAMENTO
   useEffect(() => {
     fetchData();
-    
-    // ESCUTA EM TEMPO REAL (Para o sininho funcionar na hora)
-    const channel = supabase.channel('realtime_notifications')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
-        // Se a notificação for para mim, atualiza
-        if (currentUser && payload.new.user_id === currentUser.id) {
-            console.log("Nova notificação recebida!");
-            fetchNotifications(currentUser.id);
-        }
-    })
-    .subscribe();
-
-    return () => { supabase.removeChannel(channel); }
-  }, [currentUser?.id]);
+  }, []);
 
   async function fetchData() {
     try {
@@ -72,8 +55,6 @@ export default function ComunidadePage() {
         
         const { data: likesData } = await supabase.from("likes").select("post_id").eq("user_id", user.id);
         if (likesData) setMyLikes(new Set(likesData.map(l => l.post_id)));
-        
-        fetchNotifications(user.id);
       }
 
       const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url, coins, personal_coins, role");
@@ -90,22 +71,6 @@ export default function ComunidadePage() {
     } catch (error) { console.error(error); } finally { setLoading(false); }
   }
 
-  async function fetchNotifications(userId: string) {
-    const { data } = await supabase.from("notifications").select(`*, profiles:actor_id(full_name, avatar_url)`).eq("user_id", userId).order("created_at", { ascending: false }).limit(20);
-    if (data) {
-        setNotifications(data);
-        setUnreadCount(data.filter((n: any) => !n.read).length);
-    }
-  }
-
-  async function markNotificationsAsRead() {
-      if (unreadCount > 0) {
-          setUnreadCount(0);
-          const updated = notifications.map(n => ({ ...n, read: true }));
-          setNotifications(updated);
-          await supabase.from("notifications").update({ read: true }).eq("user_id", currentUser.id).eq("read", false);
-      }
-  }
 
   async function refreshFeed() {
     const { data } = await supabase.from("posts").select(`id, content, image_url, created_at, likes_count, user_id, profiles:posts_author_fkey (full_name, avatar_url, role)`).order("created_at", { ascending: false });
@@ -318,51 +283,10 @@ export default function ComunidadePage() {
   return (
     <div className="p-4 md:p-8 min-h-screen bg-[#000000] text-white font-sans pb-20 relative">
       
-      {/* HEADER E NOTIFICAÇÕES */}
-      <div className="flex justify-between items-start mb-8">
-        <div>
-            <h1 className="text-3xl font-extrabold italic tracking-wide">COMUNIDADE <span className="text-[#C9A66B]">PRO</span></h1>
-            <p className="text-gray-400 mt-2 text-sm">Ranking e Networking.</p>
-        </div>
-        <div className="relative">
-            <button 
-              onClick={() => { setShowNotifications(!showNotifications); markNotificationsAsRead(); }} 
-              className="relative bg-[#111] border border-[#333] p-3 rounded-full hover:bg-[#222] transition-colors"
-            >
-                <Bell size={20} className={unreadCount > 0 ? "text-[#C9A66B]" : "text-gray-400"} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold">
-                    {unreadCount}
-                  </span>
-                )}
-            </button>
-            {showNotifications && (
-                <div className="absolute right-0 top-12 w-72 bg-[#111] border border-[#222] rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                    <div className="p-3 border-b border-[#222] font-bold text-xs text-gray-400 uppercase">Notificações</div>
-                    <div className="max-h-60 overflow-y-auto">
-                        {notifications.length === 0 ? (
-                          <p className="p-4 text-center text-xs text-gray-600">Nenhuma notificação.</p>
-                        ) : (
-                          notifications.map(n => (
-                            <div key={n.id} className={`p-3 border-b border-[#222] flex gap-3 ${n.read ? "opacity-50" : "bg-[#1a1a1a]"}`}>
-                                <div className="w-8 h-8 rounded-full bg-[#222] overflow-hidden shrink-0 border border-[#333]">
-                                  {n.profiles?.avatar_url && (
-                                    <img src={n.profiles.avatar_url} className="w-full h-full object-cover" alt={n.profiles.full_name || "User"} />
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="text-xs text-gray-300">
-                                    <span className="font-bold text-[#C9A66B]">{n.profiles?.full_name}</span> {n.content}
-                                  </p>
-                                  <p className="text-[9px] text-gray-600 mt-1">{timeAgo(n.created_at)}</p>
-                                </div>
-                            </div>
-                          ))
-                        )}
-                    </div>
-                </div>
-            )}
-        </div>
+      {/* HEADER */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold italic tracking-wide">COMUNIDADE <span className="text-[#C9A66B]">PRO</span></h1>
+        <p className="text-gray-400 mt-2 text-sm">Ranking e Networking.</p>
       </div>
 
       <div className="flex w-full bg-[#111] p-1 rounded-xl mb-6 border border-[#222]">
