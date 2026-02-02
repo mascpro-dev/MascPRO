@@ -224,12 +224,14 @@ export default function AulaPlayerPage() {
   // --- NOTIFICAÇÕES ---
   const createNotification = async (targetUserId: string, type: string, content: string) => {
       if (!currentUser || targetUserId === currentUser.id) return; 
+      
+      // Aqui mandamos para a aula específica onde ocorreu a marcação
       await supabase.from("notifications").insert({
           user_id: targetUserId,
           actor_id: currentUser.id,
           type,
           content,
-          link: `/evolucao/${courseCode}`
+          link: `/evolucao/${courseCode}` 
       });
   };
 

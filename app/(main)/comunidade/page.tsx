@@ -149,15 +149,25 @@ export default function ComunidadePage() {
   };
 
   // --- AÇÕES ---
-  const createNotification = async (targetUserId: string, type: string, content: string) => {
+  const createNotification = async (targetUserId: string, type: string, content: string, extraId?: string) => {
       if (!currentUser || targetUserId === currentUser.id) return; 
+
+      // SE FOR COMENTÁRIO OU REPLY, manda pro post específico
+      // SE FOR LIKE, manda pro post
+      // No futuro, podemos fazer o site ler esse ID e rolar a tela, por enquanto ele leva pra página certa
+      let linkDestino = "/comunidade";
+      
+      // Se tiver extraId (ID do post), adiciona como query parameter
+      if (extraId) {
+          linkDestino = `/comunidade?post=${extraId}`;
+      }
       
       await supabase.from("notifications").insert({
           user_id: targetUserId,
           actor_id: currentUser.id,
           type,
           content,
-          link: "/comunidade" // Link para a página de comunidade
+          link: linkDestino
       });
   };
 
@@ -227,9 +237,9 @@ export default function ComunidadePage() {
         processMentions(textToSend);
         if (parentId) {
              const parentComment = commentsData[post.id]?.find(c => c.id === parentId);
-             if (parentComment) createNotification(parentComment.user_id, 'reply', 'respondeu seu comentário.');
+             if (parentComment) createNotification(parentComment.user_id, 'reply', 'respondeu seu comentário.', post.id);
         } else {
-             createNotification(post.user_id, 'comment', 'comentou no seu post.');
+             createNotification(post.user_id, 'comment', 'comentou no seu post.', post.id);
         }
         setCommentText(""); 
         setReplyText(""); 
@@ -256,7 +266,7 @@ export default function ComunidadePage() {
     const updatedPosts = posts.map(p => p.id === post.id ? { ...p, likes_count: isLiked ? Math.max(0, (p.likes_count || 0) - 1) : (p.likes_count || 0) + 1 } : p);
     setPosts(updatedPosts);
     if (isLiked) newSet.delete(post.id);
-    else { newSet.add(post.id); createNotification(post.user_id, 'like', 'curtiu seu post.'); }
+    else { newSet.add(post.id); createNotification(post.user_id, 'like', 'curtiu seu post.', post.id); }
     setMyLikes(newSet);
     await supabase.rpc('toggle_like', { target_post_id: post.id, target_user_id: currentUser.id });
   };
