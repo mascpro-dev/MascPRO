@@ -14,7 +14,7 @@ export default function AulaPlayerPage() {
 
   const playerInstance = useRef<any>(null);
   
-  // Dados Principais
+  // Dados
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [progressMap, setProgressMap] = useState<Record<string, any>>({}); 
@@ -42,7 +42,24 @@ export default function AulaPlayerPage() {
 
   const COINS_PER_LESSON = 10; 
 
-  // 1. CARREGAMENTO
+  // --- FUNÇÃO MÁGICA PARA LIMPAR O ID DO VÍDEO ---
+  const getCleanVideoId = (urlOrId: string) => {
+    if (!urlOrId) return null;
+    // 1. Remove espaços em branco antes e depois
+    let clean = urlOrId.trim();
+    
+    // 2. Se for uma URL completa, extrai só o ID
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = clean.match(regExp);
+    
+    if (match && match[2].length === 11) {
+        return match[2];
+    }
+    
+    // 3. Se não for URL, assume que já é o ID (mas limpo)
+    return clean;
+  };
+
   useEffect(() => {
     async function fetchInitialData() {
       try {
@@ -82,7 +99,6 @@ export default function AulaPlayerPage() {
     if (courseCode) fetchInitialData();
   }, [courseCode, supabase]);
 
-  // 2. DETALHES
   useEffect(() => {
     if (!currentLesson) return;
     setHasJumped(false); 
@@ -95,11 +111,9 @@ export default function AulaPlayerPage() {
         .from("lesson_comments")
         .select(`id, content, created_at, parent_id, user_id, profiles(full_name, avatar_url)`)
         .eq("lesson_id", currentLesson.id);
-      
       if (data) setComments(data);
   }
 
-  // ORDENAÇÃO INTELIGENTE
   const getSortedThreads = () => {
       const roots = comments.filter(c => !c.parent_id);
       const threadsWithActivity = roots.map(root => {
@@ -113,9 +127,14 @@ export default function AulaPlayerPage() {
   };
   const sortedThreads = getSortedThreads();
 
-  // 3. PLAYER
+  // PLAYER
   useEffect(() => {
-    if (!currentLesson || !currentLesson.video_id) return;
+    if (!currentLesson?.video_id) return;
+    
+    // USAMOS A FUNÇÃO DE LIMPEZA AQUI
+    const cleanId = getCleanVideoId(currentLesson.video_id);
+    if (!cleanId) return;
+
     const savedTime = progressMap[currentLesson.id]?.seconds_watched || 0;
 
     let player: any = null;
@@ -123,11 +142,25 @@ export default function AulaPlayerPage() {
 
     const loadPlayer = async () => {
         const Plyr = (await import("plyr")).default;
+        
+        // Configuramos o Plyr para usar o ID limpo
         player = new Plyr("#player-target", {
             autoplay: true,
             controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
             youtube: { noCookie: true, rel: 0, showinfo: 0, iv_load_policy: 3, modestbranding: 1 }
         });
+
+        // Forçamos a fonte do vídeo para garantir que o ID está correto
+        player.source = {
+            type: 'video',
+            sources: [
+                {
+                    src: cleanId,
+                    provider: 'youtube',
+                },
+            ],
+        };
+
         playerInstance.current = player;
 
         player.on('ready', () => {
@@ -190,7 +223,7 @@ export default function AulaPlayerPage() {
     }
   }
 
-  // --- MENÇÕES E COMENTÁRIOS ---
+  // MENÇÕES (Mesma lógica)
   const handleTyping = (text: string, target: 'comment' | 'reply') => {
       if (target === 'comment') setNewComment(text);
       else setReplyText(text);
@@ -224,14 +257,12 @@ export default function AulaPlayerPage() {
   // --- NOTIFICAÇÕES ---
   const createNotification = async (targetUserId: string, type: string, content: string) => {
       if (!currentUser || targetUserId === currentUser.id) return; 
-      
-      // Aqui mandamos para a aula específica onde ocorreu a marcação
       await supabase.from("notifications").insert({
           user_id: targetUserId,
           actor_id: currentUser.id,
           type,
           content,
-          link: `/evolucao/${courseCode}` 
+          link: `/evolucao/${courseCode}`
       });
   };
 
@@ -324,16 +355,12 @@ export default function AulaPlayerPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
           
-          {/* PLAYER (Z-INDEX 10) */}
+          {/* PLAYER */}
           <div className="aspect-video bg-black rounded-xl shadow-2xl shadow-black relative z-10">
-            {currentLesson?.video_id ? (
-                <div key={currentLesson.id} className="plyr__video-embed" id="player-target">
-                    <iframe src={`https://www.youtube.com/embed/${currentLesson.video_id}?origin=https://plyr.io&iv_load_policy=3&modestbranding=1&playsinline=1&showinfo=0&rel=0&enablejsapi=1`} allowFullScreen allow="autoplay"></iframe>
-                </div>
-            ) : <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">Carregando vídeo...</div>}
+              <div key={currentLesson?.id || 'loading'} className="plyr__video-embed w-full h-full" id="player-target"></div>
           </div>
 
-          {/* ÁREA DE COMENTÁRIOS (Z-INDEX 20 e sem OVERFLOW-HIDDEN) */}
+          {/* ÁREA DE COMENTÁRIOS */}
           <div className="bg-[#111] border border-[#222] rounded-lg relative z-20">
              <div className="flex border-b border-[#222]">
                 <button onClick={() => setActiveTab('info')} className={`px-4 py-3 text-xs font-bold uppercase transition-colors rounded-tl-lg ${activeTab === 'info' ? "bg-[#C9A66B] text-black" : "text-gray-400 hover:bg-[#1a1a1a]"}`}>Material</button>
