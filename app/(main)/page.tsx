@@ -7,8 +7,9 @@ import Link from "next/link";
 
 export default function HomePage() {
   const supabase = createClientComponentClient();
+  
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState("Membro MASC");
   
   // Saldos
   const [totalCoins, setTotalCoins] = useState(0); 
@@ -17,55 +18,81 @@ export default function HomePage() {
   const [storeScore, setStoreScore] = useState(0); 
 
   useEffect(() => {
+    let channel: any = null;
+
     async function init() {
+        console.log("🚀 Iniciando Dashboard...");
+        
         const { data: { user } } = await supabase.auth.getUser();
+        
         if (user) {
-            setUserId(user.id);
-            // Busca dados iniciais
-            fetchData(user.id);
+            console.log("👤 Usuário logado:", user.id);
+            await fetchData(user.id);
             
-            // CONECTA AO REALTIME (Para atualizar moedas ao vivo)
-            const channel = supabase.channel('home_coins_update')
+            // CONECTA AO REALTIME
+            console.log("🔌 Conectando ao Realtime para saldo...");
+            channel = supabase.channel('dashboard_realtime')
                 .on('postgres_changes', { 
                     event: 'UPDATE', 
                     schema: 'public', 
                     table: 'profiles',
                     filter: `id=eq.${user.id}` 
                 }, (payload) => {
-                    console.log("💰 Moedas atualizadas!", payload.new);
+                    console.log("💰 ATUALIZAÇÃO RECEBIDA:", payload.new);
                     updateStats(payload.new);
                 })
-                .subscribe();
-
-            return () => { supabase.removeChannel(channel); };
+                .subscribe((status) => {
+                    console.log("Status da conexão Realtime:", status);
+                });
         } else {
+            console.log("❌ Nenhum usuário logado.");
             setLoading(false);
         }
     }
+    
     init();
+
+    // Cleanup function
+    return () => {
+        if (channel) {
+            console.log("🧹 Limpando conexão Realtime...");
+            supabase.removeChannel(channel);
+        }
+    };
   }, []);
+
+  async function fetchData(uid: string) {
+      try {
+        const { data: profile, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", uid)
+            .single();
+
+        if (error) {
+            console.error("🚨 Erro ao buscar perfil:", error);
+            return;
+        }
+
+        if (profile) {
+            console.log("✅ Dados recebidos do banco:", profile);
+            setUserName(profile.full_name || "Membro MASC");
+            updateStats(profile);
+        } else {
+            console.warn("⚠️ Perfil não encontrado no banco.");
+        }
+      } catch (error) {
+        console.error("🚨 Erro crítico:", error);
+      } finally {
+        setLoading(false);
+      }
+  }
 
   function updateStats(data: any) {
       setTotalCoins(data.coins || 0);
       setPersonalScore(data.personal_coins || 0);
       setNetworkScore(data.network_coins || 0);
       setStoreScore(data.store_coins || 0);
-  }
-
-  async function fetchData(uid: string) {
-      try {
-        const { data: profile } = await supabase
-            .from("profiles")
-            .select("coins, personal_coins, network_coins, store_coins")
-            .eq("id", uid)
-            .single();
-
-        if (profile) updateStats(profile);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
   }
 
   if (loading) return (
@@ -79,13 +106,13 @@ export default function HomePage() {
       
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold italic tracking-wide">
-          Olá, <span className="text-[#C9A66B]">Membro MASC</span>
+          Olá, <span className="text-[#C9A66B]">{userName.split(' ')[0]}</span>
         </h1>
         <p className="text-gray-400 mt-2 text-sm">Seu progresso é recompensado.</p>
       </div>
 
       {/* CARD PRINCIPAL */}
-      <div className="bg-gradient-to-r from-[#1a1a1a] to-[#0a0a0a] border border-[#333] rounded-3xl p-8 mb-8 relative overflow-hidden group hover:border-[#C9A66B]/50 transition-colors">
+      <div className="bg-gradient-to-r from-[#1a1a1a] to-[#0a0a0a] border border-[#333] rounded-3xl p-8 mb-8 relative overflow-hidden group hover:border-[#C9A66B]/50 transition-colors shadow-2xl">
          <div className="relative z-10">
             <div className="flex items-center gap-2 mb-4 bg-[#222] w-fit px-3 py-1 rounded-full border border-[#333]">
                 <Trophy size={14} className="text-[#C9A66B]" />
@@ -104,15 +131,15 @@ export default function HomePage() {
 
       {/* DETALHES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-[#111] p-5 rounded-2xl border border-[#222]">
+        <div className="bg-[#111] p-5 rounded-2xl border border-[#222] hover:bg-[#161616] transition-colors">
             <p className="text-gray-500 text-xs font-bold uppercase mb-1">Mérito Pessoal</p>
             <p className="text-2xl font-bold text-white flex items-center gap-2"><TrendingUp size={18} className="text-blue-500"/> {personalScore}</p>
         </div>
-        <div className="bg-[#111] p-5 rounded-2xl border border-[#222]">
+        <div className="bg-[#111] p-5 rounded-2xl border border-[#222] hover:bg-[#161616] transition-colors">
             <p className="text-gray-500 text-xs font-bold uppercase mb-1">Rede</p>
             <p className="text-2xl font-bold text-white flex items-center gap-2"><Users size={18} className="text-purple-500"/> {networkScore}</p>
         </div>
-        <div className="bg-[#111] p-5 rounded-2xl border border-[#222]">
+        <div className="bg-[#111] p-5 rounded-2xl border border-[#222] hover:bg-[#161616] transition-colors">
             <p className="text-gray-500 text-xs font-bold uppercase mb-1">Cashback Loja</p>
             <p className="text-2xl font-bold text-white flex items-center gap-2"><ShoppingBag size={18} className="text-green-500"/> {storeScore}</p>
         </div>
@@ -120,7 +147,7 @@ export default function HomePage() {
       
       {/* Botões de Ação Rápida */}
       <div className="mt-8 grid grid-cols-2 gap-4">
-          <Link href="/evolucao" className="bg-[#C9A66B] text-black py-4 rounded-xl font-bold text-center hover:bg-[#b08d55] transition-colors">EVOLUÇÃO</Link>
+          <Link href="/evolucao" className="bg-[#C9A66B] text-black py-4 rounded-xl font-bold text-center hover:bg-[#b08d55] transition-colors shadow-lg shadow-[#C9A66B]/10">EVOLUÇÃO</Link>
           <Link href="/loja" className="bg-[#222] text-white py-4 rounded-xl font-bold text-center border border-[#333] hover:bg-[#333] transition-colors">LOJA</Link>
       </div>
 
