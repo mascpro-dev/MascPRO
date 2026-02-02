@@ -5,6 +5,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Trophy, PlayCircle, Download, Send, Lock, CheckCircle } from "lucide-react";
+import "plyr/dist/plyr.css"; 
 
 const getCleanVideoId = (url: string) => {
     if (!url) return "";
@@ -19,7 +20,7 @@ export default function AulaPlayerPage() {
   const supabase = createClientComponentClient();
   const params = useParams();
   const playerRef = useRef<any>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [lessons, setLessons] = useState<any[]>([]);
@@ -30,133 +31,123 @@ export default function AulaPlayerPage() {
   const [newComment, setNewComment] = useState("");
   const [savedTime, setSavedTime] = useState(0);
   const [progressMap, setProgressMap] = useState<Record<string, any>>({});
+  
+  // DIAGNÓSTICO
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+
+  const addLog = (msg: string) => setDebugLog(prev => [...prev.slice(-9), `${new Date().toLocaleTimeString()}: ${msg}`]);
 
   useEffect(() => { loadData(); }, []);
 
-  // Carregar detalhes da aula quando mudar
-  useEffect(() => {
-    if (currentLesson?.id) {
-      fetchLessonDetails(currentLesson.id);
-    }
-  }, [currentLesson?.id]);
-
-  // Carregar YouTube IFrame API e inicializar player
+  // --- PLAYER COM MEMÓRIA ---
   useEffect(() => {
     if (!currentLesson?.video_id) return;
-
-    // Carrega a API do YouTube se não estiver carregada
-    if (!window.YT) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-      
-      window.onYouTubeIframeAPIReady = () => {
-        setTimeout(() => initPlayer(), 200);
-      };
-    } else {
-      // API já carregada, inicializa o player
-      setTimeout(() => initPlayer(), 200);
-    }
-
-    return () => {
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch (e) {}
-      }
-    };
-  }, [currentLesson?.video_id, savedTime]);
-
-  // Inicializar Player
-  function initPlayer() {
-    if (!currentLesson?.video_id || !window.YT || !iframeRef.current) return;
-
-    const videoId = getCleanVideoId(currentLesson.video_id);
     
     if (playerRef.current) {
-      try {
-        playerRef.current.destroy();
-      } catch (e) {}
+        try { playerRef.current.destroy(); } catch(e) {}
+        playerRef.current = null;
     }
 
-    const startTime = savedTime > 5 ? Math.floor(savedTime) : 0;
+    const videoId = getCleanVideoId(currentLesson.video_id);
+    addLog(`🎬 Iniciando Player com ID: ${videoId}`);
 
-    playerRef.current = new window.YT.Player(iframeRef.current, {
-      videoId: videoId,
-      playerVars: {
-        autoplay: 0,
-        controls: 1,
-        modestbranding: 1,
-        rel: 0,
-        showinfo: 0,
-        start: startTime,
-      },
-      events: {
-        onReady: (event: any) => {
-          // Pula para o tempo salvo se necessário
-          if (savedTime > 5) {
-            setTimeout(() => {
-              try {
-                event.target.seekTo(savedTime, true);
-              } catch (e) {
-                console.warn("Erro ao pular para tempo:", e);
-              }
-            }, 500);
-          }
-        },
-        onStateChange: (event: any) => {
-          // Quando o vídeo termina (state 0 = ended)
-          if (event.data === window.YT.PlayerState.ENDED) {
-            markAsCompleted();
-          }
-        },
-      },
-    });
-  }
-
-  // Monitorar progresso
-  useEffect(() => {
-    if (!playerRef.current) return;
-
-    const progressInterval = setInterval(() => {
-      if (playerRef.current && playerRef.current.getCurrentTime) {
+    const initPlayer = async () => {
+        if (!containerRef.current) return;
         try {
-          const currentTime = playerRef.current.getCurrentTime();
-          const playerState = playerRef.current.getPlayerState();
-          
-          // Só salva se estiver reproduzindo e tiver mais de 5 segundos
-          if (playerState === window.YT.PlayerState.PLAYING && currentTime > 5) {
-            saveProgress(currentTime);
-          }
-        } catch (e) {
-          // Ignora erros silenciosamente
-        }
-      }
-    }, 10000);
+            const Plyr = (await import("plyr")).default;
+            const player = new Plyr(containerRef.current, {
+                youtube: { noCookie: true, rel: 0, showinfo: 0, modestbranding: 1 },
+                controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
+            });
 
-    return () => clearInterval(progressInterval);
-  }, [playerRef.current, currentLesson]);
+            player.source = { type: 'video', sources: [{ src: videoId, provider: 'youtube' }] };
+            
+            // Quando o player estiver pronto, pula para o tempo salvo
+            player.on('ready', () => {
+                if (savedTime > 5) {
+                    addLog(`⏩ Restaurando memória: ${Math.floor(savedTime)}s`);
+                    try {
+                        player.currentTime = savedTime;
+                    } catch (e) {
+                        addLog(`⚠️ Erro ao restaurar tempo: ${e}`);
+                    }
+                }
+            });
+
+            // Salvar progresso a cada 10 segundos
+            let lastSave = 0;
+            player.on('timeupdate', () => {
+                const now = Date.now();
+                if (now - lastSave > 10000 && player.currentTime > 5) {
+                    lastSave = now;
+                    saveProgress(player.currentTime);
+                }
+            });
+
+            // Marcar como concluída quando terminar
+            player.on('ended', () => {
+                addLog(`✅ Aula concluída!`);
+                markAsCompleted();
+            });
+
+            playerRef.current = player;
+            addLog(`✅ Player inicializado com sucesso`);
+        } catch (error: any) { 
+            addLog(`❌ Erro Player: ${error?.message || error}`); 
+        }
+    };
+
+    setTimeout(initPlayer, 500);
+    fetchLessonDetails(currentLesson.id);
+
+    return () => { if (playerRef.current) try { playerRef.current.destroy(); } catch(e) {} };
+  }, [currentLesson]);
 
   async function loadData() {
+    addLog("🔄 Iniciando carregamento de dados...");
     try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) { addLog("❌ Sem usuário logado"); return; }
 
-        const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-        if (profile) setUserCoins(profile.coins || (profile.personal_coins + profile.network_coins + profile.store_coins) || 0);
-
+        // 1. Busca Aulas
         const code = params?.code || 'MOD_VENDAS';
-        const { data: aulas } = await supabase
+        addLog(`🔍 Buscando curso: ${code}`);
+
+        // Tenta buscar SEM FILTRO primeiro para ver se tem algo
+        const { data: allLessons, error } = await supabase
             .from("lessons")
             .select("*")
-            .or(`course_code.eq.${code},course_code.eq.MOD_VENDAS`)
             .order("sequence_order", { ascending: true });
 
-        if (aulas?.length) {
-            const unicas = aulas.filter((v,i,a)=>a.findIndex(t=>(t.title===v.title))===i);
-            setLessons(unicas);
-            setCurrentLesson(unicas[0]);
+        if (error) {
+            addLog(`❌ Erro Supabase: ${error.message}`);
+        } else {
+            addLog(`✅ Total de aulas no banco: ${allLessons?.length || 0}`);
+            
+            // Filtra manualmente no front para garantir
+            const filtered = allLessons?.filter(l => 
+                l.course_code === code || 
+                l.course_code === 'MOD_VENDAS' ||
+                l.course_code?.toLowerCase().includes('vendas')
+            ) || [];
+
+            addLog(`✅ Aulas filtradas para este curso: ${filtered.length}`);
+
+            if (filtered.length > 0) {
+                // Remove duplicatas
+                const unicas = filtered.filter((v,i,a)=>a.findIndex(t=>(t.title===v.title))===i);
+                setLessons(unicas);
+                setCurrentLesson(unicas[0]);
+                addLog(`▶️ Aula selecionada: ${unicas[0].title}`);
+            } else {
+                addLog("⚠️ Nenhuma aula encontrada após filtro.");
+            }
+        }
+        
+        // Saldo
+        const { data: profile } = await supabase.from("profiles").select("coins, personal_coins, network_coins, store_coins").eq("id", user.id).single();
+        if (profile) {
+            setUserCoins(profile.coins || (profile.personal_coins + profile.network_coins + profile.store_coins) || 0);
         }
 
         // Carregar progresso de todas as aulas
@@ -171,8 +162,14 @@ export default function AulaPlayerPage() {
                 pMap[p.lesson_id] = p;
             });
             setProgressMap(pMap);
+            addLog(`📊 Progresso carregado: ${progressData.length} registros`);
         }
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+
+    } catch (e: any) { 
+        addLog(`🔥 Erro Crítico: ${e?.message || e}`); 
+    } finally { 
+        setLoading(false); 
+    }
   }
 
   async function fetchLessonDetails(lessonId: string) {
@@ -186,6 +183,7 @@ export default function AulaPlayerPage() {
         .order('created_at', { ascending: false });
       setComments(coms || []);
 
+      // Buscar progresso desta aula
       try {
           const { data: progress, error } = await supabase
             .from("lesson_progress")
@@ -196,7 +194,6 @@ export default function AulaPlayerPage() {
           
           if (!error && progress) {
               setSavedTime(progress.stopped_at || 0);
-              // Atualiza o mapa de progresso
               setProgressMap(prev => ({
                   ...prev,
                   [lessonId]: progress
@@ -230,11 +227,10 @@ export default function AulaPlayerPage() {
               user_id: user.id,
               lesson_id: currentLesson.id,
               completed: true,
-              stopped_at: 0, // Reseta quando completa
+              stopped_at: 0,
               updated_at: new Date().toISOString()
           }, { onConflict: 'user_id, lesson_id' });
           
-          // Atualiza o mapa local
           setProgressMap(prev => ({
               ...prev,
               [currentLesson.id]: { ...prev[currentLesson.id], completed: true }
@@ -263,10 +259,20 @@ export default function AulaPlayerPage() {
       return !previousProgress?.completed;
   }
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[#C9A66B]"><Loader2 className="animate-spin mr-2"/> Carregando...</div>;
+  if (loading) return <div className="min-h-screen bg-black flex flex-col items-center justify-center text-[#C9A66B]">
+      <Loader2 className="animate-spin mb-4" size={40}/> 
+      <h2 className="text-xl font-bold mb-2">Diagnosticando Sistema...</h2>
+      <div className="mt-4 text-xs text-gray-500 font-mono text-left max-w-md bg-[#111] p-4 rounded border border-[#333] max-h-[400px] overflow-y-auto">
+          {debugLog.length === 0 ? <div className="text-gray-600">Aguardando logs...</div> : debugLog.map((log, i) => <div key={i} className="mb-1">{log}</div>)}
+      </div>
+  </div>;
 
   return (
     <div className="min-h-screen bg-black text-white p-4 md:p-8 pb-20">
+      <style jsx global>{`
+        :root { --plyr-color-main: #C9A66B; }
+        .plyr--video { border-radius: 12px; overflow: hidden; border: 1px solid #333; }
+      `}</style>
       <div className="flex justify-between items-center mb-6">
         <Link href="/evolucao" className="flex items-center gap-2 text-gray-400 hover:text-[#C9A66B]">
             <ArrowLeft size={20} /> <span className="font-bold text-sm">VOLTAR</span>
@@ -280,14 +286,7 @@ export default function AulaPlayerPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
             <div className="aspect-video w-full bg-black rounded-xl overflow-hidden border border-[#333] shadow-2xl relative z-10">
-                <iframe
-                    ref={iframeRef}
-                    className="w-full h-full"
-                    src=""
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                ></iframe>
+                <div ref={containerRef} className="w-full h-full"></div>
             </div>
 
             <div className="bg-[#111] border border-[#222] rounded-xl overflow-hidden">
@@ -372,12 +371,4 @@ export default function AulaPlayerPage() {
       </div>
     </div>
   );
-}
-
-// Declaração global para TypeScript
-declare global {
-  interface Window {
-    YT: any;
-    onYouTubeIframeAPIReady: () => void;
-  }
 }
