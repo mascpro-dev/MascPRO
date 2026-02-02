@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Link from "next/link";
-import { Trophy, PlayCircle, Loader2 } from "lucide-react";
+import { Trophy, PlayCircle, Loader2, Lock } from "lucide-react";
 
 export default function EvolucaoPage() {
   const supabase = createClientComponentClient();
@@ -18,9 +18,11 @@ export default function EvolucaoPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Busca Saldo
       const { data: profile } = await supabase.from("profiles").select("personal_coins").eq("id", user.id).single();
       if (profile) setMeritCoins(profile.personal_coins || 0);
 
+      // Busca Módulos na Ordem Certa
       const { data: cursos } = await supabase.from("courses").select("*").order("sequence_order", { ascending: true });
       setModules(cursos || []);
     } catch (e) { console.error(e); } finally { setLoading(false); }
@@ -34,7 +36,7 @@ export default function EvolucaoPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white uppercase tracking-wider">EVOLUÇÃO <span className="text-[#C9A66B]">PRO</span></h1>
-          <p className="text-gray-400 text-sm">Trilhas de especialização técnica.</p>
+          <p className="text-gray-400 text-sm">Sua trilha de especialização.</p>
         </div>
         <div className="bg-[#111] border border-[#333] px-6 py-3 rounded-xl flex flex-col items-end">
             <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">MÉRITO PESSOAL</span>
@@ -45,41 +47,79 @@ export default function EvolucaoPage() {
         </div>
       </div>
 
-      {/* GRID NETFLIX (VERTICAL / POSTER) */}
+      {/* GRID DE MÓDULOS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {modules.length === 0 && <p className="col-span-full text-gray-500 text-center py-10">Nenhum módulo encontrado.</p>}
           
-          {modules.map((mod) => (
-            <Link key={mod.id} href={`/evolucao/${mod.code || mod.slug}`} className="block group">
-                {/* ASPECT RATIO VERTICAL (POSTER) */}
-                <div className="aspect-[9/16] bg-[#111] border border-[#222] rounded-xl overflow-hidden hover:border-[#C9A66B] transition-all relative shadow-lg group-hover:shadow-[#C9A66B]/20 group-hover:-translate-y-1 duration-300">
-                    
-                    {/* Imagem de Fundo Full */}
-                    {mod.image_url ? (
-                        <img src={mod.image_url} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity duration-500" />
-                    ) : (
-                        <div className="absolute inset-0 bg-gradient-to-b from-gray-800 to-black opacity-50"></div>
-                    )}
-                    
-                    {/* Gradiente para Texto (Vignette) */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90"></div>
+          {modules.map((mod, index) => {
+            // LÓGICA DO CADEADO:
+            // Por enquanto, só o índice 0 (Primeiro) é desbloqueado.
+            // Futuramente, trocaremos isso por: !completedModules.includes(id_anterior)
+            const isFirst = index === 0;
+            const isLocked = !isFirst; 
 
-                    {/* Conteúdo */}
-                    <div className="absolute inset-0 p-4 flex flex-col justify-end z-10">
-                        <span className="bg-[#C9A66B] text-black px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider w-fit mb-2">
-                            {mod.sequence_order ? `Módulo 0${mod.sequence_order}` : 'Extra'}
-                        </span>
+            return (
+                <Link 
+                    key={mod.id} 
+                    href={isLocked ? "#" : `/evolucao/${mod.code || mod.slug}`} 
+                    className={`block group relative ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    onClick={(e) => {
+                        if (isLocked) {
+                            e.preventDefault();
+                        }
+                    }}
+                >
+                    {/* ASPECT RATIO VERTICAL (POSTER) */}
+                    <div className={`aspect-[9/16] bg-[#111] border border-[#222] rounded-xl overflow-hidden transition-all duration-300 relative shadow-lg
+                        ${isLocked ? 'grayscale opacity-60 border-transparent' : 'hover:border-[#C9A66B] hover:shadow-[#C9A66B]/20 hover:-translate-y-1'}
+                    `}>
                         
-                        <h3 className="text-lg font-bold text-white leading-tight mb-1 group-hover:text-[#C9A66B] transition-colors">{mod.title}</h3>
-                        <p className="text-gray-400 text-[10px] line-clamp-2 mb-3">{mod.description}</p>
+                        {/* Imagem */}
+                        {mod.image_url ? (
+                            <img src={mod.image_url} className="absolute inset-0 w-full h-full object-cover" />
+                        ) : (
+                            <div className="absolute inset-0 bg-gradient-to-b from-gray-800 to-black"></div>
+                        )}
                         
-                        <div className="flex items-center gap-2 text-xs font-bold text-white/80 border-t border-white/10 pt-3 mt-1">
-                             <PlayCircle size={14} className="text-[#C9A66B]" /> Assistir Agora
+                        {/* Overlay Escuro */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-90"></div>
+
+                        {/* Ícone de Cadeado se estiver bloqueado */}
+                        {isLocked && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px] z-20">
+                                <div className="bg-black/50 p-4 rounded-full border border-white/10">
+                                    <Lock size={24} className="text-gray-400" />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Conteúdo */}
+                        <div className="absolute inset-0 p-4 flex flex-col justify-end z-10">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider w-fit mb-2
+                                ${isLocked ? 'bg-gray-700 text-gray-400' : 'bg-[#C9A66B] text-black'}
+                            `}>
+                                {mod.sequence_order ? `Módulo ${String(mod.sequence_order).padStart(2, '0')}` : 'Extra'}
+                            </span>
+                            
+                            <h3 className={`text-lg font-bold leading-tight mb-1 ${isLocked ? 'text-gray-400' : 'text-white group-hover:text-[#C9A66B]'} transition-colors`}>
+                                {mod.title}
+                            </h3>
+                            
+                            {/* Botão / Status */}
+                            <div className={`flex items-center gap-2 text-xs font-bold border-t pt-3 mt-1
+                                ${isLocked ? 'border-gray-700 text-gray-500' : 'border-white/10 text-white/80'}
+                            `}>
+                                 {isLocked ? (
+                                    <span>Bloqueado</span>
+                                 ) : (
+                                    <> <PlayCircle size={14} className="text-[#C9A66B]" /> Assistir </>
+                                 )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            </Link>
-          ))}
+                </Link>
+            );
+          })}
       </div>
     </div>
   );
