@@ -3,159 +3,88 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Link from "next/link";
-import { Zap, Trophy, ImageIcon, Lock } from "lucide-react";
+import { Trophy, PlayCircle, CheckCircle, Lock, Loader2 } from "lucide-react";
 
 export default function EvolucaoPage() {
   const supabase = createClientComponentClient();
-  const [courses, setCourses] = useState<any[]>([]);
-  const [totalBalance, setTotalBalance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [personalCoins, setPersonalCoins] = useState(0); // Este será o 1052
+  const [modules, setModules] = useState<any[]>([]);
 
   useEffect(() => {
-    async function fetchData() {
+    async function loadData() {
       try {
-        // 1. Saldo
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profile } = await supabase
+        if (!user) return;
+
+        // 1. BUSCAR O SALDO CORRETO (1052)
+        // Buscamos direto do perfil, sem somar histórico antigo
+        const { data: profile } = await supabase
             .from("profiles")
-            .select("*")
+            .select("personal_coins")
             .eq("id", user.id)
             .single();
 
-          if (profile) {
-            setTotalBalance((profile.coins || 0) + (profile.personal_coins || 0));
-          }
+        if (profile) {
+            setPersonalCoins(profile.personal_coins || 0);
         }
 
-        // 2. Cursos (Ordenados por data)
-        const { data: coursesData } = await supabase
-          .from("course") 
-          .select("*")
-          .order("created_at", { ascending: true });
+        // 2. BUSCAR OS MÓDULOS (Cursos)
+        // Usa a view 'modules' ou a tabela 'courses' dependendo do que está ativo
+        // Fallback seguro para garantir que a lista carregue
+        const { data: cursos } = await supabase
+            .from("courses") // Tenta tabela nova
+            .select("*")
+            .order("sequence_order", { ascending: true });
+            
+        setModules(cursos || []);
 
-        setCourses(coursesData || []);
-
-      } catch (e) {
-        console.error("Erro:", e);
+      } catch (error) {
+        console.error("Erro ao carregar evolução:", error);
       } finally {
         setLoading(false);
       }
     }
-    fetchData();
-  }, [supabase]);
 
-  // Função para lidar com o clique nos cursos bloqueados
-  const handleLockedClick = (e: React.MouseEvent) => {
-    e.preventDefault(); // Impede a navegação
-    alert("🚧 Em breve teremos este curso liberado!");
-  };
+    loadData();
+  }, []);
+
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[#C9A66B]"><Loader2 className="animate-spin mr-2"/> Carregando Evolução...</div>;
 
   return (
-    <div className="p-6 md:p-10 min-h-screen bg-[#000000] text-white font-sans">
-      
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
+    <div className="min-h-screen bg-black text-white p-6 pb-24">
+      {/* CABEÇALHO COM O SALDO CORRETO */}
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-extrabold italic tracking-wide">
-            EVOLUÇÃO <span className="text-[#C9A66B]">PRO</span>
-          </h1>
-          <p className="text-gray-400 mt-2 text-sm">
-            Invista seus PROs para desbloquear conhecimento.
-          </p>
+          <h1 className="text-2xl font-bold text-white">Minha Jornada</h1>
+          <p className="text-gray-400 text-sm">Seu progresso pessoal</p>
         </div>
-
-        {/* Card Saldo */}
-        <div className="border border-[#C9A66B]/30 bg-black rounded-xl px-6 py-3 flex items-center gap-4 min-w-[280px]">
-           <div className="flex flex-col">
-              <span className="text-[10px] text-[#C9A66B] font-bold tracking-widest uppercase mb-1">Seu Saldo</span>
-              <div className="flex items-center gap-2">
-                <Trophy className="w-6 h-6 text-white" />
-                <span className="text-2xl font-bold text-white">
-                  {loading ? "..." : `${totalBalance} PRO`}
-                </span>
-              </div>
-           </div>
+        <div className="bg-[#C9A66B]/10 border border-[#C9A66B] px-4 py-2 rounded-full flex items-center gap-2">
+            <Trophy size={18} className="text-[#C9A66B]" />
+            {/* AQUI VAI APARECER O 1052 */}
+            <span className="font-bold text-[#C9A66B] text-lg">{personalCoins} PRO</span>
         </div>
       </div>
 
-      {/* Grid de Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        
-        {!loading && courses.length === 0 && (
-            <div className="col-span-3 text-center py-10 text-gray-500 border border-gray-800 rounded-lg">
-                Nenhum curso encontrado.
-            </div>
-        )}
-
-        {courses.map((c) => {
-          // Lógica de Bloqueio: Só libera se o código for MOD_VENDAS
-          const isUnlocked = c.code === 'MOD_VENDAS';
-
-          return (
-            <Link 
-              href={isUnlocked ? `/evolucao/${c.code}` : '#'} 
-              key={c.id} 
-              onClick={!isUnlocked ? handleLockedClick : undefined}
-              className={`block group relative ${!isUnlocked ? 'cursor-not-allowed' : ''}`}
-            >
-              <div className={`relative h-[320px] rounded-2xl overflow-hidden border transition-all duration-300 
-                ${isUnlocked 
-                  ? 'border-[#1F2937] hover:border-[#C9A66B]/50 hover:shadow-lg hover:shadow-[#C9A66B]/10' 
-                  : 'border-[#1F2937] opacity-60 grayscale-[0.8] hover:grayscale-0'
-                }`}
-              >
-                
-                <div className="absolute inset-0 bg-gradient-to-b from-[#111827] to-[#050505] z-0" />
-
-                {/* Etiqueta Superior */}
-                <div className="absolute top-6 left-6 z-10">
-                  <span className={`text-[10px] font-bold px-3 py-1.5 rounded-md uppercase tracking-wide
-                    ${isUnlocked ? 'bg-[#D1C4A9] text-black' : 'bg-gray-800 text-gray-400'}`}>
-                    {c.code && c.code.includes('MOD_') ? `MÓDULO ${c.code.replace('MOD_', '')}` : 'CURSO'}
-                  </span>
+      {/* LISTA DE MÓDULOS */}
+      <div className="space-y-4">
+          {modules.length === 0 && <p className="text-gray-500 text-center py-10">Nenhum módulo encontrado.</p>}
+          
+          {modules.map((mod) => (
+            <Link key={mod.id} href={`/evolucao/${mod.code || mod.slug}`} className="block group">
+                <div className="bg-[#111] border border-[#222] rounded-xl overflow-hidden hover:border-[#C9A66B] transition-colors relative">
+                    {/* Imagem de Fundo (Opcional) ou Gradiente */}
+                    <div className="h-32 bg-gradient-to-r from-gray-900 to-black p-6 flex flex-col justify-center relative">
+                        {mod.image_url && <img src={mod.image_url} className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-40 transition-opacity" />}
+                        <div className="relative z-10">
+                            <h3 className="text-xl font-bold text-white mb-1">{mod.title}</h3>
+                            <p className="text-gray-400 text-xs line-clamp-2 max-w-[80%]">{mod.description}</p>
+                        </div>
+                        <PlayCircle className="absolute right-6 top-1/2 -translate-y-1/2 text-[#C9A66B] opacity-80 group-hover:scale-110 transition-transform" size={40} />
+                    </div>
                 </div>
-
-                {/* Ícone Central */}
-                <div className="absolute inset-0 flex items-center justify-center z-10 opacity-10 group-hover:opacity-20 transition-opacity">
-                  {isUnlocked ? (
-                    <ImageIcon className="w-24 h-24 text-white" />
-                  ) : (
-                    <Lock className="w-24 h-24 text-gray-500" />
-                  )}
-                </div>
-
-                {/* Rodapé do Card */}
-                <div className="absolute bottom-0 inset-x-0 p-6 z-10">
-                  
-                  <h3 className="text-xl font-bold text-white leading-tight">
-                    {c.title}
-                  </h3>
-                  
-                  {/* Autor (Descrição) */}
-                  <p className="text-sm text-gray-400 font-medium mt-1 mb-3 italic">
-                    {c.description || 'por Marcelo Conelheiros'}
-                  </p>
-
-                  <div className="flex items-center gap-2 text-white/90 text-sm font-medium">
-                    {isUnlocked ? (
-                      <>
-                        <Zap className="w-4 h-4 text-[#C9A66B] fill-[#C9A66B]" />
-                        <span>Ganhe {c.reward_amount || 50} PRO</span>
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-4 h-4 text-gray-500" />
-                        <span className="text-gray-500">Em breve</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-              </div>
             </Link>
-          );
-        })}
+          ))}
       </div>
     </div>
   );
