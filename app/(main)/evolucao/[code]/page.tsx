@@ -64,17 +64,39 @@ export default function AulaPlayerPage() {
     async function fetchInitialData() {
       try {
         setLoading(true);
+        console.log("🔍 Buscando aulas para o curso:", courseCode);
+        
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          console.error("❌ Usuário não autenticado");
+          return;
+        }
 
         setCurrentUser({ id: user.id });
 
-        const [profileRes, lessonsRes, progressRes, usersRes] = await Promise.all([
+        const [profileRes, progressRes, usersRes] = await Promise.all([
             supabase.from("profiles").select("coins").eq("id", user.id).single(),
-            supabase.from("lessons").select("*").ilike("course_code", courseCode).order("sequence_order", { ascending: true }),
             supabase.from("lesson_progress").select("lesson_id, completed, seconds_watched").eq("user_id", user.id),
             supabase.from("profiles").select("id, full_name, avatar_url") 
         ]);
+
+        // Busca aulas com fallback: primeiro tenta exato, depois case-insensitive
+        let lessonsRes = await supabase.from("lessons").select("*").eq("course_code", courseCode).order("sequence_order", { ascending: true });
+        
+        if (!lessonsRes.data || lessonsRes.data.length === 0) {
+          console.log("⚠️ Tentando busca case-insensitive...");
+          lessonsRes = await supabase.from("lessons").select("*").ilike("course_code", courseCode).order("sequence_order", { ascending: true });
+        }
+
+        console.log("📚 Resultado da busca de aulas:", lessonsRes);
+        console.log("🔍 Curso buscado:", courseCode);
+        
+        if (lessonsRes.error) {
+          console.error("❌ Erro ao buscar aulas:", lessonsRes.error);
+          // Tenta busca alternativa sem filtro de curso para debug
+          const { data: allLessons } = await supabase.from("lessons").select("*").limit(5);
+          console.log("📋 Primeiras 5 aulas do banco (para debug):", allLessons);
+        }
 
         if (profileRes.data) setUserCoins(profileRes.data.coins || 0);
         if (usersRes.data) setAllUsers(usersRes.data);
@@ -86,12 +108,17 @@ export default function AulaPlayerPage() {
         }
 
         if (lessonsRes.data && lessonsRes.data.length > 0) {
+            console.log("✅ Aulas encontradas:", lessonsRes.data.length);
             setLessons(lessonsRes.data);
             const nextToWatch = lessonsRes.data.find((l: any) => !pMap[l.id]?.completed) || lessonsRes.data[0];
             setCurrentLesson(nextToWatch);
+        } else {
+            console.warn("⚠️ Nenhuma aula encontrada para o curso:", courseCode);
+            setLessons([]);
+            setCurrentLesson(null);
         }
       } catch (err) {
-        console.error("Erro carregamento:", err);
+        console.error("❌ Erro carregamento:", err);
       } finally {
         setLoading(false);
       }
@@ -334,6 +361,21 @@ export default function AulaPlayerPage() {
   };
 
   if (loading) return <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center text-white"><Loader2 className="w-8 h-8 animate-spin text-[#C9A66B]" /></div>;
+
+  if (!currentLesson && lessons.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] text-white p-4 md:p-8 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2">Nenhuma aula encontrada</h2>
+          <p className="text-gray-400 mb-4">Não há aulas disponíveis para este curso.</p>
+          <Link href="/evolucao" className="inline-flex items-center gap-2 text-[#C9A66B] hover:text-[#b08d55] transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Voltar para Evolução
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white p-4 md:p-8 pb-20">
