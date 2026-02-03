@@ -1,16 +1,17 @@
 "use client";
 
+// OTIMIZAÇÃO VERCEL
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Download, Loader2, Play, CheckCircle, Lock, ListVideo, Send, MessageSquare, User, Info, HelpCircle, FileText } from "lucide-react";
+import { ArrowLeft, Download, Loader2, Play, CheckCircle, Lock, ListVideo, Send, MessageSquare, User, Info, HelpCircle, FileText, Clock } from "lucide-react";
 import Link from "next/link";
 import Script from "next/script";
 
-// Tipagem para o YouTube API
+// Tipagem global do YouTube
 declare global {
   interface Window {
     onYouTubeIframeAPIReady: () => void;
@@ -29,17 +30,17 @@ export default function PlayerPage() {
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   
-  // PLAYER
+  // PLAYER & ESTADOS
   const [isPlaying, setIsPlaying] = useState(false);
-  const playerRef = useRef<any>(null); // Guarda a instância do player
+  const playerRef = useRef<any>(null); // Referência interna para o script do YouTube
 
-  // ABAS & COMENTÁRIOS
+  // INTERFACE
   const [activeTab, setActiveTab] = useState<"sobre" | "duvidas" | "material">("sobre");
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
   
-  // MENÇÕES (@)
+  // MENÇÕES
   const [allUsers, setAllUsers] = useState<any[]>([]); 
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
@@ -52,7 +53,7 @@ export default function PlayerPage() {
         const codeFromUrl = params?.code as string; 
         if (!codeFromUrl) return;
 
-        // A. Curso
+        // Curso
         const { data: courseData, error: courseError } = await supabase
             .from("courses")
             .select("*")
@@ -62,14 +63,14 @@ export default function PlayerPage() {
         if (courseError || !courseData) throw new Error("Curso não encontrado.");
         setCourse(courseData);
 
-        // B. Aulas
+        // Aulas
         const { data: lessonsData } = await supabase
             .from("lessons")
             .select("*")
             .eq("course_code", courseData.code)
             .order("sequence_order", { ascending: true });
 
-        // C. Progresso
+        // Progresso
         const { data: { session } } = await supabase.auth.getSession();
         const completedSet = new Set<string>();
         if (session) {
@@ -81,18 +82,15 @@ export default function PlayerPage() {
         }
         setCompletedLessons(completedSet);
 
-        // Aula Inicial
+        // Define Aula Atual
         if (lessonsData && lessonsData.length > 0) {
             setLessons(lessonsData);
             const firstUnwatched = lessonsData.find((l: any) => !completedSet.has(l.id));
             setCurrentLesson(firstUnwatched || lessonsData[0]);
         }
 
-        // D. Carregar Usuários para o @
-        const { data: usersData } = await supabase
-            .from("profiles")
-            .select("id, full_name, avatar_url")
-            .limit(100); 
+        // Carrega Usuários para o @
+        const { data: usersData } = await supabase.from("profiles").select("id, full_name, avatar_url").limit(200); 
         setAllUsers(usersData || []);
 
       } catch (err: any) {
@@ -104,15 +102,14 @@ export default function PlayerPage() {
     if (params?.code) loadContent();
   }, [params, supabase]);
 
-  // 2. CARREGAR COMENTÁRIOS AO MUDAR AULA
+  // 2. RESETAR AO MUDAR DE AULA
   useEffect(() => {
     if (!currentLesson?.id) return;
-    
-    // Reseta Player e Abas
-    setIsPlaying(false);
-    playerRef.current = null; // Limpa a referência do player antigo
+    setIsPlaying(false); // Volta a capa
     setActiveTab("sobre");
+    playerRef.current = null; // Limpa referência do player anterior
     
+    // Carrega comentários
     async function loadComments() {
         const { data } = await supabase
             .from("lesson_comments")
@@ -125,37 +122,25 @@ export default function PlayerPage() {
   }, [currentLesson, supabase]);
 
 
-  // 3. INICIALIZAR PLAYER DO YOUTUBE (Quando clica na capa)
+  // 3. ATIVAR AUTOMACÃO DO YOUTUBE (Só depois que o usuário der play)
   useEffect(() => {
     if (isPlaying && currentLesson?.video_id && window.YT) {
-        // Destruir player anterior se existir
-        if (playerRef.current) {
+        // Aguarda o iframe renderizar para conectar o "detector de fim"
+        setTimeout(() => {
             try {
-                playerRef.current.destroy();
+                // Tenta conectar ao iframe existente
+                playerRef.current = new window.YT.Player('active-iframe', {
+                    events: {
+                        'onStateChange': onPlayerStateChange
+                    }
+                });
             } catch (e) {
-                console.error("Erro ao destruir player:", e);
+                console.log("Erro ao conectar API (Vídeo ainda toca normal):", e);
             }
-        }
-
-        // Cria o player na div com id="youtube-player"
-        playerRef.current = new window.YT.Player('youtube-player', {
-            videoId: currentLesson.video_id,
-            height: '100%',
-            width: '100%',
-            playerVars: {
-                autoplay: 1,
-                controls: 1, // Mostra volume e tela cheia
-                modestbranding: 1,
-                rel: 0,
-                fs: 1 // Fullscreen permitido
-            },
-            events: {
-                'onStateChange': onPlayerStateChange
-            }
-        });
+        }, 1000);
     }
 
-    // Cleanup ao desmontar ou mudar de aula
+    // Cleanup
     return () => {
         if (playerRef.current) {
             try {
@@ -167,49 +152,42 @@ export default function PlayerPage() {
     };
   }, [isPlaying, currentLesson?.video_id]);
 
-  // LÓGICA DE AUTO-COMPLETE (Quando o vídeo acaba)
   const onPlayerStateChange = async (event: any) => {
-    // Estado 0 = ENDED (Terminou)
+    // 0 = ENDED (Acabou o vídeo)
     if (event.data === 0) {
-        console.log("🎬 Vídeo terminou! Concluindo aula...");
-        await completeLessonAndAdvance();
-    }
-  };
+        console.log("🎬 Vídeo acabou. Concluindo...");
+        
+        // Marca Verde
+        const newSet = new Set(completedLessons);
+        newSet.add(currentLesson.id);
+        setCompletedLessons(newSet);
 
-  const completeLessonAndAdvance = async () => {
-    if (!currentLesson) return;
-
-    // 1. Atualiza visualmente (Verde)
-    const newSet = new Set(completedLessons);
-    newSet.add(currentLesson.id);
-    setCompletedLessons(newSet);
-
-    // 2. Salva no Banco
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-        await supabase.from("lesson_progress").upsert({
-            user_id: user.id,
-            lesson_id: currentLesson.id
-        }, { onConflict: 'user_id, lesson_id' });
-    }
-
-    // 3. Tenta ir para a próxima aula (Delay pequeno para o usuário entender o que houve)
-    setTimeout(() => {
-        const currentIndex = lessons.findIndex(l => l.id === currentLesson.id);
-        if (currentIndex < lessons.length - 1) {
-            setCurrentLesson(lessons[currentIndex + 1]);
+        // Salva
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase.from("lesson_progress").upsert({
+                user_id: user.id,
+                lesson_id: currentLesson.id
+            }, { onConflict: 'user_id, lesson_id' });
         }
-    }, 1500); // 1.5 segundos de espera
+
+        // Próxima aula (3s delay)
+        setTimeout(() => {
+            const currentIndex = lessons.findIndex(l => l.id === currentLesson.id);
+            if (currentIndex < lessons.length - 1) {
+                setCurrentLesson(lessons[currentIndex + 1]);
+            }
+        }, 3000);
+    }
   };
 
 
-  // --- MENÇÃO (@) ---
+  // --- LÓGICA DE COMENTÁRIOS E MENÇÕES ---
   const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     setNewComment(text);
     const words = text.split(/\s+/);
     const lastWord = words[words.length - 1];
-
     if (lastWord.startsWith("@")) {
         setShowMentions(true);
         setMentionQuery(lastWord.substring(1).toLowerCase());
@@ -226,11 +204,9 @@ export default function PlayerPage() {
     setShowMentions(false);
   };
 
-  // --- ENVIAR COMENTÁRIO ---
   const handleSendComment = async () => {
     if (!newComment.trim() || !currentLesson) return;
     setSendingComment(true);
-    
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
         const { error } = await supabase.from("lesson_comments").insert({
@@ -238,28 +214,14 @@ export default function PlayerPage() {
             user_id: user.id,
             content: newComment
         });
-
         if (!error) {
-            // Notificar mencionados
             allUsers.forEach(async (mentionedUser) => {
                 if (newComment.includes(`@${mentionedUser.full_name}`) && mentionedUser.id !== user.id) {
-                    await supabase.from("notifications").insert({
-                        user_id: mentionedUser.id,
-                        actor_id: user.id,
-                        content: `te mencionou na aula "${currentLesson.title}"`,
-                        link_url: `/evolucao/${course.code}`,
-                        is_read: false
-                    });
+                    await supabase.from("notifications").insert({ user_id: mentionedUser.id, actor_id: user.id, content: `te marcou na aula "${currentLesson.title}"`, link_url: `/evolucao/${course.code}`, is_read: false });
                 }
             });
-
-            setNewComment("");
-            setShowMentions(false);
-            const { data } = await supabase
-                .from("lesson_comments")
-                .select("*, profiles:user_id(full_name, avatar_url)")
-                .eq("lesson_id", currentLesson.id)
-                .order("created_at", { ascending: false });
+            setNewComment(""); setShowMentions(false);
+            const { data } = await supabase.from("lesson_comments").select("*, profiles:user_id(full_name, avatar_url)").eq("lesson_id", currentLesson.id).order("created_at", { ascending: false });
             setComments(data || []);
         }
     }
@@ -272,7 +234,7 @@ export default function PlayerPage() {
   return (
     <div className="min-h-screen bg-black text-white flex flex-col h-screen overflow-hidden">
       
-      {/* SCRIPT OBRIGATÓRIO PARA DETECTAR O FIM DO VÍDEO */}
+      {/* Script OBRIGATÓRIO para a detecção de FIM DE VÍDEO */}
       <Script src="https://www.youtube.com/iframe_api" strategy="afterInteractive" />
 
       {/* HEADER */}
@@ -288,17 +250,25 @@ export default function PlayerPage() {
 
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
           
-          {/* ÁREA ESQUERDA */}
+          {/* LADO ESQUERDO (Vídeo + Abas) */}
           <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-black scrollbar-hide">
               <div className="max-w-4xl mx-auto pb-20">
                 
-                {/* 1. PLAYER INTELIGENTE */}
-                <div className="aspect-video bg-[#050505] rounded-xl overflow-hidden border border-[#333] shadow-2xl mb-6 relative group">
+                {/* 1. PLAYER PREMIUM (Capa -> Iframe Real) */}
+                <div className="aspect-video w-full bg-[#050505] rounded-xl overflow-hidden border border-[#333] shadow-2xl mb-6 relative group">
                     {currentLesson?.video_id ? (
                         <>
                             {isPlaying ? (
-                                // DIV ONDE O YOUTUBE VAI INJETAR O IFRAME
-                                <div id="youtube-player" className="w-full h-full z-20 relative"></div>
+                                // IFRAME REAL DO YOUTUBE (Garante controles e fullscreen)
+                                // ID 'active-iframe' é usado pelo script para detectar o fim
+                                <iframe 
+                                    id="active-iframe"
+                                    src={`https://www.youtube.com/embed/${currentLesson.video_id}?autoplay=1&controls=1&enablejsapi=1&rel=0&showinfo=0&fs=1&modestbranding=1`} 
+                                    title={currentLesson.title}
+                                    className="absolute inset-0 w-full h-full z-20"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
+                                    allowFullScreen
+                                ></iframe>
                             ) : (
                                 // CAPA DOURADA (Máscara)
                                 <button 
@@ -325,43 +295,29 @@ export default function PlayerPage() {
                     )}
                 </div>
 
-                {/* 2. TÍTULO E STATUS (Sem botão de concluir) */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-2">
+                {/* 2. TÍTULO E STATUS */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                     <div>
                         <h1 className="text-xl md:text-2xl font-bold text-white mb-1">{currentLesson?.title}</h1>
                         <p className="text-sm text-gray-500">Módulo: {course.title}</p>
                     </div>
-
-                    {/* Badge Apenas Informativa */}
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border
-                        ${completedLessons.has(currentLesson?.id) 
-                            ? 'bg-green-900/20 text-green-500 border-green-800' 
-                            : 'bg-[#111] text-gray-500 border-[#333]'}
+                    {/* Badge Automática */}
+                    <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider border
+                        ${completedLessons.has(currentLesson?.id) ? 'bg-green-900/20 text-green-500 border-green-800' : 'bg-[#222] text-gray-400 border-[#333]'}
                     `}>
-                        {completedLessons.has(currentLesson?.id) ? (
-                            <> <CheckCircle size={16} /> Aula Concluída </>
-                        ) : (
-                            <> <Play size={16} /> Em andamento... </>
-                        )}
+                        {completedLessons.has(currentLesson?.id) ? <><CheckCircle size={14} /> Concluída</> : <><Clock size={14} /> Em andamento...</>}
                     </div>
                 </div>
 
                 {/* 3. MENU DE ABAS */}
                 <div className="flex items-center gap-6 border-b border-[#222] mb-6 overflow-x-auto">
-                    <button onClick={() => setActiveTab("sobre")} className={`pb-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === "sobre" ? "border-[#C9A66B] text-[#C9A66B]" : "border-transparent text-gray-500 hover:text-gray-300"}`}>
-                        <Info size={16} /> Sobre
-                    </button>
-                    <button onClick={() => setActiveTab("duvidas")} className={`pb-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === "duvidas" ? "border-[#C9A66B] text-[#C9A66B]" : "border-transparent text-gray-500 hover:text-gray-300"}`}>
-                        <HelpCircle size={16} /> Dúvidas ({comments.length})
-                    </button>
-                    <button onClick={() => setActiveTab("material")} className={`pb-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === "material" ? "border-[#C9A66B] text-[#C9A66B]" : "border-transparent text-gray-500 hover:text-gray-300"}`}>
-                        <FileText size={16} /> Material
-                    </button>
+                    <button onClick={() => setActiveTab("sobre")} className={`pb-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === "sobre" ? "border-[#C9A66B] text-[#C9A66B]" : "border-transparent text-gray-500 hover:text-gray-300"}`}><Info size={16} /> Sobre</button>
+                    <button onClick={() => setActiveTab("duvidas")} className={`pb-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === "duvidas" ? "border-[#C9A66B] text-[#C9A66B]" : "border-transparent text-gray-500 hover:text-gray-300"}`}><HelpCircle size={16} /> Dúvidas ({comments.length})</button>
+                    <button onClick={() => setActiveTab("material")} className={`pb-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === "material" ? "border-[#C9A66B] text-[#C9A66B]" : "border-transparent text-gray-500 hover:text-gray-300"}`}><FileText size={16} /> Material</button>
                 </div>
 
                 {/* 4. CONTEÚDO DAS ABAS */}
                 <div className="min-h-[200px]">
-                    
                     {activeTab === "sobre" && (
                         <div className="bg-[#111] p-6 rounded-xl border border-[#222] animate-in fade-in">
                              <p className="text-gray-300 leading-relaxed text-sm whitespace-pre-line">{currentLesson?.description || "Sem descrição."}</p>
@@ -372,20 +328,13 @@ export default function PlayerPage() {
                         <div className="bg-[#111] p-6 rounded-xl border border-[#222] animate-in fade-in">
                             {(currentLesson?.material_url || course?.material_url) ? (
                                 <div className="flex flex-col gap-3">
-                                    <p className="text-gray-400 text-sm mb-2">Materiais disponíveis:</p>
+                                    <p className="text-gray-400 text-sm mb-2">Download disponível:</p>
                                     <a href={currentLesson?.material_url || course?.material_url} target="_blank" className="flex items-center gap-4 p-4 bg-[#1a1a1a] rounded-lg border border-[#333] hover:border-[#C9A66B] hover:bg-[#222] transition-all group">
-                                        <div className="w-10 h-10 bg-[#C9A66B]/10 rounded-full flex items-center justify-center text-[#C9A66B] group-hover:scale-110 transition-transform">
-                                            <Download size={20} />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-gray-200 text-sm">Baixar Material</h4>
-                                            <p className="text-xs text-gray-500">Clique para acessar</p>
-                                        </div>
+                                        <div className="w-10 h-10 bg-[#C9A66B]/10 rounded-full flex items-center justify-center text-[#C9A66B] group-hover:scale-110 transition-transform"><Download size={20} /></div>
+                                        <div><h4 className="font-bold text-gray-200 text-sm">Baixar Arquivo</h4><p className="text-xs text-gray-500">Google Drive / PDF</p></div>
                                     </a>
                                 </div>
-                            ) : (
-                                <div className="text-center py-8 text-gray-500"><p>Nenhum material extra.</p></div>
-                            )}
+                            ) : (<div className="text-center py-8 text-gray-500"><p>Sem material extra.</p></div>)}
                         </div>
                     )}
 
@@ -394,36 +343,19 @@ export default function PlayerPage() {
                             <div className="flex gap-4 mb-8">
                                 <div className="w-10 h-10 rounded-full bg-[#222] flex items-center justify-center shrink-0 border border-[#333]"><User size={20} className="text-gray-500" /></div>
                                 <div className="flex-1 relative">
-                                    <textarea 
-                                        value={newComment}
-                                        onChange={handleCommentChange}
-                                        placeholder="Use @ para marcar alguém..."
-                                        className="w-full bg-[#111] border border-[#333] rounded-lg p-4 text-sm text-white focus:outline-none focus:border-[#C9A66B] min-h-[100px] resize-none"
-                                    />
-                                    
-                                    {/* LISTA DE MENÇÃO (@) */}
+                                    <textarea value={newComment} onChange={handleCommentChange} placeholder="Use @ para marcar alguém..." className="w-full bg-[#111] border border-[#333] rounded-lg p-4 text-sm text-white focus:outline-none focus:border-[#C9A66B] min-h-[100px] resize-none" />
                                     {showMentions && (
                                         <div className="absolute top-full left-0 mt-1 bg-[#1a1a1a] border border-[#333] rounded-lg shadow-2xl w-64 max-h-48 overflow-y-auto z-50">
-                                            {allUsers.length === 0 ? (
-                                                <div className="px-4 py-2 text-xs text-gray-500">Carregando usuários...</div>
-                                            ) : (
-                                                <>
-                                                    {allUsers.filter(u => u.full_name?.toLowerCase().includes(mentionQuery)).map(user => (
-                                                        <button key={user.id} onClick={() => insertMention(user)} className="w-full text-left px-4 py-3 hover:bg-[#333] flex items-center gap-3 text-sm border-b border-[#222] last:border-0 transition-colors">
-                                                            <div className="w-6 h-6 rounded-full bg-[#333] overflow-hidden flex items-center justify-center">
-                                                                {user.avatar_url ? <img src={user.avatar_url} className="w-full h-full object-cover"/> : <User size={12}/>}
-                                                            </div>
-                                                            <span className="truncate font-medium text-gray-300">{user.full_name}</span>
-                                                        </button>
-                                                    ))}
-                                                    {allUsers.filter(u => u.full_name?.toLowerCase().includes(mentionQuery)).length === 0 && (
-                                                        <div className="px-4 py-2 text-xs text-gray-500">Ninguém encontrado...</div>
-                                                    )}
-                                                </>
-                                            )}
+                                            {allUsers.length === 0 ? <div className="px-4 py-2 text-xs text-gray-500">Carregando lista...</div> : 
+                                                allUsers.filter(u => u.full_name?.toLowerCase().includes(mentionQuery)).map(user => (
+                                                    <button key={user.id} onClick={() => insertMention(user)} className="w-full text-left px-4 py-3 hover:bg-[#333] flex items-center gap-3 text-sm border-b border-[#222] last:border-0 transition-colors">
+                                                        <div className="w-6 h-6 rounded-full bg-[#333] overflow-hidden flex items-center justify-center">{user.avatar_url ? <img src={user.avatar_url} className="w-full h-full object-cover"/> : <User size={12}/>}</div>
+                                                        <span className="truncate font-medium text-gray-300">{user.full_name}</span>
+                                                    </button>
+                                                ))
+                                            }
                                         </div>
                                     )}
-
                                     <div className="absolute bottom-3 right-3"><button onClick={handleSendComment} disabled={sendingComment || !newComment.trim()} className="bg-[#C9A66B] p-2 rounded-full text-black hover:bg-[#b08d55] disabled:opacity-50 transition-colors">{sendingComment ? <Loader2 size={16} className="animate-spin"/> : <Send size={16} />}</button></div>
                                 </div>
                             </div>
@@ -436,17 +368,10 @@ export default function PlayerPage() {
                                 ) : (
                                     comments.map((comment) => (
                                         <div key={comment.id} className="flex gap-4 group">
-                                            <div className="w-10 h-10 rounded-full bg-[#222] flex items-center justify-center shrink-0 border border-[#333] overflow-hidden">
-                                                {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <User size={20} className="text-gray-500" />}
-                                            </div>
+                                            <div className="w-10 h-10 rounded-full bg-[#222] flex items-center justify-center shrink-0 border border-[#333] overflow-hidden">{comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <User size={20} className="text-gray-500" />}</div>
                                             <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="font-bold text-sm text-[#C9A66B]">{comment.profiles?.full_name || "Membro"}</span>
-                                                    <span className="text-xs text-gray-600">{new Date(comment.created_at).toLocaleDateString('pt-BR')}</span>
-                                                </div>
-                                                <div className="text-gray-300 text-sm bg-[#111] p-3 rounded-lg border border-[#222]">
-                                                    {comment.content.split(" ").map((word:string, i:number) => word.startsWith("@") ? <span key={i} className="text-blue-400 font-bold">{word} </span> : word + " ")}
-                                                </div>
+                                                <div className="flex items-center gap-2 mb-1"><span className="font-bold text-sm text-[#C9A66B]">{comment.profiles?.full_name || "Membro"}</span><span className="text-xs text-gray-600">{new Date(comment.created_at).toLocaleDateString('pt-BR')}</span></div>
+                                                <div className="text-gray-300 text-sm bg-[#111] p-3 rounded-lg border border-[#222]">{comment.content.split(" ").map((word:string, i:number) => word.startsWith("@") ? <span key={i} className="text-blue-400 font-bold">{word} </span> : word + " ")}</div>
                                             </div>
                                         </div>
                                     ))
@@ -458,7 +383,7 @@ export default function PlayerPage() {
               </div>
           </div>
 
-          {/* LISTA LATERAL */}
+          {/* LADO DIREITO (Lista) */}
           <div className="w-full md:w-80 bg-[#0a0a0a] border-l border-[#222] overflow-y-auto shrink-0 md:h-full h-96">
               <div className="p-4 border-b border-[#222] bg-[#0a0a0a] sticky top-0 z-10"><h3 className="font-bold text-gray-400 text-xs uppercase tracking-widest flex items-center gap-2"><ListVideo size={14} /> Conteúdo</h3></div>
               <div className="flex flex-col pb-20">
