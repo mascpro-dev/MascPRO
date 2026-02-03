@@ -53,10 +53,8 @@ export default function EvolucaoPage() {
           
           {modules.map((mod, index) => {
             // LÓGICA DO CADEADO:
-            // Por enquanto, só o índice 0 (Primeiro) é desbloqueado.
-            // Futuramente, trocaremos isso por: !completedModules.includes(id_anterior)
-            const isFirst = index === 0;
-            const isLocked = !isFirst; 
+            // const isUnlocked = index <= 1; // (Comentei a regra antiga)
+            const isLocked = false; // AGORA TUDO ESTÁ ABERTO PARA TESTE 
 
             return (
                 <Link 
