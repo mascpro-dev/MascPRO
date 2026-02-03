@@ -1,6 +1,6 @@
 "use client";
 
-// OTIMIZAÇÃO VERCEL
+// --- OTIMIZAÇÃO PARA VERCEL ---
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -23,16 +23,16 @@ export default function PlayerPage() {
   const params = useParams();
   const supabase = createClientComponentClient();
   
-  // DADOS
+  // DADOS DO CURSO
   const [loading, setLoading] = useState(true);
   const [course, setCourse] = useState<any>(null);
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   
-  // PLAYER & ESTADOS
+  // PLAYER PREMIUM (Começa sempre falso para mostrar a capa)
   const [isPlaying, setIsPlaying] = useState(false);
-  const playerRef = useRef<any>(null); // Referência interna para o script do YouTube
+  const playerRef = useRef<any>(null);
 
   // INTERFACE
   const [activeTab, setActiveTab] = useState<"sobre" | "duvidas" | "material">("sobre");
@@ -40,12 +40,12 @@ export default function PlayerPage() {
   const [newComment, setNewComment] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
   
-  // MENÇÕES
+  // MENÇÕES (@)
   const [allUsers, setAllUsers] = useState<any[]>([]); 
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
 
-  // 1. CARREGAR DADOS
+  // 1. CARREGAR DADOS INICIAIS
   useEffect(() => {
     async function loadContent() {
       try {
@@ -65,10 +65,10 @@ export default function PlayerPage() {
 
         // Aulas
         const { data: lessonsData } = await supabase
-            .from("lessons")
-            .select("*")
+        .from("lessons")
+        .select("*")
             .eq("course_code", courseData.code)
-            .order("sequence_order", { ascending: true });
+        .order("sequence_order", { ascending: true });
 
         // Progresso
         const { data: { session } } = await supabase.auth.getSession();
@@ -82,7 +82,7 @@ export default function PlayerPage() {
         }
         setCompletedLessons(completedSet);
 
-        // Define Aula Atual
+        // Define Aula Inicial
         if (lessonsData && lessonsData.length > 0) {
             setLessons(lessonsData);
             const firstUnwatched = lessonsData.find((l: any) => !completedSet.has(l.id));
@@ -90,24 +90,36 @@ export default function PlayerPage() {
         }
 
         // Carrega Usuários para o @
-        const { data: usersData } = await supabase.from("profiles").select("id, full_name, avatar_url").limit(200); 
+        const { data: usersData } = await supabase.from("profiles").select("id, full_name, avatar_url").limit(300); 
         setAllUsers(usersData || []);
 
       } catch (err: any) {
         console.error("Erro:", err);
       } finally {
-        setLoading(false);
-      }
+      setLoading(false);
+    }
     }
     if (params?.code) loadContent();
   }, [params, supabase]);
 
-  // 2. RESETAR AO MUDAR DE AULA
+  // 2. RESETAR PLAYER AO MUDAR AULA
   useEffect(() => {
     if (!currentLesson?.id) return;
-    setIsPlaying(false); // Volta a capa
+    
+    // --- O SEGREDO ESTÁ AQUI ---
+    // Força o player a "morrer" e voltar para a capa sempre que troca de aula
+    setIsPlaying(false);
     setActiveTab("sobre");
-    playerRef.current = null; // Limpa referência do player anterior
+    
+    // Limpa o player anterior
+    if (playerRef.current) {
+        try {
+            playerRef.current.destroy();
+        } catch (e) {
+            // Ignora erros de cleanup
+        }
+        playerRef.current = null;
+    }
     
     // Carrega comentários
     async function loadComments() {
@@ -122,22 +134,38 @@ export default function PlayerPage() {
   }, [currentLesson, supabase]);
 
 
-  // 3. ATIVAR AUTOMACÃO DO YOUTUBE (Só depois que o usuário der play)
+  // 3. INICIALIZAR YOUTUBE (Só quando clica na capa)
   useEffect(() => {
     if (isPlaying && currentLesson?.video_id && window.YT) {
-        // Aguarda o iframe renderizar para conectar o "detector de fim"
+        // Delay minúsculo para garantir que o elemento DIV existe
         setTimeout(() => {
-            try {
-                // Tenta conectar ao iframe existente
-                playerRef.current = new window.YT.Player('active-iframe', {
-                    events: {
-                        'onStateChange': onPlayerStateChange
-                    }
-                });
-            } catch (e) {
-                console.log("Erro ao conectar API (Vídeo ainda toca normal):", e);
+            if (playerRef.current) {
+                try {
+                    playerRef.current.destroy(); // Garante limpeza anterior
+                } catch (e) {
+                    // Ignora erros
+                }
             }
-        }, 1000);
+            
+            playerRef.current = new window.YT.Player('youtube-player-div', {
+                videoId: currentLesson.video_id,
+                height: '100%',
+                width: '100%',
+                playerVars: {
+                    autoplay: 1,      // Play automático ao carregar
+                    controls: 1,      // Barra de tempo e volume
+                    modestbranding: 1,// Tenta reduzir o logo
+                    rel: 0,           // Sem vídeos relacionados
+                    fs: 1,            // Fullscreen permitido
+                    iv_load_policy: 3,// Sem anotações
+                    showinfo: 0,      // (Deprecated, mas ajuda em alguns browsers)
+                    ecver: 2
+                },
+                events: {
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }, 50);
     }
 
     // Cleanup
@@ -152,18 +180,19 @@ export default function PlayerPage() {
     };
   }, [isPlaying, currentLesson?.video_id]);
 
+  // LÓGICA AUTOMÁTICA (Fim do Vídeo)
   const onPlayerStateChange = async (event: any) => {
-    // 0 = ENDED (Acabou o vídeo)
+    // 0 = ENDED (Acabou)
     if (event.data === 0) {
-        console.log("🎬 Vídeo acabou. Concluindo...");
+        console.log("🎬 Vídeo acabou. Concluindo aula...");
         
-        // Marca Verde
+        // Marca Verde visualmente
         const newSet = new Set(completedLessons);
         newSet.add(currentLesson.id);
         setCompletedLessons(newSet);
 
-        // Salva
-        const { data: { user } } = await supabase.auth.getUser();
+        // Salva no Banco
+    const { data: { user } } = await supabase.auth.getUser();
         if (user) {
             await supabase.from("lesson_progress").upsert({
                 user_id: user.id,
@@ -171,18 +200,18 @@ export default function PlayerPage() {
             }, { onConflict: 'user_id, lesson_id' });
         }
 
-        // Próxima aula (3s delay)
+        // Avança para a próxima (Delay de 2s)
         setTimeout(() => {
             const currentIndex = lessons.findIndex(l => l.id === currentLesson.id);
             if (currentIndex < lessons.length - 1) {
                 setCurrentLesson(lessons[currentIndex + 1]);
             }
-        }, 3000);
+        }, 2000);
     }
   };
 
 
-  // --- LÓGICA DE COMENTÁRIOS E MENÇÕES ---
+  // --- COMENTÁRIOS E MENÇÕES ---
   const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     setNewComment(text);
@@ -214,13 +243,21 @@ export default function PlayerPage() {
             user_id: user.id,
             content: newComment
         });
-        if (!error) {
+    if (!error) {
+            // Notificações
             allUsers.forEach(async (mentionedUser) => {
                 if (newComment.includes(`@${mentionedUser.full_name}`) && mentionedUser.id !== user.id) {
-                    await supabase.from("notifications").insert({ user_id: mentionedUser.id, actor_id: user.id, content: `te marcou na aula "${currentLesson.title}"`, link_url: `/evolucao/${course.code}`, is_read: false });
+                    await supabase.from("notifications").insert({
+                        user_id: mentionedUser.id,
+                        actor_id: user.id,
+                        content: `te mencionou na aula "${currentLesson.title}"`,
+                        link_url: `/evolucao/${course.code}`,
+                        is_read: false
+                    });
                 }
             });
-            setNewComment(""); setShowMentions(false);
+            setNewComment("");
+            setShowMentions(false);
             const { data } = await supabase.from("lesson_comments").select("*, profiles:user_id(full_name, avatar_url)").eq("lesson_id", currentLesson.id).order("created_at", { ascending: false });
             setComments(data || []);
         }
@@ -234,41 +271,35 @@ export default function PlayerPage() {
   return (
     <div className="min-h-screen bg-black text-white flex flex-col h-screen overflow-hidden">
       
-      {/* Script OBRIGATÓRIO para a detecção de FIM DE VÍDEO */}
       <Script src="https://www.youtube.com/iframe_api" strategy="afterInteractive" />
 
       {/* HEADER */}
       <div className="h-16 border-b border-[#222] flex items-center px-6 justify-between bg-[#111] shrink-0">
-          <Link href="/evolucao" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+        <Link href="/evolucao" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
               <ArrowLeft size={20} /> <span className="text-sm font-bold uppercase hidden md:inline">Voltar</span>
-          </Link>
+        </Link>
           <div className="text-sm font-bold text-[#C9A66B] uppercase tracking-wider truncate mx-4">
               {course.title}
-          </div>
+        </div>
           <div className="w-10"></div>
       </div>
 
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
           
-          {/* LADO ESQUERDO (Vídeo + Abas) */}
+          {/* LADO ESQUERDO */}
           <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-black scrollbar-hide">
               <div className="max-w-4xl mx-auto pb-20">
                 
-                {/* 1. PLAYER PREMIUM (Capa -> Iframe Real) */}
-                <div className="aspect-video w-full bg-[#050505] rounded-xl overflow-hidden border border-[#333] shadow-2xl mb-6 relative group">
+                {/* 1. PLAYER (Com key para resetar forçadamente) */}
+                <div 
+                    key={currentLesson?.id} // ISSO É O SEGREDO: Reseta o componente ao trocar de aula
+                    className="aspect-video w-full bg-[#050505] rounded-xl overflow-hidden border border-[#333] shadow-2xl mb-6 relative group"
+                >
                     {currentLesson?.video_id ? (
                         <>
                             {isPlaying ? (
-                                // IFRAME REAL DO YOUTUBE (Garante controles e fullscreen)
-                                // ID 'active-iframe' é usado pelo script para detectar o fim
-                                <iframe 
-                                    id="active-iframe"
-                                    src={`https://www.youtube.com/embed/${currentLesson.video_id}?autoplay=1&controls=1&enablejsapi=1&rel=0&showinfo=0&fs=1&modestbranding=1`} 
-                                    title={currentLesson.title}
-                                    className="absolute inset-0 w-full h-full z-20"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
-                                    allowFullScreen
-                                ></iframe>
+                                // DIV VAZIA QUE O YOUTUBE VAI PREENCHER
+                                <div id="youtube-player-div" className="w-full h-full z-20 relative"></div>
                             ) : (
                                 // CAPA DOURADA (Máscara)
                                 <button 
@@ -293,11 +324,11 @@ export default function PlayerPage() {
                             <p className="text-gray-500 text-sm">Aula sem vídeo.</p>
                         </div>
                     )}
-                </div>
+          </div>
 
-                {/* 2. TÍTULO E STATUS */}
+                {/* 2. BARRA DE INFO (Automática) */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                    <div>
+          <div>
                         <h1 className="text-xl md:text-2xl font-bold text-white mb-1">{currentLesson?.title}</h1>
                         <p className="text-sm text-gray-500">Módulo: {course.title}</p>
                     </div>
@@ -305,9 +336,9 @@ export default function PlayerPage() {
                     <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider border
                         ${completedLessons.has(currentLesson?.id) ? 'bg-green-900/20 text-green-500 border-green-800' : 'bg-[#222] text-gray-400 border-[#333]'}
                     `}>
-                        {completedLessons.has(currentLesson?.id) ? <><CheckCircle size={14} /> Concluída</> : <><Clock size={14} /> Em andamento...</>}
-                    </div>
-                </div>
+                        {completedLessons.has(currentLesson?.id) ? <><CheckCircle size={14} /> Concluída</> : <><Clock size={14} /> Em andamento</>}
+          </div>
+        </div>
 
                 {/* 3. MENU DE ABAS */}
                 <div className="flex items-center gap-6 border-b border-[#222] mb-6 overflow-x-auto">
@@ -323,7 +354,6 @@ export default function PlayerPage() {
                              <p className="text-gray-300 leading-relaxed text-sm whitespace-pre-line">{currentLesson?.description || "Sem descrição."}</p>
                         </div>
                     )}
-
                     {activeTab === "material" && (
                         <div className="bg-[#111] p-6 rounded-xl border border-[#222] animate-in fade-in">
                             {(currentLesson?.material_url || course?.material_url) ? (
@@ -337,7 +367,6 @@ export default function PlayerPage() {
                             ) : (<div className="text-center py-8 text-gray-500"><p>Sem material extra.</p></div>)}
                         </div>
                     )}
-
                     {activeTab === "duvidas" && (
                         <div className="animate-in fade-in relative">
                             <div className="flex gap-4 mb-8">
@@ -373,15 +402,15 @@ export default function PlayerPage() {
                                                 <div className="flex items-center gap-2 mb-1"><span className="font-bold text-sm text-[#C9A66B]">{comment.profiles?.full_name || "Membro"}</span><span className="text-xs text-gray-600">{new Date(comment.created_at).toLocaleDateString('pt-BR')}</span></div>
                                                 <div className="text-gray-300 text-sm bg-[#111] p-3 rounded-lg border border-[#222]">{comment.content.split(" ").map((word:string, i:number) => word.startsWith("@") ? <span key={i} className="text-blue-400 font-bold">{word} </span> : word + " ")}</div>
                                             </div>
-                                        </div>
+                  </div>
                                     ))
-                                )}
-                            </div>
+                    )}
+                  </div>
                         </div>
                     )}
-                </div>
-              </div>
           </div>
+        </div>
+      </div>
 
           {/* LADO DIREITO (Lista) */}
           <div className="w-full md:w-80 bg-[#0a0a0a] border-l border-[#222] overflow-y-auto shrink-0 md:h-full h-96">
@@ -398,9 +427,9 @@ export default function PlayerPage() {
                           </button>
                       )
                   })}
-              </div>
+            </div>
           </div>
-      </div>
+        </div>
     </div>
   );
 }
