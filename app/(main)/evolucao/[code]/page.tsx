@@ -1,5 +1,9 @@
 "use client";
 
+// --- CONFIGURAÇÃO VERCEL ---
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams } from "next/navigation";
@@ -10,7 +14,7 @@ export default function PlayerPage() {
   const params = useParams();
   const supabase = createClientComponentClient();
   
-  // Estados de Dados
+  // Estados
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [course, setCourse] = useState<any>(null);
@@ -18,24 +22,24 @@ export default function PlayerPage() {
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   
-  // Estados de Comentários
+  // Comentários
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
 
-  // Estado para controlar o Player Premium (Lite Embed)
+  // Player Premium (Lite)
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // 1. CARREGAR CONTEÚDO
+  // 1. CARREGAR DADOS
   useEffect(() => {
     async function loadContent() {
       try {
         setLoading(true);
-        const codeFromUrl = params?.code as string;
+        const codeFromUrl = params?.code as string; 
         
-        if (!codeFromUrl) throw new Error("Código do curso inválido.");
+        if (!codeFromUrl) return;
 
-        // A. Busca Curso
+        // Curso
         const { data: courseData, error: courseError } = await supabase
             .from("courses")
             .select("*")
@@ -45,14 +49,14 @@ export default function PlayerPage() {
         if (courseError || !courseData) throw new Error("Curso não encontrado.");
         setCourse(courseData);
 
-        // B. Busca Aulas
-        const { data: lessonsData, error: lessonsError } = await supabase
+        // Aulas
+        const { data: lessonsData } = await supabase
             .from("lessons")
             .select("*")
             .eq("course_code", courseData.code)
             .order("sequence_order", { ascending: true });
 
-        // C. Busca Progresso
+        // Progresso
         const { data: { session } } = await supabase.auth.getSession();
         const completedSet = new Set<string>();
         if (session) {
@@ -64,7 +68,7 @@ export default function PlayerPage() {
         }
         setCompletedLessons(completedSet);
 
-        // Define Aula Atual
+        // Definir Aula Inicial
         if (lessonsData && lessonsData.length > 0) {
             setLessons(lessonsData);
             const firstUnwatched = lessonsData.find((l: any) => !completedSet.has(l.id));
@@ -73,7 +77,7 @@ export default function PlayerPage() {
 
       } catch (err: any) {
         console.error("Erro fatal:", err);
-        setErrorMsg(err.message);
+        setErrorMsg("Erro ao carregar curso. Tente recarregar.");
       } finally {
         setLoading(false);
       }
@@ -81,11 +85,10 @@ export default function PlayerPage() {
     if (params?.code) loadContent();
   }, [params, supabase]);
 
-  // 2. CARREGAR COMENTÁRIOS
+  // 2. CARREGAR COMENTÁRIOS E RESETAR PLAYER
   useEffect(() => {
     if (!currentLesson?.id) return;
-    // Reseta o player ao trocar de aula
-    setIsPlaying(false);
+    setIsPlaying(false); // <--- Reseta o player para mostrar a capa novamente
     
     async function loadComments() {
         const { data } = await supabase
@@ -143,6 +146,7 @@ export default function PlayerPage() {
     setSendingComment(false);
   };
 
+  // RENDERIZAÇÃO
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[#C9A66B]"><Loader2 className="animate-spin mr-2"/> Carregando...</div>;
   if (errorMsg) return <div className="min-h-screen bg-black flex items-center justify-center text-red-500">{errorMsg}</div>;
   if (!course) return <div className="min-h-screen bg-black text-white p-10">Curso não encontrado.</div>;
@@ -167,46 +171,52 @@ export default function PlayerPage() {
           <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-black scrollbar-hide">
               <div className="max-w-4xl mx-auto pb-20">
                 
-                {/* --- PLAYER PREMIUM (LITE) --- */}
-                <div className="aspect-video bg-black rounded-xl overflow-hidden border border-[#333] shadow-2xl mb-6 relative group">
+                {/* --- PLAYER (CORRIGIDO) --- */}
+                <div className="aspect-video bg-black rounded-xl overflow-hidden border border-[#333] shadow-2xl mb-6 relative group bg-[#050505]">
                     {currentLesson?.video_id ? (
-                        isPlaying ? (
-                            <iframe 
-                                src={`https://www.youtube.com/embed/${currentLesson.video_id}?autoplay=1&controls=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3`} 
-                                title={currentLesson.title}
-                                className="absolute inset-0 w-full h-full"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                allowFullScreen
-                            ></iframe>
-                        ) : (
-                            // MÁSCARA / CAPA (Carrega super rápido)
-                            <div 
-                                className="absolute inset-0 cursor-pointer group"
-                                onClick={() => setIsPlaying(true)}
-                            >
-                                {/* Thumbnail do YouTube em Alta Resolução */}
-                                <img 
-                                    src={`https://img.youtube.com/vi/${currentLesson.video_id}/maxresdefault.jpg`} 
-                                    alt="Capa da Aula"
-                                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                                />
-                                {/* Botão de Play Dourado Centralizado */}
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="w-20 h-20 bg-[#C9A66B]/90 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(201,166,107,0.4)] group-hover:scale-110 transition-transform">
-                                        <Play size={32} className="text-black ml-1 fill-black" />
+                        <>
+                            {isPlaying ? (
+                                <iframe 
+                                    src={`https://www.youtube.com/embed/${currentLesson.video_id}?autoplay=1&controls=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3`} 
+                                    title={currentLesson.title}
+                                    className="absolute inset-0 w-full h-full z-20"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                    allowFullScreen
+                                ></iframe>
+                            ) : (
+                                <button 
+                                    onClick={() => setIsPlaying(true)}
+                                    className="absolute inset-0 w-full h-full cursor-pointer group z-10 flex flex-col"
+                                >
+                                    {/* Capa (HQ DEFAULT é mais garantido) */}
+                                    <img 
+                                        src={`https://img.youtube.com/vi/${currentLesson.video_id}/hqdefault.jpg`} 
+                                        alt="Capa da Aula"
+                                        className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                                    />
+                                    
+                                    {/* Botão Play */}
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-20 h-20 bg-[#C9A66B]/90 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(201,166,107,0.4)] group-hover:scale-110 transition-transform">
+                                            <Play size={32} className="text-black ml-1 fill-black" />
+                                        </div>
                                     </div>
-                                </div>
-                                {/* Gradiente inferior para dar acabamento */}
-                                <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/80 to-transparent"></div>
-                            </div>
-                        )
+                                    
+                                    {/* Gradiente */}
+                                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/90 to-transparent"></div>
+                                </button>
+                            )}
+                        </>
                     ) : (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#111]">
                             <Play size={48} className="text-gray-700 mb-2" />
-                            <p className="text-gray-500 text-sm">Aula sem vídeo.</p>
+                            <p className="text-gray-500 text-sm">Aula sem vídeo cadastrado.</p>
                         </div>
                     )}
                 </div>
+
+                {/* DEBUG TEMPORÁRIO (Pra gente saber se o ID tá vindo) */}
+                {/* <p className="text-xs text-gray-700 text-center mb-4">Video ID: {currentLesson?.video_id || "Nenhum"}</p> */}
 
                 {/* INFO E AÇÕES */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-[#222] pb-6">
