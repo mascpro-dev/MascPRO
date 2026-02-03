@@ -50,7 +50,7 @@ export default function PlayerPage() {
     async function loadContent() {
       try {
         setLoading(true);
-        const codeFromUrl = params?.code as string; 
+        const codeFromUrl = params?.code; 
         if (!codeFromUrl) return;
 
         // Curso
@@ -65,10 +65,10 @@ export default function PlayerPage() {
 
         // Aulas
         const { data: lessonsData } = await supabase
-        .from("lessons")
-        .select("*")
+            .from("lessons")
+            .select("*")
             .eq("course_code", courseData.code)
-        .order("sequence_order", { ascending: true });
+            .order("sequence_order", { ascending: true });
 
         // Progresso
         const { data: { session } } = await supabase.auth.getSession();
@@ -96,11 +96,11 @@ export default function PlayerPage() {
       } catch (err: any) {
         console.error("Erro:", err);
       } finally {
-      setLoading(false);
+        setLoading(false);
+      }
     }
-    }
-    if (params?.code) loadContent();
-  }, [params, supabase]);
+    loadContent();
+  }, [params]);
 
   // 2. RESETAR PLAYER AO MUDAR AULA
   useEffect(() => {
@@ -110,16 +110,6 @@ export default function PlayerPage() {
     // Força o player a "morrer" e voltar para a capa sempre que troca de aula
     setIsPlaying(false);
     setActiveTab("sobre");
-    
-    // Limpa o player anterior
-    if (playerRef.current) {
-        try {
-            playerRef.current.destroy();
-        } catch (e) {
-            // Ignora erros de cleanup
-        }
-        playerRef.current = null;
-    }
     
     // Carrega comentários
     async function loadComments() {
@@ -131,7 +121,7 @@ export default function PlayerPage() {
         setComments(data || []);
     }
     loadComments();
-  }, [currentLesson, supabase]);
+  }, [currentLesson]);
 
 
   // 3. INICIALIZAR YOUTUBE (Só quando clica na capa)
@@ -140,11 +130,7 @@ export default function PlayerPage() {
         // Delay minúsculo para garantir que o elemento DIV existe
         setTimeout(() => {
             if (playerRef.current) {
-                try {
-                    playerRef.current.destroy(); // Garante limpeza anterior
-                } catch (e) {
-                    // Ignora erros
-                }
+                playerRef.current.destroy(); // Garante limpeza anterior
             }
             
             playerRef.current = new window.YT.Player('youtube-player-div', {
@@ -167,18 +153,7 @@ export default function PlayerPage() {
             });
         }, 50);
     }
-
-    // Cleanup
-    return () => {
-        if (playerRef.current) {
-            try {
-                playerRef.current.destroy();
-            } catch (e) {
-                // Ignora erros de cleanup
-            }
-        }
-    };
-  }, [isPlaying, currentLesson?.video_id]);
+  }, [isPlaying]);
 
   // LÓGICA AUTOMÁTICA (Fim do Vídeo)
   const onPlayerStateChange = async (event: any) => {
@@ -389,23 +364,16 @@ export default function PlayerPage() {
                                 </div>
                             </div>
                             <div className="space-y-6">
-                                {comments.length === 0 ? (
-                                    <div className="text-center py-10 border border-dashed border-[#222] rounded-xl">
-                                        <MessageSquare size={32} className="mx-auto mb-2 text-[#333]" />
-                                        <p className="text-gray-500 text-sm">Nenhuma dúvida ainda. Seja o primeiro!</p>
+                                {comments.map((comment) => (
+                                    <div key={comment.id} className="flex gap-4 group">
+                                        <div className="w-10 h-10 rounded-full bg-[#222] flex items-center justify-center shrink-0 border border-[#333] overflow-hidden">{comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <User size={20} className="text-gray-500" />}</div>
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1"><span className="font-bold text-sm text-[#C9A66B]">{comment.profiles?.full_name || "Membro"}</span><span className="text-xs text-gray-600">{new Date(comment.created_at).toLocaleDateString('pt-BR')}</span></div>
+                                            <div className="text-gray-300 text-sm bg-[#111] p-3 rounded-lg border border-[#222]">{comment.content.split(" ").map((word:string, i:number) => word.startsWith("@") ? <span key={i} className="text-blue-400 font-bold">{word} </span> : word + " ")}</div>
+                                        </div>
                                     </div>
-                                ) : (
-                                    comments.map((comment) => (
-                                        <div key={comment.id} className="flex gap-4 group">
-                                            <div className="w-10 h-10 rounded-full bg-[#222] flex items-center justify-center shrink-0 border border-[#333] overflow-hidden">{comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <User size={20} className="text-gray-500" />}</div>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1"><span className="font-bold text-sm text-[#C9A66B]">{comment.profiles?.full_name || "Membro"}</span><span className="text-xs text-gray-600">{new Date(comment.created_at).toLocaleDateString('pt-BR')}</span></div>
-                                                <div className="text-gray-300 text-sm bg-[#111] p-3 rounded-lg border border-[#222]">{comment.content.split(" ").map((word:string, i:number) => word.startsWith("@") ? <span key={i} className="text-blue-400 font-bold">{word} </span> : word + " ")}</div>
-                                            </div>
-                  </div>
-                                    ))
-                    )}
-                  </div>
+                                ))}
+                            </div>
                         </div>
                     )}
           </div>
