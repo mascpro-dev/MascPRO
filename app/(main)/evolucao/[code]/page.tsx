@@ -1,12 +1,12 @@
 "use client";
 
-// --- FORÇAR REVALIDAÇÃO (ESSENCIAL PARA ATUALIZAR MOEDAS) ---
+// --- FORÇAR REVALIDAÇÃO ---
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useParams, useRouter } from "next/navigation"; // Adicionado useRouter
+import { useParams, useRouter } from "next/navigation"; // Importante: useRouter
 import { ArrowLeft, Download, Loader2, Play, Pause, CheckCircle, Lock, ListVideo, Send, MessageSquare, User, Info, HelpCircle, FileText, Maximize, Volume2, VolumeX, Clock, Coins } from "lucide-react";
 import Link from "next/link";
 import Script from "next/script";
@@ -19,7 +19,7 @@ declare global {
   }
 }
 
-// Formatador de tempo (00:00)
+// Formatador 00:00
 const formatTime = (seconds: number) => {
     if (!seconds || isNaN(seconds)) return "00:00";
     const m = Math.floor(seconds / 60);
@@ -29,7 +29,7 @@ const formatTime = (seconds: number) => {
 
 export default function PlayerPage() {
   const params = useParams();
-  const router = useRouter(); // Para atualizar o saldo global
+  const router = useRouter(); // <--- O SEGREDO PARA ATUALIZAR O HEADER
   const supabase = createClientComponentClient();
   
   // DADOS
@@ -39,7 +39,7 @@ export default function PlayerPage() {
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   
-  // PLAYER CUSTOMIZADO
+  // PLAYER
   const [videoStarted, setVideoStarted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -48,7 +48,7 @@ export default function PlayerPage() {
   const [showControls, setShowControls] = useState(false);
   
   // GAMIFICAÇÃO
-  const [justEarned, setJustEarned] = useState(false); // Efeito visual de moedas ganhas
+  const [justEarned, setJustEarned] = useState(false);
 
   const playerRef = useRef<any>(null);
   const intervalRef = useRef<any>(null);
@@ -112,14 +112,6 @@ export default function PlayerPage() {
     setActiveTab("sobre");
     if (intervalRef.current) clearInterval(intervalRef.current);
     
-    // Limpa player anterior
-    if (playerRef.current) {
-        try {
-            playerRef.current.destroy();
-        } catch (e) {}
-        playerRef.current = null;
-    }
-    
     async function loadComments() {
         const { data } = await supabase.from("lesson_comments").select(`*, profiles:user_id ( full_name, avatar_url )`).eq("lesson_id", currentLesson.id).order("created_at", { ascending: false });
         setComments(data || []);
@@ -127,7 +119,7 @@ export default function PlayerPage() {
     loadComments();
   }, [currentLesson]);
 
-  // 3. INICIALIZAR YOUTUBE (MODO NINJA 🥷)
+  // 3. INICIALIZAR YOUTUBE (NINJA MODE)
   useEffect(() => {
     if (videoStarted && currentLesson?.video_id && window.YT) {
         if (playerRef.current) { try { playerRef.current.destroy(); } catch(e){} }
@@ -139,11 +131,11 @@ export default function PlayerPage() {
                 width: '100%',
                 playerVars: {
                     autoplay: 1,      
-                    controls: 0,       // SEM BARRA NATIVA
-                    disablekb: 1,      // SEM TECLADO
-                    fs: 0,             // SEM BOTÃO FULLSCREEN NATIVO
-                    modestbranding: 1, // TENTA ESCONDER LOGO
-                    rel: 0,            // SEM RELACIONADOS
+                    controls: 0,       // Sem controles nativos
+                    disablekb: 1,      
+                    fs: 0,             
+                    modestbranding: 1, 
+                    rel: 0,            
                     showinfo: 0,
                     iv_load_policy: 3
                 },
@@ -151,12 +143,10 @@ export default function PlayerPage() {
                     'onReady': (event: any) => {
                         setDuration(event.target.getDuration());
                         setIsPlaying(true);
-                        // Loop para atualizar barra de progresso
+                        // Timer da barra
                         intervalRef.current = setInterval(() => {
                             if (playerRef.current && playerRef.current.getCurrentTime) {
-                                try {
-                                    setCurrentTime(playerRef.current.getCurrentTime());
-                                } catch (e) {}
+                                setCurrentTime(playerRef.current.getCurrentTime());
                             }
                         }, 500);
                     },
@@ -166,10 +156,10 @@ export default function PlayerPage() {
         }, 100);
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [videoStarted, currentLesson?.video_id]);
+  }, [videoStarted]);
 
 
-  // CONTROLES DO PLAYER
+  // CONTROLES
   const togglePlay = () => {
       if (!playerRef.current) return;
       if (isPlaying) { playerRef.current.pauseVideo(); } else { playerRef.current.playVideo(); }
@@ -196,41 +186,41 @@ export default function PlayerPage() {
       }
   };
 
-  // --- LÓGICA AUTOMÁTICA & MOEDAS ---
+  // --- O GRANDE MOMENTO: VÍDEO ACABOU ---
   const onPlayerStateChange = async (event: any) => {
     // 0 = ENDED (ACABOU)
-    if (event.data === 0) { 
-        console.log("💰 Aula concluída! Atualizando moedas...");
+    if (event.data === 0) {
+        console.log("💰 Aula Finalizada. Processando recompensas...");
         setIsPlaying(false);
         
-        // 1. Atualiza Visualmente (Aula Concluída)
+        // 1. Marca visualmente como ganho
+        setJustEarned(true);
+
+        // 2. Atualiza lista lateral (Verde)
         const newSet = new Set(completedLessons);
         newSet.add(currentLesson.id);
         setCompletedLessons(newSet);
 
-        // 2. Animação de Moedas
-        setJustEarned(true);
-        setTimeout(() => setJustEarned(false), 3000); // Remove animação após 3s
-
-        // 3. Salva no Banco e Atualiza Header
+        // 3. Salva no Banco e ATUALIZA O SITE INTEIRO
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+            // Salva progresso (O Trigger do SQL vai somar as moedas automaticamente)
             await supabase.from("lesson_progress").upsert({
                 user_id: user.id,
                 lesson_id: currentLesson.id
             }, { onConflict: 'user_id, lesson_id' });
             
-            // ATUALIZAÇÃO GLOBAL: Força o Next.js a recarregar dados do servidor (incluindo saldo no Header)
+            // MÁGICA: Atualiza o Header, Ranking e Home sem F5
             router.refresh(); 
         }
-        
-        // 4. Próxima Aula
+
+        // 4. Aguarda e vai para próxima aula
         setTimeout(() => {
             const currentIndex = lessons.findIndex(l => l.id === currentLesson.id);
             if (currentIndex < lessons.length - 1) {
                 setCurrentLesson(lessons[currentIndex + 1]);
             }
-        }, 3000); // Dá tempo de ver a animação das moedas
+        }, 3000); // 3 segundos para ver a animação de moedas
     }
     if (event.data === 1) setIsPlaying(true);
     if (event.data === 2) setIsPlaying(false);
@@ -290,7 +280,7 @@ export default function PlayerPage() {
           <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-black scrollbar-hide">
               <div className="max-w-4xl mx-auto pb-20">
                 
-                {/* --- PLAYER CLEAN (ZOOM HACK) --- */}
+                {/* --- PLAYER CLEAN --- */}
                 <div 
                     ref={containerRef}
                     key={currentLesson?.id}
@@ -302,20 +292,20 @@ export default function PlayerPage() {
                         <>
                             {videoStarted ? (
                                 <>
-                                    {/* 1. CONTAINER DO YOUTUBE COM ZOOM (Esconde os logos) */}
+                                    {/* YOUTUBE (OCULTO E AMPLIADO) */}
                                     <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
                                         <div className="w-[140%] h-[140%] -ml-[20%] -mt-[10%]">
                                             <div id="ninja-player" className="w-full h-full"></div>
                                         </div>
                                     </div>
                                     
-                                    {/* 2. ESCUDO DE CLIQUE (Click Shield) */}
+                                    {/* CLICK SHIELD */}
                                     <div 
                                         className="absolute inset-0 z-10 w-full h-full cursor-pointer bg-transparent"
                                         onClick={togglePlay}
                                     ></div>
 
-                                    {/* 3. ÍCONE DE PLAY GIGANTE (Pause) */}
+                                    {/* ÍCONE DE PLAY NO MEIO */}
                                     {!isPlaying && (
                                         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none animate-in fade-in zoom-in duration-200">
                                             <div className="w-20 h-20 bg-black/60 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/10">
@@ -324,7 +314,7 @@ export default function PlayerPage() {
                                         </div>
                                     )}
 
-                                    {/* 4. BARRA DE CONTROLE PERSONALIZADA */}
+                                    {/* BARRA DE CONTROLE */}
                                     <div className={`absolute bottom-0 left-0 right-0 px-4 pb-4 pt-16 bg-gradient-to-t from-black/90 to-transparent z-30 transition-opacity duration-300 ${showControls || !isPlaying ? 'opacity-100' : 'opacity-0'}`}>
                                         
                                         {/* Barra de Progresso */}
@@ -361,7 +351,7 @@ export default function PlayerPage() {
                                     </div>
                                 </>
                             ) : (
-                                // CAPA DOURADA (Inicial)
+                                // CAPA DOURADA
                                 <button 
                                     onClick={() => {
                                         setVideoStarted(true);
@@ -382,17 +372,17 @@ export default function PlayerPage() {
                     )}
                 </div>
 
-                {/* INFO DA AULA + MOEDAS */}
+                {/* ÁREA DE INFORMAÇÕES E RECOMPENSA */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                     <div>
                         <h1 className="text-xl md:text-2xl font-bold text-white mb-1">{currentLesson?.title}</h1>
                         <p className="text-sm text-gray-500">Módulo: {course.title}</p>
                     </div>
                     
-                    {/* ÁREA DE STATUS E MOEDAS */}
+                    {/* BADGE DE MOEDAS E STATUS */}
                     <div className="flex items-center gap-3">
-                        {/* MOEDAS */}
-                        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-all duration-500
+                        {/* Moedas */}
+                        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-all duration-500 transform
                             ${justEarned 
                                 ? 'bg-[#C9A66B] text-black border-[#C9A66B] shadow-[0_0_20px_rgba(201,166,107,0.6)] scale-110' 
                                 : completedLessons.has(currentLesson?.id)
@@ -405,11 +395,11 @@ export default function PlayerPage() {
                                 ? "+10 Recebidas!" 
                                 : completedLessons.has(currentLesson?.id) 
                                     ? "Recompensa Resgatada" 
-                                    : "+10 Moedas"
+                                    : "+10 Moedas PRO"
                             }
                         </div>
 
-                        {/* STATUS */}
+                        {/* Status Visual */}
                         {!completedLessons.has(currentLesson?.id) && (
                             <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border bg-[#222] text-gray-400 border-[#333]">
                                 <Clock size={14} /> Pendente
