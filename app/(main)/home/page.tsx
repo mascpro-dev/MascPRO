@@ -140,7 +140,7 @@ export default function HomePage() {
 
       {/* BANNER DE PRÓXIMO NÍVEL */}
       <div className="relative group overflow-hidden rounded-xl border border-[#222] bg-[#0a0a0a]">
-          <div className="absolute inset-0 to-transparent opacity-30 group-hover:opacity-50 transition-opacity" 
+          <div className="absolute inset-0 opacity-30 group-hover:opacity-50 transition-opacity" 
                style={{ background: `linear-gradient(to right, ${currentLevel.color}40, transparent)` }}></div>
           <div className="relative p-6 flex items-center justify-between">
             <div>
