@@ -3,110 +3,123 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Download, Loader2, Play, CheckCircle, Lock, ListVideo, Send, MessageSquare, User } from "lucide-react";
+import { ArrowLeft, Download, Loader2, Play, CheckCircle, Lock, ListVideo, Send, MessageSquare, User, AlertTriangle } from "lucide-react";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
 
 export default function PlayerPage() {
-  const params = useParams(); // Agora vai ler params.code
+  const params = useParams();
   const supabase = createClientComponentClient();
   
+  // Estados de Dados
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState("");
   const [course, setCourse] = useState<any>(null);
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   
-  // Estados para Comentários
+  // Estados de Comentários
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
 
-  // 1. CARREGAR TUDO
+  // 1. CARREGAR CONTEÚDO
   useEffect(() => {
     async function loadContent() {
-      // CORREÇÃO AQUI: Lê 'code' porque a pasta é [code]
-      const codeFromUrl = params?.code as string; 
-      
-      if (!codeFromUrl) return;
-
-      // Busca Curso
-      const { data: courseData, error } = await supabase
-        .from("courses")
-        .select("*")
-        .or(`code.eq.${codeFromUrl},slug.eq.${codeFromUrl}`)
-        .single();
-
-      if (error || !courseData) {
-        console.error("Erro ao buscar curso:", error);
-        setLoading(false);
-        return;
-      }
-      setCourse(courseData);
-
-      // Busca Aulas
-      const { data: lessonsData } = await supabase
-        .from("lessons")
-        .select("*")
-        .eq("course_code", courseData.code)
-        .order("sequence_order", { ascending: true });
-
-      // Busca Progresso
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: progressData } = await supabase
-          .from("lesson_progress")
-          .select("lesson_id")
-          .eq("user_id", user.id);
+      try {
+        setLoading(true);
+        const codeFromUrl = params?.code as string; // Pega da URL: /evolucao/[code]
         
-        const completedSet = new Set(progressData?.map((p: any) => p.lesson_id) || []);
-        setCompletedLessons(completedSet);
+        if (!codeFromUrl) {
+           throw new Error("Código do curso não identificado na URL.");
+        }
 
-        if (lessonsData && lessonsData.length > 0) {
-          setLessons(lessonsData);
-          // Abre na primeira não assistida
-          const firstUnwatched = lessonsData.find((l: any) => !completedSet.has(l.id));
-          setCurrentLesson(firstUnwatched || lessonsData[0]);
+        console.log("Buscando curso com código:", codeFromUrl);
+
+        // A. Busca Curso
+        const { data: courseData, error: courseError } = await supabase
+            .from("courses")
+            .select("*")
+            .or(`code.eq.${codeFromUrl},slug.eq.${codeFromUrl}`)
+            .single();
+
+        if (courseError || !courseData) {
+            console.error("Erro curso:", courseError);
+            throw new Error("Curso não encontrado.");
         }
-      } else {
-        if (lessonsData && lessonsData.length > 0) {
-          setLessons(lessonsData);
-          setCurrentLesson(lessonsData[0]);
+        setCourse(courseData);
+
+        // B. Busca Aulas
+        const { data: lessonsData, error: lessonsError } = await supabase
+            .from("lessons")
+            .select("*")
+            .eq("course_code", courseData.code)
+            .order("sequence_order", { ascending: true });
+
+        if (lessonsError) console.error("Erro aulas:", lessonsError);
+
+        // C. Busca Progresso
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: progressData } = await supabase
+            .from("lesson_progress")
+            .select("lesson_id")
+            .eq("user_id", user.id);
+          
+          const completedSet = new Set(progressData?.map((p: any) => p.lesson_id) || []);
+          setCompletedLessons(completedSet);
+
+          // Define Aula Atual
+          if (lessonsData && lessonsData.length > 0) {
+              setLessons(lessonsData);
+              const firstUnwatched = lessonsData.find((l: any) => !completedSet.has(l.id));
+              setCurrentLesson(firstUnwatched || lessonsData[0]);
+          }
+        } else {
+          if (lessonsData && lessonsData.length > 0) {
+              setLessons(lessonsData);
+              setCurrentLesson(lessonsData[0]);
+          }
         }
+
+      } catch (err: any) {
+        console.error("Erro fatal:", err);
+        setErrorMsg(err.message || "Erro desconhecido ao carregar.");
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     }
-    loadContent();
-  }, [params, supabase]); // Recarrega se a URL mudar
+    if (params?.code) loadContent();
+  }, [params, supabase]);
 
-  // 2. CARREGAR COMENTÁRIOS (Sempre que mudar a aula)
+  // 2. CARREGAR COMENTÁRIOS
   useEffect(() => {
     if (!currentLesson?.id) return;
     async function loadComments() {
-        const { data } = await supabase
+        // Agora busca com segurança na tabela profiles
+        const { data, error } = await supabase
             .from("lesson_comments")
-            .select("*, profiles:user_id(full_name, avatar_url)") 
+            .select(`
+                *,
+                profiles:user_id ( full_name, avatar_url )
+            `) 
             .eq("lesson_id", currentLesson.id)
             .order("created_at", { ascending: false });
         
+        if (error) console.error("Erro comentários:", error);
         setComments(data || []);
     }
     loadComments();
   }, [currentLesson, supabase]);
 
 
-  // FUNÇÃO: MARCAR COMO CONCLUÍDA
+  // AÇÕES
   const handleMarkAsCompleted = async () => {
     if (!currentLesson) return;
-
-    // Atualiza visualmente na hora
     const newSet = new Set(completedLessons);
     newSet.add(currentLesson.id);
     setCompletedLessons(newSet);
 
-    // Salva no banco
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
         await supabase.from("lesson_progress").upsert({
@@ -115,18 +128,15 @@ export default function PlayerPage() {
         }, { onConflict: 'user_id, lesson_id' });
     }
 
-    // Tenta ir para a próxima aula
     const currentIndex = lessons.findIndex(l => l.id === currentLesson.id);
     if (currentIndex < lessons.length - 1) {
         setCurrentLesson(lessons[currentIndex + 1]);
     }
   };
 
-  // FUNÇÃO: ENVIAR COMENTÁRIO
   const handleSendComment = async () => {
     if (!newComment.trim() || !currentLesson) return;
     setSendingComment(true);
-
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
         const { error } = await supabase.from("lesson_comments").insert({
@@ -137,20 +147,32 @@ export default function PlayerPage() {
 
         if (!error) {
             setNewComment("");
-            // Recarrega comentários
+            // Recarrega
             const { data } = await supabase
                 .from("lesson_comments")
                 .select("*, profiles:user_id(full_name, avatar_url)")
                 .eq("lesson_id", currentLesson.id)
                 .order("created_at", { ascending: false });
             setComments(data || []);
+        } else {
+            alert("Erro ao enviar comentário. Tente novamente.");
         }
     }
     setSendingComment(false);
   };
 
+  // RENDERIZAÇÃO DE ESTADOS
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[#C9A66B]"><Loader2 className="animate-spin mr-2"/> Carregando conteúdo...</div>;
+  
+  if (errorMsg) return (
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center text-red-500 p-6 text-center">
+        <AlertTriangle size={48} className="mb-4" />
+        <h2 className="text-xl font-bold mb-2">Ops! Algo deu errado.</h2>
+        <p className="text-gray-400 mb-6">{errorMsg}</p>
+        <Link href="/evolucao" className="text-[#C9A66B] underline hover:text-white">Voltar para Evolução</Link>
+    </div>
+  );
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[#C9A66B]"><Loader2 className="animate-spin mr-2"/> Carregando...</div>;
   if (!course) return <div className="min-h-screen bg-black text-white p-10">Curso não encontrado.</div>;
 
   return (
@@ -169,11 +191,11 @@ export default function PlayerPage() {
 
       <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
           
-          {/* ÁREA PRINCIPAL (Esquerda - Scrollável) */}
+          {/* ÁREA PRINCIPAL (Scrollável) */}
           <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-black scrollbar-hide">
               <div className="max-w-4xl mx-auto pb-20">
                 
-                {/* 1. PLAYER DE VÍDEO */}
+                {/* 1. PLAYER */}
                 <div className="aspect-video bg-black rounded-xl overflow-hidden border border-[#333] shadow-2xl mb-6 relative group">
                     {currentLesson?.video_id ? (
                         <iframe 
@@ -191,28 +213,24 @@ export default function PlayerPage() {
                     )}
                 </div>
 
-                {/* 2. BARRA DE AÇÕES */}
+                {/* 2. TÍTULO E BOTÕES */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-[#222] pb-6">
                     <div>
-                        <h1 className="text-2xl font-bold text-white mb-1">
-                            {currentLesson?.title || course.title}
-                        </h1>
+                        <h1 className="text-2xl font-bold text-white mb-1">{currentLesson?.title}</h1>
                         <p className="text-sm text-gray-500">Módulo: {course.title}</p>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* Botão MATERIAL */}
                         {(currentLesson?.material_url || course?.material_url) && (
                             <a 
                                 href={currentLesson?.material_url || course?.material_url} 
                                 target="_blank" 
                                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#111] hover:bg-[#222] border border-[#333] text-gray-300 hover:text-white transition-all text-sm font-medium"
                             >
-                                <Download size={16} /> <span className="hidden sm:inline">Material</span>
+                                <Download size={16} /> Material
                             </a>
                         )}
 
-                        {/* Botão CONCLUIR AULA */}
                         <button 
                             onClick={handleMarkAsCompleted}
                             className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold text-sm transition-all
@@ -224,7 +242,7 @@ export default function PlayerPage() {
                             {completedLessons.has(currentLesson?.id) ? (
                                 <> <CheckCircle size={18} /> Concluída </>
                             ) : (
-                                <> <CheckCircle size={18} /> Marcar como Concluída </>
+                                <> <CheckCircle size={18} /> Concluir Aula </>
                             )}
                         </button>
                     </div>
@@ -234,30 +252,29 @@ export default function PlayerPage() {
                 <div className="bg-[#111] p-6 rounded-xl border border-[#222] mb-10">
                     <h3 className="text-sm font-bold text-gray-400 uppercase mb-3">Sobre esta aula</h3>
                     <p className="text-gray-300 leading-relaxed text-sm whitespace-pre-line">
-                        {currentLesson?.description || "Sem descrição disponível para esta aula."}
+                        {currentLesson?.description || "Sem descrição disponível."}
                     </p>
                 </div>
 
-                {/* 4. ÁREA DE DÚVIDAS */}
+                {/* 4. COMENTÁRIOS */}
                 <div className="mt-10">
                     <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                         <MessageSquare size={20} className="text-[#C9A66B]" /> Dúvidas e Comentários
                     </h3>
 
-                    {/* Input */}
                     <div className="flex gap-4 mb-8">
                         <div className="flex-1 relative">
                             <textarea 
                                 value={newComment}
                                 onChange={(e) => setNewComment(e.target.value)}
-                                placeholder="Tem alguma dúvida sobre esta aula? Escreva aqui..."
+                                placeholder="Sua dúvida..."
                                 className="w-full bg-[#111] border border-[#333] rounded-lg p-4 text-sm text-white focus:outline-none focus:border-[#C9A66B] min-h-[100px] resize-none"
                             />
                             <div className="absolute bottom-3 right-3">
                                 <button 
                                     onClick={handleSendComment}
                                     disabled={sendingComment || !newComment.trim()}
-                                    className="bg-[#C9A66B] p-2 rounded-full text-black hover:bg-[#b08d55] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    className="bg-[#C9A66B] p-2 rounded-full text-black hover:bg-[#b08d55] disabled:opacity-50"
                                 >
                                     {sendingComment ? <Loader2 size={16} className="animate-spin"/> : <Send size={16} />}
                                 </button>
@@ -265,13 +282,12 @@ export default function PlayerPage() {
                         </div>
                     </div>
 
-                    {/* Lista */}
                     <div className="space-y-6">
                         {comments.length === 0 ? (
-                            <p className="text-gray-600 text-sm text-center py-4">Nenhuma dúvida por enquanto. Seja o primeiro!</p>
+                            <p className="text-gray-600 text-sm text-center py-4">Nenhuma dúvida ainda. Seja o primeiro!</p>
                         ) : (
                             comments.map((comment) => (
-                                <div key={comment.id} className="flex gap-4 group">
+                                <div key={comment.id} className="flex gap-4">
                                     <div className="w-10 h-10 rounded-full bg-[#222] flex items-center justify-center shrink-0 border border-[#333] overflow-hidden">
                                         {comment.profiles?.avatar_url ? (
                                             <img src={comment.profiles.avatar_url} alt="User" className="w-full h-full object-cover" />
@@ -282,13 +298,13 @@ export default function PlayerPage() {
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="font-bold text-sm text-gray-200">
-                                                {comment.profiles?.full_name || "Usuário MascPRO"}
+                                                {comment.profiles?.full_name || "Aluno MascPRO"}
                                             </span>
                                             <span className="text-xs text-gray-600">
-                                                {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: ptBR })}
+                                                {new Date(comment.created_at).toLocaleDateString()}
                                             </span>
                                         </div>
-                                        <p className="text-gray-400 text-sm leading-relaxed bg-[#111] p-3 rounded-lg rounded-tl-none border border-[#222] group-hover:border-[#333] transition-colors">
+                                        <p className="text-gray-400 text-sm bg-[#111] p-3 rounded-lg border border-[#222]">
                                             {comment.content}
                                         </p>
                                     </div>
@@ -301,19 +317,17 @@ export default function PlayerPage() {
               </div>
           </div>
 
-          {/* BARRA LATERAL (Direita) */}
+          {/* LISTA DE AULAS */}
           <div className="w-full md:w-80 bg-[#0a0a0a] border-l border-[#222] overflow-y-auto shrink-0 md:h-full h-96">
               <div className="p-4 border-b border-[#222] bg-[#0a0a0a] sticky top-0 z-10">
                   <h3 className="font-bold text-gray-400 text-xs uppercase tracking-widest flex items-center gap-2">
                       <ListVideo size={14} /> Conteúdo
                   </h3>
               </div>
-              
               <div className="flex flex-col pb-20">
                   {lessons.map((lesson, idx) => {
                       const isActive = currentLesson?.id === lesson.id;
                       const isCompleted = completedLessons.has(lesson.id);
-                      // Lógica: A primeira é liberada, ou se a anterior foi completa
                       const isUnlocked = idx === 0 || completedLessons.has(lessons[idx - 1].id);
 
                       return (
@@ -321,32 +335,20 @@ export default function PlayerPage() {
                             key={lesson.id}
                             disabled={!isUnlocked}
                             onClick={() => isUnlocked && setCurrentLesson(lesson)}
-                            className={`p-4 text-left border-b border-[#1a1a1a] transition-colors flex gap-3 group relative
+                            className={`p-4 text-left border-b border-[#1a1a1a] transition-colors flex gap-3 group
                                 ${isActive ? 'bg-[#161616] border-l-4 border-l-[#C9A66B]' : 'border-l-4 border-l-transparent'}
-                                ${!isUnlocked ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:bg-[#111] cursor-pointer'}
+                                ${!isUnlocked ? 'opacity-50 grayscale' : 'hover:bg-[#111]'}
                             `}
                           >
                               <div className="mt-1">
-                                  {!isUnlocked ? (
-                                      <Lock size={14} className="text-gray-600" />
-                                  ) : isCompleted ? (
-                                      <CheckCircle size={14} className="text-green-500" />
-                                  ) : isActive ? (
-                                      <Play size={14} className="text-[#C9A66B] fill-[#C9A66B]" /> 
-                                  ) : (
-                                      <span className="text-xs text-gray-600 font-mono">{String(idx + 1).padStart(2, '0')}</span>
-                                  )}
+                                  {!isUnlocked ? <Lock size={14} className="text-gray-600" /> : 
+                                   isCompleted ? <CheckCircle size={14} className="text-green-500" /> :
+                                   isActive ? <Play size={14} className="text-[#C9A66B] fill-[#C9A66B]" /> :
+                                   <span className="text-xs text-gray-600 font-mono">{String(idx + 1).padStart(2, '0')}</span>}
                               </div>
-                              
                               <div>
-                                  <h4 className={`text-sm font-medium leading-tight mb-1 ${isActive ? 'text-white' : 'text-gray-400'} ${isUnlocked && 'group-hover:text-gray-200'}`}>
-                                      {lesson.title}
-                                  </h4>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-gray-600">
-                                        {lesson.durations_minutos > 0 ? `${lesson.durations_minutos} min` : 'Aula'}
-                                    </span>
-                                  </div>
+                                  <h4 className={`text-sm font-medium mb-1 ${isActive ? 'text-white' : 'text-gray-400'}`}>{lesson.title}</h4>
+                                  <span className="text-[10px] text-gray-600">{lesson.durations_minutos > 0 ? `${lesson.durations_minutos} min` : 'Aula'}</span>
                               </div>
                           </button>
                       )
