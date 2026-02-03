@@ -1,17 +1,17 @@
 "use client";
 
-// --- OTIMIZAÇÃO VERCEL ---
+// --- FORÇAR REVALIDAÇÃO (ESSENCIAL PARA ATUALIZAR MOEDAS) ---
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useParams } from "next/navigation";
-import { ArrowLeft, Download, Loader2, Play, Pause, CheckCircle, Lock, ListVideo, Send, MessageSquare, User, Info, HelpCircle, FileText, Maximize, Volume2, VolumeX, Minimize } from "lucide-react";
+import { useParams, useRouter } from "next/navigation"; // Adicionado useRouter
+import { ArrowLeft, Download, Loader2, Play, Pause, CheckCircle, Lock, ListVideo, Send, MessageSquare, User, Info, HelpCircle, FileText, Maximize, Volume2, VolumeX, Clock, Coins } from "lucide-react";
 import Link from "next/link";
 import Script from "next/script";
 
-// Tipagem
+// Tipagem global
 declare global {
   interface Window {
     onYouTubeIframeAPIReady: () => void;
@@ -19,6 +19,7 @@ declare global {
   }
 }
 
+// Formatador de tempo (00:00)
 const formatTime = (seconds: number) => {
     if (!seconds || isNaN(seconds)) return "00:00";
     const m = Math.floor(seconds / 60);
@@ -28,6 +29,7 @@ const formatTime = (seconds: number) => {
 
 export default function PlayerPage() {
   const params = useParams();
+  const router = useRouter(); // Para atualizar o saldo global
   const supabase = createClientComponentClient();
   
   // DADOS
@@ -38,17 +40,19 @@ export default function PlayerPage() {
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   
   // PLAYER CUSTOMIZADO
+  const [videoStarted, setVideoStarted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [videoReady, setVideoReady] = useState(false); // Se o vídeo já carregou
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(false);
   
+  // GAMIFICAÇÃO
+  const [justEarned, setJustEarned] = useState(false); // Efeito visual de moedas ganhas
+
   const playerRef = useRef<any>(null);
+  const intervalRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const progressBarRef = useRef<HTMLDivElement>(null);
 
   // INTERFACE
   const [activeTab, setActiveTab] = useState<"sobre" | "duvidas" | "material">("sobre");
@@ -67,12 +71,15 @@ export default function PlayerPage() {
         const codeFromUrl = params?.code; 
         if (!codeFromUrl) return;
 
+        // Curso
         const { data: courseData } = await supabase.from("courses").select("*").or(`code.eq.${codeFromUrl},slug.eq.${codeFromUrl}`).single();
         if (!courseData) throw new Error("Curso não encontrado.");
         setCourse(courseData);
 
+        // Aulas
         const { data: lessonsData } = await supabase.from("lessons").select("*").eq("course_code", courseData.code).order("sequence_order", { ascending: true });
         
+        // Progresso
         const { data: { session } } = await supabase.auth.getSession();
         const completedSet = new Set<string>();
         if (session) {
@@ -81,11 +88,13 @@ export default function PlayerPage() {
         }
         setCompletedLessons(completedSet);
 
+        // Define Aula
         if (lessonsData && lessonsData.length > 0) {
             setLessons(lessonsData);
             const firstUnwatched = lessonsData.find((l: any) => !completedSet.has(l.id));
             setCurrentLesson(firstUnwatched || lessonsData[0]);
         }
+        // Usuários
         const { data: usersData } = await supabase.from("profiles").select("id, full_name, avatar_url").limit(300); 
         setAllUsers(usersData || []);
       } catch (e) { console.error(e); } finally { setLoading(false); }
@@ -93,13 +102,15 @@ export default function PlayerPage() {
     loadContent();
   }, [params]);
 
-  // 2. RESET AO MUDAR AULA
+  // 2. RESETAR AO MUDAR AULA
   useEffect(() => {
     if (!currentLesson?.id) return;
-    setVideoReady(false);
+    setVideoStarted(false);
     setIsPlaying(false);
     setCurrentTime(0);
+    setJustEarned(false); // Reseta animação de moedas
     setActiveTab("sobre");
+    if (intervalRef.current) clearInterval(intervalRef.current);
     
     // Limpa player anterior
     if (playerRef.current) {
@@ -109,7 +120,6 @@ export default function PlayerPage() {
         playerRef.current = null;
     }
     
-    // Carrega comentários
     async function loadComments() {
         const { data } = await supabase.from("lesson_comments").select(`*, profiles:user_id ( full_name, avatar_url )`).eq("lesson_id", currentLesson.id).order("created_at", { ascending: false });
         setComments(data || []);
@@ -117,129 +127,121 @@ export default function PlayerPage() {
     loadComments();
   }, [currentLesson]);
 
-  // 3. TIMER DE PROGRESSO
+  // 3. INICIALIZAR YOUTUBE (MODO NINJA 🥷)
   useEffect(() => {
-    if (!videoReady) return;
-    const interval = setInterval(() => {
-        if (playerRef.current && playerRef.current.getCurrentTime) {
-            try {
-                setCurrentTime(playerRef.current.getCurrentTime());
-            } catch (e) {}
-        }
-    }, 500);
-    return () => clearInterval(interval);
-  }, [videoReady]);
+    if (videoStarted && currentLesson?.video_id && window.YT) {
+        if (playerRef.current) { try { playerRef.current.destroy(); } catch(e){} }
 
-  // 3.5. LISTENER FULLSCREEN
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-        setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+        setTimeout(() => {
+            playerRef.current = new window.YT.Player('ninja-player', {
+                videoId: currentLesson.video_id,
+                height: '100%',
+                width: '100%',
+                playerVars: {
+                    autoplay: 1,      
+                    controls: 0,       // SEM BARRA NATIVA
+                    disablekb: 1,      // SEM TECLADO
+                    fs: 0,             // SEM BOTÃO FULLSCREEN NATIVO
+                    modestbranding: 1, // TENTA ESCONDER LOGO
+                    rel: 0,            // SEM RELACIONADOS
+                    showinfo: 0,
+                    iv_load_policy: 3
+                },
+                events: {
+                    'onReady': (event: any) => {
+                        setDuration(event.target.getDuration());
+                        setIsPlaying(true);
+                        // Loop para atualizar barra de progresso
+                        intervalRef.current = setInterval(() => {
+                            if (playerRef.current && playerRef.current.getCurrentTime) {
+                                try {
+                                    setCurrentTime(playerRef.current.getCurrentTime());
+                                } catch (e) {}
+                            }
+                        }, 500);
+                    },
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }, 100);
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [videoStarted, currentLesson?.video_id]);
 
-  // 4. CRIAÇÃO DO PLAYER YOUTUBE (API)
-  const initPlayer = () => {
-      if (!window.YT || !currentLesson?.video_id) return;
-      
-      playerRef.current = new window.YT.Player('yt-custom-player', {
-          videoId: currentLesson.video_id,
-          height: '100%',
-          width: '100%',
-          playerVars: {
-              autoplay: 1,
-              controls: 0,       // SEM CONTROLES NATIVOS (CRUCIAL)
-              disablekb: 1,      // SEM TECLADO
-              fs: 0,             // SEM FULLSCREEN NATIVO
-              modestbranding: 1, // MENOS MARCA
-              rel: 0,            // SEM RELACIONADOS
-              showinfo: 0,
-              iv_load_policy: 3,
-              playsinline: 1
-          },
-          events: {
-              'onReady': (event: any) => {
-                  setVideoReady(true);
-                  setDuration(event.target.getDuration());
-                  setIsPlaying(true);
-              },
-              'onStateChange': onPlayerStateChange
-          }
-      });
-  };
 
-  // CALLBACK API YOUTUBE
-  if (typeof window !== 'undefined') {
-      window.onYouTubeIframeAPIReady = () => {
-          // API pronta, mas só inicializa quando o usuário clicar na capa
-      };
-  }
-
-  // --- CONTROLES (NOSSO JAVASCRIPT) ---
-  const handleStartVideo = () => {
-      setVideoReady(true);
-      // Pequeno delay para div existir
-      setTimeout(() => initPlayer(), 100); 
-  };
-
+  // CONTROLES DO PLAYER
   const togglePlay = () => {
-      if (!playerRef.current || !playerRef.current.playVideo) return;
-      if (isPlaying) {
-          playerRef.current.pauseVideo();
-      } else {
-          playerRef.current.playVideo();
-      }
+      if (!playerRef.current) return;
+      if (isPlaying) { playerRef.current.pauseVideo(); } else { playerRef.current.playVideo(); }
       setIsPlaying(!isPlaying);
   };
 
-  const onPlayerStateChange = async (event: any) => {
-      if (event.data === 1) setIsPlaying(true);
-      if (event.data === 2) setIsPlaying(false);
-      if (event.data === 0) { // ACABOU
-          setIsPlaying(false);
-          const newSet = new Set(completedLessons); newSet.add(currentLesson.id); setCompletedLessons(newSet);
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) await supabase.from("lesson_progress").upsert({ user_id: user.id, lesson_id: currentLesson.id }, { onConflict: 'user_id, lesson_id' });
-          setTimeout(() => {
-             const idx = lessons.findIndex(l => l.id === currentLesson.id);
-             if (idx < lessons.length - 1) setCurrentLesson(lessons[idx + 1]);
-          }, 2000);
-      }
-  };
-
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-      if (!progressBarRef.current || !duration) return;
-      const rect = progressBarRef.current.getBoundingClientRect();
-      const pos = (e.clientX - rect.left) / rect.width;
-      const newTime = pos * duration;
-      setCurrentTime(newTime);
-      if (playerRef.current) playerRef.current.seekTo(newTime, true);
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const time = parseFloat(e.target.value);
+      setCurrentTime(time);
+      if (playerRef.current) playerRef.current.seekTo(time, true);
   };
 
   const toggleMute = () => {
       if (!playerRef.current) return;
-      if (isMuted) playerRef.current.unMute();
-      else playerRef.current.mute();
+      if (isMuted) { playerRef.current.unMute(); } else { playerRef.current.mute(); }
       setIsMuted(!isMuted);
   };
 
   const toggleFullscreen = () => {
       const elem = containerRef.current;
       if (elem) {
-          if (!document.fullscreenElement) {
-              elem.requestFullscreen().then(() => setIsFullscreen(true)).catch(err => console.log(err));
-          } else {
-              document.exitFullscreen().then(() => setIsFullscreen(false));
-          }
+          if (!document.fullscreenElement) { elem.requestFullscreen().catch(err => console.log(err)); } 
+          else { document.exitFullscreen(); }
       }
   };
 
-  // --- MENÇÕES ---
+  // --- LÓGICA AUTOMÁTICA & MOEDAS ---
+  const onPlayerStateChange = async (event: any) => {
+    // 0 = ENDED (ACABOU)
+    if (event.data === 0) { 
+        console.log("💰 Aula concluída! Atualizando moedas...");
+        setIsPlaying(false);
+        
+        // 1. Atualiza Visualmente (Aula Concluída)
+        const newSet = new Set(completedLessons);
+        newSet.add(currentLesson.id);
+        setCompletedLessons(newSet);
+
+        // 2. Animação de Moedas
+        setJustEarned(true);
+        setTimeout(() => setJustEarned(false), 3000); // Remove animação após 3s
+
+        // 3. Salva no Banco e Atualiza Header
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase.from("lesson_progress").upsert({
+                user_id: user.id,
+                lesson_id: currentLesson.id
+            }, { onConflict: 'user_id, lesson_id' });
+            
+            // ATUALIZAÇÃO GLOBAL: Força o Next.js a recarregar dados do servidor (incluindo saldo no Header)
+            router.refresh(); 
+        }
+        
+        // 4. Próxima Aula
+        setTimeout(() => {
+            const currentIndex = lessons.findIndex(l => l.id === currentLesson.id);
+            if (currentIndex < lessons.length - 1) {
+                setCurrentLesson(lessons[currentIndex + 1]);
+            }
+        }, 3000); // Dá tempo de ver a animação das moedas
+    }
+    if (event.data === 1) setIsPlaying(true);
+    if (event.data === 2) setIsPlaying(false);
+  };
+
+  // --- COMENTÁRIOS E MENÇÕES ---
   const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value; setNewComment(text);
     const words = text.split(/\s+/); const lastWord = words[words.length - 1];
-    if (lastWord.startsWith("@")) { setShowMentions(true); setMentionQuery(lastWord.substring(1).toLowerCase()); } else { setShowMentions(false); }
+    if (lastWord.startsWith("@")) { setShowMentions(true); setMentionQuery(lastWord.substring(1).toLowerCase()); } 
+    else { setShowMentions(false); }
   };
   const insertMention = (user: any) => {
     const words = newComment.split(/\s+/); words.pop(); 
@@ -288,7 +290,7 @@ export default function PlayerPage() {
           <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-black scrollbar-hide">
               <div className="max-w-4xl mx-auto pb-20">
                 
-                {/* --- PLAYER PRO 2.0 (INTERFACE PRÓPRIA) --- */}
+                {/* --- PLAYER CLEAN (ZOOM HACK) --- */}
                 <div 
                     ref={containerRef}
                     key={currentLesson?.id}
@@ -298,20 +300,22 @@ export default function PlayerPage() {
                 >
                     {currentLesson?.video_id ? (
                         <>
-                            {videoReady ? (
+                            {videoStarted ? (
                                 <>
-                                    {/* 1. YOUTUBE (BLOQUEADO E EM ZOOM) */}
-                                    <div className="absolute inset-0 w-full h-full pointer-events-none transform scale-[1.01]">
-                                        <div id="yt-custom-player" className="w-full h-full"></div>
+                                    {/* 1. CONTAINER DO YOUTUBE COM ZOOM (Esconde os logos) */}
+                                    <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
+                                        <div className="w-[140%] h-[140%] -ml-[20%] -mt-[10%]">
+                                            <div id="ninja-player" className="w-full h-full"></div>
+                                        </div>
                                     </div>
                                     
-                                    {/* 2. ESCUDO DE CLIQUE (Faz o play/pause funcionar) */}
+                                    {/* 2. ESCUDO DE CLIQUE (Click Shield) */}
                                     <div 
                                         className="absolute inset-0 z-10 w-full h-full cursor-pointer bg-transparent"
                                         onClick={togglePlay}
                                     ></div>
 
-                                    {/* 3. ÍCONE DE PLAY NO MEIO */}
+                                    {/* 3. ÍCONE DE PLAY GIGANTE (Pause) */}
                                     {!isPlaying && (
                                         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none animate-in fade-in zoom-in duration-200">
                                             <div className="w-20 h-20 bg-black/60 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/10">
@@ -320,50 +324,51 @@ export default function PlayerPage() {
                                         </div>
                                     )}
 
-                                    {/* 4. BARRA DE CONTROLE (NOSSA UI) */}
-                                    <div className={`absolute bottom-0 left-0 right-0 px-4 pb-4 pt-20 bg-gradient-to-t from-black via-black/80 to-transparent z-30 transition-opacity duration-300 ${showControls || !isPlaying ? 'opacity-100' : 'opacity-0'}`}>
+                                    {/* 4. BARRA DE CONTROLE PERSONALIZADA */}
+                                    <div className={`absolute bottom-0 left-0 right-0 px-4 pb-4 pt-16 bg-gradient-to-t from-black/90 to-transparent z-30 transition-opacity duration-300 ${showControls || !isPlaying ? 'opacity-100' : 'opacity-0'}`}>
                                         
                                         {/* Barra de Progresso */}
-                                        <div 
-                                            ref={progressBarRef}
-                                            className="relative w-full h-1.5 bg-white/20 rounded-full mb-4 cursor-pointer group/bar"
-                                            onClick={handleSeek}
-                                        >
-                                            <div 
-                                                className="absolute top-0 left-0 h-full bg-[#C9A66B] rounded-full relative" 
-                                                style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
-                                            >
-                                                {/* Bolinha do Scrubber */}
-                                                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover/bar:opacity-100 transition-opacity"></div>
-                                            </div>
+                                        <div className="relative w-full h-1 bg-gray-600 rounded-full mb-4 group/bar cursor-pointer hover:h-2 transition-all">
+                                            <div className="absolute top-0 left-0 h-full bg-[#C9A66B] rounded-full" style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}></div>
+                                            <input 
+                                                type="range" min={0} max={duration || 100} step="1"
+                                                value={currentTime} onChange={handleSeek}
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                            />
                                         </div>
 
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
-                                                <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="text-white hover:text-[#C9A66B] transition-colors p-1">
+                                                <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="text-white hover:text-[#C9A66B] transition-colors">
                                                     {isPlaying ? <Pause size={24} fill="white"/> : <Play size={24} fill="white"/>}
                                                 </button>
                                                 
-                                                <div className="flex items-center gap-2 group/vol">
-                                                    <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} className="text-white hover:text-gray-300 p-1">
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} className="text-white hover:text-gray-300">
                                                         {isMuted ? <VolumeX size={20}/> : <Volume2 size={20}/>}
                                                     </button>
                                                 </div>
 
-                                                <span className="text-xs font-medium font-sans text-gray-200">
+                                                <span className="text-xs font-mono text-gray-300 tracking-widest">
                                                     {formatTime(currentTime)} / {formatTime(duration)}
                                                 </span>
                                             </div>
 
-                                            <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="text-white hover:text-[#C9A66B] transition-colors p-1">
-                                                {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                                            <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="text-white hover:text-[#C9A66B] transition-colors">
+                                                <Maximize size={20} />
                                             </button>
                                         </div>
                                     </div>
                                 </>
                             ) : (
                                 // CAPA DOURADA (Inicial)
-                                <button onClick={handleStartVideo} className="absolute inset-0 w-full h-full cursor-pointer z-10 flex flex-col items-center justify-center group">
+                                <button 
+                                    onClick={() => {
+                                        setVideoStarted(true);
+                                        setTimeout(() => { if(!window.YT) window.onYouTubeIframeAPIReady && window.onYouTubeIframeAPIReady(); }, 100);
+                                    }} 
+                                    className="absolute inset-0 w-full h-full cursor-pointer z-10 flex flex-col items-center justify-center group"
+                                >
                                     <img src={`https://img.youtube.com/vi/${currentLesson.video_id}/hqdefault.jpg`} alt="Capa" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
                                     <div className="w-24 h-24 bg-[#C9A66B] rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(201,166,107,0.6)] group-hover:scale-110 transition-transform duration-300 z-20">
                                         <Play size={36} className="text-black ml-1 fill-black" />
@@ -377,10 +382,40 @@ export default function PlayerPage() {
                     )}
                 </div>
 
-                {/* INFO */}
+                {/* INFO DA AULA + MOEDAS */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                    <div><h1 className="text-xl md:text-2xl font-bold text-white mb-1">{currentLesson?.title}</h1><p className="text-sm text-gray-500">Módulo: {course.title}</p></div>
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider border ${completedLessons.has(currentLesson?.id) ? 'bg-green-900/20 text-green-500 border-green-800' : 'bg-[#222] text-gray-400 border-[#333]'}`}>{completedLessons.has(currentLesson?.id) ? <><CheckCircle size={14} /> Concluída</> : <><Loader2 size={14} className="animate-spin" /> Em andamento</>}</div>
+                    <div>
+                        <h1 className="text-xl md:text-2xl font-bold text-white mb-1">{currentLesson?.title}</h1>
+                        <p className="text-sm text-gray-500">Módulo: {course.title}</p>
+                    </div>
+                    
+                    {/* ÁREA DE STATUS E MOEDAS */}
+                    <div className="flex items-center gap-3">
+                        {/* MOEDAS */}
+                        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-all duration-500
+                            ${justEarned 
+                                ? 'bg-[#C9A66B] text-black border-[#C9A66B] shadow-[0_0_20px_rgba(201,166,107,0.6)] scale-110' 
+                                : completedLessons.has(currentLesson?.id)
+                                    ? 'bg-green-900/20 text-green-500 border-green-800'
+                                    : 'bg-[#1a1a1a] text-[#C9A66B] border-[#333]'
+                            }
+                        `}>
+                            <Coins size={16} />
+                            {justEarned 
+                                ? "+10 Recebidas!" 
+                                : completedLessons.has(currentLesson?.id) 
+                                    ? "Recompensa Resgatada" 
+                                    : "+10 Moedas"
+                            }
+                        </div>
+
+                        {/* STATUS */}
+                        {!completedLessons.has(currentLesson?.id) && (
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border bg-[#222] text-gray-400 border-[#333]">
+                                <Clock size={14} /> Pendente
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* ABAS */}
@@ -404,7 +439,7 @@ export default function PlayerPage() {
               </div>
           </div>
 
-          {/* LISTA DIREITA */}
+          {/* DIREITA: Lista de Aulas */}
           <div className="w-full md:w-80 bg-[#0a0a0a] border-l border-[#222] overflow-y-auto shrink-0 md:h-full h-96">
               <div className="p-4 border-b border-[#222] bg-[#0a0a0a] sticky top-0 z-10"><h3 className="font-bold text-gray-400 text-xs uppercase tracking-widest flex items-center gap-2"><ListVideo size={14} /> Conteúdo</h3></div>
               <div className="flex flex-col pb-20">{lessons.map((lesson, idx) => { const isActive = currentLesson?.id === lesson.id; const isCompleted = completedLessons.has(lesson.id); const isUnlocked = idx === 0 || completedLessons.has(lessons[idx - 1].id); return (<button key={lesson.id} disabled={!isUnlocked} onClick={() => isUnlocked && setCurrentLesson(lesson)} className={`p-4 text-left border-b border-[#1a1a1a] transition-colors flex gap-3 group ${isActive ? 'bg-[#161616] border-l-4 border-l-[#C9A66B]' : 'border-l-4 border-l-transparent'} ${!isUnlocked ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:bg-[#111] cursor-pointer'}`}><div className="mt-1">{!isUnlocked ? <Lock size={14} className="text-gray-600" /> : isCompleted ? <CheckCircle size={14} className="text-green-500" /> : isActive ? <Play size={14} className="text-[#C9A66B] fill-[#C9A66B]" /> : <span className="text-xs text-gray-600 font-mono">{String(idx + 1).padStart(2, '0')}</span>}</div><div><h4 className={`text-sm font-medium mb-1 ${isActive ? 'text-white' : 'text-gray-400'} ${isUnlocked && 'group-hover:text-gray-200'}`}>{lesson.title}</h4><span className="text-[10px] text-gray-600">{lesson.durations_minutos > 0 ? `${lesson.durations_minutos} min` : 'Vídeo'}</span></div></button>)})}</div>
