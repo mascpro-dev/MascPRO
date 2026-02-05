@@ -65,17 +65,31 @@ export default function PlayerPage() {
     loadContent();
   }, [params]);
 
+  useEffect(() => {
+    if (!currentLesson?.id) return;
+    setVideoStarted(false);
+    setIsPlaying(false);
+    setJustEarned(false);
+  }, [currentLesson]);
+
   const onPlayerStateChange = async (event: any) => {
     if (event.data === 0) { // Fim do vídeo
+        setIsPlaying(false);
         setJustEarned(true);
-        setCompletedLessons(prev => {
-            const newSet = new Set(prev);
-            newSet.add(currentLesson.id);
-            return newSet;
+        
+        // Atualização otimista
+        const newSet = new Set(completedLessons);
+        newSet.add(currentLesson.id);
+        setCompletedLessons(newSet);
+
+        // Processar recompensa
+        const { error } = await supabase.rpc('finish_lesson_secure', { 
+            lesson_uuid: currentLesson.id 
         });
 
-        await supabase.rpc('finish_lesson_secure', { lesson_uuid: currentLesson.id });
-        router.refresh(); 
+        if (!error) {
+            router.refresh(); 
+        }
 
         // Auto-avançar para a próxima que agora está desbloqueada
         setTimeout(() => {
@@ -90,6 +104,8 @@ export default function PlayerPage() {
             });
         }, 3000);
     }
+    if (event.data === 1) setIsPlaying(true);
+    if (event.data === 2) setIsPlaying(false);
   };
 
   useEffect(() => {
@@ -144,10 +160,28 @@ export default function PlayerPage() {
                         <h1 className="text-2xl font-bold text-white mb-1">{currentLesson?.title}</h1>
                         <p className="text-sm text-gray-500">Módulo: {course?.title}</p>
                     </div>
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-all duration-500
-                        ${justEarned ? 'bg-[#C9A66B] text-black border-[#C9A66B] scale-105' : 'bg-[#1a1a1a] text-[#C9A66B] border-[#333]'}
-                    `}>
-                        <Trophy size={16} /> {justEarned ? "+10 PRO Recebido!" : completedLessons.has(currentLesson?.id) ? "PRO Adquirido" : "+10 PRO"}
+                    <div className="flex items-center gap-3">
+                        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-all duration-500 transform
+                            ${justEarned 
+                                ? 'bg-[#C9A66B] text-black border-[#C9A66B] scale-110 shadow-[0_0_20px_rgba(201,166,107,0.6)]' 
+                                : completedLessons.has(currentLesson?.id)
+                                    ? 'bg-green-900/20 text-green-500 border-green-800'
+                                    : 'bg-[#1a1a1a] text-[#C9A66B] border-[#333]'
+                            }
+                        `}>
+                            <Trophy size={16} />
+                            {justEarned 
+                                ? "+10 PRO Recebido!" 
+                                : completedLessons.has(currentLesson?.id) 
+                                    ? "PRO Adquirido" 
+                                    : "+10 PRO"
+                            }
+                        </div>
+                        {!completedLessons.has(currentLesson?.id) && (
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border bg-[#222] text-gray-400 border-[#333]">
+                                <Clock size={14} /> Pendente
+                            </div>
+                        )}
                     </div>
                 </div>
               </div>
