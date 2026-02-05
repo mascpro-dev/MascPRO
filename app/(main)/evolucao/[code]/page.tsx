@@ -6,7 +6,7 @@ export const revalidate = 0;
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams, useRouter } from "next/navigation"; 
-import { ArrowLeft, Loader2, Play, CheckCircle, Lock, ListVideo, Trophy } from "lucide-react";
+import { ArrowLeft, Loader2, Play, CheckCircle, Lock, ListVideo, Trophy, Clock } from "lucide-react";
 import Link from "next/link";
 import Script from "next/script";
 
@@ -26,10 +26,13 @@ export default function PlayerPage() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
+  
   const [videoStarted, setVideoStarted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [justEarned, setJustEarned] = useState(false);
 
   const playerRef = useRef<any>(null);
+  const intervalRef = useRef<any>(null);
 
   useEffect(() => {
     async function loadContent() {
@@ -58,17 +61,36 @@ export default function PlayerPage() {
     loadContent();
   }, [params.code]);
 
+  // Reset ao mudar de aula
+  useEffect(() => {
+    if (!currentLesson?.id) return;
+    setVideoStarted(false);
+    setIsPlaying(false);
+    setJustEarned(false);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  }, [currentLesson]);
+
   const handleLessonComplete = useCallback(async () => {
+    setIsPlaying(false);
     setJustEarned(true);
+    
+    // Atualização otimista
     setCompletedLessons(prev => {
       const newSet = new Set(prev);
       newSet.add(currentLesson.id);
       return newSet;
     });
 
-    await supabase.rpc('finish_lesson_secure', { lesson_uuid: currentLesson.id });
-    router.refresh(); 
+    // Processar recompensa
+    const { error } = await supabase.rpc('finish_lesson_secure', { 
+      lesson_uuid: currentLesson.id 
+    });
 
+    if (!error) {
+      router.refresh(); 
+    }
+
+    // Auto-avançar para a próxima que agora está desbloqueada
     setTimeout(() => {
         setLessons(prevLessons => {
             const currentIndex = prevLessons.findIndex(l => l.id === currentLesson.id);
@@ -79,26 +101,31 @@ export default function PlayerPage() {
             }
             return prevLessons;
         });
-    }, 2500);
+    }, 3000);
   }, [currentLesson, supabase, router]);
 
   useEffect(() => {
     if (videoStarted && currentLesson?.video_id && window.YT) {
         if (playerRef.current) { try { playerRef.current.destroy(); } catch(e){} }
-        playerRef.current = new window.YT.Player('ninja-player', {
-            videoId: currentLesson.video_id,
-            height: '100%',
-            width: '100%',
-            playerVars: { autoplay: 1, controls: 1, modestbranding: 1, rel: 0 },
-            events: { 
-              'onStateChange': (event: any) => {
-                if (event.data === 0) {
-                   handleLessonComplete();
+        setTimeout(() => {
+            playerRef.current = new window.YT.Player('ninja-player', {
+                videoId: currentLesson.video_id,
+                height: '100%',
+                width: '100%',
+                playerVars: { autoplay: 1, controls: 1, modestbranding: 1, rel: 0 },
+                events: { 
+                  'onStateChange': (event: any) => {
+                    if (event.data === 0) {
+                       handleLessonComplete();
+                    }
+                    if (event.data === 1) setIsPlaying(true);
+                    if (event.data === 2) setIsPlaying(false);
+                  } 
                 }
-              } 
-            }
-        });
+            });
+        }, 100);
     }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [videoStarted, currentLesson, handleLessonComplete]);
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
@@ -136,10 +163,28 @@ export default function PlayerPage() {
                         <h1 className="text-2xl font-black text-white mb-2 uppercase italic tracking-tighter">{currentLesson?.title}</h1>
                         <p className="text-sm text-gray-500 font-medium">Você está evoluindo no módulo {course?.title}</p>
                     </div>
-                    <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-sm font-black border transition-all duration-500
-                        ${justEarned ? 'bg-[#C9A66B] text-black border-[#C9A66B] shadow-[0_0_20px_rgba(201,166,107,0.4)]' : 'bg-[#111] text-[#C9A66B] border-[#222]'}
-                    `}>
-                        <Trophy size={18} /> {justEarned ? "+10 PRO RECEBIDO!" : completedLessons.has(currentLesson?.id) ? "PRO ADQUIRIDO" : "+10 PRO"}
+                    <div className="flex items-center gap-3">
+                        <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-sm font-black border transition-all duration-500 transform
+                            ${justEarned 
+                                ? 'bg-[#C9A66B] text-black border-[#C9A66B] shadow-[0_0_20px_rgba(201,166,107,0.4)] scale-110' 
+                                : completedLessons.has(currentLesson?.id)
+                                    ? 'bg-green-900/20 text-green-500 border-green-800'
+                                    : 'bg-[#111] text-[#C9A66B] border-[#222]'
+                            }
+                        `}>
+                            <Trophy size={18} />
+                            {justEarned 
+                                ? "+10 PRO RECEBIDO!" 
+                                : completedLessons.has(currentLesson?.id) 
+                                    ? "PRO ADQUIRIDO" 
+                                    : "+10 PRO"
+                            }
+                        </div>
+                        {!completedLessons.has(currentLesson?.id) && (
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border bg-[#222] text-gray-400 border-[#333]">
+                                <Clock size={14} /> Pendente
+                            </div>
+                        )}
                     </div>
                 </div>
               </div>
