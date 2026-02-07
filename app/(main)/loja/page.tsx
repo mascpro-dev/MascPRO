@@ -1,32 +1,24 @@
 'use client';
+
 import { useEffect, useState } from 'react';
-import { useUserWithProfile } from '@/lib/auth';
 import { supabase } from '@/lib/supabaseClient';
-import { CartProvider, useCart } from './CartContext';
+import { useUserWithProfile } from '@/lib/auth';
+
+import { CartProvider } from './CartContext';
+import ProductCardPro from './ProductCardPro';
 import Checkout from './Checkout';
 
-function Product({ p, priceField }: any) {
-  const { add } = useCart();
-  return (
-    <div
-      className="border rounded-xl p-4 flex flex-col cursor-pointer"
-      onClick={() => add(p)}
-    >
-      <img src={p.image_url} alt={p.name} className="h-32 object-cover rounded" />
-      <h4 className="mt-2 font-medium">{p.name}</h4>
-      <span className="mt-auto font-bold">
-        R$ {Number(p[priceField]).toFixed(2)}
-      </span>
-    </div>
-  );
-}
-
 export default function Loja() {
+  // pega perfil + tier
   const { profile, loading } = useUserWithProfile();
+
+  // estado dos produtos
   const [products, setProducts] = useState<any[]>([]);
 
+  // carrega produtos quando perfil já está disponível
   useEffect(() => {
     if (!profile) return;
+
     supabase
       .from('products')
       .select('*')
@@ -34,10 +26,20 @@ export default function Loja() {
       .then(({ data }) => setProducts(data || []));
   }, [profile]);
 
-  if (loading) return <p>Carregando...</p>;
-  if (!profile) return <p>Faça login primeiro.</p>;
+  /* -------------------- GATES -------------------- */
+
+  if (loading) return <p className="p-6">Carregando...</p>;
+
+  if (!profile) return <p className="p-6">Faça login para acessar a Loja PRO.</p>;
+
   if (profile.tier_status !== 'approved')
-    return <p>Sua conta está em análise. Aguarde aprovação 🙏</p>;
+    return (
+      <p className="p-6">
+        Sua conta está em análise. Aguarde aprovação 🙏
+      </p>
+    );
+
+  /* -------------------- PREÇO POR TIER -------------------- */
 
   const priceField =
     profile.tier === 'hairdresser'
@@ -48,13 +50,18 @@ export default function Loja() {
       ? 'price_distributor'
       : 'price_consumer';
 
+  /* -------------------- RENDER -------------------- */
+
   return (
     <CartProvider priceField={priceField}>
-      <div className="p-6 grid grid-cols-2 md:grid-cols-3 gap-4">
+      {/* Grade responsiva */}
+      <div className="p-6 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {products.map((p) => (
-          <Product key={p.id} p={p} priceField={priceField} />
+          <ProductCardPro key={p.id} product={p} priceField={priceField} />
         ))}
       </div>
+
+      {/* Carrinho fixo no rodapé */}
       <Checkout />
     </CartProvider>
   );
