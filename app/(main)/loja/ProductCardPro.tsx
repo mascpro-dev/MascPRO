@@ -12,8 +12,7 @@ export default function ProductCardPro({ product, priceField }: Props) {
   const [qty, setQty] = useState(1);
 
   return (
-    - <div className="relative h-[360px] w-full select-none group">
-    + <div className="relative h-52 md:h-[360px] w-full select-none group">
+    <div className="relative h-52 md:h-[360px] w-full select-none group">
       {/* Imagem viva sem overlay permanentemente */}
       <img
         src={product.image_url}
