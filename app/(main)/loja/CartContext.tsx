@@ -7,14 +7,14 @@ export const useCart = () => useContext(CartContext);
 export function CartProvider({ priceField, children }: any) {
   const [items, setItems] = useState<any[]>([]);
 
-  const add = (p: any) =>
+  const add = (product: any, qty = 1) =>
     setItems((arr) => {
-      const found = arr.find((i) => i.id === p.id);
+      const found = arr.find((i) => i.id === product.id);
       return found
         ? arr.map((i) =>
-            i.id === p.id ? { ...i, qty: i.qty + 1 } : i
+            i.id === product.id ? { ...i, qty: i.qty + qty } : i
           )
-        : [...arr, { ...p, qty: 1 }];
+        : [...arr, { ...product, qty }];
     });
 
   const remove = (id: string) =>

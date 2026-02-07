@@ -1,51 +1,76 @@
-// app/(main)/loja/ProductCardPro.tsx
 'use client';
+import { useState } from 'react';
 import { useCart } from './CartContext';
 
 interface Props {
-  product: any;          // vem do Supabase
-  priceField: string;    // passado pelo pai
+  product: any;
+  priceField: string;
 }
 
 export default function ProductCardPro({ product, priceField }: Props) {
   const { add } = useCart();
+  const [qty, setQty] = useState(1);
 
   return (
-    <div
-      className="relative h-[360px] w-full cursor-pointer group select-none"
-      onClick={() => add(product)}
-    >
-      {/* Background image */}
+    - <div className="relative h-[360px] w-full select-none group">
+    + <div className="relative h-52 md:h-[360px] w-full select-none group">
+      {/* Imagem viva sem overlay permanentemente */}
       <img
         src={product.image_url}
         alt={product.name}
-        className="h-full w-full object-cover rounded-xl group-hover:brightness-75 transition"
+        className="h-full w-full object-cover rounded-xl"
       />
 
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-black/40 rounded-xl" />
+      {/* Texto no rodapé */}
+      <div className="absolute inset-x-0 bottom-0 bg-black/60 rounded-b-xl p-3">
+        <h3 className="text-white text-sm font-bold leading-tight">
+          {product.name} {product.volume && `• ${product.volume}`}
+        </h3>
+        <div className="flex items-center justify-between mt-1">
+          <span className="bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded">
+            R$ {Number(product[priceField]).toFixed(2)}
+          </span>
 
-      {/* Top-left: categoria  */}
-      <span className="absolute top-3 left-3 bg-black/60 text-xs text-white px-2 py-1 rounded">
-        {product.category}
-      </span>
+          {/* Botão abre seletor */}
+          <button
+            onClick={() => {
+              const dialog = document.getElementById(product.id) as HTMLDialogElement;
+              dialog?.showModal();
+            }}
+            className="text-xs bg-white text-black px-2 py-0.5 rounded hover:bg-gray-200"
+          >
+            Adicionar
+          </button>
+        </div>
+      </div>
 
-      {/* Nome do produto */}
-      <h3 className="absolute bottom-16 left-4 right-4 text-white font-bold text-lg leading-tight">
-        {product.name}
-      </h3>
+      {/* Dialog nativo HTML para escolher quantidade */}
+      <dialog id={product.id} className="rounded-xl p-6 backdrop:bg-black/40">
+        <h4 className="font-semibold mb-4">{product.name}</h4>
 
-      {/* Preço */}
-      <span className="absolute bottom-8 left-4 bg-yellow-400 text-black text-sm font-bold px-3 py-1 rounded">
-        R$ {Number(product[priceField]).toFixed(2)}
-      </span>
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => setQty(Math.max(1, qty - 1))}
+            className="w-8 h-8 bg-gray-200 rounded-full text-xl"
+          >−</button>
+          <span className="text-lg font-bold">{qty}</span>
+          <button
+            onClick={() => setQty(qty + 1)}
+            className="w-8 h-8 bg-gray-200 rounded-full text-xl"
+          >+</button>
+        </div>
 
-      {/* CTA "Adicionar" (só aparece no hover no desktop) */}
-      <button
-        className="absolute bottom-3 right-3 bg-white/90 text-black text-xs font-semibold py-2 px-4 rounded opacity-0 group-hover:opacity-100 transition"
-      >
-        Adicionar →
-      </button>
+        <button
+          onClick={() => {
+            add(product, qty);
+            (document.getElementById(product.id) as HTMLDialogElement).close();
+            setQty(1);
+          }}
+          className="w-full bg-black text-white py-2 rounded-lg"
+        >
+          Adicionar ao carrinho
+        </button>
+      </dialog>
     </div>
   );
 }
