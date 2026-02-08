@@ -39,8 +39,9 @@ export default function ProductCard({ product }: Props) {
       {/* dialog com info e adicionar ao carrinho */}
       <dialog id={`dlg-${product.id}`} className="rounded-xl p-6 backdrop:bg-black/40 w-[90%] md:w-[420px] relative">
         <button 
-          onClick={() => {
-            (document.getElementById(`dlg-${product.id}`) as HTMLDialogElement).close();
+          onClick={(e) => {
+            const dlg = (e.currentTarget.closest('dialog') as HTMLDialogElement);
+            dlg?.close();
             setQty(1);
           }}
           className="absolute top-2 right-2 text-xl leading-none bg-gray-200/80 w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-300 transition">

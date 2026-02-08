@@ -89,10 +89,10 @@ export default function CartDrawer() {
                       key={i.id}
                       className="flex justify-between items-start text-sm"
                     >
-                      <div className="flex-1">
-                        <p className="font-medium">{i.title || i.name || 'Produto'}</p>
-                        <p className="text-xs text-gray-500">
-                          {i.qty} × R$ {Number(i[priceField] ?? 0).toFixed(2)}
+                      <div>
+                        <p className="font-medium text-black">{i.title}</p>
+                        <p className="text-sm font-bold text-red-600">
+                          {i.qty} × R$ {Number(i[priceField]).toFixed(2)}
                         </p>
                       </div>
                       <button
@@ -107,7 +107,7 @@ export default function CartDrawer() {
 
                 {/* total + CTA */}
                 <div className="border-t pt-4 mt-4">
-                  <p className="font-semibold mb-4">
+                  <p className="font-extrabold mb-4 text-red-600 text-lg">
                     Total: R$ {total.toFixed(2)}
                   </p>
                   <button
