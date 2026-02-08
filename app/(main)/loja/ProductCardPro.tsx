@@ -41,7 +41,14 @@ export default function ProductCardPro({ product, priceField }: Props) {
       </div>
 
       {/* DIALOG */}
-      <dialog id={`dlg-${product.id}`} className="rounded-xl p-6 backdrop:bg-black/40">
+      <dialog id={`dlg-${product.id}`} className="rounded-xl p-6 backdrop:bg-black/40 w-[90%] md:w-[420px] relative">
+        {/* FECHAR (X) */}
+        <button onClick={() =>
+            (document.getElementById(`dlg-${product.id}`) as HTMLDialogElement).close()}
+            className="absolute top-2 right-2 text-xl leading-none bg-gray-200/80 w-8 h-8 rounded-full">
+          ×
+        </button>
+
         <h4 className="font-semibold mb-2 text-lg">{product.name}</h4>
 
         {product.description && <p className="text-sm mb-3">{product.description}</p>}
