@@ -14,8 +14,7 @@ export default function ProductCardPro({ product, priceField }: Props) {
   const open = () => {
     const dlg = document.getElementById(`dlg-${product.id}`) as HTMLDialogElement;
     dlg.showModal();
-    // centraliza o diálogo no viewport atual
-    dlg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => dlg.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
   };
 
   return (
@@ -48,8 +47,8 @@ export default function ProductCardPro({ product, priceField }: Props) {
       <dialog id={`dlg-${product.id}`} className="rounded-xl p-6 backdrop:bg-black/40 w-[90%] md:w-[420px] relative">
         <button 
           onClick={(e) => {
-            const dlg = e.currentTarget.closest('dialog') as HTMLDialogElement;
-            dlg?.close();
+            const dlg = (e.target as HTMLElement).closest('dialog') as HTMLDialogElement;
+            if (dlg) dlg.close();
           }}
           className="absolute top-2 right-2 text-xl leading-none bg-gray-200/80 w-8 h-8 rounded-full hover:bg-gray-300 transition-colors">×</button>
 
@@ -75,11 +74,7 @@ export default function ProductCardPro({ product, priceField }: Props) {
         <button onClick={() => {
           add(product, qty);
           setQty(1);
-          // fecha o diálogo…
-          const dlg = document.getElementById(`dlg-${product.id}`) as HTMLDialogElement;
-          dlg.close();
-          // …e faz o scroll voltar onde estava
-          dlg.open = false;
+          (document.getElementById(`dlg-${product.id}`) as HTMLDialogElement)?.close();
         }}
                 className="w-full bg-black text-white py-2 rounded-lg">
           Adicionar {qty} ao carrinho

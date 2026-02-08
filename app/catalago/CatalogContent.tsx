@@ -11,7 +11,7 @@ export default function CatalogContent({ products }: CatalogContentProps) {
   return (
     <CartProvider priceField="price">
       <main className="mx-auto max-w-5xl p-6">
-        <h1 className="text-3xl font-bold mb-6">Catálogo MASC Professional</h1>
+        <h1 className="text-3xl font-bold mb-6">Catálogo MASC PRO</h1>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {products?.map((p) => <ProductCard key={p.id} product={p} />)}
