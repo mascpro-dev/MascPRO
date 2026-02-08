@@ -8,10 +8,10 @@ export default function CartDrawer() {
   const { items, remove, clear, priceField } = useCart();
   const [open, setOpen] = useState(false);
 
-  const total = items.reduce<number>(
-    (acc, i) => acc + Number(i[priceField] ?? 0) * i.qty,
-    0
-  );
+  const total = items.reduce((acc: number, i: any) => {
+    const unit = Number(i[priceField] ?? 0);
+    return acc + unit * i.qty;
+  }, 0 as number);
 
   const goWhats = () => {
     if (items.length === 0) return;

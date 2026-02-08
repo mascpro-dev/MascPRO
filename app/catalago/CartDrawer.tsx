@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useCart } from './CartContext';
+import { supabase } from '@/lib/supabaseClient';
 
 const WHATS_NUMBER = '5514991570389'; // WhatsApp para finalizar pedidos
 
@@ -8,16 +9,16 @@ export default function CartDrawer() {
   const { items, remove, clear, priceField } = useCart();
   const [open, setOpen] = useState(false);
 
-  const total = items.reduce<number>(
-    (acc, i) => acc + Number(i[priceField] ?? 0) * i.qty,
-    0
-  );
+  const total = items.reduce((acc: number, i: any) => {
+    const unit = Number(i[priceField] ?? 0);
+    return acc + unit * i.qty;
+  }, 0 as number);
 
-  const goWhats = () => {
+  const goWhats = async () => {
     if (items.length === 0) return;
     
     const linhas = items.map(
-      (i) =>
+      (i: any) =>
         `• ${i.title || i.name || 'Produto'} – ${i.qty} × R$ ${Number(i[priceField] ?? 0).toFixed(2)}`
     );
     const msg =
@@ -25,8 +26,21 @@ export default function CartDrawer() {
       linhas.join('\n') +
       `\n\nTotal: R$ ${total.toFixed(2)}`;
     
-    const url = `https://wa.me/${WHATS_NUMBER}?text=${encodeURIComponent(msg)}`;
-    window.open(url, '_blank');
+    // Abre WhatsApp
+    window.open(`https://wa.me/${WHATS_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
+
+    // --- Creditar moedas ---
+    const user = await supabase.auth.getUser();
+    const buyerId = user.data.user?.id;
+    const referrerId = user.data.user?.user_metadata?.referrer_id || null;
+
+    if (buyerId) {
+      await supabase.rpc('pro_compra', {
+        p_buyer: buyerId,
+        p_referrer: referrerId,
+        p_total: total
+      });
+    }
 
     clear();
     setOpen(false);
@@ -70,7 +84,7 @@ export default function CartDrawer() {
             ) : (
               <>
                 <ul className="space-y-3 flex-1 overflow-auto pr-2 max-h-[55vh]">
-                  {items.map((i) => (
+                  {items.map((i: any) => (
                     <li
                       key={i.id}
                       className="flex justify-between items-start text-sm"
