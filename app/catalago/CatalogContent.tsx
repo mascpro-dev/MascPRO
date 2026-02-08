@@ -15,7 +15,7 @@ export default function CatalogContent({ products }: CatalogContentProps) {
       </div>
 
       <a
-        href="https://wa.me/55SEUNUMERO?text=Quero%20acesso%20profissional%20ao%20app%20MASC%20PRO"
+        href="https://wa.me/5514991570389?text=Quero%20acesso%20profissional%20ao%20app%20MASC%20PRO"
         className="mt-8 inline-block bg-black text-white px-6 py-3 rounded-xl"
       >
         Quero comprar com desconto →

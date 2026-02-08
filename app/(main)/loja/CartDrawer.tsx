@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useCart } from './CartContext';
 
-const WHATS_NUMBER = '55SEUNUMERO'; // coloque seu número aqui, só dígitos
+const WHATS_NUMBER = '5514991570389'; // WhatsApp para finalizar pedidos
 
 export default function CartDrawer() {
   const { items, remove, clear, priceField } = useCart();
