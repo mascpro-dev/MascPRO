@@ -25,6 +25,12 @@ export default function ProductCard({ product, priceField }: Props) {
         <h3 className="text-white text-sm font-bold leading-tight">
           {product.name} {product.volume && `• ${product.volume}`}
         </h3>
+        {product.sku && (
+          <p className="text-[10px] text-gray-300">SKU: {product.sku}</p>
+        )}
+        {product.stock === 0 && (
+          <span className="text-red-400 text-xs font-semibold">Sem estoque</span>
+        )}
         <div className="flex items-center justify-between mt-1">
           <span className="bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded">
             R$ {Number(product[priceField]).toFixed(2)}
@@ -46,6 +52,10 @@ export default function ProductCard({ product, priceField }: Props) {
       {/* Dialog nativo HTML para escolher quantidade */}
       <dialog id={product.id} className="rounded-xl p-6 backdrop:bg-black/40">
         <h4 className="font-semibold mb-4">{product.name}</h4>
+
+        {product.how_to_use && (
+          <p className="text-sm text-gray-700 mb-4">{product.how_to_use}</p>
+        )}
 
         <div className="flex items-center gap-4 mb-6">
           <button

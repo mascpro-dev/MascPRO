@@ -20,6 +20,22 @@ export default function ProductCardPro({ product, priceField }: Props) {
         className="h-full w-full object-cover rounded-xl"
       />
 
+      {/* Badge estoque */}
+      {product.stock > 0 && (
+        <span className="absolute top-3 right-3 bg-white text-xs px-2 py-0.5 rounded">
+          {product.stock} un.
+        </span>
+      )}
+
+      {/* Chips de tecnologia */}
+      <div className="absolute bottom-12 left-3 flex gap-1">
+        {product.tech_tags?.slice(0,2).map((tag:string) => (
+          <span key={tag} className="bg-white/80 text-[10px] px-1.5 py-0.5 rounded">
+            {tag}
+          </span>
+        ))}
+      </div>
+
       {/* Texto no rodapé */}
       <div className="absolute inset-x-0 bottom-0 bg-black/60 rounded-b-xl p-3">
         <h3 className="text-white text-sm font-bold leading-tight">
