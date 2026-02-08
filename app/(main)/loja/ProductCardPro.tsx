@@ -42,9 +42,12 @@ export default function ProductCardPro({ product, priceField }: Props) {
 
       {/* dialog */}
       <dialog id={`dlg-${product.id}`} className="rounded-xl p-6 backdrop:bg-black/40 w-[90%] md:w-[420px] relative">
-        <button onClick={() =>
-          (document.getElementById(`dlg-${product.id}`) as HTMLDialogElement).close()}
-          className="absolute top-2 right-2 text-xl leading-none bg-gray-200/80 w-8 h-8 rounded-full">×</button>
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            (document.getElementById(`dlg-${product.id}`) as HTMLDialogElement)?.close();
+          }}
+          className="absolute top-2 right-2 text-xl leading-none bg-gray-200/80 w-8 h-8 rounded-full hover:bg-gray-300 transition-colors">×</button>
 
         <h4 className="font-semibold mb-2 text-lg">{product.title}</h4>
 

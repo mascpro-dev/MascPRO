@@ -6,7 +6,6 @@ import { useUserWithProfile } from '@/lib/auth';
 
 import { CartProvider } from './CartContext';
 import ProductCardPro from './ProductCardPro';
-import Checkout from './Checkout';
 import CartDrawer from './CartDrawer';
 
 export default function Loja() {
@@ -62,9 +61,6 @@ export default function Loja() {
         ))}
       </div>
 
-      {/* Carrinho fixo no rodapé */}
-      <Checkout />
-      
       {/* Drawer do carrinho */}
       <CartDrawer />
     </CartProvider>

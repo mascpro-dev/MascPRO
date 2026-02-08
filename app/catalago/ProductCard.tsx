@@ -1,9 +1,21 @@
 'use client';
+import { useState } from 'react';
+import { useCart } from './CartContext';
+
 interface Props { product: any; }
 
 export default function ProductCard({ product }: Props) {
+  const { add } = useCart();
+  const [qty, setQty] = useState(1);
+
   const open = () =>
     (document.getElementById(`dlg-${product.id}`) as HTMLDialogElement).showModal();
+
+  const handleAddToCart = () => {
+    add(product, qty);
+    (document.getElementById(`dlg-${product.id}`) as HTMLDialogElement).close();
+    setQty(1);
+  };
 
   return (
     <div
@@ -24,21 +36,56 @@ export default function ProductCard({ product }: Props) {
         </span>
       </div>
 
-      {/* dialog somente info */}
+      {/* dialog com info e adicionar ao carrinho */}
       <dialog id={`dlg-${product.id}`} className="rounded-xl p-6 backdrop:bg-black/40 w-[90%] md:w-[420px] relative">
-        <button onClick={() =>
-          (document.getElementById(`dlg-${product.id}`) as HTMLDialogElement).close()}
-          className="absolute top-2 right-2 text-xl leading-none bg-gray-200/80 w-8 h-8 rounded-full">×</button>
+        <button 
+          onClick={() => {
+            (document.getElementById(`dlg-${product.id}`) as HTMLDialogElement).close();
+            setQty(1);
+          }}
+          className="absolute top-2 right-2 text-xl leading-none bg-gray-200/80 w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-300 transition">
+          ×
+        </button>
 
-        <h4 className="font-semibold mb-2 text-lg">{product.title}</h4>
+        <h4 className="font-semibold mb-2 text-lg pr-8">{product.title}</h4>
 
         {product.description && <p className="text-sm mb-3">{product.description}</p>}
         {product.how_to_use && (
           <>
             <h5 className="font-semibold mb-1">Passo a passo</h5>
-            <p className="text-sm text-gray-700">{product.how_to_use}</p>
+            <p className="text-sm text-gray-700 mb-4">{product.how_to_use}</p>
           </>
         )}
+
+        {/* Seletor de quantidade */}
+        <div className="flex items-center gap-4 mb-4">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setQty(Math.max(1, qty - 1));
+            }}
+            className="w-8 h-8 bg-gray-200 rounded-full text-xl flex items-center justify-center hover:bg-gray-300 transition"
+          >−</button>
+          <span className="text-lg font-bold">{qty}</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setQty(qty + 1);
+            }}
+            className="w-8 h-8 bg-gray-200 rounded-full text-xl flex items-center justify-center hover:bg-gray-300 transition"
+          >+</button>
+        </div>
+
+        {/* Botão adicionar ao carrinho */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleAddToCart();
+          }}
+          className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800 transition"
+        >
+          Adicionar ao carrinho
+        </button>
       </dialog>
     </div>
   );

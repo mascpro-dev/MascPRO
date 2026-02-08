@@ -28,13 +28,6 @@ export default function CartDrawer() {
     const url = `https://wa.me/${WHATS_NUMBER}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
 
-    /* --- créditos em PRO (exemplo) ---------------------------------
-    // const moedasCliente = Math.floor(total / 2);
-    // const moedasIndicador = Math.floor(total / 4); // 0,5 por R$2
-    // chame uma função RPC no Supabase para registrar:
-    // supabase.rpc('creditar_moedas', { cliente: moedasCliente, indicador: moedasIndicador });
-    ------------------------------------------------------------------*/
-
     clear();
     setOpen(false);
   };
@@ -42,12 +35,14 @@ export default function CartDrawer() {
   return (
     <>
       {/* FAB carrinho */}
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-24 right-4 bg-black text-white px-4 py-3 rounded-full shadow-lg z-40"
-      >
-        🛒 {items.length}
-      </button>
+      {items.length > 0 && (
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed bottom-24 right-4 bg-black text-white px-4 py-3 rounded-full shadow-lg z-40 hover:bg-gray-800 transition"
+        >
+          🛒 {items.length}
+        </button>
+      )}
 
       {open && (
         <div
@@ -55,7 +50,7 @@ export default function CartDrawer() {
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-white w-80 h-full p-6 flex flex-col"
+            className="bg-white w-80 h-full p-6 flex flex-col relative"
             onClick={(e) => e.stopPropagation()}
           >
             {/* cabeçalho */}
@@ -63,7 +58,7 @@ export default function CartDrawer() {
               <h3 className="font-bold text-lg">Meu carrinho</h3>
               <button
                 onClick={() => setOpen(false)}
-                className="text-2xl leading-none"
+                className="text-2xl leading-none hover:text-gray-600 transition"
               >
                 ×
               </button>
@@ -74,7 +69,7 @@ export default function CartDrawer() {
               <p className="text-sm text-gray-500 flex-1">Carrinho vazio.</p>
             ) : (
               <>
-                <ul className="space-y-3 flex-1 overflow-auto pr-2">
+                <ul className="space-y-3 flex-1 overflow-auto pr-2 max-h-[55vh]">
                   {items.map((i) => (
                     <li
                       key={i.id}
@@ -88,7 +83,7 @@ export default function CartDrawer() {
                       </div>
                       <button
                         onClick={() => remove(i.id)}
-                        className="text-red-500 text-xs"
+                        className="text-red-500 text-xs hover:text-red-700 transition"
                       >
                         remover
                       </button>
@@ -97,15 +92,15 @@ export default function CartDrawer() {
                 </ul>
 
                 {/* total + CTA */}
-                <div className="border-t pt-4">
+                <div className="border-t pt-4 mt-4">
                   <p className="font-semibold mb-4">
                     Total: R$ {total.toFixed(2)}
                   </p>
                   <button
                     onClick={goWhats}
-                    className="w-full bg-black text-white py-2 rounded-lg"
+                    className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800 transition"
                   >
-                    Finalizar pedido (WhatsApp)
+                    Enviar pedido
                   </button>
                 </div>
               </>
