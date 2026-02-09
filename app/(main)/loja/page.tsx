@@ -22,8 +22,16 @@ function LojaContent() {
         setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          const { data: profile } = await supabase.from('profiles').select('nível').eq('id', session.user.id).single();
-          setUserLevel((profile as any)?.nível?.toLowerCase()?.trim() || 'cabeleireiro');
+          // BUSCA SEM ACENTO
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('nivel')
+            .eq('id', session.user.id)
+            .single();
+          
+          // O "pulo do gato": Normalizar o texto para comparar
+          const userNivel = profile?.nivel?.toLowerCase().trim() || 'cabeleireiro';
+          setUserLevel(userNivel);
         }
         const { data: productsData } = await supabase.from('products').select('*').order('created_at', { ascending: false });
         setProducts(productsData || []);
@@ -32,12 +40,11 @@ function LojaContent() {
     loadStore();
   }, []);
 
+  // Na função de mostrar o preço:
   const getDisplayPrice = (product: any) => {
-    let price = 0;
-    if (userLevel === 'distribuidor') price = Number(product.price_distributor || 0);
-    else if (userLevel === 'embaixador') price = Number(product.price_ambassador || 0);
-    else price = Number(product.price_hairdresser || 0);
-    return `R$ ${price.toFixed(2)}`;
+    if (userLevel === 'distribuidor') return product.price_distributor;
+    if (userLevel === 'embaixador') return product.price_ambassador;
+    return product.price_hairdresser; // Padrão
   };
 
   const handleQuickBuy = (product: any) => {
@@ -84,7 +91,7 @@ function LojaContent() {
                   <h3 className="text-xs md:text-sm font-semibold text-white uppercase tracking-tight leading-tight line-clamp-2">{product.title}</h3>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-lg md:text-xl font-black text-[#C9A66B] tracking-tighter">{getDisplayPrice(product)}</p>
+                  <p className="text-lg md:text-xl font-black text-[#C9A66B] tracking-tighter">R$ {Number(getDisplayPrice(product) || 0).toFixed(2)}</p>
                   <div className="flex gap-2 h-9 md:h-10">
                       <button 
                         onClick={() => handleQuickBuy(product)}

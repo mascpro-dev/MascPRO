@@ -36,7 +36,7 @@ export default function PlayerPage() {
   const [activeTab, setActiveTab] = useState<'sobre' | 'materiais' | 'duvidas'>('sobre');
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
-  const [replyingTo, setReplyingTo] = useState<any>(null);
+  const [replyingTo, setReplyingTo] = useState<{id: string, name: string} | null>(null);
   const [isSending, setIsSending] = useState(false);
 
   const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -201,8 +201,8 @@ export default function PlayerPage() {
     const { error } = await supabase.from('comments').insert({
       lesson_id: currentLesson.id,
       user_id: currentUser.id,
-      content: newComment,
-      parent_id: replyingTo?.id || null,
+      content: replyingTo ? `@${replyingTo.name} ${newComment}` : newComment, // Adiciona o @ no texto
+      parent_id: replyingTo?.id || null, // Se for resposta, salva o ID do pai
       post_id: null
     });
     if (!error) { setNewComment(""); setReplyingTo(null); loadComments(); }
@@ -295,7 +295,7 @@ export default function PlayerPage() {
                             <div className="relative mb-10">
                                 {replyingTo && (
                                     <div className="flex items-center justify-between bg-[#C9A66B]/10 border border-[#C9A66B]/20 p-3 rounded-t-xl mb-[-1px]">
-                                        <span className="text-[10px] font-bold text-[#C9A66B] uppercase tracking-widest">Respondendo a {replyingTo.profiles?.full_name}</span>
+                                        <span className="text-[10px] font-bold text-[#C9A66B] uppercase tracking-widest">Respondendo a {replyingTo.name}</span>
                                         <button onClick={() => setReplyingTo(null)} className="text-[#C9A66B]"><X size={14}/></button>
                                     </div>
                                 )}
@@ -318,7 +318,7 @@ export default function PlayerPage() {
                                                     <span className="text-[9px] text-zinc-600 font-black uppercase">{formatDistanceToNow(new Date(c.created_at), { locale: ptBR, addSuffix: true })}</span>
                                                 </div>
                                                 <p className="text-sm text-zinc-400 leading-relaxed">{c.content}</p>
-                                                <button onClick={() => { setReplyingTo(c); window.scrollTo({ top: 300, behavior: 'smooth' }); }} className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-[#C9A66B] mt-4 hover:underline">
+                                                <button onClick={() => { setReplyingTo({ id: c.id, name: c.profiles?.full_name || "Usuário" }); window.scrollTo({ top: 300, behavior: 'smooth' }); }} className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-[#C9A66B] mt-4 hover:underline">
                                                     <Reply size={12} /> Responder
                                                 </button>
                                             </div>

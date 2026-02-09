@@ -22,8 +22,16 @@ function ProductDetailContent() {
     async function loadData() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data: profile } = await supabase.from('profiles').select('nível').eq('id', session.user.id).single();
-        setUserLevel((profile as any)?.nível?.toLowerCase()?.trim() || 'cabeleireiro');
+        // BUSCA SEM ACENTO
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('nivel')
+          .eq('id', session.user.id)
+          .single();
+        
+        // O "pulo do gato": Normalizar o texto para comparar
+        const userNivel = profile?.nivel?.toLowerCase().trim() || 'cabeleireiro';
+        setUserLevel(userNivel);
       }
       const { data: productData } = await supabase.from('products').select('*').eq('id', id).single();
       setProduct(productData);
@@ -32,14 +40,15 @@ function ProductDetailContent() {
     loadData();
   }, [id, supabase]);
 
+  // Na função de mostrar o preço:
   const getPrice = () => {
     if (!product) return 0;
-    if (userLevel === 'distribuidor') return Number(product.price_distributor || 0);
-    if (userLevel === 'embaixador') return Number(product.price_ambassador || 0);
-    return Number(product.price_hairdresser || 0);
+    if (userLevel === 'distribuidor') return product.price_distributor;
+    if (userLevel === 'embaixador') return product.price_ambassador;
+    return product.price_hairdresser; // Padrão
   };
 
-  const finalPrice = getPrice();
+  const finalPrice = Number(getPrice() || 0);
 
   const handleBuy = () => {
     if (!product) return;

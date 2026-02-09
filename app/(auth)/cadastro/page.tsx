@@ -3,28 +3,34 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Eye, EyeOff, User, Mail, MapPin, Lock, Scissors, Loader2 } from "lucide-react";
+import { Eye, EyeOff, User, Mail, MapPin, Lock, Phone, Instagram, FileText, Clock, Briefcase, Calendar, Loader2 } from "lucide-react";
 
-// 1. O formulário real que usa os parâmetros da URL
 function CadastroForm() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const searchParams = useSearchParams();
-  
-  // Captura o ID do indicador (?ref=...)
   const indicadorId = searchParams.get("ref");
 
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  
+  const [error, setError] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
+    fullName: "",
     email: "",
     password: "",
-    fullName: "",
-    perfil: "cabeleireiro",
-    endereco: "",
-    complemento: "" 
+    cpf: "",
+    whatsapp: "",
+    instagram: "",
+    cep: "",
+    rua: "",
+    complemento: "",
+    bairro: "",
+    cidade: "",
+    uf: "",
+    tempoExperiencia: "",
+    statusProfissional: "Salão Próprio",
+    agendaOnline: "não"
   });
 
   // Captura o código de referência da URL e salva no localStorage
@@ -36,6 +42,29 @@ function CadastroForm() {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [indicadorId]);
+
+  // Busca automática de CEP
+  useEffect(() => {
+    const cleanCep = formData.cep.replace(/\D/g, "");
+    if (cleanCep.length === 8) {
+      fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.erro) {
+            setFormData(prev => ({
+              ...prev,
+              rua: data.logradouro || "",
+              bairro: data.bairro || "",
+              cidade: data.localidade || "",
+              uf: data.uf || ""
+            }));
+          }
+        })
+        .catch(err => {
+          console.error("Erro ao buscar CEP:", err);
+        });
+    }
+  }, [formData.cep]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,9 +86,19 @@ function CadastroForm() {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             full_name: formData.fullName,
-            nivel: formData.perfil,
-            endereco: formData.endereco,
+            nivel: 'cabeleireiro',
+            cpf: formData.cpf,
+            whatsapp: formData.whatsapp,
+            instagram: formData.instagram,
+            cep: formData.cep,
+            rua: formData.rua,
             complemento: formData.complemento,
+            bairro: formData.bairro,
+            cidade: formData.cidade,
+            uf: formData.uf,
+            tempo_experiencia: formData.tempoExperiencia,
+            status_profissional: formData.statusProfissional,
+            agenda_online: formData.agendaOnline,
           }
         }
       });
@@ -85,9 +124,18 @@ function CadastroForm() {
       // 4. PREPARAÇÃO DOS DADOS: Monta objeto updates para salvar na tabela profiles
       const updates: any = {
         full_name: formData.fullName,
-        specialty: formData.perfil,
-        endereco: formData.endereco,
+        cpf: formData.cpf,
+        phone: formData.whatsapp,
+        instagram: formData.instagram,
+        specialty: 'cabeleireiro',
+        experience: formData.tempoExperiencia,
+        cep: formData.cep,
+        rua: formData.rua,
         complemento: formData.complemento,
+        bairro: formData.bairro,
+        city_state: formData.cidade && formData.uf ? `${formData.cidade}/${formData.uf}` : "",
+        work_type: formData.statusProfissional === "Salão Próprio" ? "proprio" : formData.statusProfissional === "Alugo Cadeira" ? "aluguel" : "comissao",
+        has_schedule: formData.agendaOnline === "sim",
         invited_by: referrerId, // OBRIGATORIAMENTE envia o código de referência para a coluna invited_by
         coins: 50,
         updated_at: new Date().toISOString(),
@@ -119,110 +167,103 @@ function CadastroForm() {
   };
 
   return (
-    <form onSubmit={handleSignUp} className="w-full max-w-md space-y-4" autoComplete="off">
-        <div className="text-center mb-8">
-            <h1 className="text-4xl font-black italic tracking-tighter text-white">
-                MASC<span className="text-[#C9A66B]">PRO</span>
-            </h1>
-            <p className="text-zinc-500 text-[10px] uppercase tracking-[0.3em] mt-2">Cadastro de Profissional</p>
-            {indicadorId && (
-              <p className="text-[#C9A66B] text-[9px] font-bold mt-2 uppercase">Convite Ativo</p>
-            )}
+    <form onSubmit={handleSignUp} className="w-full max-w-2xl bg-zinc-900/50 p-8 rounded-3xl border border-white/5 space-y-6 shadow-2xl" autoComplete="off">
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-black italic tracking-tighter text-white">MASC<span className="text-[#C9A66B]">PRO</span></h1>
+        <p className="text-zinc-500 text-[10px] uppercase tracking-[0.3em] mt-2">Crie sua conta profissional</p>
+        {indicadorId && (
+          <p className="text-[#C9A66B] text-[9px] font-bold mt-2 uppercase">Convite Ativo</p>
+        )}
+      </div>
+
+      {error && <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-500 text-xs text-center">{error}</div>}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* DADOS PESSOAIS */}
+        <div className="relative">
+          <User className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+          <input type="text" placeholder="Nome Completo" required value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} className="w-full bg-black border border-white/10 h-14 pl-12 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
         </div>
 
-        {error && <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-xs text-center">{error}</div>}
+        <div className="relative">
+          <FileText className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+          <input type="text" placeholder="CPF" required value={formData.cpf} onChange={e => setFormData({...formData, cpf: e.target.value})} className="w-full bg-black border border-white/10 h-14 pl-12 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
+        </div>
 
+        <div className="relative">
+          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+          <input type="email" placeholder="E-mail" required autoComplete="new-email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-black border border-white/10 h-14 pl-12 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
+        </div>
+
+        <div className="relative">
+          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+          <input type="text" placeholder="WhatsApp" required value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} className="w-full bg-black border border-white/10 h-14 pl-12 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
+        </div>
+
+        <div className="relative">
+          <Instagram className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+          <input type="text" placeholder="Instagram (@usuario)" value={formData.instagram} onChange={e => setFormData({...formData, instagram: e.target.value})} className="w-full bg-black border border-white/10 h-14 pl-12 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
+        </div>
+
+        <div className="relative">
+          <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+          <input type="text" placeholder="Tempo de Carreira (ex: 5 anos)" value={formData.tempoExperiencia} onChange={e => setFormData({...formData, tempoExperiencia: e.target.value})} className="w-full bg-black border border-white/10 h-14 pl-12 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
+        </div>
+      </div>
+
+      {/* ENDEREÇO */}
+      <div className="pt-4 border-t border-white/5 space-y-4">
+        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-2">Endereço Profissional</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <input type="text" placeholder="CEP" value={formData.cep} onChange={e => setFormData({...formData, cep: e.target.value})} className="col-span-1 bg-black border border-white/10 h-14 px-4 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
+          <input type="text" placeholder="Rua" value={formData.rua} onChange={e => setFormData({...formData, rua: e.target.value})} className="col-span-1 md:col-span-2 bg-black border border-white/10 h-14 px-4 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
+          <input type="text" placeholder="UF" value={formData.uf} maxLength={2} onChange={e => setFormData({...formData, uf: e.target.value.toUpperCase()})} className="bg-black border border-white/10 h-14 px-4 rounded-xl outline-none text-white text-center focus:border-[#C9A66B]" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <input type="text" placeholder="Bairro" value={formData.bairro} onChange={e => setFormData({...formData, bairro: e.target.value})} className="bg-black border border-white/10 h-14 px-4 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
+          <input type="text" placeholder="Cidade" value={formData.cidade} onChange={e => setFormData({...formData, cidade: e.target.value})} className="bg-black border border-white/10 h-14 px-4 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
+          <input type="text" placeholder="Complemento" value={formData.complemento} onChange={e => setFormData({...formData, complemento: e.target.value})} className="bg-black border border-white/10 h-14 px-4 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
+        </div>
+      </div>
+
+      {/* STATUS PROFISSIONAL */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-white/5">
         <div className="space-y-1">
-            <label className="text-[10px] font-bold text-zinc-500 uppercase ml-2">Categoria</label>
-            <div className="relative">
-                <Scissors className="absolute left-4 top-1/2 -translate-y-1/2 text-[#C9A66B]" size={18} />
-                <select 
-                    value={formData.perfil}
-                    onChange={(e) => setFormData({...formData, perfil: e.target.value})}
-                    className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl appearance-none focus:border-[#C9A66B] outline-none text-sm text-white"
-                >
-                    <option value="cabeleireiro">Cabeleireiro(a)</option>
-                    <option value="distribuidor">Distribuidor</option>
-                    <option value="embaixador">Embaixador</option>
-                </select>
-            </div>
+          <label className="text-[10px] font-bold text-zinc-500 uppercase ml-2">Vínculo Profissional</label>
+          <select value={formData.statusProfissional} onChange={e => setFormData({...formData, statusProfissional: e.target.value})} className="w-full bg-black border border-white/10 h-14 px-4 rounded-xl outline-none text-white text-sm focus:border-[#C9A66B]">
+            <option value="Salão Próprio">Tenho Salão Próprio</option>
+            <option value="Alugo Cadeira">Alugo Cadeira</option>
+            <option value="Sou Comissionado">Sou Comissionado</option>
+          </select>
         </div>
-
-        <div className="relative">
-            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-            <input 
-                type="text"
-                placeholder="Nome Completo"
-                required
-                onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl outline-none text-sm text-white"
-            />
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-zinc-500 uppercase ml-2">Usa Agenda Online?</label>
+          <select value={formData.agendaOnline} onChange={e => setFormData({...formData, agendaOnline: e.target.value})} className="w-full bg-black border border-white/10 h-14 px-4 rounded-xl outline-none text-white text-sm focus:border-[#C9A66B]">
+            <option value="sim">Sim, utilizo</option>
+            <option value="não">Não utilizo</option>
+          </select>
         </div>
+      </div>
 
-        <div className="relative">
-            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-            <input 
-                type="email"
-                placeholder="E-mail"
-                required
-                autoComplete="new-email"
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl outline-none text-sm text-white"
-            />
-        </div>
-
-        <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-            <input 
-                type={showPassword ? "text" : "password"}
-                placeholder="Senha"
-                required
-                autoComplete="new-password"
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 pr-12 rounded-xl outline-none text-sm text-white"
-            />
-            <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
-            >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-                <input 
-                    type="text"
-                    placeholder="Endereço"
-                    onChange={(e) => setFormData({...formData, endereco: e.target.value})}
-                    className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl outline-none text-sm text-white"
-                />
-            </div>
-            <input 
-                type="text"
-                placeholder="Complemento"
-                onChange={(e) => setFormData({...formData, complemento: e.target.value})}
-                className="w-full bg-zinc-900 border border-white/10 h-14 px-4 rounded-xl outline-none text-sm text-white"
-            />
-        </div>
-
-        <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full bg-white text-black h-14 rounded-xl font-black uppercase text-xs tracking-[0.3em] hover:bg-[#C9A66B] transition-all active:scale-95 shadow-xl mt-4 disabled:opacity-50"
-        >
-            {loading ? "Processando..." : "Finalizar Cadastro"}
+      {/* SENHA */}
+      <div className="relative pt-4">
+        <Lock className="absolute left-4 top-[calc(50%+8px)] -translate-y-1/2 text-zinc-500" size={18} />
+        <input type={showPassword ? "text" : "password"} placeholder="Crie sua senha" required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} autoComplete="new-password" className="w-full bg-black border border-white/10 h-14 pl-12 pr-12 rounded-xl outline-none text-white focus:border-[#C9A66B]" />
+        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-[calc(50%+8px)] -translate-y-1/2 text-zinc-500 hover:text-white">
+          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
         </button>
+      </div>
+
+      <button type="submit" disabled={loading} className="w-full bg-[#C9A66B] text-black h-16 rounded-2xl font-black uppercase text-xs tracking-[0.3em] hover:bg-white transition-all active:scale-95 shadow-xl disabled:opacity-50">
+        {loading ? "Processando..." : "Finalizar Cadastro"}
+      </button>
     </form>
   );
 }
 
-// 2. A página principal envolvendo o formulário em Suspense
 export default function CadastroPage() {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-6">
+    <div className="min-h-screen bg-black flex items-center justify-center p-4 md:p-12">
       <Suspense fallback={
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="animate-spin text-[#C9A66B]" size={40} />
