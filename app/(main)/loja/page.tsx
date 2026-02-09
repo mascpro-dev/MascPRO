@@ -9,7 +9,7 @@ export default function LojaPage() {
   const supabase = createClientComponentClient();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<any[]>([]);
-  const [userCategory, setUserCategory] = useState('cabeleireiro'); // Padrão inicial
+  const [userLevel, setUserLevel] = useState('cabeleireiro'); // Valor padrão
 
   useEffect(() => {
     async function loadStore() {
@@ -18,15 +18,16 @@ export default function LojaPage() {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {
+          // MUDANÇA AQUI: Buscando a coluna "nivel" em vez de professional_category
           const { data: profile } = await supabase
             .from('profiles')
-            .select('professional_category')
+            .select('nivel') 
             .eq('id', session.user.id)
             .single();
           
-          // Ajusta para bater com as colunas do banco
-          const cat = profile?.professional_category?.toLowerCase() || 'cabeleireiro';
-          setUserCategory(cat);
+          // Tratamento para evitar erros de maiúsculo/minúsculo
+          const level = profile?.nivel?.toLowerCase()?.trim() || 'cabeleireiro';
+          setUserLevel(level);
         }
 
         const { data: productsData } = await supabase.from('products').select('*').order('created_at', { ascending: false });
@@ -36,74 +37,75 @@ export default function LojaPage() {
     loadStore();
   }, []);
 
-  // ENGENHARIA DE PRECIFICAÇÃO (MANTIDA)
+  // LÓGICA DE PRECIFICAÇÃO BASEADA NO "NÍVEL"
   const getDisplayPrice = (product: any) => {
     let price = 0;
 
-    if (userCategory === 'distribuidor') {
+    // Compara o nivel do usuário com as colunas de preço do produto
+    if (userLevel === 'distribuidor') {
       price = Number(product.price_distributor || 0);
-    } else if (userCategory === 'embaixador') {
+    } else if (userLevel === 'embaixador') {
       price = Number(product.price_ambassador || 0);
-    } else if (userCategory === 'cabeleireiro') {
-      price = Number(product.price_hairdresser || 0);
     } else {
-      price = Number(product.price_hairdresser || 0); 
+      // Padrão para cabeleireiro ou nível não identificado
+      price = Number(product.price_hairdresser || 0);
     }
 
-    // Formato R$ 0.00
     return `R$ ${price.toFixed(2)}`;
   };
 
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white p-6 md:p-12">
+    <div className="min-h-screen bg-[#050505] text-white p-4 md:p-12 font-sans">
       <div className="max-w-7xl mx-auto">
         
-        {/* HEADER COM TÍTULO ALTERADO */}
-        <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
-          <div>
-            {/* MUDANÇA AQUI: De Catálogo para Compras */}
-            <h1 className="text-3xl font-semibold tracking-tight italic uppercase mb-2">MascPRO Compras</h1>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.3em]">
-              Tabela: <span className="text-[#C9A66B]">{userCategory}</span>
-            </p>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tighter italic uppercase text-white">
+              MascPRO <span className="text-[#C9A66B]">LOJA</span>
+            </h1>
+            <div className="flex items-center gap-3">
+                <div className="h-[1px] w-12 bg-[#C9A66B]"></div>
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.4em]">
+                  Tabela: <span className="text-white">{userLevel}</span>
+                </p>
+            </div>
           </div>
-          <Link href="/carrinho" className="flex items-center gap-4 bg-zinc-900/50 px-6 py-3 rounded-2xl border border-white/5 hover:bg-zinc-800 transition-all">
-            <ShoppingBag size={18} className="text-[#C9A66B]" />
-            <span className="text-xs font-bold uppercase tracking-widest">Meu Carrinho</span>
-          </Link>
         </div>
 
-        {/* GRID DE PRODUTOS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {/* GRID COMPACTO ELITE */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {products.map((product) => (
-            /* MUDANÇA AQUI: rounded-xl em vez de rounded-3xl para cantos menos redondos */
-            <div key={product.id} className="group bg-zinc-900/20 border border-white/5 rounded-xl overflow-hidden hover:border-[#C9A66B]/30 transition-all duration-500 shadow-2xl">
+            <div key={product.id} className="group flex flex-col bg-zinc-900/40 border border-white/5 rounded-lg overflow-hidden hover:border-[#C9A66B]/50 transition-all duration-300">
               
-              <div className="aspect-square relative overflow-hidden bg-zinc-900">
+              <div className="aspect-square relative overflow-hidden bg-[#0a0a0a]">
                 {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                  <img src={product.image_url} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-zinc-800"><Package size={40} /></div>
+                  <div className="w-full h-full flex items-center justify-center text-zinc-800"><Package size={24} /></div>
                 )}
               </div>
 
-              <div className="p-6">
-                <p className="text-[9px] font-bold text-[#C9A66B] uppercase tracking-[0.2em] mb-2">{product.category || 'Elite'}</p>
-                <h3 className="text-sm font-medium text-white mb-4 line-clamp-1">{product.name}</h3>
+              <div className="p-4 flex flex-col flex-1">
+                <div className="mb-3 flex-1">
+                  <p className="text-[8px] font-black text-[#C9A66B] uppercase tracking-widest mb-1 opacity-70">MascPRO</p>
+                  <h3 className="text-[11px] font-bold text-white uppercase tracking-tight leading-tight line-clamp-2">
+                    {product.title}
+                  </h3>
+                </div>
                 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-zinc-500 text-[8px] font-bold uppercase tracking-widest mb-1">Valor Unitário</p>
-                    <p className="text-lg font-semibold text-white tracking-tighter">
-                      {getDisplayPrice(product)}
-                    </p>
-                  </div>
-                  
-                  {/* LINK PARA PÁGINA DE DETALHES */}
-                  <Link href={`/loja/${product.id}`} className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center hover:bg-[#C9A66B] transition-all">
-                    <ChevronRight size={20} />
+                <div className="space-y-3">
+                  {/* PREÇO EM DOURADO COM A LÓGICA DO NIVEL */}
+                  <p className="text-sm font-black text-[#C9A66B] tracking-tighter">
+                    {getDisplayPrice(product)}
+                  </p>
+
+                  <Link 
+                    href={`/loja/${product.id}`} 
+                    className="w-full bg-white text-black h-8 rounded-md flex items-center justify-center gap-2 hover:bg-[#C9A66B] transition-all text-[9px] font-bold uppercase tracking-widest"
+                  >
+                    Detalhes <ChevronRight size={12} />
                   </Link>
                 </div>
               </div>
