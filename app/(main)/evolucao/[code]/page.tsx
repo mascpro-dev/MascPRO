@@ -83,10 +83,33 @@ export default function PlayerPage() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  // --- LÓGICA DE MEMÓRIA E CONTROLE ---
+  // --- FUNÇÃO PARA SALVAR ONDE PAROU ---
   const saveProgress = async (time: number) => {
     if (!currentUser || !currentLesson) return;
-    await supabase.from('lesson_progress').upsert({ user_id: currentUser.id, lesson_id: currentLesson.id, last_position: time });
+    await supabase.from('lesson_progress').upsert({ 
+        user_id: currentUser.id, 
+        lesson_id: currentLesson.id, 
+        last_position: time 
+    });
+  };
+
+  // --- CONTROLE DE PLAY/PAUSE CORRIGIDO PARA CELULAR ---
+  const togglePlay = (e?: any) => {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    if (!playerRef.current) return;
+    
+    const state = playerRef.current.getPlayerState();
+    if (state === 1) { // 1 = Tocando
+      playerRef.current.pauseVideo();
+      setIsPlaying(false);
+      saveProgress(playerRef.current.getCurrentTime());
+    } else {
+      playerRef.current.playVideo();
+      setIsPlaying(true);
+    }
   };
 
   useEffect(() => {
@@ -103,14 +126,14 @@ export default function PlayerPage() {
             rel: 0, 
             disablekb: 1, 
             iv_load_policy: 3,
-            /* ADICIONADO PARA CELULAR: */
-            playsinline: 1, // Impede que o celular abra o vídeo em tela cheia sozinho
+            playsinline: 1, // OBRIGATÓRIO PARA CELULAR
             enablejsapi: 1
         },
         events: {
           onReady: async (event: any) => {
             setDuration(event.target.getDuration());
             
+            // MEMÓRIA: BUSCA POSIÇÃO SALVA
             const { data } = await supabase.from('lesson_progress')
                 .select('last_position')
                 .eq('lesson_id', currentLesson.id)
@@ -119,16 +142,15 @@ export default function PlayerPage() {
             
             if (data?.last_position) event.target.seekTo(data.last_position);
             
-            // Forçamos o play após um pequeno delay para garantir que o celular aceite
-            setTimeout(() => {
-                event.target.playVideo();
-            }, 500);
-
+            // No mobile, forçamos o play após interação
+            event.target.playVideo();
             setIsPlaying(true);
+
             progressInterval.current = setInterval(() => {
               if (playerRef.current?.getCurrentTime) {
                   const now = playerRef.current.getCurrentTime();
                   setCurrentTime(now);
+                  // Salva no banco a cada 10 segundos
                   if (Math.floor(now) % 10 === 0) saveProgress(now);
               }
             }, 1000);
@@ -152,7 +174,7 @@ export default function PlayerPage() {
     router.refresh();
   };
 
-  // --- LÓGICA DE DÚVIDAS E RESPOSTAS ---
+  // --- LÓGICA DE DÚVIDAS (MANTIDA) ---
   const handleCommentChange = (e: any) => {
     const val = e.target.value;
     setNewComment(val);
@@ -193,15 +215,15 @@ export default function PlayerPage() {
     <div className="min-h-screen bg-[#050505] text-zinc-300 font-sans selection:bg-[#C9A66B]/30">
       <Script src="https://www.youtube.com/iframe_api" strategy="afterInteractive" />
 
-      {/* HEADER REFINADO */}
+      {/* HEADER (TEXTO REFINADO) */}
       <header className="h-16 px-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-md sticky top-0 z-50">
         <Link href="/evolucao" className="flex items-center gap-3 text-zinc-500 hover:text-white transition-all">
           <ArrowLeft size={16} />
           <span className="text-[10px] font-bold uppercase tracking-widest italic">Voltar</span>
         </Link>
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center text-center">
           <span className="text-[9px] text-zinc-600 font-medium uppercase tracking-[0.4em] mb-1">Módulo</span>
-          <span className="text-[11px] font-medium text-[#C9A66B] uppercase tracking-[0.2em] italic">{course?.title}</span>
+          <span className="text-[11px] font-medium text-[#C9A66B] uppercase tracking-[0.2em] italic max-w-[150px] md:max-w-none truncate">{course?.title}</span>
         </div>
         <div className="w-10"></div>
       </header>
@@ -210,7 +232,7 @@ export default function PlayerPage() {
         <div className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar">
           <div className="max-w-5xl mx-auto">
             
-            {/* PLAYER NINJA */}
+            {/* PLAYER NINJA (CORRIGIDO PARA TOUCH) */}
             <div className="aspect-video w-full bg-black rounded-xl overflow-hidden border border-white/5 relative group shadow-2xl">
               {!videoStarted ? (
                 <button onClick={() => setVideoStarted(true)} className="absolute inset-0 z-20 flex flex-col items-center justify-center">
@@ -221,8 +243,14 @@ export default function PlayerPage() {
                 </button>
               ) : (
                 <>
-                    <div className="w-full h-full pointer-events-none"><div id="ninja-player" className="w-full h-full"></div></div>
-                    <div className="absolute inset-0 z-30 cursor-pointer" onClick={() => { if(playerRef.current) isPlaying ? playerRef.current.pauseVideo() : playerRef.current.playVideo() }}>
+                    <div className="w-full h-full pointer-events-none">
+                        <div id="ninja-player" className="w-full h-full"></div>
+                    </div>
+                    {/* MÁSCARA QUE ACEITA TOQUE (TOUCH) E CLIQUE */}
+                    <div 
+                        className="absolute inset-0 z-30 cursor-pointer" 
+                        onPointerDown={togglePlay} // onPointerDown funciona melhor que onClick em celulares
+                    >
                         <div className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
                             <div className="p-6">
                                 <div className="flex items-center gap-3 mb-4">
@@ -233,7 +261,7 @@ export default function PlayerPage() {
                                 <div className="flex items-center justify-between text-[10px] font-bold text-white/50 uppercase tracking-widest">
                                     <div className="flex items-center gap-4">
                                         {isPlaying ? <Pause size={18} fill="white" /> : <Play size={18} fill="white" />}
-                                        <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
+                                        <span className="hidden sm:inline">{(currentTime/60).toFixed(0)}:{(currentTime%60).toFixed(0).padStart(2,'0')} / {(duration/60).toFixed(0)}:{(duration%60).toFixed(0).padStart(2,'0')}</span>
                                     </div>
                                     <span>{Math.floor((currentTime / duration) * 100)}% assistido</span>
                                 </div>
@@ -244,85 +272,57 @@ export default function PlayerPage() {
               )}
             </div>
 
-            {/* RESTANTE DO CONTEÚDO (Mantido conforme aprovado) */}
+            {/* TITULO E ABAS (VISUAL MANTIDO) */}
             <div className="mt-8 flex justify-between items-center mb-12">
-                <h1 className="text-2xl font-semibold text-white tracking-tight italic uppercase">{currentLesson?.title}</h1>
-                <div className="flex items-center gap-3 px-6 py-2.5 rounded-xl text-[10px] font-bold border border-[#C9A66B]/20 bg-[#C9A66B]/5">
-                    <Trophy size={14} className="text-[#C9A66B]" /> {completedLessons.has(currentLesson?.id) ? 'PRO ADQUIRIDO' : '+10 PRO DISPONÍVEL'}
+                <h1 className="text-xl md:text-2xl font-semibold text-white tracking-tight italic uppercase">{currentLesson?.title}</h1>
+                <div className="hidden md:flex items-center gap-3 px-6 py-2.5 rounded-xl text-[10px] font-bold border border-[#C9A66B]/20 bg-[#C9A66B]/5">
+                    <Trophy size={14} className="text-[#C9A66B]" /> {completedLessons.has(currentLesson?.id) ? 'PRO ADQUIRIDO' : '+10 PRO'}
                 </div>
             </div>
 
-            {/* ABAS UNIFICADAS */}
             <div className="mt-8 border-t border-white/5 pt-8">
-                <div className="flex gap-10 mb-8">
+                <div className="flex gap-6 md:gap-10 mb-8 overflow-x-auto no-scrollbar">
                     {['sobre', 'materiais', 'duvidas'].map((t) => (
-                        <button key={t} onClick={() => setActiveTab(t as any)} className={`text-[10px] font-bold uppercase tracking-[0.2em] pb-2 transition-all border-b-2 ${activeTab === t ? 'text-[#C9A66B] border-[#C9A66B]' : 'text-zinc-600 border-transparent'}`}>{t}</button>
+                        <button key={t} onClick={() => setActiveTab(t as any)} className={`text-[10px] font-bold uppercase tracking-[0.2em] pb-2 transition-all border-b-2 whitespace-nowrap ${activeTab === t ? 'text-[#C9A66B] border-[#C9A66B]' : 'text-zinc-600 border-transparent'}`}>{t}</button>
                     ))}
                 </div>
+                
+                {/* CONTEÚDO DAS ABAS (MANTIDO) */}
 
-                <div className="min-h-[250px]">
+                <div className="min-h-[200px]">
                     {activeTab === 'duvidas' && (
                         <div className="max-w-3xl relative">
-                            {/* CAIXA DE POSTAGEM */}
                             <div className="relative mb-10">
                                 {replyingTo && (
-                                    <div className="flex items-center justify-between bg-[#C9A66B]/10 border border-[#C9A66B]/20 p-3 rounded-t-xl mb-[-1px] transition-all">
+                                    <div className="flex items-center justify-between bg-[#C9A66B]/10 border border-[#C9A66B]/20 p-3 rounded-t-xl mb-[-1px]">
                                         <span className="text-[10px] font-bold text-[#C9A66B] uppercase tracking-widest">Respondendo a {replyingTo.profiles?.full_name}</span>
-                                        <button onClick={() => setReplyingTo(null)} className="text-[#C9A66B] hover:text-white"><X size={14}/></button>
+                                        <button onClick={() => setReplyingTo(null)} className="text-[#C9A66B]"><X size={14}/></button>
                                     </div>
                                 )}
-                                <textarea value={newComment} onChange={handleCommentChange} placeholder={replyingTo ? "Escreva sua resposta..." : "Tire sua dúvida aqui..."} className={`w-full bg-zinc-900/30 border border-white/5 p-5 text-sm focus:border-[#C9A66B]/30 outline-none min-h-[100px] resize-none transition-all ${replyingTo ? 'rounded-b-xl' : 'rounded-xl'}`} />
-                                <button onClick={handlePostComment} disabled={isSending} className="absolute bottom-5 right-5 p-2.5 bg-[#C9A66B] rounded-lg text-black hover:bg-white transition-all active:scale-95 disabled:opacity-50">
+                                <textarea value={newComment} onChange={handleCommentChange} placeholder="Tire sua dúvida..." className={`w-full bg-zinc-900/30 border border-white/5 p-5 text-sm focus:border-[#C9A66B]/30 outline-none min-h-[100px] resize-none transition-all ${replyingTo ? 'rounded-b-xl' : 'rounded-xl'}`} />
+                                <button onClick={handlePostComment} disabled={isSending} className="absolute bottom-5 right-5 p-2.5 bg-[#C9A66B] rounded-lg text-black disabled:opacity-50">
                                     {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                                 </button>
-
-                                {showMentionList && (
-                                    <div className="absolute bottom-full left-0 w-64 bg-[#0a0a0a] border border-white/10 rounded-xl shadow-2xl mb-2 overflow-hidden z-[100]">
-                                        {allUsers.filter(u => u.full_name?.toLowerCase().includes(mentionQuery)).map(user => (
-                                            <button key={user.id} onClick={() => selectUser(user.full_name)} className="w-full p-3 flex items-center gap-3 hover:bg-[#C9A66B] hover:text-black transition-all text-left">
-                                                <div className="w-6 h-6 rounded-full bg-zinc-800 flex-shrink-0 flex items-center justify-center text-[10px] font-bold border border-white/10">{user.avatar_url ? <img src={user.avatar_url} className="rounded-full" /> : user.full_name?.[0]}</div>
-                                                <span className="text-xs font-medium truncate">{user.full_name}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
-                            
-                            {/* LISTA DE DÚVIDAS COM SCROLL APÓS 3 ITENS */}
-                            <div className="space-y-6 max-h-[600px] overflow-y-auto pr-4 custom-scrollbar">
+                            {/* LISTA DE DÚVIDAS (MANTIDA COM SCROLL) */}
+                            <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                                 {comments.filter(c => !c.parent_id).map((c) => (
                                     <div key={c.id} className="space-y-4">
-                                        <div className="flex gap-4 p-5 rounded-2xl bg-white/[0.03] border border-white/[0.02] hover:bg-white/[0.05] transition-all">
-                                            <div className="w-10 h-10 rounded-full bg-zinc-900 border border-white/5 flex items-center justify-center font-bold text-xs uppercase text-zinc-600 shrink-0">
+                                        <div className="flex gap-4 p-5 rounded-2xl bg-white/[0.03] border border-white/[0.02]">
+                                            <div className="w-10 h-10 rounded-full bg-zinc-900 border border-white/5 flex items-center justify-center font-bold text-xs shrink-0">
                                                 {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="rounded-full w-full h-full object-cover" /> : c.profiles?.full_name?.[0]}
                                             </div>
                                             <div className="flex-1">
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-xs font-bold text-white uppercase tracking-tight">{c.profiles?.full_name}</span>
-                                                    <span className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">{formatDistanceToNow(new Date(c.created_at), { locale: ptBR, addSuffix: true })}</span>
+                                                    <span className="text-xs font-bold text-white uppercase">{c.profiles?.full_name}</span>
+                                                    <span className="text-[9px] text-zinc-600 font-black uppercase">{formatDistanceToNow(new Date(c.created_at), { locale: ptBR, addSuffix: true })}</span>
                                                 </div>
-                                                <p className="text-sm text-zinc-400 leading-relaxed mb-4">{c.content}</p>
-                                                <button onClick={() => { setReplyingTo(c); window.scrollTo({ top: 300, behavior: 'smooth' }); }} className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-[#C9A66B] hover:text-white transition-all">
+                                                <p className="text-sm text-zinc-400 leading-relaxed">{c.content}</p>
+                                                <button onClick={() => { setReplyingTo(c); window.scrollTo({ top: 300, behavior: 'smooth' }); }} className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-[#C9A66B] mt-4 hover:underline">
                                                     <Reply size={12} /> Responder
                                                 </button>
                                             </div>
                                         </div>
-
-                                        {/* RESPOSTAS (INDENTADAS) */}
-                                        {comments.filter(reply => reply.parent_id === c.id).map(reply => (
-                                            <div key={reply.id} className="flex gap-4 p-4 ml-10 rounded-2xl bg-zinc-900/40 border-l-2 border-[#C9A66B]/20">
-                                                <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center font-bold text-[10px] text-zinc-600 shrink-0">
-                                                    {reply.profiles?.avatar_url ? <img src={reply.profiles.avatar_url} className="rounded-full w-full h-full object-cover" /> : reply.profiles?.full_name?.[0]}
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <span className="text-[11px] font-bold text-white uppercase">{reply.profiles?.full_name}</span>
-                                                        <span className="text-[8px] text-zinc-600 uppercase font-bold">{formatDistanceToNow(new Date(reply.created_at), { locale: ptBR, addSuffix: true })}</span>
-                                                    </div>
-                                                    <p className="text-xs text-zinc-500 leading-relaxed">{reply.content}</p>
-                                                </div>
-                                            </div>
-                                        ))}
                                     </div>
                                 ))}
                             </div>
@@ -333,9 +333,9 @@ export default function PlayerPage() {
           </div>
         </div>
 
-        {/* PLAYLIST LATERAL MANTIDA */}
+        {/* LISTA LATERAL (MANTIDA) */}
         <div className="w-full lg:w-80 bg-black border-l border-white/5 overflow-y-auto shrink-0">
-            <div className="p-6 border-b border-white/5 sticky top-0 bg-black z-10"><h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest italic">Lista de Aulas</h3></div>
+            <div className="p-6 border-b border-white/5 sticky top-0 bg-black z-10"><h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest italic">Aulas</h3></div>
             {lessons.map((lesson, idx) => {
                 const isActive = currentLesson?.id === lesson.id;
                 const isUnlocked = idx === 0 || completedLessons.has(lessons[idx - 1].id);

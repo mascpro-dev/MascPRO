@@ -42,13 +42,11 @@ export default function Loja() {
   /* -------------------- PREÇO POR TIER -------------------- */
 
   const priceField =
-    profile.tier === 'hairdresser'
-      ? 'price_hairdresser'
-      : profile.tier === 'ambassador'
-      ? 'price_ambassador'
-      : profile.tier === 'distributor'
+    profile.professional_category === 'distribuidor' || profile.professional_category === 'distributor'
       ? 'price_distributor'
-      : 'price_consumer';
+      : profile.professional_category === 'profissional' || profile.professional_category === 'professional'
+      ? 'price_professional'
+      : 'price_retail'; // Valor padrão para barbeiros/consumo
 
   /* -------------------- RENDER -------------------- */
 
