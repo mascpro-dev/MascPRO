@@ -85,8 +85,7 @@ function CadastroForm() {
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
-            full_name: formData.fullName,
-            nivel: 'cabeleireiro',
+            full_name: formData.fullName, // Se o SQL busca full_name, aqui TEM que ser full_name
             cpf: formData.cpf,
             whatsapp: formData.whatsapp,
             instagram: formData.instagram,
@@ -99,6 +98,7 @@ function CadastroForm() {
             tempo_experiencia: formData.tempoExperiencia,
             status_profissional: formData.statusProfissional,
             agenda_online: formData.agendaOnline,
+            referred_by: indicadorId // O ID DA REDE
           }
         }
       });
