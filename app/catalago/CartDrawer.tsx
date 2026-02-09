@@ -1,25 +1,23 @@
-'use client';
-import { useState } from 'react';
-import { useCart } from './CartContext';
+"use client";
+import { useCart } from "./CartContext";
 import { supabase } from '@/lib/supabaseClient';
 
 const WHATS_NUMBER = '5514991570389'; // WhatsApp para finalizar pedidos
 
 export default function CartDrawer() {
-  const { items, remove, clear, priceField } = useCart();
-  const [open, setOpen] = useState(false);
+  const { cart, removeFromCart, clearCart, isCartOpen, setIsCartOpen } = useCart();
 
-  const total = items.reduce((acc: number, i: any) => {
-    const unit = Number(i[priceField] ?? 0);
-    return acc + unit * i.qty;
+  const total = cart.reduce((acc: number, i: any) => {
+    const unit = Number(i.price ?? 0);
+    return acc + unit * (i.quantity || 1);
   }, 0 as number);
 
   const goWhats = async () => {
-    if (items.length === 0) return;
+    if (cart.length === 0) return;
     
-    const linhas = items.map(
+    const linhas = cart.map(
       (i: any) =>
-        `• ${i.title || i.name || 'Produto'} – ${i.qty} × R$ ${Number(i[priceField] ?? 0).toFixed(2)}`
+        `• ${i.title || i.name || 'Produto'} – ${i.quantity || 1} × R$ ${Number(i.price ?? 0).toFixed(2)}`
     );
     const msg =
       `*Pedido MASC PRO*\n\n` +
@@ -42,26 +40,16 @@ export default function CartDrawer() {
       });
     }
 
-    clear();
-    setOpen(false);
+    clearCart();
+    setIsCartOpen(false);
   };
 
   return (
     <>
-      {/* FAB carrinho */}
-      {items.length > 0 && (
-        <button
-          onClick={() => setOpen(true)}
-          className="fixed bottom-24 right-4 bg-black text-white px-4 py-3 rounded-full shadow-lg z-40 hover:bg-gray-800 transition"
-        >
-          🛒 {items.length}
-        </button>
-      )}
-
-      {open && (
+      {isCartOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex justify-end"
-          onClick={() => setOpen(false)}
+          onClick={() => setIsCartOpen(false)}
         >
           <div
             className="bg-white w-80 h-full p-6 flex flex-col relative"
@@ -71,7 +59,7 @@ export default function CartDrawer() {
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-lg">Meu carrinho</h3>
               <button
-                onClick={() => setOpen(false)}
+                onClick={() => setIsCartOpen(false)}
                 className="text-2xl leading-none hover:text-gray-600 transition"
               >
                 ×
@@ -79,12 +67,12 @@ export default function CartDrawer() {
             </div>
 
             {/* lista */}
-            {items.length === 0 ? (
+            {cart.length === 0 ? (
               <p className="text-sm text-gray-500 flex-1">Carrinho vazio.</p>
             ) : (
               <>
                 <ul className="space-y-3 flex-1 overflow-auto pr-2 max-h-[55vh]">
-                  {items.map((i: any) => (
+                  {cart.map((i: any) => (
                     <li
                       key={i.id}
                       className="flex justify-between items-start text-sm"
@@ -92,11 +80,11 @@ export default function CartDrawer() {
                       <div>
                         <p className="font-medium text-black">{i.title}</p>
                         <p className="text-sm font-bold text-red-600">
-                          {i.qty} × R$ {Number(i[priceField]).toFixed(2)}
+                          {i.quantity || 1} × R$ {Number(i.price || 0).toFixed(2)}
                         </p>
                       </div>
                       <button
-                        onClick={() => remove(i.id)}
+                        onClick={() => removeFromCart(i.id)}
                         className="text-red-500 text-xs hover:text-red-700 transition"
                       >
                         remover

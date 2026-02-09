@@ -1,32 +1,52 @@
 'use client';
-import { CartProvider } from './CartContext';
+import { useEffect, useState } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import ProductCard from './ProductCard';
-import CartDrawer from './CartDrawer';
 
-interface CatalogContentProps {
-  products: any[];
-}
+export default function CatalogContent() {
+  const supabase = createClientComponentClient();
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export default function CatalogContent({ products }: CatalogContentProps) {
+  useEffect(() => {
+    async function loadProducts() {
+      try {
+        const { data } = await supabase
+          .from('products')
+          .select('*')
+          .eq('active', true);
+        setProducts(data || []);
+      } catch (e) {
+        console.error('Erro ao carregar produtos:', e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadProducts();
+  }, [supabase]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-zinc-500 text-sm">Carregando produtos...</p>
+      </div>
+    );
+  }
+
   return (
-    <CartProvider priceField="price">
-      <main className="mx-auto max-w-5xl p-6">
-        <h1 className="text-3xl font-bold mb-6">Catálogo MASC PRO</h1>
+    <>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        {products.map((product) => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+      </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {products?.map((p) => <ProductCard key={p.id} product={p} />)}
-        </div>
-
-        <a
-          href="https://wa.me/5514991570389?text=Quero%20acesso%20profissional%20ao%20app%20MASC%20PRO"
-          className="mt-8 inline-block bg-black text-white px-6 py-3 rounded-xl"
-        >
-          Quero comprar com desconto →
-        </a>
-      </main>
-
-      {/* Drawer do carrinho */}
-      <CartDrawer />
-    </CartProvider>
+      <a
+        href="https://wa.me/5514991570389?text=Quero%20acesso%20profissional%20ao%20app%20MASC%20PRO"
+        className="mt-8 inline-block bg-black text-white px-6 py-3 rounded-xl"
+      >
+        Quero comprar com desconto →
+      </a>
+    </>
   );
 }

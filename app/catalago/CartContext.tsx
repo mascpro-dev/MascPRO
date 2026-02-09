@@ -1,30 +1,55 @@
-'use client';
-import { createContext, useContext, useState } from 'react';
+"use client";
 
-export const CartContext = createContext<any>(null);
-export const useCart = () => useContext(CartContext);
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export function CartProvider({ priceField, children }: any) {
-  const [items, setItems] = useState<any[]>([]);
+const CartContext = createContext<any>(null);
 
-  const add = (product: any, qty = 1) =>
-    setItems((arr) => {
-      const found = arr.find((i) => i.id === product.id);
-      return found
-        ? arr.map((i) =>
-            i.id === product.id ? { ...i, qty: i.qty + qty } : i
-          )
-        : [...arr, { ...product, qty }];
+export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [cart, setCart] = useState<any[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  // 1. CARREGAR: Assim que o app abre, busca o que estava salvo
+  useEffect(() => {
+    const savedCart = localStorage.getItem('mascpro_cart');
+    if (savedCart) {
+      try {
+        setCart(JSON.parse(savedCart));
+      } catch (e) {
+        console.error("Erro ao carregar carrinho", e);
+      }
+    }
+  }, []);
+
+  // 2. SALVAR: Toda vez que o carrinho mudar, grava no localStorage
+  useEffect(() => {
+    localStorage.setItem('mascpro_cart', JSON.stringify(cart));
+  }, [cart]);
+
+  const addToCart = (product: any) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        return prev.map(item => 
+          item.id === product.id 
+            ? { ...item, quantity: item.quantity + (product.quantity || 1) } 
+            : item
+        );
+      }
+      return [...prev, { ...product, quantity: product.quantity || 1 }];
     });
+  };
 
-  const remove = (id: string) =>
-    setItems((arr) => arr.filter((i) => i.id !== id));
+  const removeFromCart = (id: string) => {
+    setCart(prev => prev.filter(item => item.id !== id));
+  };
 
-  const clear = () => setItems([]);
+  const clearCart = () => setCart([]);
 
   return (
-    <CartContext.Provider value={{ items, add, remove, clear, priceField }}>
+    <CartContext.Provider value={{ cart, addToCart, removeFromCart, clearCart, isCartOpen, setIsCartOpen }}>
       {children}
     </CartContext.Provider>
   );
 }
+
+export const useCart = () => useContext(CartContext);
