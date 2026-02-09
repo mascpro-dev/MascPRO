@@ -4,15 +4,17 @@ import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { ShoppingBag, Loader2, ChevronRight, ShoppingCart } from "lucide-react";
 import Link from "next/link";
-import { CartProvider, useCart } from "./CartContext";
-import CartDrawer from "./CartDrawer";
+import { useCart } from "./CartContext";
 
 function LojaContent() {
   const supabase = createClientComponentClient();
-  const { addToCart, setIsCartOpen } = useCart();
+  const { cart, addToCart, setIsCartOpen } = useCart(); // Pegando o 'cart' do contexto
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<any[]>([]);
   const [userLevel, setUserLevel] = useState('cabeleireiro');
+
+  // Cálculo da bolinha de notificação
+  const cartCount = cart?.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0) || 0;
 
   useEffect(() => {
     async function loadStore() {
@@ -38,6 +40,11 @@ function LojaContent() {
     return `R$ ${price.toFixed(2)}`;
   };
 
+  const handleQuickBuy = (product: any) => {
+    addToCart({ ...product, quantity: 1 });
+    // setIsCartOpen(true); <-- REMOVIDO PARA NÃO ABRIR SOZINHO
+  };
+
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
 
   return (
@@ -50,8 +57,17 @@ function LojaContent() {
             </h1>
             <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.4em]">Tabela: {userLevel}</p>
           </div>
-          <button onClick={() => setIsCartOpen(true)} className="flex items-center gap-3 bg-zinc-900/50 px-5 py-3 rounded-xl border border-white/5 hover:bg-zinc-800 transition-all">
-            <ShoppingBag size={18} className="text-[#C9A66B]" /><span className="text-xs font-bold uppercase">Carrinho</span>
+          <button onClick={() => setIsCartOpen(true)} className="group relative flex items-center gap-3 bg-zinc-900/50 px-5 py-3 rounded-xl border border-white/5">
+            <div className="relative">
+              <ShoppingBag size={18} className="text-[#C9A66B]" />
+              {/* A NOTIFICAÇÃO SÓ APARECE SE FOR MAIOR QUE 0 */}
+              {cartCount > 0 && (
+                <span className="absolute -top-3 -right-3 bg-[#C9A66B] text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#050505]">
+                  {cartCount}
+                </span>
+              )}
+            </div>
+            <span className="text-xs font-bold uppercase">Carrinho</span>
           </button>
         </div>
 
@@ -71,7 +87,7 @@ function LojaContent() {
                   <p className="text-lg md:text-xl font-black text-[#C9A66B] tracking-tighter">{getDisplayPrice(product)}</p>
                   <div className="flex gap-2 h-9 md:h-10">
                       <button 
-                        onClick={() => { addToCart(product); setIsCartOpen(true); }}
+                        onClick={() => handleQuickBuy(product)}
                         className="flex-1 bg-white text-black rounded-lg flex items-center justify-center gap-2 hover:bg-[#C9A66B] transition-all text-[11px] md:text-xs font-bold uppercase tracking-widest active:scale-95 px-2"
                       >
                         <ShoppingCart size={14} /> COMPRAR
@@ -87,17 +103,10 @@ function LojaContent() {
           ))}
         </div>
       </div>
-      
-      {/* CARRINHO LATERAL */}
-      <CartDrawer />
     </div>
   );
 }
 
 export default function LojaPage() {
-  return (
-    <CartProvider>
-      <LojaContent />
-    </CartProvider>
-  );
+  return <LojaContent />;
 }

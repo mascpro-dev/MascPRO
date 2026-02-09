@@ -5,14 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { ArrowLeft, Loader2, ShoppingCart, Info, Plus, Minus } from "lucide-react";
 import Link from "next/link";
-import { CartProvider, useCart } from "../CartContext";
-import CartDrawer from "../CartDrawer";
+import { useCart } from "../CartContext";
 
 function ProductDetailContent() {
   const { id } = useParams();
   const router = useRouter();
   const supabase = createClientComponentClient();
-  const { addToCart, setIsCartOpen } = useCart(); 
+  const { addToCart } = useCart(); 
   
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -41,6 +40,25 @@ function ProductDetailContent() {
   };
 
   const finalPrice = getPrice();
+
+  const handleBuy = () => {
+    if (!product) return;
+    
+    // Criamos o objeto certinho para enviar
+    const productToCart = {
+      id: product.id,
+      title: product.title,
+      image_url: product.image_url,
+      price: finalPrice,
+      quantity: quantity // A quantidade que você escolheu no + e -
+    };
+
+    addToCart(productToCart);
+    
+    // Opcional: abre o carrinho para mostrar que funcionou ou apenas volta
+    // setIsCartOpen(true); 
+    router.push('/loja'); 
+  };
 
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
   if (!product) return <div className="text-white text-center p-20">Produto não encontrado.</div>;
@@ -86,25 +104,18 @@ function ProductDetailContent() {
             </div>
 
             <button 
-                onClick={() => { addToCart({ ...product, quantity }); setIsCartOpen(true); router.push('/loja'); }}
-                className="w-full bg-white text-black h-14 md:h-16 rounded-xl font-black uppercase text-[10px] tracking-[0.3em] flex items-center justify-center gap-3 hover:bg-[#C9A66B] transition-all active:scale-[0.98] shadow-2xl"
+                onClick={handleBuy}
+                className="w-full bg-white text-black h-16 rounded-xl font-black uppercase text-xs tracking-[0.3em] flex items-center justify-center gap-3 hover:bg-[#C9A66B] transition-all"
             >
-                <ShoppingCart size={18} /> ADICIONAR AO CARRINHO
+                <ShoppingCart size={20} /> ADICIONAR AO CARRINHO
             </button>
           </div>
         </div>
       </div>
-      
-      {/* CARRINHO LATERAL */}
-      <CartDrawer />
     </div>
   );
 }
 
 export default function ProductDetailPage() {
-  return (
-    <CartProvider>
-      <ProductDetailContent />
-    </CartProvider>
-  );
+  return <ProductDetailContent />;
 }
