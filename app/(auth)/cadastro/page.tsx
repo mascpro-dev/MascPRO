@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Eye, EyeOff, User, Mail, MapPin, Lock, Scissors } from "lucide-react";
+import { Eye, EyeOff, User, Mail, MapPin, Lock, Scissors, Loader2 } from "lucide-react";
 
-export default function CadastroPage() {
+// 1. O formulário real que usa os parâmetros da URL
+function CadastroForm() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Captura o ID de quem indicou lá do link da sua Rede (?ref=ID)
+  // Captura o ID do indicador (?ref=...)
   const indicadorId = searchParams.get("ref");
 
   const [showPassword, setShowPassword] = useState(false);
@@ -112,27 +113,25 @@ export default function CadastroPage() {
       router.push("/onboarding");
     } catch (err: any) {
       console.error("Erro no cadastro:", err);
-      setError(err.message || "Erro ao cadastrar: verifique os dados ou se o e-mail já existe.");
+      setError(err.message || "Erro ao cadastrar: Verifique se os dados estão corretos.");
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 flex items-center justify-center font-sans">
-      {/* Bloqueio de auto-preenchimento para vir sempre limpo */}
-      <form onSubmit={handleSignUp} className="w-full max-w-md space-y-4" autoComplete="off">
-        
+    <form onSubmit={handleSignUp} className="w-full max-w-md space-y-4" autoComplete="off">
         <div className="text-center mb-8">
-            <h1 className="text-4xl font-black italic tracking-tighter">MASC<span className="text-[#C9A66B]">PRO</span></h1>
+            <h1 className="text-4xl font-black italic tracking-tighter text-white">
+                MASC<span className="text-[#C9A66B]">PRO</span>
+            </h1>
             <p className="text-zinc-500 text-[10px] uppercase tracking-[0.3em] mt-2">Cadastro de Profissional</p>
             {indicadorId && (
-              <p className="text-[#C9A66B] text-[9px] font-bold mt-2 uppercase">Indicado por: {indicadorId.substring(0,8)}...</p>
+              <p className="text-[#C9A66B] text-[9px] font-bold mt-2 uppercase">Convite Ativo</p>
             )}
         </div>
 
         {error && <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-xs text-center">{error}</div>}
 
-        {/* CATEGORIA (Nivel) */}
         <div className="space-y-1">
             <label className="text-[10px] font-bold text-zinc-500 uppercase ml-2">Categoria</label>
             <div className="relative">
@@ -140,7 +139,7 @@ export default function CadastroPage() {
                 <select 
                     value={formData.perfil}
                     onChange={(e) => setFormData({...formData, perfil: e.target.value})}
-                    className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl appearance-none focus:border-[#C9A66B] outline-none text-sm"
+                    className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl appearance-none focus:border-[#C9A66B] outline-none text-sm text-white"
                 >
                     <option value="cabeleireiro">Cabeleireiro(a)</option>
                     <option value="distribuidor">Distribuidor</option>
@@ -149,7 +148,6 @@ export default function CadastroPage() {
             </div>
         </div>
 
-        {/* NOME COMPLETO */}
         <div className="relative">
             <User className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
             <input 
@@ -157,46 +155,41 @@ export default function CadastroPage() {
                 placeholder="Nome Completo"
                 required
                 onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl outline-none text-sm"
+                className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl outline-none text-sm text-white"
             />
         </div>
 
-        {/* EMAIL (Limpando o cache do navegador) */}
         <div className="relative">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
             <input 
                 type="email"
-                name="new-email-mascpro"
-                placeholder="Seu melhor e-mail"
+                placeholder="E-mail"
                 required
-                autoComplete="off"
+                autoComplete="new-email"
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl outline-none text-sm"
+                className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl outline-none text-sm text-white"
             />
         </div>
 
-        {/* SENHA COM FUNÇÃO DE MOSTRAR */}
         <div className="relative">
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
             <input 
                 type={showPassword ? "text" : "password"}
-                name="new-password-mascpro"
-                placeholder="Crie sua senha"
+                placeholder="Senha"
                 required
                 autoComplete="new-password"
                 onChange={(e) => setFormData({...formData, password: e.target.value})}
-                className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 pr-12 rounded-xl outline-none text-sm"
+                className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 pr-12 rounded-xl outline-none text-sm text-white"
             />
             <button 
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
             >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
         </div>
 
-        {/* ENDEREÇO E COMPLEMENTO */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
                 <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
@@ -204,14 +197,14 @@ export default function CadastroPage() {
                     type="text"
                     placeholder="Endereço"
                     onChange={(e) => setFormData({...formData, endereco: e.target.value})}
-                    className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl outline-none text-sm"
+                    className="w-full bg-zinc-900 border border-white/10 h-14 pl-12 rounded-xl outline-none text-sm text-white"
                 />
             </div>
             <input 
                 type="text"
                 placeholder="Complemento"
                 onChange={(e) => setFormData({...formData, complemento: e.target.value})}
-                className="w-full bg-zinc-900 border border-white/10 h-14 px-4 rounded-xl outline-none text-sm"
+                className="w-full bg-zinc-900 border border-white/10 h-14 px-4 rounded-xl outline-none text-sm text-white"
             />
         </div>
 
@@ -222,7 +215,22 @@ export default function CadastroPage() {
         >
             {loading ? "Processando..." : "Finalizar Cadastro"}
         </button>
-      </form>
+    </form>
+  );
+}
+
+// 2. A página principal envolvendo o formulário em Suspense
+export default function CadastroPage() {
+  return (
+    <div className="min-h-screen bg-black flex items-center justify-center p-6">
+      <Suspense fallback={
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="animate-spin text-[#C9A66B]" size={40} />
+          <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">Iniciando ambiente seguro...</p>
+        </div>
+      }>
+        <CadastroForm />
+      </Suspense>
     </div>
   );
 }
