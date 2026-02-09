@@ -92,15 +92,38 @@ export default function PlayerPage() {
   useEffect(() => {
     if (videoStarted && currentLesson?.video_id && window.YT) {
       if (playerRef.current) playerRef.current.destroy();
+      
       playerRef.current = new window.YT.Player('ninja-player', {
         videoId: currentLesson.video_id,
         height: '100%', width: '100%',
-        playerVars: { autoplay: 1, controls: 0, modestbranding: 1, rel: 0, disablekb: 1, iv_load_policy: 3 },
+        playerVars: { 
+            autoplay: 1, 
+            controls: 0, 
+            modestbranding: 1, 
+            rel: 0, 
+            disablekb: 1, 
+            iv_load_policy: 3,
+            /* ADICIONADO PARA CELULAR: */
+            playsinline: 1, // Impede que o celular abra o vídeo em tela cheia sozinho
+            enablejsapi: 1
+        },
         events: {
           onReady: async (event: any) => {
             setDuration(event.target.getDuration());
-            const { data } = await supabase.from('lesson_progress').select('last_position').eq('lesson_id', currentLesson.id).eq('user_id', currentUser?.id).single();
+            
+            const { data } = await supabase.from('lesson_progress')
+                .select('last_position')
+                .eq('lesson_id', currentLesson.id)
+                .eq('user_id', currentUser?.id)
+                .single();
+            
             if (data?.last_position) event.target.seekTo(data.last_position);
+            
+            // Forçamos o play após um pequeno delay para garantir que o celular aceite
+            setTimeout(() => {
+                event.target.playVideo();
+            }, 500);
+
             setIsPlaying(true);
             progressInterval.current = setInterval(() => {
               if (playerRef.current?.getCurrentTime) {
