@@ -13,6 +13,7 @@ export default function ComunidadePage() {
   const [posts, setPosts] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [allUsers, setAllUsers] = useState<any[]>([]); // Lista completa de usuários para menções
 
 
   // Interação
@@ -65,6 +66,8 @@ export default function ComunidadePage() {
           name: p.full_name || "Membro"
         })).sort((a, b) => b.total_coins - a.total_coins);
         setRanking(sorted);
+        // Armazenar todos os usuários para busca de menções
+        setAllUsers(profiles);
       }
 
       await refreshFeed();
@@ -149,26 +152,48 @@ export default function ComunidadePage() {
   };
 
   // --- AÇÕES ---
-  const createNotification = async (targetUserId: string, type: string, content: string) => {
+  const createNotification = async (targetUserId: string, type: string, content: string, extraId?: string) => {
       if (!currentUser || targetUserId === currentUser.id) return; 
+
+      // SE FOR COMENTÁRIO OU REPLY, manda pro post específico
+      // SE FOR LIKE, manda pro post
+      // No futuro, podemos fazer o site ler esse ID e rolar a tela, por enquanto ele leva pra página certa
+      let linkDestino = "/comunidade";
+      
+      // Se tiver extraId (ID do post), adiciona como query parameter
+      if (extraId) {
+          linkDestino = `/comunidade?post=${extraId}`;
+      }
       
       await supabase.from("notifications").insert({
           user_id: targetUserId,
           actor_id: currentUser.id,
           type,
           content,
-          link: "/comunidade" // Link para a página de comunidade
+          link: linkDestino
       });
   };
 
-  const processMentions = (text: string) => {
-      const words = text.split(" ");
-      const potentialMentions = words.filter(w => w.startsWith("@"));
-      potentialMentions.forEach(mention => {
-          const nameToFind = mention.substring(1).replace(/[^a-zA-Z0-9À-ÿ ]/g, ""); 
-          const userFound = ranking.find(u => u.name === nameToFind || u.name.split(" ")[0] === nameToFind);
-          if (userFound) createNotification(userFound.id, 'mention', `marcou você: "${text.substring(0, 20)}..."`);
-      });
+  const processMentions = (text: string, postId?: string) => {
+      const mentions = text.match(/@([\w\s]+)/g);
+      if (mentions) {
+          for (const mention of mentions) {
+              const nameToFind = mention.slice(1).trim();
+              // Procuramos o ID do usuário que tem esse nome
+              const mentionedUser = allUsers.find(
+                  (u) => u.full_name?.toLowerCase() === nameToFind.toLowerCase()
+              );
+              if (mentionedUser && mentionedUser.id !== currentUser?.id) {
+                  // Criar notificação com link do post se disponível
+                  createNotification(
+                      mentionedUser.id, 
+                      'mention', 
+                      `marcou você: "${text.substring(0, 50)}..."`,
+                      postId
+                  );
+              }
+          }
+      }
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -198,10 +223,25 @@ export default function ComunidadePage() {
         const { data } = supabase.storage.from("feed-images").getPublicUrl(fileName);
         finalImageUrl = data.publicUrl;
       }
-      const { error } = await supabase.from("posts").insert({ user_id: currentUser.id, content: newPostText, image_url: finalImageUrl });
-      if (error) throw error;
       
-      processMentions(newPostText);
+      // 1. Primeiro, salvamos o post no banco e obtemos o ID
+      const { data: postData, error: postError } = await supabase
+        .from("posts")
+        .insert({ 
+          user_id: currentUser.id, 
+          content: newPostText, 
+          image_url: finalImageUrl 
+        })
+        .select()
+        .single();
+      
+      if (postError) throw postError;
+      
+      // 2. Processar menções com o ID do post para incluir no link
+      if (postData) {
+        processMentions(newPostText, postData.id);
+      }
+      
       setNewPostText(""); 
       setNewPostImage(null); 
       if (previewUrl) {
@@ -222,14 +262,20 @@ export default function ComunidadePage() {
     const textToSend = parentId ? replyText.trim() : commentText.trim();
     if (!textToSend || !currentUser) return;
     setSendingComment(true);
-    const { error } = await supabase.from("comments").insert({ post_id: post.id, user_id: currentUser.id, content: textToSend, parent_id: parentId });
-    if (!error) {
-        processMentions(textToSend);
+    const { data: commentData, error } = await supabase
+      .from("comments")
+      .insert({ post_id: post.id, user_id: currentUser.id, content: textToSend, parent_id: parentId })
+      .select()
+      .single();
+    
+    if (!error && commentData) {
+        // Processar menções no comentário com o ID do post
+        processMentions(textToSend, post.id);
         if (parentId) {
              const parentComment = commentsData[post.id]?.find(c => c.id === parentId);
-             if (parentComment) createNotification(parentComment.user_id, 'reply', 'respondeu seu comentário.');
+             if (parentComment) createNotification(parentComment.user_id, 'reply', 'respondeu seu comentário.', post.id);
         } else {
-             createNotification(post.user_id, 'comment', 'comentou no seu post.');
+             createNotification(post.user_id, 'comment', 'comentou no seu post.', post.id);
         }
         setCommentText(""); 
         setReplyText(""); 

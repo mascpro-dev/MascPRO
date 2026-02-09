@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Bell } from "lucide-react";
-import Link from "next/link"; // Importante para o redirecionamento
+import { useRouter } from "next/navigation";
 
 export default function HeaderNotifications() {
   const supabase = createClientComponentClient();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -70,16 +71,31 @@ export default function HeaderNotifications() {
     
     if (data) {
       setNotifications(data);
-      setUnreadCount(data.filter((n: any) => !n.read).length);
+      setUnreadCount(data.filter((n: any) => !n.is_read).length);
     }
   };
 
   const markAsRead = async () => {
     if (unreadCount > 0 && userId) {
       setUnreadCount(0);
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-      await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      await supabase.from("notifications").update({ is_read: true }).eq("user_id", userId).eq("is_read", false);
     }
+  };
+
+  const handleNotificationClick = async (notif: any) => {
+    // Marcar como lida
+    await supabase.from('notifications').update({ is_read: true }).eq('id', notif.id);
+
+    // Atualizar estado local e fechar dropdown
+    setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+    setUnreadCount(prev => Math.max(0, prev - 1));
+    setIsOpen(false);
+
+    // USAR O LINK QUE ESTÁ NO BANCO!
+    // Se for uma aula, levará para /evolucao/...
+    // Se for um post, levará para /comunidade?post=...
+    router.push(notif.link); 
   };
 
   const toggleOpen = () => {
@@ -122,11 +138,10 @@ export default function HeaderNotifications() {
                 <p className="p-6 text-center text-xs text-gray-600">Nenhuma notificação.</p>
               ) : (
                 notifications.map(n => (
-                  <Link 
-                    key={n.id} 
-                    href={n.link || "#"} // AQUI ESTÁ A MÁGICA DO REDIRECIONAMENTO
-                    onClick={() => setIsOpen(false)}
-                    className={`block p-3 border-b border-[#222] flex gap-3 hover:bg-[#1a1a1a] transition-colors ${n.read ? "opacity-60" : "bg-[#161616]"}`}
+                  <div
+                    key={n.id}
+                    onClick={() => handleNotificationClick(n)}
+                    className={`block p-3 border-b border-[#222] flex gap-3 hover:bg-[#1a1a1a] transition-colors cursor-pointer ${n.is_read ? "opacity-60" : "bg-[#161616]"}`}
                   >
                     <div className="w-8 h-8 rounded-full bg-[#222] overflow-hidden shrink-0 mt-1">
                       {n.profiles?.avatar_url && <img src={n.profiles.avatar_url} className="w-full h-full object-cover" />}
@@ -137,7 +152,7 @@ export default function HeaderNotifications() {
                       </p>
                       <p className="text-[9px] text-gray-600 mt-1 font-bold">{timeAgo(n.created_at)}</p>
                     </div>
-                  </Link>
+                  </div>
                 ))
               )}
             </div>

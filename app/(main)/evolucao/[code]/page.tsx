@@ -1,9 +1,12 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Play, Pause, Volume2, VolumeX, Maximize, Minimize, CheckCircle, Lock, Trophy, MessageSquare, Send, User, Bookmark } from "lucide-react";
+import { ArrowLeft, Loader2, Play, Pause, Volume2, VolumeX, Maximize, CheckCircle, Lock, Trophy, MessageSquare, Send, User, Bookmark, Reply, X } from "lucide-react";
 import Link from "next/link";
 import Script from "next/script";
 import { formatDistanceToNow } from 'date-fns';
@@ -19,7 +22,6 @@ export default function PlayerPage() {
   const supabase = createClientComponentClient();
   
   const [loading, setLoading] = useState(true);
-  const [isSending, setIsSending] = useState(false);
   const [course, setCourse] = useState<any>(null);
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
@@ -34,8 +36,9 @@ export default function PlayerPage() {
   const [activeTab, setActiveTab] = useState<'sobre' | 'materiais' | 'duvidas'>('sobre');
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState("");
+  const [replyingTo, setReplyingTo] = useState<any>(null);
+  const [isSending, setIsSending] = useState(false);
 
-  // ESTADOS PARA O @MENTION
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [showMentionList, setShowMentionList] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
@@ -48,7 +51,6 @@ export default function PlayerPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
           setCurrentUser(session.user);
-          // Carregar alunos para o @mention
           const { data: profiles } = await supabase.from('profiles').select('id, full_name, avatar_url');
           setAllUsers(profiles || []);
       }
@@ -75,11 +77,16 @@ export default function PlayerPage() {
     setComments(data || []);
   }
 
-  // --- LÓGICA DO PLAYER ---
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // --- LÓGICA DE MEMÓRIA E CONTROLE ---
+  const saveProgress = async (time: number) => {
+    if (!currentUser || !currentLesson) return;
+    await supabase.from('lesson_progress').upsert({ user_id: currentUser.id, lesson_id: currentLesson.id, last_position: time });
   };
 
   useEffect(() => {
@@ -90,11 +97,17 @@ export default function PlayerPage() {
         height: '100%', width: '100%',
         playerVars: { autoplay: 1, controls: 0, modestbranding: 1, rel: 0, disablekb: 1, iv_load_policy: 3 },
         events: {
-          onReady: (event: any) => {
+          onReady: async (event: any) => {
             setDuration(event.target.getDuration());
+            const { data } = await supabase.from('lesson_progress').select('last_position').eq('lesson_id', currentLesson.id).eq('user_id', currentUser?.id).single();
+            if (data?.last_position) event.target.seekTo(data.last_position);
             setIsPlaying(true);
             progressInterval.current = setInterval(() => {
-              if (playerRef.current?.getCurrentTime) setCurrentTime(playerRef.current.getCurrentTime());
+              if (playerRef.current?.getCurrentTime) {
+                  const now = playerRef.current.getCurrentTime();
+                  setCurrentTime(now);
+                  if (Math.floor(now) % 10 === 0) saveProgress(now);
+              }
             }, 1000);
           },
           onStateChange: (event: any) => {
@@ -116,14 +129,12 @@ export default function PlayerPage() {
     router.refresh();
   };
 
-  // --- LÓGICA DE MENCIONAR COM @ ---
+  // --- LÓGICA DE DÚVIDAS E RESPOSTAS ---
   const handleCommentChange = (e: any) => {
     const val = e.target.value;
     setNewComment(val);
-    
     const words = val.split(/\s/);
     const lastWord = words[words.length - 1];
-    
     if (lastWord.startsWith("@") && lastWord.length > 1) {
       setMentionQuery(lastWord.slice(1).toLowerCase());
       setShowMentionList(true);
@@ -146,24 +157,29 @@ export default function PlayerPage() {
       lesson_id: currentLesson.id,
       user_id: currentUser.id,
       content: newComment,
-      post_id: null // Fix para o erro de not-null constraint
+      parent_id: replyingTo?.id || null,
+      post_id: null
     });
-    if (!error) { setNewComment(""); loadComments(); }
+    if (!error) { setNewComment(""); setReplyingTo(null); loadComments(); }
     setIsSending(false);
   };
 
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-300 font-sans">
+    <div className="min-h-screen bg-[#050505] text-zinc-300 font-sans selection:bg-[#C9A66B]/30">
       <Script src="https://www.youtube.com/iframe_api" strategy="afterInteractive" />
 
-      {/* HEADER */}
+      {/* HEADER REFINADO */}
       <header className="h-16 px-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-md sticky top-0 z-50">
-        <Link href="/evolucao" className="flex items-center gap-3 text-zinc-500 hover:text-white transition-all font-bold text-[10px] uppercase tracking-widest italic">
-          <ArrowLeft size={16} /> Voltar
+        <Link href="/evolucao" className="flex items-center gap-3 text-zinc-500 hover:text-white transition-all">
+          <ArrowLeft size={16} />
+          <span className="text-[10px] font-bold uppercase tracking-widest italic">Voltar</span>
         </Link>
-        <div className="text-[10px] font-black text-[#C9A66B] uppercase tracking-[0.3em] italic">{course?.title}</div>
+        <div className="flex flex-col items-center">
+          <span className="text-[9px] text-zinc-600 font-medium uppercase tracking-[0.4em] mb-1">Módulo</span>
+          <span className="text-[11px] font-medium text-[#C9A66B] uppercase tracking-[0.2em] italic">{course?.title}</span>
+        </div>
         <div className="w-10"></div>
       </header>
 
@@ -172,7 +188,7 @@ export default function PlayerPage() {
           <div className="max-w-5xl mx-auto">
             
             {/* PLAYER NINJA */}
-            <div className="aspect-video w-full bg-black rounded-2xl overflow-hidden border border-white/5 relative group shadow-2xl">
+            <div className="aspect-video w-full bg-black rounded-xl overflow-hidden border border-white/5 relative group shadow-2xl">
               {!videoStarted ? (
                 <button onClick={() => setVideoStarted(true)} className="absolute inset-0 z-20 flex flex-col items-center justify-center">
                   <img src={`https://img.youtube.com/vi/${currentLesson?.video_id}/maxresdefault.jpg`} className="absolute inset-0 w-full h-full object-cover opacity-30" />
@@ -183,14 +199,21 @@ export default function PlayerPage() {
               ) : (
                 <>
                     <div className="w-full h-full pointer-events-none"><div id="ninja-player" className="w-full h-full"></div></div>
-                    <div className={`absolute inset-0 z-30 flex flex-col justify-end bg-gradient-to-t from-black/90 via-transparent to-transparent transition-opacity`}>
-                        <div className="p-6">
-                            <div className="flex items-center gap-3 mb-4">
-                                <span className="text-[9px] font-bold text-white/50">{formatTime(currentTime)}</span>
-                                <div className="flex-1 h-1 bg-white/10 rounded-full relative overflow-hidden">
-                                    <div className="absolute top-0 left-0 h-full bg-[#C9A66B]" style={{ width: `${(currentTime / duration) * 100}%` }}></div>
+                    <div className="absolute inset-0 z-30 cursor-pointer" onClick={() => { if(playerRef.current) isPlaying ? playerRef.current.pauseVideo() : playerRef.current.playVideo() }}>
+                        <div className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
+                            <div className="p-6">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="flex-1 h-1 bg-white/10 rounded-full relative overflow-hidden">
+                                        <div className="absolute top-0 left-0 h-full bg-[#C9A66B] transition-all" style={{ width: `${(currentTime / duration) * 100}%` }}></div>
+                                    </div>
                                 </div>
-                                <span className="text-[9px] font-bold text-white/50">{formatTime(duration)}</span>
+                                <div className="flex items-center justify-between text-[10px] font-bold text-white/50 uppercase tracking-widest">
+                                    <div className="flex items-center gap-4">
+                                        {isPlaying ? <Pause size={18} fill="white" /> : <Play size={18} fill="white" />}
+                                        <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
+                                    </div>
+                                    <span>{Math.floor((currentTime / duration) * 100)}% assistido</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -198,83 +221,110 @@ export default function PlayerPage() {
               )}
             </div>
 
-            {/* CONTEÚDO E ABAS */}
+            {/* RESTANTE DO CONTEÚDO (Mantido conforme aprovado) */}
+            <div className="mt-8 flex justify-between items-center mb-12">
+                <h1 className="text-2xl font-semibold text-white tracking-tight italic uppercase">{currentLesson?.title}</h1>
+                <div className="flex items-center gap-3 px-6 py-2.5 rounded-xl text-[10px] font-bold border border-[#C9A66B]/20 bg-[#C9A66B]/5">
+                    <Trophy size={14} className="text-[#C9A66B]" /> {completedLessons.has(currentLesson?.id) ? 'PRO ADQUIRIDO' : '+10 PRO DISPONÍVEL'}
+                </div>
+            </div>
+
+            {/* ABAS UNIFICADAS */}
             <div className="mt-8 border-t border-white/5 pt-8">
                 <div className="flex gap-10 mb-8">
                     {['sobre', 'materiais', 'duvidas'].map((t) => (
                         <button key={t} onClick={() => setActiveTab(t as any)} className={`text-[10px] font-bold uppercase tracking-[0.2em] pb-2 transition-all border-b-2 ${activeTab === t ? 'text-[#C9A66B] border-[#C9A66B]' : 'text-zinc-600 border-transparent'}`}>{t}</button>
                     ))}
                 </div>
-                <div className="min-h-[200px]">
+
+                <div className="min-h-[250px]">
                     {activeTab === 'duvidas' && (
-                        <div className="max-w-2xl relative">
-                            {/* CAIXA DE TEXTO COM @MENTION REATIVADO */}
-                            <div className="relative mb-8">
-                                <textarea 
-                                    value={newComment} 
-                                    onChange={handleCommentChange} 
-                                    placeholder="Use @ para marcar alguém..." 
-                                    className="w-full bg-zinc-900/30 border border-white/5 rounded-xl p-4 text-sm focus:border-[#C9A66B]/30 outline-none min-h-[100px] resize-none" 
-                                />
-                                <button onClick={handlePostComment} disabled={isSending} className="absolute bottom-4 right-4 p-2.5 bg-[#C9A66B] rounded-lg text-black disabled:opacity-50">
+                        <div className="max-w-3xl relative">
+                            {/* CAIXA DE POSTAGEM */}
+                            <div className="relative mb-10">
+                                {replyingTo && (
+                                    <div className="flex items-center justify-between bg-[#C9A66B]/10 border border-[#C9A66B]/20 p-3 rounded-t-xl mb-[-1px] transition-all">
+                                        <span className="text-[10px] font-bold text-[#C9A66B] uppercase tracking-widest">Respondendo a {replyingTo.profiles?.full_name}</span>
+                                        <button onClick={() => setReplyingTo(null)} className="text-[#C9A66B] hover:text-white"><X size={14}/></button>
+                                    </div>
+                                )}
+                                <textarea value={newComment} onChange={handleCommentChange} placeholder={replyingTo ? "Escreva sua resposta..." : "Tire sua dúvida aqui..."} className={`w-full bg-zinc-900/30 border border-white/5 p-5 text-sm focus:border-[#C9A66B]/30 outline-none min-h-[100px] resize-none transition-all ${replyingTo ? 'rounded-b-xl' : 'rounded-xl'}`} />
+                                <button onClick={handlePostComment} disabled={isSending} className="absolute bottom-5 right-5 p-2.5 bg-[#C9A66B] rounded-lg text-black hover:bg-white transition-all active:scale-95 disabled:opacity-50">
                                     {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                                 </button>
 
-                                {/* LISTA DE @MENTION FLUTUANTE */}
                                 {showMentionList && (
-                                    <div className="absolute bottom-full left-0 w-64 bg-[#0a0a0a] border border-white/10 rounded-xl shadow-2xl mb-2 overflow-hidden z-50">
+                                    <div className="absolute bottom-full left-0 w-64 bg-[#0a0a0a] border border-white/10 rounded-xl shadow-2xl mb-2 overflow-hidden z-[100]">
                                         {allUsers.filter(u => u.full_name?.toLowerCase().includes(mentionQuery)).map(user => (
                                             <button key={user.id} onClick={() => selectUser(user.full_name)} className="w-full p-3 flex items-center gap-3 hover:bg-[#C9A66B] hover:text-black transition-all text-left">
-                                                <div className="w-6 h-6 rounded-full bg-zinc-800 flex-shrink-0 flex items-center justify-center text-[10px] font-bold">
-                                                    {user.avatar_url ? <img src={user.avatar_url} className="rounded-full" /> : user.full_name?.[0]}
-                                                </div>
-                                                <span className="text-xs font-medium">{user.full_name}</span>
+                                                <div className="w-6 h-6 rounded-full bg-zinc-800 flex-shrink-0 flex items-center justify-center text-[10px] font-bold border border-white/10">{user.avatar_url ? <img src={user.avatar_url} className="rounded-full" /> : user.full_name?.[0]}</div>
+                                                <span className="text-xs font-medium truncate">{user.full_name}</span>
                                             </button>
                                         ))}
                                     </div>
                                 )}
-          </div>
-
-                            <div className="space-y-6">
-                                {comments.map((c) => (
-                                    <div key={c.id} className="flex gap-4 p-4 rounded-xl hover:bg-white/5 transition-all">
-                                        <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-[10px] border border-white/5">
-                                            {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="rounded-full" /> : <User size={12} />}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-3 mb-1">
-                                                <span className="text-xs font-bold text-white uppercase">{c.profiles?.full_name}</span>
-                                                <span className="text-[9px] text-zinc-600 font-black uppercase">
-                                                    {c.created_at ? formatDistanceToNow(new Date(c.created_at), { locale: ptBR, addSuffix: true }) : 'agora'}
-                                                </span>
+                            </div>
+                            
+                            {/* LISTA DE DÚVIDAS COM SCROLL APÓS 3 ITENS */}
+                            <div className="space-y-6 max-h-[600px] overflow-y-auto pr-4 custom-scrollbar">
+                                {comments.filter(c => !c.parent_id).map((c) => (
+                                    <div key={c.id} className="space-y-4">
+                                        <div className="flex gap-4 p-5 rounded-2xl bg-white/[0.03] border border-white/[0.02] hover:bg-white/[0.05] transition-all">
+                                            <div className="w-10 h-10 rounded-full bg-zinc-900 border border-white/5 flex items-center justify-center font-bold text-xs uppercase text-zinc-600 shrink-0">
+                                                {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="rounded-full w-full h-full object-cover" /> : c.profiles?.full_name?.[0]}
                                             </div>
-                                            <p className="text-xs text-zinc-400">{c.content}</p>
-          </div>
-        </div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-xs font-bold text-white uppercase tracking-tight">{c.profiles?.full_name}</span>
+                                                    <span className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">{formatDistanceToNow(new Date(c.created_at), { locale: ptBR, addSuffix: true })}</span>
+                                                </div>
+                                                <p className="text-sm text-zinc-400 leading-relaxed mb-4">{c.content}</p>
+                                                <button onClick={() => { setReplyingTo(c); window.scrollTo({ top: 300, behavior: 'smooth' }); }} className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-[#C9A66B] hover:text-white transition-all">
+                                                    <Reply size={12} /> Responder
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* RESPOSTAS (INDENTADAS) */}
+                                        {comments.filter(reply => reply.parent_id === c.id).map(reply => (
+                                            <div key={reply.id} className="flex gap-4 p-4 ml-10 rounded-2xl bg-zinc-900/40 border-l-2 border-[#C9A66B]/20">
+                                                <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center font-bold text-[10px] text-zinc-600 shrink-0">
+                                                    {reply.profiles?.avatar_url ? <img src={reply.profiles.avatar_url} className="rounded-full w-full h-full object-cover" /> : reply.profiles?.full_name?.[0]}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="text-[11px] font-bold text-white uppercase">{reply.profiles?.full_name}</span>
+                                                        <span className="text-[8px] text-zinc-600 uppercase font-bold">{formatDistanceToNow(new Date(reply.created_at), { locale: ptBR, addSuffix: true })}</span>
+                                                    </div>
+                                                    <p className="text-xs text-zinc-500 leading-relaxed">{reply.content}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 ))}
                             </div>
-                  </div>
+                        </div>
                     )}
-                  </div>
+                </div>
             </div>
           </div>
         </div>
 
-        {/* PLAYLIST LATERAL */}
+        {/* PLAYLIST LATERAL MANTIDA */}
         <div className="w-full lg:w-80 bg-black border-l border-white/5 overflow-y-auto shrink-0">
-            <div className="p-6 border-b border-white/5 sticky top-0 bg-black z-10"><h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest italic">Aulas</h3></div>
+            <div className="p-6 border-b border-white/5 sticky top-0 bg-black z-10"><h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest italic">Lista de Aulas</h3></div>
             {lessons.map((lesson, idx) => {
                 const isActive = currentLesson?.id === lesson.id;
                 const isUnlocked = idx === 0 || completedLessons.has(lessons[idx - 1].id);
                 return (
-                    <button key={lesson.id} disabled={!isUnlocked} onClick={() => setCurrentLesson(lesson)} className={`w-full p-5 text-left flex gap-4 border-b border-white/5 transition-all ${isActive ? 'bg-zinc-900 border-l-2 border-[#C9A66B]' : ''} ${!isUnlocked ? 'opacity-20' : 'hover:bg-zinc-900/50'}`}>
+                    <button key={lesson.id} disabled={!isUnlocked} onClick={() => setCurrentLesson(lesson)} className={`w-full p-6 text-left flex gap-4 border-b border-white/5 transition-all ${isActive ? 'bg-zinc-900 border-l-2 border-[#C9A66B]' : ''} ${!isUnlocked ? 'opacity-20' : 'hover:bg-zinc-900/50'}`}>
                         <div className="mt-1">{!isUnlocked ? <Lock size={12}/> : completedLessons.has(lesson.id) ? <CheckCircle size={14} className="text-green-500"/> : <Play size={14}/>}</div>
-                        <span className={`text-xs font-medium ${isActive ? 'text-white' : 'text-zinc-500'}`}>{lesson.title}</span>
-                </button>
-              );
+                        <span className={`text-xs font-medium tracking-tight ${isActive ? 'text-white' : 'text-zinc-500'}`}>{lesson.title}</span>
+                    </button>
+                );
             })}
-          </div>
         </div>
+      </div>
     </div>
   );
 }
