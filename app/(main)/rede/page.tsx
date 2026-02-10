@@ -10,6 +10,7 @@ export default function RedePage() {
   const [inviteLink, setInviteLink] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [user, setUser] = useState<any>(null);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
@@ -17,6 +18,14 @@ export default function RedePage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setUserId(session.user.id);
+        
+        // Buscar perfil do usuário logado (para saldo residual)
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("residual_rede_total, network_coins, passive_pro")
+          .eq("id", session.user.id)
+          .single();
+        if (profile) setUser(profile);
         
         // Buscar indicados
         const { data } = await supabase
@@ -159,6 +168,22 @@ export default function RedePage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Card de Saldo Residual */}
+      <div className="bg-zinc-900/50 p-6 rounded-3xl border border-white/5">
+        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">
+          Saldo Residual (Rede)
+        </p>
+        <div className="flex items-end gap-2">
+          <span className="text-3xl font-black text-green-500">
+            {Number(user?.residual_rede_total || (user?.network_coins || 0) + (user?.passive_pro || 0)).toLocaleString('pt-BR')}
+          </span>
+          <span className="text-xs font-bold text-green-700 mb-1 tracking-tighter">PRO</span>
+        </div>
+        <p className="text-[9px] text-zinc-600 mt-2 italic">
+          *Este valor é a soma de network_coins e passive_pro.
+        </p>
       </div>
 
       {/* Seção de Membros da Equipe */}

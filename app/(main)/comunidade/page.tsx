@@ -2,46 +2,31 @@
 
 import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Trophy, Medal, MessageSquare, Heart, ImageIcon, MoreHorizontal, X, Loader2, Send, Crown, CornerDownRight, MessageCircle } from "lucide-react";
+import { Trophy, Heart, MessageSquare, Send, Loader2, ImageIcon, Crown, Medal } from "lucide-react";
 
 export default function ComunidadePage() {
   const supabase = createClientComponentClient();
   const [activeTab, setActiveTab] = useState<'ranking' | 'feed'>('ranking');
-  
-  // Dados
   const [ranking, setRanking] = useState<any[]>([]); 
   const [posts, setPosts] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [allUsers, setAllUsers] = useState<any[]>([]); // Lista completa de usuários para menções
-
-
-  // Interação
   const [myLikes, setMyLikes] = useState<Set<string>>(new Set());
   const [openComments, setOpenComments] = useState<string | null>(null);
   const [commentsData, setCommentsData] = useState<Record<string, any[]>>({});
   
-  // Inputs
+  // States para Feed e @
   const [newPostText, setNewPostText] = useState("");
   const [commentText, setCommentText] = useState(""); 
-  const [replyText, setReplyText] = useState("");     
-  
-  // Controle de Menção (@)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [mentionTarget, setMentionTarget] = useState<'post' | 'comment' | 'reply' | null>(null);
+  const [mentionTarget, setMentionTarget] = useState<'post' | 'comment' | null>(null);
 
-  // Upload
-  const [newPostImage, setNewPostImage] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [posting, setPosting] = useState(false);
-  
-  // Respostas
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [sendingComment, setSendingComment] = useState(false);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Formatação segura (Resolve erro image_2c853e)
+  const formatNumber = (n: any) => {
+    if (n === undefined || n === null) return "0";
+    return Number(n).toLocaleString('pt-BR');
+  };
 
-  // 1. CARREGAMENTO
   useEffect(() => {
     fetchData();
   }, []);
@@ -49,647 +34,121 @@ export default function ComunidadePage() {
   async function fetchData() {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: myProfile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-        setCurrentUser(myProfile || { id: user.id, full_name: "Eu", avatar_url: null });
-        
-        const { data: likesData } = await supabase.from("likes").select("post_id").eq("user_id", user.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: profile } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+        setCurrentUser(profile);
+        const { data: likesData } = await supabase.from("likes").select("post_id").eq("user_id", session.user.id);
         if (likesData) setMyLikes(new Set(likesData.map(l => l.post_id)));
       }
-
-      const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url, coins, personal_coins, role");
-      if (profiles) {
-        const sorted = profiles.map(p => ({
-          ...p,
-          total_coins: (p.coins || 0) + (p.personal_coins || 0),
-          name: p.full_name || "Membro"
-        })).sort((a, b) => b.total_coins - a.total_coins);
-        setRanking(sorted);
-        // Armazenar todos os usuários para busca de menções
-        setAllUsers(profiles);
-      }
-
+      const { data: rankingData } = await supabase.from("v_ranking_global").select("*").order('pontos_totais', { ascending: false });
+      if (rankingData) setRanking(rankingData);
       await refreshFeed();
-    } catch (error) { console.error(error); } finally { setLoading(false); }
+    } finally { setLoading(false); }
   }
 
-
   async function refreshFeed() {
-    const { data } = await supabase.from("posts").select(`id, content, image_url, created_at, likes_count, user_id, profiles:posts_author_fkey (full_name, avatar_url, role)`).order("created_at", { ascending: false });
+    const { data } = await supabase.from("posts").select(`*, profiles:posts_author_fkey(full_name, avatar_url)`).order("created_at", { ascending: false });
     if (data) setPosts(data);
   }
 
-  // --- LÓGICA DE MENÇÃO (@) ---
-  
-  const handleTyping = (text: string, target: 'post' | 'comment' | 'reply') => {
-      if (target === 'post') setNewPostText(text);
-      else if (target === 'comment') setCommentText(text);
-      else if (target === 'reply') setReplyText(text);
-
-      const words = text.split(" ");
-      const lastWord = words[words.length - 1];
-
-      if (lastWord.startsWith("@")) {
-          setMentionQuery(lastWord.substring(1));
-          setMentionTarget(target);
-      } else {
-          setMentionQuery(null);
-          setMentionTarget(null);
-      }
-  };
-
-  const selectMention = (userName: string) => {
-      let currentText = "";
-      if (mentionTarget === 'post') currentText = newPostText;
-      else if (mentionTarget === 'comment') currentText = commentText;
-      else if (mentionTarget === 'reply') currentText = replyText;
-
-      const words = currentText.split(" ");
-      words.pop();
-      words.push(`@${userName} `);
-      const newText = words.join(" ");
-
-      if (mentionTarget === 'post') setNewPostText(newText);
-      else if (mentionTarget === 'comment') setCommentText(newText);
-      else if (mentionTarget === 'reply') setReplyText(newText);
-      
-      setMentionQuery(null);
-      setMentionTarget(null);
-  };
-
-  // COMPONENTE DO MENU DE MENÇÃO (REUTILIZÁVEL)
-  const MentionMenu = () => {
-      if (!mentionQuery && mentionQuery !== "") return null;
-      
-      const filtered = ranking.filter(u => u.name.toLowerCase().includes(mentionQuery!.toLowerCase())).slice(0, 5);
-      
-      if (filtered.length === 0) return null;
-
-      return (
-          <div className="absolute bottom-full mb-2 left-0 w-64 bg-[#1a1a1a] border border-[#333] rounded-xl shadow-2xl overflow-hidden z-[9999]">
-             <div className="p-2 border-b border-[#222] text-[10px] text-gray-500 font-bold uppercase bg-[#111]">Mencionar Aluno</div>
-             {filtered.map(u => (
-                 <button 
-                   key={u.id} 
-                   onClick={() => selectMention(u.name)} 
-                   className="w-full text-left p-3 hover:bg-[#333] flex items-center gap-3 transition-colors border-b border-[#222] last:border-0"
-                 >
-                     <div className="w-6 h-6 rounded-full bg-[#333] overflow-hidden shrink-0 border border-[#444]">
-                       {u.avatar_url ? (
-                         <img src={u.avatar_url} className="w-full h-full object-cover" alt={u.name} />
-                       ) : (
-                         <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-500">
-                           {u.name.substring(0,2).toUpperCase()}
-                         </div>
-                       )}
-                     </div>
-                     <span className="text-sm font-bold text-gray-300">{u.name}</span>
-                 </button>
-             ))}
-          </div>
-      );
-  };
-
-  // --- AÇÕES ---
-  const createNotification = async (targetUserId: string, type: string, content: string, extraId?: string) => {
-      if (!currentUser || targetUserId === currentUser.id) return; 
-
-      // SE FOR COMENTÁRIO OU REPLY, manda pro post específico
-      // SE FOR LIKE, manda pro post
-      // No futuro, podemos fazer o site ler esse ID e rolar a tela, por enquanto ele leva pra página certa
-      let linkDestino = "/comunidade";
-      
-      // Se tiver extraId (ID do post), adiciona como query parameter
-      if (extraId) {
-          linkDestino = `/comunidade?post=${extraId}`;
-      }
-      
-      await supabase.from("notifications").insert({
-          user_id: targetUserId,
-          actor_id: currentUser.id,
-          type,
-          content,
-          link: linkDestino
-      });
-  };
-
-  const processMentions = (text: string, postId?: string) => {
-      const mentions = text.match(/@([\w\s]+)/g);
-      if (mentions) {
-          for (const mention of mentions) {
-              const nameToFind = mention.slice(1).trim();
-              // Procuramos o ID do usuário que tem esse nome
-              const mentionedUser = allUsers.find(
-                  (u) => u.full_name?.toLowerCase() === nameToFind.toLowerCase()
-              );
-              if (mentionedUser && mentionedUser.id !== currentUser?.id) {
-                  // Criar notificação com link do post se disponível
-                  createNotification(
-                      mentionedUser.id, 
-                      'mention', 
-                      `marcou você: "${text.substring(0, 50)}..."`,
-                      postId
-                  );
-              }
-          }
-      }
-  };
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setNewPostImage(file);
-      setPreviewUrl(URL.createObjectURL(file));
-    }
-  };
-
-  const handlePublish = async () => {
-    if (!newPostText.trim() && !newPostImage) {
-      alert("Escreva algo!");
-      return;
-    }
-    if (!currentUser) {
-      alert("Erro de sessão.");
-      return;
-    }
-    try {
-      setPosting(true);
-      let finalImageUrl = null;
-      if (newPostImage) {
-        const fileName = `${Date.now()}.${newPostImage.name.split('.').pop()}`;
-        const { error: uploadError } = await supabase.storage.from("feed-images").upload(fileName, newPostImage);
-        if (uploadError) throw uploadError;
-        const { data } = supabase.storage.from("feed-images").getPublicUrl(fileName);
-        finalImageUrl = data.publicUrl;
-      }
-      
-      // 1. Primeiro, salvamos o post no banco e obtemos o ID
-      const { data: postData, error: postError } = await supabase
-        .from("posts")
-        .insert({ 
-          user_id: currentUser.id, 
-          content: newPostText, 
-          image_url: finalImageUrl 
-        })
-        .select()
-        .single();
-      
-      if (postError) throw postError;
-      
-      // 2. Processar menções com o ID do post para incluir no link
-      if (postData) {
-        processMentions(newPostText, postData.id);
-      }
-      
-      setNewPostText(""); 
-      setNewPostImage(null); 
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-      setPreviewUrl(null);
-      await refreshFeed(); 
-      setActiveTab('feed');
-    } catch (e: any) { 
-      console.error("Erro ao postar:", e);
-      alert("Erro: " + e.message); 
-    } finally { 
-      setPosting(false); 
-    }
-  };
-
-  const sendComment = async (post: any, parentId: string | null = null) => {
-    const textToSend = parentId ? replyText.trim() : commentText.trim();
-    if (!textToSend || !currentUser) return;
-    setSendingComment(true);
-    const { data: commentData, error } = await supabase
-      .from("comments")
-      .insert({ post_id: post.id, user_id: currentUser.id, content: textToSend, parent_id: parentId })
-      .select()
-      .single();
-    
-    if (!error && commentData) {
-        // Processar menções no comentário com o ID do post
-        processMentions(textToSend, post.id);
-        if (parentId) {
-             const parentComment = commentsData[post.id]?.find(c => c.id === parentId);
-             if (parentComment) createNotification(parentComment.user_id, 'reply', 'respondeu seu comentário.', post.id);
-        } else {
-             createNotification(post.user_id, 'comment', 'comentou no seu post.', post.id);
-        }
-        setCommentText(""); 
-        setReplyText(""); 
-        setReplyingTo(null); 
-        loadComments(post.id);
-    }
-    setSendingComment(false);
-  };
-
+  // Funções de interação do Feed
   const toggleComments = (postId: string) => {
     if (openComments === postId) setOpenComments(null);
-    else { setOpenComments(postId); if (!commentsData[postId]) loadComments(postId); }
+    else { setOpenComments(postId); loadComments(postId); }
   };
 
   const loadComments = async (postId: string) => {
-    const { data } = await supabase.from("comments").select(`id, content, created_at, parent_id, user_id, profiles(full_name, avatar_url)`).eq("post_id", postId).order("created_at", { ascending: true });
+    const { data } = await supabase.from("comments").select(`*, profiles(full_name, avatar_url)`).eq("post_id", postId).order("created_at", { ascending: true });
     if (data) setCommentsData(prev => ({ ...prev, [postId]: data }));
   };
 
-  const handleLike = async (post: any) => {
-    if (!currentUser) return;
-    const isLiked = myLikes.has(post.id);
-    const newSet = new Set(myLikes);
-    const updatedPosts = posts.map(p => p.id === post.id ? { ...p, likes_count: isLiked ? Math.max(0, (p.likes_count || 0) - 1) : (p.likes_count || 0) + 1 } : p);
-    setPosts(updatedPosts);
-    if (isLiked) newSet.delete(post.id);
-    else { newSet.add(post.id); createNotification(post.user_id, 'like', 'curtiu seu post.'); }
-    setMyLikes(newSet);
-    await supabase.rpc('toggle_like', { target_post_id: post.id, target_user_id: currentUser.id });
+  const handleTyping = (text: string, target: 'post' | 'comment') => {
+    target === 'post' ? setNewPostText(text) : setCommentText(text);
+    const words = text.split(" ");
+    const lastWord = words[words.length - 1];
+    if (lastWord.startsWith("@")) { setMentionQuery(lastWord.substring(1)); setMentionTarget(target); } 
+    else { setMentionQuery(null); }
   };
-
-  const renderText = (text: string) => {
-    if (!text) return null;
-    return text.split(/(\s+)/).map((part, index) => {
-      if (part.startsWith('@') && part.length > 2) return <span key={index} className="text-[#C9A66B] font-bold cursor-pointer hover:underline">{part}</span>;
-      return part;
-    });
-  };
-  const timeAgo = (date: string) => { 
-    const diff = (Date.now() - new Date(date).getTime())/1000; 
-    if(diff<60) return "agora"; 
-    if(diff<3600) return `${Math.floor(diff/60)}m`; 
-    if(diff<86400) return `${Math.floor(diff/3600)}h`; 
-    return `${Math.floor(diff/86400)}d`; 
-  };
-  const formatNumber = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  const getCommentsForPost = (postId: string) => { 
-    const all = commentsData[postId] || []; 
-    const roots = all.filter(c => !c.parent_id); 
-    return { roots, all }; 
-  }
 
   return (
-    <div className="p-4 md:p-8 min-h-screen bg-[#000000] text-white font-sans pb-20 relative">
-      
-      {/* HEADER */}
+    <div className="p-4 md:p-8 min-h-screen bg-black text-white font-sans pb-20 relative">
       <div className="mb-8">
-        <h1 className="text-3xl font-extrabold italic tracking-wide">COMUNIDADE <span className="text-[#C9A66B]">PRO</span></h1>
-        <p className="text-gray-400 mt-2 text-sm">Ranking e Networking.</p>
+        <h1 className="text-3xl font-black italic uppercase italic">COMUNIDADE <span className="text-[#C9A66B]">PRO</span></h1>
       </div>
 
-      <div className="flex w-full bg-[#111] p-1 rounded-xl mb-6 border border-[#222]">
-        <button 
-          onClick={() => setActiveTab('ranking')} 
-          className={`flex-1 py-3 text-xs md:text-sm font-bold uppercase rounded-lg transition-all ${
-            activeTab === 'ranking' 
-              ? "bg-[#C9A66B] text-black" 
-              : "text-gray-500 hover:text-white"
-          }`}
-        >
-          Ranking
-        </button>
-        <button 
-          onClick={() => setActiveTab('feed')} 
-          className={`flex-1 py-3 text-xs md:text-sm font-bold uppercase rounded-lg transition-all ${
-            activeTab === 'feed' 
-              ? "bg-[#C9A66B] text-black" 
-              : "text-gray-500 hover:text-white"
-          }`}
-        >
-          Feed Social
-        </button>
+      <div className="flex bg-zinc-900/50 p-1 rounded-xl mb-10 border border-white/5">
+        <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-3 text-xs font-black uppercase rounded-lg ${activeTab === 'ranking' ? "bg-[#C9A66B] text-black" : "text-zinc-500"}`}>Ranking</button>
+        <button onClick={() => setActiveTab('feed')} className={`flex-1 py-3 text-xs font-black uppercase rounded-lg ${activeTab === 'feed' ? "bg-[#C9A66B] text-black" : "text-zinc-500"}`}>Feed Social</button>
       </div>
 
       {activeTab === 'ranking' && (
-        <div className="max-w-3xl mx-auto space-y-3">
-          {loading ? (
-            <div className="text-center text-gray-500 py-10 animate-pulse">
-              Carregando ranking...
-            </div>
-          ) : ranking.length === 0 ? (
-            <div className="text-center text-gray-500 py-10">
-              Ninguém no ranking ainda.
-            </div>
-          ) : (
-            ranking.map((profile, index) => {
-              const isMe = currentUser && profile.id === currentUser.id;
-              const position = index + 1;
-              let MedalIcon = Medal;
-              let medalColor = "text-gray-600";
-              
-              if (position === 1) { 
-                MedalIcon = Crown; 
-                medalColor = "text-yellow-400"; 
-              } 
-              else if (position === 2) { 
-                medalColor = "text-gray-300"; 
-              } 
-              else if (position === 3) { 
-                medalColor = "text-amber-700"; 
-              }
-
-              return (
-                <div 
-                  key={profile.id} 
-                  className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
-                    isMe 
-                      ? "border-[#C9A66B] bg-[#C9A66B]/10" 
-                      : "border-[#222] bg-[#111] hover:border-[#333]"
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className={`font-black text-lg w-8 text-center ${medalColor}`}>
-                      {position <= 3 ? (
-                        <MedalIcon className={`w-6 h-6 mx-auto ${position === 1 ? "fill-yellow-400" : ""}`} />
-                      ) : (
-                        `#${position}`
-                      )}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#222] overflow-hidden border border-[#333]">
-                        {profile.avatar_url ? (
-                          <img src={profile.avatar_url} className="w-full h-full object-cover" alt={profile.name} />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
-                            {profile.name.substring(0,2).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <p className={`font-bold text-sm ${isMe ? "text-[#C9A66B]" : "text-white"}`}>
-                          {profile.name} {isMe && "(Você)"}
-                        </p>
-                        <p className="text-[10px] text-gray-500 uppercase">
-                          {profile.role || "Membro"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded-lg border border-white/5">
-                    <Trophy className="w-3 h-3 text-[#C9A66B]" />
-                    <span className="font-bold text-sm">{formatNumber(profile.total_coins)}</span>
-                  </div>
+        <div className="max-w-3xl mx-auto space-y-2">
+          {ranking.map((profile, index) => (
+            <div key={profile.id} className={`p-4 rounded-2xl border ${profile.id === currentUser?.id ? "border-[#C9A66B] bg-[#C9A66B]/5" : "border-white/5 bg-zinc-900/30"}`}>
+              {/* Espaçamento reduzido para mb-1 */}
+              <div className="flex justify-between items-center mb-1">
+                <div className="flex items-center gap-3">
+                  <span className="font-black text-zinc-700 italic">#{index + 1}</span>
+                  <p className="font-black text-sm uppercase">{profile.full_name}</p>
                 </div>
-              );
-            })
-          )}
+                {/* Valor Total Grande */}
+                <p className="text-[#C9A66B] font-black text-3xl italic tracking-tighter">{formatNumber(profile.pontos_totais)} <span className="text-xs">PRO</span></p>
+              </div>
+
+              {/* Espaçamento reduzido para pt-1 e títulos sem bold */}
+              <div className="grid grid-cols-2 gap-2 mt-1 pt-1 border-t border-white/5">
+                <div className="bg-black/40 p-3 rounded-xl border border-white/5">
+                  <p className="text-[10px] text-zinc-500 uppercase font-normal mb-1">Meritocracia</p>
+                  <p className="text-2xl font-black text-white italic">{formatNumber(profile.pontos_merito)} <span className="text-[10px] text-zinc-600 font-bold">PRO</span></p>
+                </div>
+                <div className="bg-black/40 p-3 rounded-xl border border-white/5">
+                  <p className="text-[10px] text-zinc-500 uppercase font-normal mb-1">Residual Rede</p>
+                  <p className="text-2xl font-black text-green-500 italic">{formatNumber(profile.pontos_residual)} <span className="text-[10px] text-zinc-800 font-bold">PRO</span></p>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       {activeTab === 'feed' && (
-        <div className="max-w-2xl mx-auto relative">
-          
-          {/* CRIAR POST */}
-          <div className="bg-[#111] border border-[#222] p-4 rounded-xl mb-6 relative z-10">
-            <div className="flex gap-3 mb-3 relative">
-              <div className="w-10 h-10 rounded-full bg-[#222] shrink-0 overflow-hidden border border-[#333]">
-                {currentUser?.avatar_url ? (
-                  <img src={currentUser.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
-                    {currentUser?.full_name?.substring(0,2).toUpperCase() || "U"}
-                  </div>
-                )}
-              </div>
-              <div className="w-full relative">
-                <textarea 
-                  value={newPostText} 
-                  onChange={(e) => handleTyping(e.target.value, 'post')} 
-                  placeholder="Compartilhe sua evolução... (Use @ para marcar)" 
-                  className="w-full bg-transparent text-sm text-white placeholder-gray-600 outline-none resize-none h-20" 
-                />
-                {mentionTarget === 'post' && <MentionMenu />}
-              </div>
-            </div>
-            {previewUrl && (
-              <div className="relative mb-3 w-fit">
-                <img src={previewUrl} className="h-40 rounded-lg border border-[#333]" alt="Preview" />
-                <button 
-                  onClick={() => { 
-                    setNewPostImage(null); 
-                    if (previewUrl) {
-                      URL.revokeObjectURL(previewUrl);
-                    }
-                    setPreviewUrl(null); 
-                  }} 
-                  className="absolute -top-2 -right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 transition-colors"
-                >
-                  <X size={12}/>
-                </button>
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="bg-zinc-900/50 border border-white/5 p-4 rounded-2xl relative">
+            <textarea value={newPostText} onChange={(e) => handleTyping(e.target.value, 'post')} placeholder="Use @ para marcar..." className="w-full bg-transparent text-sm outline-none h-20" />
+            {mentionQuery !== null && (
+              <div className="absolute z-50 bg-[#1a1a1a] border border-[#333] w-64 bottom-full mb-2 rounded-xl shadow-2xl overflow-hidden">
+                {ranking.filter(u => u.full_name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 5).map(u => (
+                  <button key={u.id} onClick={() => { 
+                    const words = newPostText.split(" "); words.pop();
+                    setNewPostText([...words, `@${u.full_name} `].join(" "));
+                    setMentionQuery(null);
+                  }} className="w-full text-left p-3 hover:bg-[#333] text-sm font-bold text-gray-300 border-b border-[#222] last:border-0">{u.full_name}</button>
+                ))}
               </div>
             )}
-            <div className="flex justify-between items-center border-t border-[#222] pt-3">
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                accept="image/*" 
-                className="hidden" 
-                onChange={handleImageSelect} 
-              />
-              <button 
-                onClick={() => fileInputRef.current?.click()} 
-                className="text-gray-400 hover:text-white flex items-center gap-2 text-xs font-bold transition-colors"
-              >
-                <ImageIcon size={18} /> FOTO
-              </button>
-              <button 
-                onClick={handlePublish} 
-                disabled={posting || (!newPostText.trim() && !newPostImage)} 
-                className="bg-[#C9A66B] text-black text-xs font-bold px-6 py-2 rounded-lg hover:bg-[#b08d55] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
-              >
-                {posting ? (
-                  <Loader2 size={16} className="animate-spin"/>
-                ) : (
-                  "POSTAR"
-                )}
-              </button>
+            <div className="flex justify-end"><button className="bg-[#C9A66B] text-black px-6 py-2 rounded-xl font-black text-[10px] italic">POSTAR</button></div>
+          </div>
+          {posts.map((post) => (
+            <div key={post.id} className="bg-zinc-900/30 border border-white/5 rounded-2xl p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-zinc-800 border border-white/10 overflow-hidden">{post.profiles?.avatar_url && <img src={post.profiles.avatar_url} className="w-full h-full object-cover" />}</div>
+                <p className="font-black text-xs text-[#C9A66B] uppercase">{post.profiles?.full_name}</p>
+              </div>
+              <p className="text-sm text-zinc-300 mb-4">{post.content}</p>
+              <div className="flex gap-6 border-t border-white/5 pt-3">
+                <button className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase"><Heart size={18} /> {post.likes_count || 0}</button>
+                <button onClick={() => toggleComments(post.id)} className="flex items-center gap-2 text-[10px] font-black text-[#C9A66B] uppercase"><MessageSquare size={18} /> Comentar</button>
+              </div>
+              {openComments === post.id && (
+                <div className="mt-4 pt-4 border-t border-white/5">
+                   {commentsData[post.id]?.map(c => (
+                    <div key={c.id} className="text-[11px] mb-2"><span className="font-black text-[#C9A66B] mr-2 uppercase">{c.profiles?.full_name}:</span>{c.content}</div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-
-          {/* POSTS */}
-          <div className="space-y-4">
-            {loading ? (
-              <div className="text-center text-gray-500 py-10 animate-pulse">
-                Carregando feed...
-              </div>
-            ) : posts.length === 0 ? (
-              <div className="text-center text-gray-500 py-10">
-                <p>Ainda não há publicações.</p>
-                <p className="text-xs mt-2">Seja o primeiro a postar!</p>
-              </div>
-            ) : (
-              posts.map((post) => {
-                const isLiked = myLikes.has(post.id);
-                const showComments = openComments === post.id;
-                const { roots, all } = getCommentsForPost(post.id);
-
-                return (
-                  <div key={post.id} className="bg-[#111] border border-[#222] rounded-xl overflow-hidden">
-                    <div className="p-4 flex justify-between items-center">
-                        <div className="flex gap-3 items-center">
-                            <div className="w-10 h-10 rounded-full bg-[#222] overflow-hidden border border-[#333]">
-                              {post.profiles?.avatar_url ? (
-                                <img src={post.profiles.avatar_url} className="w-full h-full object-cover" alt={post.profiles.full_name || "User"} />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
-                                  {post.profiles?.full_name?.substring(0,2).toUpperCase() || "U"}
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <p className="text-sm font-bold text-white">{post.profiles?.full_name || "Membro"}</p>
-                              <p className="text-[10px] text-gray-500">{timeAgo(post.created_at)}</p>
-                            </div>
-                        </div>
-                        <MoreHorizontal size={20} className="text-gray-600 hover:text-white transition-colors cursor-pointer"/>
-                    </div>
-                    {post.content && (
-                      <div className="px-4 pb-3 text-sm text-gray-300 whitespace-pre-wrap">
-                        {renderText(post.content)}
-                      </div>
-                    )}
-                    {post.image_url && (
-                      <div className="w-full bg-black">
-                        <img src={post.image_url} className="w-full max-h-[500px] object-contain" alt="Post" />
-                      </div>
-                    )}
-                    
-                    <div className="p-3 border-t border-[#222] flex gap-6 text-gray-500">
-                      <button 
-                        onClick={() => handleLike(post)} 
-                        className={`flex items-center gap-2 transition-colors ${isLiked ? "text-red-500" : "hover:text-red-500"}`}
-                      >
-                        <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
-                        <span className="text-xs font-bold">{post.likes_count || 0}</span>
-                      </button>
-                      <button 
-                        onClick={() => toggleComments(post.id)} 
-                        className={`flex items-center gap-2 transition-colors ${showComments ? "text-[#C9A66B]" : "hover:text-[#C9A66B]"}`}
-                      >
-                        <MessageSquare size={20} />
-                        <span className="text-xs font-bold">Comentar</span>
-                      </button>
-                    </div>
-
-                    {showComments && (
-                      <div className="bg-[#0f0f0f] border-t border-[#222] p-4">
-                         
-                         {/* COMENTÁRIO PRINCIPAL */}
-                         <div className="flex gap-2 mb-4 relative z-20">
-                            <div className="flex-1 relative">
-                                <input 
-                                  type="text" 
-                                  value={commentText} 
-                                  onChange={(e) => handleTyping(e.target.value, 'comment')} 
-                                  onKeyDown={(e) => e.key === 'Enter' && sendComment(post, null)} 
-                                  placeholder="Escreva um comentário..." 
-                                  className="w-full bg-[#1a1a1a] border border-[#333] rounded-full px-4 py-2 text-xs text-white outline-none focus:border-[#C9A66B] transition-colors" 
-                                />
-                                {mentionTarget === 'comment' && <MentionMenu />}
-                            </div>
-                            <button 
-                              onClick={() => sendComment(post, null)} 
-                              disabled={!commentText.trim() || sendingComment} 
-                              className="bg-[#C9A66B] text-black p-2 rounded-full hover:bg-[#b08d55] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                              {sendingComment ? (
-                                <Loader2 size={14} className="animate-spin"/>
-                              ) : (
-                                <Send size={14} />
-                              )}
-                            </button>
-                        </div>
-
-                        <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
-                            {!commentsData[post.id] && (
-                              <p className="text-xs text-gray-600">Carregando...</p>
-                            )}
-                            {commentsData[post.id]?.length === 0 && (
-                              <p className="text-xs text-gray-600">Seja o primeiro a comentar!</p>
-                            )}
-                            {roots.map((comment: any) => (
-                                <div key={comment.id}>
-                                    <div className="flex gap-2 items-start">
-                                        <div className="w-8 h-8 rounded-full bg-[#222] overflow-hidden shrink-0 mt-1 border border-[#333]">
-                                          {comment.profiles?.avatar_url ? (
-                                            <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" alt={comment.profiles.full_name || "User"} />
-                                          ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-500">
-                                              {comment.profiles?.full_name?.substring(0,2).toUpperCase() || "U"}
-                                            </div>
-                                          )}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="bg-[#1a1a1a] rounded-lg p-2 px-3 text-xs text-gray-300">
-                                              <span className="font-bold text-[#C9A66B] mr-2">{comment.profiles?.full_name || "Usuário"}</span>
-                                              {renderText(comment.content)}
-                                            </div>
-                                            <button 
-                                              onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)} 
-                                              className="ml-1 mt-1 text-[10px] text-gray-500 hover:text-[#C9A66B] font-bold flex gap-1 items-center transition-colors"
-                                            >
-                                              <MessageCircle size={10} /> Responder
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
-                                    {all.filter(c => c.parent_id === comment.id).map((reply: any) => (
-                                        <div key={reply.id} className="ml-10 mt-2 flex gap-2 items-start">
-                                            <div className="w-6 h-6 rounded-full bg-[#222] overflow-hidden shrink-0 mt-1 border border-[#333]">
-                                              {reply.profiles?.avatar_url ? (
-                                                <img src={reply.profiles.avatar_url} className="w-full h-full object-cover" alt={reply.profiles.full_name || "User"} />
-                                              ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-500">
-                                                  {reply.profiles?.full_name?.substring(0,2).toUpperCase() || "U"}
-                                                </div>
-                                              )}
-                                            </div>
-                                            <div className="bg-[#1a1a1a] rounded-lg p-2 px-3 text-xs text-gray-400 flex-1">
-                                              <span className="font-bold text-gray-500 mr-2">{reply.profiles?.full_name || "Usuário"}</span>
-                                              {renderText(reply.content)}
-                                            </div>
-                                        </div>
-                                    ))}
-
-                                    {/* CAMPO DE RESPOSTA */}
-                                    {replyingTo === comment.id && (
-                                        <div className="ml-10 mt-2 flex gap-2 relative z-10">
-                                            <CornerDownRight size={14} className="text-gray-600 mt-2" />
-                                            <div className="flex-1 relative">
-                                                <input 
-                                                    autoFocus 
-                                                    type="text" 
-                                                    value={replyText}
-                                                    onChange={(e) => handleTyping(e.target.value, 'reply')} 
-                                                    onKeyDown={(e) => e.key === 'Enter' && sendComment(post, comment.id)} 
-                                                    placeholder="Sua resposta..." 
-                                                    className="w-full bg-[#111] border border-[#333] rounded px-3 py-1 text-xs text-white focus:border-[#C9A66B] outline-none transition-colors" 
-                                                />
-                                                {mentionTarget === 'reply' && <MentionMenu />}
-                                            </div>
-                                            <button 
-                                              onClick={() => sendComment(post, comment.id)} 
-                                              disabled={!replyText.trim() || sendingComment}
-                                              className="bg-[#222] px-2 rounded hover:bg-[#333] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                            >
-                                              {sendingComment ? (
-                                                <Loader2 size={12} className="animate-spin"/>
-                                              ) : (
-                                                <Send size={12}/>
-                                              )}
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
+          ))}
         </div>
       )}
     </div>
