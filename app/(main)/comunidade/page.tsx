@@ -14,7 +14,10 @@ export default function ComunidadePage() {
   const [commentText, setCommentText] = useState("");
 
   // RESOLVE ERRO IMAGE_2C853E: Formatação segura
-  const formatNumber = (n: any) => (Number(n) || 0).toLocaleString('pt-BR');
+  const formatNumber = (n: any) => {
+    if (n === undefined || n === null) return "0";
+    return Number(n).toLocaleString('pt-BR');
+  };
 
   useEffect(() => {
     async function load() {
@@ -32,8 +35,9 @@ export default function ComunidadePage() {
   }, []);
 
   return (
-    <> {/* RESOLVE ERRO IMAGE_0E9C44: Wrap em fragment */}
-      <div className="p-4 md:p-8 min-h-screen bg-black text-white font-sans">
+    <> {/* Adiciona este Fragmento aqui */}
+      <h1 className="text-white font-black p-4">TESTE: ESTOU EDITANDO O LUGAR CERTO</h1>
+      <div className="p-4 md:p-8 min-h-screen bg-black text-white font-sans pb-20 relative">
         <h1 className="text-3xl font-black italic uppercase mb-8">COMUNIDADE <span className="text-[#C9A66B]">PRO</span></h1>
 
         <div className="flex bg-zinc-900/50 p-1 rounded-2xl mb-10 border border-white/5">
@@ -84,6 +88,6 @@ export default function ComunidadePage() {
           </div>
         )}
       </div>
-    </>
+    </> /* Fecha o Fragmento aqui */
   );
 }

@@ -62,7 +62,13 @@ export default function EvolucaoDash() {
             </div>
             
             {progresso >= 100 && (
-                <div className="absolute top-2 right-2 w-2 h-2 rounded-full" style={{ backgroundColor: nivel.cor, shadow: `0 0 10px ${nivel.cor}` }} />
+                <div 
+                  className="absolute top-2 right-2 w-2 h-2 rounded-full" 
+                  style={{ 
+                    backgroundColor: nivel.cor,
+                    boxShadow: `0 0 10px ${nivel.cor}` // O nome correto é boxShadow
+                  }} 
+                />
             )}
           </div>
         );

@@ -1,14 +1,20 @@
-"use client"; // TEM DE SER A LINHA 1
+"use client";
 
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Trophy } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default function DashboardPage() {
   const supabase = createClientComponentClient();
+
+  // COLOQUE AQUI:
+  const formatNumber = (n: any) => {
+    if (n === undefined || n === null) return "0";
+    return Number(n).toLocaleString('pt-BR');
+  };
+
   const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
@@ -25,8 +31,6 @@ export default function DashboardPage() {
     }
     loadData();
   }, []);
-
-  const formatNumber = (n: any) => (Number(n) || 0).toLocaleString('pt-BR');
 
   return (
     <div className="p-4 space-y-4 max-w-5xl mx-auto">
