@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Trophy } from "lucide-react";
 
+// Estas podem vir depois
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 

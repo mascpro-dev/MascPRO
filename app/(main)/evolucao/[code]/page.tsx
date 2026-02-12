@@ -73,7 +73,7 @@ export default function PlayerPage() {
   }, [currentLesson]);
 
   async function loadComments() {
-    const { data } = await supabase.from('comments').select('*, profiles(full_name, avatar_url)').eq('lesson_id', currentLesson.id).order('created_at', { ascending: false });
+    const { data } = await supabase.from('lesson_comments').select('*, profiles(full_name, avatar_url)').eq('lesson_id', currentLesson.id).order('created_at', { ascending: false });
     setComments(data || []);
   }
 
@@ -176,13 +176,14 @@ export default function PlayerPage() {
 
   // --- LÓGICA DE DÚVIDAS (MANTIDA) ---
   const handleCommentChange = (e: any) => {
-    const val = e.target.value;
-    setNewComment(val);
-    const words = val.split(/\s/);
+    const text = e.target.value;
+    setNewComment(text);
+    const words = text.split(/\s/);
     const lastWord = words[words.length - 1];
-    if (lastWord.startsWith("@") && lastWord.length > 1) {
-      setMentionQuery(lastWord.slice(1).toLowerCase());
+    if (lastWord.startsWith("@")) {
+      setMentionQuery(lastWord.substring(1));
       setShowMentionList(true);
+      // Mostra o menu de usuários para marcar
     } else {
       setShowMentionList(false);
     }
@@ -198,14 +199,17 @@ export default function PlayerPage() {
   const handlePostComment = async () => {
     if (!newComment.trim() || !currentUser) return;
     setIsSending(true);
-    const { error } = await supabase.from('comments').insert({
+    const { error } = await supabase.from('lesson_comments').insert({
       lesson_id: currentLesson.id,
       user_id: currentUser.id,
-      content: replyingTo ? `@${replyingTo.name} ${newComment}` : newComment, // Adiciona o @ no texto
-      parent_id: replyingTo?.id || null, // Se for resposta, salva o ID do pai
-      post_id: null
+      content: replyingTo ? `@${replyingTo.name} ${newComment}` : newComment.trim(), // Adiciona o @ no texto
+      parent_id: replyingTo?.id || null // Se for resposta, salva o ID do pai
     });
-    if (!error) { setNewComment(""); setReplyingTo(null); loadComments(); }
+    if (!error) {
+      setNewComment("");
+      setReplyingTo(null);
+      loadComments(); // Atualiza a lista de dúvidas
+    }
     setIsSending(false);
   };
 
@@ -270,15 +274,15 @@ export default function PlayerPage() {
                     </div>
                 </>
               )}
-            </div>
+          </div>
 
             {/* TITULO E ABAS (VISUAL MANTIDO) */}
             <div className="mt-8 flex justify-between items-center mb-12">
                 <h1 className="text-xl md:text-2xl font-semibold text-white tracking-tight italic uppercase">{currentLesson?.title}</h1>
                 <div className="hidden md:flex items-center gap-3 px-6 py-2.5 rounded-xl text-[10px] font-bold border border-[#C9A66B]/20 bg-[#C9A66B]/5">
                     <Trophy size={14} className="text-[#C9A66B]" /> {completedLessons.has(currentLesson?.id) ? 'PRO ADQUIRIDO' : '+10 PRO'}
-                </div>
-            </div>
+          </div>
+        </div>
 
             <div className="mt-8 border-t border-white/5 pt-8">
                 <div className="flex gap-6 md:gap-10 mb-8 overflow-x-auto no-scrollbar">
@@ -299,10 +303,39 @@ export default function PlayerPage() {
                                         <button onClick={() => setReplyingTo(null)} className="text-[#C9A66B]"><X size={14}/></button>
                                     </div>
                                 )}
-                                <textarea value={newComment} onChange={handleCommentChange} placeholder="Tire sua dúvida..." className={`w-full bg-zinc-900/30 border border-white/5 p-5 text-sm focus:border-[#C9A66B]/30 outline-none min-h-[100px] resize-none transition-all ${replyingTo ? 'rounded-b-xl' : 'rounded-xl'}`} />
-                                <button onClick={handlePostComment} disabled={isSending} className="absolute bottom-5 right-5 p-2.5 bg-[#C9A66B] rounded-lg text-black disabled:opacity-50">
-                                    {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                                </button>
+                                <div className="relative">
+                                    <textarea value={newComment} onChange={handleCommentChange} placeholder="Tire sua dúvida... use @ para marcar" className={`w-full bg-zinc-900/30 border border-white/5 p-5 text-sm focus:border-[#C9A66B]/30 outline-none min-h-[100px] resize-none transition-all ${replyingTo ? 'rounded-b-xl' : 'rounded-xl'}`} />
+                                    <button onClick={handlePostComment} disabled={isSending} className="absolute bottom-5 right-5 p-2.5 bg-[#C9A66B] rounded-lg text-black disabled:opacity-50">
+                                        {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                    </button>
+                                </div>
+                                
+                                {/* MENU DE MENÇÃO (Aparece se digitar @) */}
+                                {showMentionList && mentionQuery !== null && (
+                                    <div className="absolute bottom-full mb-2 bg-zinc-900 border border-white/10 w-64 rounded-xl shadow-2xl z-50 overflow-hidden max-h-48 overflow-y-auto">
+                                        <p className="p-3 text-[10px] text-zinc-500 font-bold uppercase border-b border-white/5">Marcar usuário...</p>
+                                        {allUsers.filter(u => u.full_name?.toLowerCase().includes(mentionQuery.toLowerCase())).length > 0 ? (
+                                            allUsers.filter(u => u.full_name?.toLowerCase().includes(mentionQuery.toLowerCase())).map(user => (
+                <button
+                                                    key={user.id} 
+                                                    onClick={() => selectUser(user.full_name)} 
+                                                    className="w-full text-left px-4 py-3 hover:bg-zinc-800 flex items-center gap-3 text-sm border-b border-white/5 last:border-0 transition-colors"
+                                                >
+                                                    <div className="w-6 h-6 rounded-full bg-zinc-800 overflow-hidden flex items-center justify-center border border-white/10">
+                                                        {user.avatar_url ? (
+                                                            <img src={user.avatar_url} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <User size={12} className="text-zinc-500" />
+                                                        )}
+                                                    </div>
+                                                    <span className="truncate font-medium text-zinc-300">{user.full_name}</span>
+                                                </button>
+                                            ))
+                                        ) : (
+                                            <div className="px-4 py-2 text-xs text-zinc-500">Ninguém encontrado...</div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             {/* LISTA DE DÚVIDAS (MANTIDA COM SCROLL) */}
                             <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
@@ -316,8 +349,16 @@ export default function PlayerPage() {
                                                 <div className="flex items-center justify-between mb-2">
                                                     <span className="text-xs font-bold text-white uppercase">{c.profiles?.full_name}</span>
                                                     <span className="text-[9px] text-zinc-600 font-black uppercase">{formatDistanceToNow(new Date(c.created_at), { locale: ptBR, addSuffix: true })}</span>
-                                                </div>
-                                                <p className="text-sm text-zinc-400 leading-relaxed">{c.content}</p>
+                  </div>
+                                                <p className="text-sm text-zinc-400 leading-relaxed">
+                                                    {c.content.split(" ").map((word: string, i: number) => 
+                                                        word.startsWith("@") ? (
+                                                            <span key={i} className="text-[#C9A66B] font-bold">{word} </span>
+                                                        ) : (
+                                                            word + " "
+                                                        )
+                                                    )}
+                                                </p>
                                                 <button onClick={() => { setReplyingTo({ id: c.id, name: c.profiles?.full_name || "Usuário" }); window.scrollTo({ top: 300, behavior: 'smooth' }); }} className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-[#C9A66B] mt-4 hover:underline">
                                                     <Reply size={12} /> Responder
                                                 </button>
@@ -328,7 +369,7 @@ export default function PlayerPage() {
                             </div>
                         </div>
                     )}
-                </div>
+                  </div>
             </div>
           </div>
         </div>
@@ -343,11 +384,11 @@ export default function PlayerPage() {
                     <button key={lesson.id} disabled={!isUnlocked} onClick={() => setCurrentLesson(lesson)} className={`w-full p-6 text-left flex gap-4 border-b border-white/5 transition-all ${isActive ? 'bg-zinc-900 border-l-2 border-[#C9A66B]' : ''} ${!isUnlocked ? 'opacity-20' : 'hover:bg-zinc-900/50'}`}>
                         <div className="mt-1">{!isUnlocked ? <Lock size={12}/> : completedLessons.has(lesson.id) ? <CheckCircle size={14} className="text-green-500"/> : <Play size={14}/>}</div>
                         <span className={`text-xs font-medium tracking-tight ${isActive ? 'text-white' : 'text-zinc-500'}`}>{lesson.title}</span>
-                    </button>
-                );
+                </button>
+              );
             })}
+          </div>
         </div>
-      </div>
     </div>
   );
 }
