@@ -26,6 +26,7 @@ export default function PlayerPage() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
+  const [aulasConcluidas, setAulasConcluidas] = useState<string[]>([]);
   
   const [videoStarted, setVideoStarted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -45,6 +46,22 @@ export default function PlayerPage() {
 
   const playerRef = useRef<any>(null);
   const progressInterval = useRef<any>(null);
+
+  // Carrega progresso do usuário na tabela user_progress
+  useEffect(() => {
+    if (!currentUser) return;
+
+    async function carregarProgresso() {
+      const { data } = await supabase
+        .from('user_progress')
+        .select('lesson_id')
+        .eq('user_id', currentUser.id);
+
+      if (data) setAulasConcluidas(data.map((p: any) => p.lesson_id));
+    }
+
+    carregarProgresso();
+  }, [currentUser, supabase]);
 
   useEffect(() => {
     async function loadData() {
@@ -91,6 +108,25 @@ export default function PlayerPage() {
         lesson_id: currentLesson.id, 
         last_position: time 
     });
+  };
+
+  // --- MARCAR AULA COMO ASSISTIDA (user_progress) ---
+  const finalizarAula = async (idDaAula: string) => {
+    if (!currentUser) return;
+
+    const { error } = await supabase
+      .from('user_progress')
+      .upsert({
+        user_id: currentUser.id,
+        lesson_id: idDaAula,
+        completed: true
+      });
+
+    if (!error) {
+      setAulasConcluidas(prev =>
+        prev.includes(idDaAula) ? prev : [...prev, idDaAula]
+      );
+    }
   };
 
   // --- CONTROLE DE PLAY/PAUSE CORRIGIDO PARA CELULAR ---
@@ -167,7 +203,12 @@ export default function PlayerPage() {
   }, [videoStarted, currentLesson]);
 
   const handleFinish = async () => {
+    // Gamificação / backend
     await supabase.rpc('process_lesson_completion', { lesson_uuid: currentLesson.id });
+
+    // Progresso permanente do usuário
+    await finalizarAula(currentLesson.id);
+
     const newSet = new Set(completedLessons);
     newSet.add(currentLesson.id);
     setCompletedLessons(newSet);

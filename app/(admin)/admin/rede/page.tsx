@@ -11,42 +11,44 @@ export default function RadarRedePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchRedeData() {
+    async function fetchRede() {
       setLoading(true);
+      
+      // 1. Puxamos TODOS os perfis do banco para garantir que ninguém escape
+      const { data: todos, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, indicado_por, moedas_pro_acumuladas, status_embaixador');
 
-      // Buscamos TODOS os perfis. Sem exceção.
-      const { data: allUsers } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url, indicado_por, moedas_pro_acumuladas, status_embaixador");
-
-      if (allUsers) {
-        // Criamos um mapa simples para contar as indicações de TODO MUNDO
-        const contagemGeral: Record<string, number> = {};
-
-        allUsers.forEach((user: any) => {
+      if (todos) {
+        // 2. Criamos um objeto de contagem REAL e mapeamento
+        const mapaIndicados: Record<string, any[]> = {};
+        
+        // Varremos todos os usuários para ver quem indicou quem
+        todos.forEach(user => {
           if (user.indicado_por) {
-            contagemGeral[user.indicado_por] = (contagemGeral[user.indicado_por] || 0) + 1;
+            if (!mapaIndicados[user.indicado_por]) {
+              mapaIndicados[user.indicado_por] = [];
+            }
+            mapaIndicados[user.indicado_por].push(user);
           }
         });
 
-        // Filtramos quem é líder (tem pelo menos 1 indicado)
-        const rankingLideres = allUsers
-          .filter((u: any) => contagemGeral[u.id] > 0)
-          .map((lider: any) => ({
+        // 3. Montamos a lista de líderes baseada no mapeamento acima
+        const listaLideres = todos
+          .filter(lider => mapaIndicados[lider.id] && mapaIndicados[lider.id].length > 0)
+          .map(lider => ({
             ...lider,
-            count: contagemGeral[lider.id],
-            // Pegamos a lista real de quem ele indicou
-            indicados: allUsers.filter((u: any) => u.indicado_por === lider.id),
+            count: mapaIndicados[lider.id].length, // Aqui vai dar 10 para você e 1 para a Patrícia
+            indicados: mapaIndicados[lider.id]
           }))
-          .sort((a: any, b: any) => b.count - a.count);
+          .sort((a, b) => b.count - a.count);
 
-        setInfluencers(rankingLideres);
+        setInfluencers(listaLideres);
       }
-
       setLoading(false);
     }
 
-    fetchRedeData();
+    fetchRede();
   }, []);
 
   return (
