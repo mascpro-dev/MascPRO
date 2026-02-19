@@ -57,16 +57,25 @@ export default function AreaDuvidas({ lessonId, currentUser }: { lessonId: strin
   };
 
   // 3. ENVIAR NOVA DÚVIDA
-  const postarDuvida = async () => {
+  const salvarDuvida = async () => {
     if (!textoDuvida.trim() || !currentUser) return;
+    
+    // Verifica se o ID da aula não está vazio
+    if (!lessonId) {
+      alert("Erro: ID da aula não encontrado!");
+      return;
+    }
+    
     setEnviando(true);
     const { error } = await supabase.from('lesson_comments').insert({
-      lesson_id: lessonId,
+      lesson_id: lessonId, // Verifique se este ID não está vindo vazio!
       user_id: currentUser.id,
       content: textoDuvida.trim()
     });
-
-    if (!error) {
+    
+    if (error) {
+      alert("Erro ao salvar: " + error.message);
+    } else {
       setTextoDuvida("");
       fetchDuvidas(); // Recarrega a lista
     }
@@ -89,7 +98,7 @@ export default function AreaDuvidas({ lessonId, currentUser }: { lessonId: strin
             className="flex-1 bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#C9A66B]/50 resize-none h-20"
           />
           <button 
-            onClick={postarDuvida}
+            onClick={salvarDuvida}
             disabled={enviando || !textoDuvida.trim()}
             className="bg-[#C9A66B] text-black px-4 rounded-xl hover:brightness-110 transition-all flex items-center justify-center disabled:opacity-50"
           >

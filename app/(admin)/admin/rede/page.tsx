@@ -11,41 +11,42 @@ export default function RadarRedePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchRede() {
+    async function fetchRedeData() {
       setLoading(true);
-      // Buscamos TODOS os perfis sem limite restrito do Supabase
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, indicado_por, moedas_pro_acumuladas, status_embaixador')
-        .order('full_name', { ascending: true });
 
-      if (data) {
-        const map = new Map();
-        // Primeiro, mapeamos todos os indicados para seus respectivos líderes
-        data.forEach(user => {
+      // Buscamos TODOS os perfis. Sem exceção.
+      const { data: allUsers } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url, indicado_por, moedas_pro_acumuladas, status_embaixador");
+
+      if (allUsers) {
+        // Criamos um mapa simples para contar as indicações de TODO MUNDO
+        const contagemGeral: Record<string, number> = {};
+
+        allUsers.forEach((user: any) => {
           if (user.indicado_por) {
-            const list = map.get(user.indicado_por) || [];
-            list.push(user);
-            map.set(user.indicado_por, list);
+            contagemGeral[user.indicado_por] = (contagemGeral[user.indicado_por] || 0) + 1;
           }
         });
 
-        // Agora, montamos a lista de líderes. 
-        // Se o Carlos indicou 1, ele PRECISA estar no map.
-        const leaders = data
-          .filter(u => map.has(u.id)) 
-          .map(leader => ({
-            ...leader,
-            indicados: map.get(leader.id),
-            count: map.get(leader.id).length
+        // Filtramos quem é líder (tem pelo menos 1 indicado)
+        const rankingLideres = allUsers
+          .filter((u: any) => contagemGeral[u.id] > 0)
+          .map((lider: any) => ({
+            ...lider,
+            count: contagemGeral[lider.id],
+            // Pegamos a lista real de quem ele indicou
+            indicados: allUsers.filter((u: any) => u.indicado_por === lider.id),
           }))
-          .sort((a, b) => b.count - a.count);
+          .sort((a: any, b: any) => b.count - a.count);
 
-        setInfluencers(leaders);
+        setInfluencers(rankingLideres);
       }
+
       setLoading(false);
     }
-    fetchRede();
+
+    fetchRedeData();
   }, []);
 
   return (
