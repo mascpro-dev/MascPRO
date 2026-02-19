@@ -12,9 +12,20 @@ const formatTime = (seconds: number) => {
   return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
 };
 
-export default function VideoPlayer({ title, videoUrl }: { title: string, videoUrl: string }) {
+export default function VideoPlayer({ 
+  title, 
+  videoUrl, 
+  lessonId, 
+  onVideoEnded 
+}: { 
+  title: string, 
+  videoUrl: string,
+  lessonId?: string,
+  onVideoEnded?: (lessonId: string) => void
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const hasCalledOnEnded = useRef(false);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
@@ -83,6 +94,11 @@ export default function VideoPlayer({ title, videoUrl }: { title: string, videoU
                  }
              }
         }
+        
+        // Detecta quando o vídeo termina (onStateChange com estado ENDED = 0)
+        if (data.event === "onStateChange" && data.info === 0) {
+            setIsFinished(true);
+        }
       } catch (e) {
         // Ignora lixo
       }
@@ -91,6 +107,20 @@ export default function VideoPlayer({ title, videoUrl }: { title: string, videoU
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, []);
+
+  // 5. Chama onVideoEnded quando o vídeo termina (O PULO DO GATO ESTÁ AQUI)
+  useEffect(() => {
+    if (isFinished && lessonId && onVideoEnded && !hasCalledOnEnded.current) {
+      hasCalledOnEnded.current = true;
+      onVideoEnded(lessonId);
+    }
+  }, [isFinished, lessonId, onVideoEnded]);
+
+  // Reset quando muda o vídeo
+  useEffect(() => {
+    hasCalledOnEnded.current = false;
+    setIsFinished(false);
+  }, [videoId]);
 
   const sendCommand = (command: string, args: any = null) => {
     if (iframeRef.current && iframeRef.current.contentWindow) {

@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import AdminSidebar from "@/componentes/AdminSidebar";
-import { Users, GitMerge, ArrowRight } from "lucide-react";
 
 export default function RadarRedePage() {
   const supabase = createClientComponentClient();
@@ -11,44 +10,28 @@ export default function RadarRedePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchRede() {
+    async function fetchRedeTotal() {
       setLoading(true);
       
-      // 1. Puxamos TODOS os perfis do banco para garantir que ninguém escape
-      const { data: todos, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, indicado_por, moedas_pro_acumuladas, status_embaixador');
+      const { data: todos } = await supabase.from('profiles').select('id, full_name, avatar_url, indicado_por');
 
-      if (todos) {
-        // 2. Criamos um objeto de contagem REAL e mapeamento
-        const mapaIndicados: Record<string, any[]> = {};
-        
-        // Varremos todos os usuários para ver quem indicou quem
-        todos.forEach(user => {
-          if (user.indicado_por) {
-            if (!mapaIndicados[user.indicado_por]) {
-              mapaIndicados[user.indicado_por] = [];
-            }
-            mapaIndicados[user.indicado_por].push(user);
-          }
-        });
+      const contagem: Record<string, number> = {};
+      todos?.forEach(u => {
+        if (u.indicado_por) contagem[u.indicado_por] = (contagem[u.indicado_por] || 0) + 1;
+      });
 
-        // 3. Montamos a lista de líderes baseada no mapeamento acima
-        const listaLideres = todos
-          .filter(lider => mapaIndicados[lider.id] && mapaIndicados[lider.id].length > 0)
-          .map(lider => ({
-            ...lider,
-            count: mapaIndicados[lider.id].length, // Aqui vai dar 10 para você e 1 para a Patrícia
-            indicados: mapaIndicados[lider.id]
-          }))
-          .sort((a, b) => b.count - a.count);
+      // Isso vai garantir que o Marcelo apareça com 13 e a Patrícia com as indicações dela.
+      const lideres = todos?.filter(u => contagem[u.id] > 0).map(lider => ({
+        ...lider,
+        count: contagem[lider.id],
+        indicados: todos.filter((i: any) => i.indicado_por === lider.id)
+      })).sort((a: any, b: any) => b.count - a.count) || [];
 
-        setInfluencers(listaLideres);
-      }
+      setInfluencers(lideres);
       setLoading(false);
     }
-
-    fetchRede();
+    fetchRedeTotal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -62,20 +45,22 @@ export default function RadarRedePage() {
         ) : (
           <div className="space-y-4">
             {influencers.length === 0 && <p className="text-zinc-600">Nenhuma indicação detectada no banco de dados.</p>}
-            {influencers.map(leader => (
-              <div key={leader.id} className="bg-zinc-900/30 p-6 rounded-3xl border border-white/5 flex items-center justify-between">
+            {influencers.map(lider => (
+              <div key={lider.id} className="bg-zinc-900/30 p-6 rounded-3xl border border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-[#C9A66B] flex items-center justify-center text-black font-black">
-                    {leader.count}
+                  <div className="w-12 h-12 rounded-full bg-[#C9A66B] flex items-center justify-center text-black font-black text-xl shadow-[0_0_15px_rgba(201,166,107,0.4)]">
+                    {lider.count}
                   </div>
                   <div>
-                    <p className="font-black uppercase italic">{leader.full_name}</p>
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{leader.status_embaixador}</p>
+                    <p className="font-black uppercase italic text-lg">{lider.full_name}</p>
+                    <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Líder de Rede</p>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {leader.indicados.map((ind: any) => (
-                    <div key={ind.id} title={ind.full_name} className="w-8 h-8 rounded-full bg-zinc-800 border border-white/10 overflow-hidden">
+                
+                {/* Mini fotos dos indicados */}
+                <div className="flex -space-x-2 overflow-hidden">
+                  {lider.indicados.map((ind: any) => (
+                    <div key={ind.id} className="w-8 h-8 rounded-full border-2 border-black bg-zinc-800 overflow-hidden" title={ind.full_name}>
                       {ind.avatar_url && <img src={ind.avatar_url} className="w-full h-full object-cover" />}
                     </div>
                   ))}

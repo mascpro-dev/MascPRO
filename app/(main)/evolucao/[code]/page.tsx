@@ -26,7 +26,8 @@ export default function PlayerPage() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
-  const [aulasConcluidas, setAulasConcluidas] = useState<string[]>([]);
+  const [loadingProgresso, setLoadingProgresso] = useState(true);
+  const [concluidas, setConcluidas] = useState<string[]>([]);
   
   const [videoStarted, setVideoStarted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -46,22 +47,6 @@ export default function PlayerPage() {
 
   const playerRef = useRef<any>(null);
   const progressInterval = useRef<any>(null);
-
-  // Carrega progresso do usuário na tabela user_progress
-  useEffect(() => {
-    if (!currentUser) return;
-
-    async function carregarProgresso() {
-      const { data } = await supabase
-        .from('user_progress')
-        .select('lesson_id')
-        .eq('user_id', currentUser.id);
-
-      if (data) setAulasConcluidas(data.map((p: any) => p.lesson_id));
-    }
-
-    carregarProgresso();
-  }, [currentUser, supabase]);
 
   useEffect(() => {
     async function loadData() {
@@ -84,6 +69,25 @@ export default function PlayerPage() {
     }
     loadData();
   }, [params.code]);
+
+  // 2. Busque no banco logo que a página abrir
+  useEffect(() => {
+    async function carregarProgresso() {
+      if (!currentUser) return;
+
+      const { data } = await supabase
+        .from('user_progress')
+        .select('lesson_id')
+        .eq('user_id', currentUser.id);
+
+      if (data) {
+        // Transforma a lista do banco em um array simples de IDs
+        setConcluidas(data.map(p => p.lesson_id));
+      }
+      setLoadingProgresso(false); // Só libera a tela após saber quem assistiu o que
+    }
+    carregarProgresso();
+  }, [currentUser, currentLesson?.id]);
 
   useEffect(() => {
     if (currentLesson?.id) loadComments();
@@ -111,20 +115,22 @@ export default function PlayerPage() {
   };
 
   // --- MARCAR AULA COMO ASSISTIDA (user_progress) ---
-  const finalizarAula = async (idDaAula: string) => {
+  const finalizarAula = async (lessonId: string) => {
     if (!currentUser) return;
 
     const { error } = await supabase
       .from('user_progress')
-      .upsert({
-        user_id: currentUser.id,
-        lesson_id: idDaAula,
-        completed: true
+      .upsert({ 
+        user_id: currentUser.id, 
+        lesson_id: lessonId, 
+        completed: true 
       });
-
+    
     if (!error) {
-      setAulasConcluidas(prev =>
-        prev.includes(idDaAula) ? prev : [...prev, idDaAula]
+      console.log("Progresso salvo com sucesso!");
+      // Agora a tabela user_progress não estará mais vazia!
+      setConcluidas(prev =>
+        prev.includes(lessonId) ? prev : [...prev, lessonId]
       );
     }
   };
@@ -255,6 +261,9 @@ export default function PlayerPage() {
   };
 
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
+  
+  // 3. No seu HTML, só mostre o cadeado se o loadingProgresso for falso
+  if (loadingProgresso) return <div className="h-screen bg-black flex items-center justify-center"><p className="text-zinc-500">Sincronizando sua evolução...</p></div>;
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-300 font-sans selection:bg-[#C9A66B]/30">
