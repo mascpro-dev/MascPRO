@@ -120,6 +120,7 @@ export default function PlayerElite({ aula, currentUser }: { aula: any, currentU
 
   return (
     <div className="w-full rounded-2xl overflow-hidden border border-[#C9A66B]/20 shadow-2xl">
+      {/* @ts-ignore */}
       <ReactPlayer
         ref={playerRef}
         url={aula.url} // Ex: Link do seu YouTube customizado
