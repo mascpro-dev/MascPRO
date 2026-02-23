@@ -10,6 +10,8 @@ export default function EvolucaoPage() {
   const [loading, setLoading] = useState(true);
   const [meritCoins, setMeritCoins] = useState(0); 
   const [modules, setModules] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [aulasConcluidas, setAulasConcluidas] = useState<string[]>([]);
 
   useEffect(() => { loadData(); }, []);
 
@@ -17,6 +19,7 @@ export default function EvolucaoPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setCurrentUser(user);
 
       // Busca Saldo
       const { data: profile } = await supabase.from("profiles").select("personal_coins").eq("id", user.id).single();
@@ -27,6 +30,34 @@ export default function EvolucaoPage() {
       setModules(cursos || []);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   }
+
+  // --- COLE O FOFOQUEIRO AQUI (DENTRO DA FUNÇÃO, ANTES DO RETURN) ---
+  const marcarComoConcluida = async (aulaId: string) => {
+    console.log("📢 FOFOQUEIRO: Tentando salvar a aula:", aulaId);
+    console.log("👤 FOFOQUEIRO: Usuário que está assistindo:", currentUser?.id);
+
+    if (!currentUser?.id) {
+      console.error("❌ ERRO: Não achei o ID do usuário! O sistema não sabe pra quem salvar.");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('user_progress')
+      .upsert({ 
+        user_id: currentUser.id, 
+        lesson_id: aulaId, 
+        completed: true 
+      });
+
+    if (error) {
+      console.error("❌ ERRO NO BANCO:", error.message);
+    } else {
+      console.log("✅ SUCESSO: O banco de dados recebeu a informação!");
+      // Aqui o cadeado some na hora:
+      setAulasConcluidas(prev => [...prev, aulaId]);
+    }
+  };
+  // -------------------------------------------------------------
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[#C9A66B]"><Loader2 className="animate-spin mr-2"/> Carregando...</div>;
 

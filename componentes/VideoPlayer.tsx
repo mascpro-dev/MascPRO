@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Play, Pause, RefreshCw, Volume2, VolumeX, Loader2, Maximize, Minimize } from "lucide-react";
 import LessonButton from "./LessonButton";
 
@@ -74,6 +74,19 @@ export default function VideoPlayer({
     return () => clearInterval(interval);
   }, [isPlaying]);
 
+  // Função para detectar quando o vídeo termina
+  const onStateChange = useCallback((state: any) => {
+    // O estado 0 é quando o vídeo do YouTube termina de verdade
+    if (state.data === 0 || state === 'ended' || state === 0) {
+      console.log("📢 FOFOQUEIRO: O YouTube avisou que o vídeo acabou! Salvando...");
+      setIsFinished(true);
+      if (lessonId && onVideoEnded && !hasCalledOnEnded.current) {
+        hasCalledOnEnded.current = true;
+        onVideoEnded(lessonId);
+      }
+    }
+  }, [lessonId, onVideoEnded]);
+
   // 4. Escuta as respostas do YouTube
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -96,8 +109,8 @@ export default function VideoPlayer({
         }
         
         // Detecta quando o vídeo termina (onStateChange com estado ENDED = 0)
-        if (data.event === "onStateChange" && data.info === 0) {
-            setIsFinished(true);
+        if (data.event === "onStateChange") {
+          onStateChange({ data: data.info });
         }
       } catch (e) {
         // Ignora lixo
@@ -106,7 +119,7 @@ export default function VideoPlayer({
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, []);
+  }, [onStateChange]);
 
   // 5. Chama onVideoEnded quando o vídeo termina (O PULO DO GATO ESTÁ AQUI)
   useEffect(() => {

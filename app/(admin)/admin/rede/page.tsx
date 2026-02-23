@@ -13,21 +13,28 @@ export default function RadarRedePage() {
     async function fetchRedeTotal() {
       setLoading(true);
       
+      // 1. Puxa TODOS os perfis sem filtro nenhum
       const { data: todos } = await supabase.from('profiles').select('id, full_name, avatar_url, indicado_por');
 
-      const contagem: Record<string, number> = {};
-      todos?.forEach(u => {
-        if (u.indicado_por) contagem[u.indicado_por] = (contagem[u.indicado_por] || 0) + 1;
-      });
+      if (todos) {
+        const mapa: Record<string, number> = {};
+        // 2. Conta no braço quem indicou quem
+        todos.forEach(u => {
+          if (u.indicado_por) mapa[u.indicado_por] = (mapa[u.indicado_por] || 0) + 1;
+        });
 
-      // Isso vai garantir que o Marcelo apareça com 13 e a Patrícia com as indicações dela.
-      const lideres = todos?.filter(u => contagem[u.id] > 0).map(lider => ({
-        ...lider,
-        count: contagem[lider.id],
-        indicados: todos.filter((i: any) => i.indicado_por === lider.id)
-      })).sort((a: any, b: any) => b.count - a.count) || [];
+        // 3. Monta o ranking (Aqui vai aparecer seus 13 e a Patrícia com as indicações dela)
+        const lideres = todos
+          .filter(u => mapa[u.id] > 0)
+          .map(lider => ({
+            ...lider,
+            count: mapa[lider.id],
+            indicados: todos.filter(i => i.indicado_por === lider.id)
+          }))
+          .sort((a, b) => b.count - a.count);
 
-      setInfluencers(lideres);
+        setInfluencers(lideres);
+      }
       setLoading(false);
     }
     fetchRedeTotal();

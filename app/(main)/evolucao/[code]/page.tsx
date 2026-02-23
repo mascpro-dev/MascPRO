@@ -125,7 +125,7 @@ export default function PlayerPage() {
         lesson_id: lessonId, 
         completed: true 
       });
-    
+
     if (!error) {
       console.log("Progresso salvo com sucesso!");
       // Agora a tabela user_progress não estará mais vazia!
@@ -260,6 +260,63 @@ export default function PlayerPage() {
     setIsSending(false);
   };
 
+  // ATENÇÃO: Se a sua página recebe (props) ou ({ params }), garanta que 'params' está acessível.
+  const aoTerminar = async () => {
+    console.log("--- INICIANDO TESTE DO BOTÃO ---");
+    
+    if (!currentUser?.id) {
+      alert("❌ ERRO: Usuário não identificado. Você está logado?");
+      return;
+    }
+
+    try {
+      console.log("Salvando progresso da aula:", params.code);
+      
+      // 1. Salva a aula usando o "code" da URL (ex: MOD_VENDAS)
+      const { error: erroProgresso } = await supabase.from('lesson_progress').upsert({
+        user_id: currentUser.id,
+        lesson_id: params.code, // <--- AQUI ESTAVA O SEGREDO! Usa params.code
+        completed: true
+      });
+
+      if (erroProgresso) {
+        alert("❌ Erro do Supabase ao salvar aula: " + erroProgresso.message);
+        return;
+      }
+      
+      // 2. Lê as moedas do usuário
+      const { data: perfil, error: erroBusca } = await supabase
+        .from('profiles')
+        .select('moedas_pro_acumuladas')
+        .eq('id', currentUser.id)
+        .single();
+
+      if (erroBusca) {
+        alert("❌ Erro ao ler moedas: " + erroBusca.message);
+        return;
+      }
+
+      // 3. Adiciona 50 moedas
+      const novoSaldo = (perfil?.moedas_pro_acumuladas || 0) + 50;
+      const { error: erroUpdate } = await supabase
+        .from('profiles')
+        .update({ moedas_pro_acumuladas: novoSaldo })
+        .eq('id', currentUser.id);
+
+      if (erroUpdate) {
+        alert("❌ Erro ao pagar moedas: " + erroUpdate.message);
+        return;
+      }
+
+      // Sucesso total
+      alert("🔥 SUCESSO! Aula " + params.code + " salva e 50 Moedas PRO adicionadas!");
+      
+    } catch (err) {
+      alert("❌ Erro fatal no código. Aperte F12 e olhe a aba Console.");
+      console.error(err);
+    }
+  };
+
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
   
   // 3. No seu HTML, só mostre o cadeado se o loadingProgresso for falso
@@ -325,6 +382,14 @@ export default function PlayerPage() {
                 </>
               )}
           </div>
+
+          {/* BOTÃO DE TESTE RÁPIDO */}
+          <button 
+            onClick={aoTerminar} 
+            className="mt-6 w-full bg-red-600 hover:bg-red-500 text-white font-black uppercase py-4 rounded-2xl border-2 border-red-400"
+          >
+            🧪 TESTE RÁPIDO: SIMULAR FIM DO VÍDEO
+          </button>
 
             {/* TITULO E ABAS (VISUAL MANTIDO) */}
             <div className="mt-8 flex justify-between items-center mb-12">
