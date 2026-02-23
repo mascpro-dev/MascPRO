@@ -383,14 +383,6 @@ export default function PlayerPage() {
               )}
           </div>
 
-          {/* BOTÃO DE TESTE RÁPIDO */}
-          <button 
-            onClick={aoTerminar} 
-            className="mt-6 w-full bg-red-600 hover:bg-red-500 text-white font-black uppercase py-4 rounded-2xl border-2 border-red-400"
-          >
-            🧪 TESTE RÁPIDO: SIMULAR FIM DO VÍDEO
-          </button>
-
             {/* TITULO E ABAS (VISUAL MANTIDO) */}
             <div className="mt-8 flex justify-between items-center mb-12">
                 <h1 className="text-xl md:text-2xl font-semibold text-white tracking-tight italic uppercase">{currentLesson?.title}</h1>
