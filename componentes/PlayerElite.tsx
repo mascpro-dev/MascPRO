@@ -129,12 +129,9 @@ export default function PlayerElite({ aula, currentUser }: { aula: any, currentU
         onReady={aoCarregarVideo}
         onProgress={aoAssistir}
         onEnded={aoTerminar}
-        config={{
-          youtube: {
-            playerVars: { showinfo: 0, modestbranding: 1, rel: 0 } as any
+        config={{ youtube: { playerVars: { showinfo: 0, modestbranding: 1, rel: 0 } } } as any}
           }
         }}
-      />
     </div>
   );
 }
