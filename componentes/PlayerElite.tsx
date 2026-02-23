@@ -131,7 +131,7 @@ export default function PlayerElite({ aula, currentUser }: { aula: any, currentU
         onEnded={aoTerminar}
         config={{
           youtube: {
-            playerVars: { showinfo: 0, modestbranding: 1, rel: 0 }
+            playerVars: { showinfo: 0, modestbranding: 1, rel: 0 } as any
           }
         }}
       />
