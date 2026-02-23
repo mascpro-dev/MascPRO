@@ -10,6 +10,7 @@ export default function PlayerElite({ aula, currentUser }: { aula: any, currentU
   const [jaAssistiu, setJaAssistiu] = useState(false);
   
   // Chave única para salvar o tempo desta aula específica no celular/PC do usuário
+  const Player: any = ReactPlayer;
   const memoriaLocalKey = `mascpro_tempo_aula_${aula.id}`;
 
   useEffect(() => {
@@ -121,7 +122,7 @@ export default function PlayerElite({ aula, currentUser }: { aula: any, currentU
   return (
     <div className="w-full rounded-2xl overflow-hidden border border-[#C9A66B]/20 shadow-2xl">
       {/* @ts-ignore */}
-      <ReactPlayer
+      <Player
         ref={playerRef}
         url={aula.url} // Ex: Link do seu YouTube customizado
         width="100%"
@@ -130,7 +131,7 @@ export default function PlayerElite({ aula, currentUser }: { aula: any, currentU
         onReady={aoCarregarVideo}
         onProgress={aoAssistir}
         onEnded={aoTerminar}
-        config={{ youtube: { playerVars: { showinfo: 0, modestbranding: 1, rel: 0 } } } as any}
+        config={{ youtube: { playerVars: { showinfo: 0, modestbranding: 1, rel: 0 } } }
           }
         }}
     </div>
