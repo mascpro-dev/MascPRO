@@ -121,19 +121,16 @@ export default function PlayerElite({ aula, currentUser }: { aula: any, currentU
 
   return (
     <div className="w-full rounded-2xl overflow-hidden border border-[#C9A66B]/20 shadow-2xl">
-      {/* @ts-ignore */}
       <Player
         ref={playerRef}
-        url={aula.url} // Ex: Link do seu YouTube customizado
+        url={aula.url} 
         width="100%"
         height="100%"
         controls={true}
         onReady={aoCarregarVideo}
         onProgress={aoAssistir}
         onEnded={aoTerminar}
-        config={{ youtube: { playerVars: { showinfo: 0, modestbranding: 1, rel: 0 } } }
-          }
-        }}
+        config={{ youtube: { playerVars: { showinfo: 0, modestbranding: 1, rel: 0 } } }}
+      />
     </div>
   );
-}
