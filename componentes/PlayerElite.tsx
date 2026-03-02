@@ -3,16 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import dynamic from "next/dynamic";
 
-// 👇 O SEGREDO: Carrega o player só no navegador e evita o erro do Vercel
-const ReactPlayer = dynamic(() => import("react-player"), { ssr: false });
+// 👇 A MÁGICA: O "as any" aqui no final obriga o Vercel a aceitar o player sem reclamar das configs
+const ReactPlayer = dynamic(() => import("react-player"), { ssr: false }) as any;
 
 export default function PlayerElite({ aula, currentUser }: any) {
   const supabase = createClientComponentClient();
   const playerRef = useRef<any>(null);
-  const [jaAssistiu, setJaAssistiu] = useState(false);
   const memoriaLocalKey = `mascpro_tempo_${aula?.id || 'geral'}`;
 
-  // Função: Recupera onde parou
+  // Função: Recupera onde parou (só roda no navegador)
   const aoCarregarVideo = () => {
     if (typeof window !== 'undefined') {
       const tempoSalvo = localStorage.getItem(memoriaLocalKey);
@@ -29,20 +28,18 @@ export default function PlayerElite({ aula, currentUser }: any) {
     }
   };
 
-  // Função: Dá as moedas e salva com a API do Banco (Seguro)
+  // Função: Dá as moedas
   const aoTerminar = async () => {
-    console.log("--- FIM DA AULA DETECTADO ---");
+    console.log("--- FIM DA AULA ---");
     if (!currentUser?.id) return;
 
     try {
-      // 1. Salva Progresso
       await supabase.from('lesson_progress').upsert({
         user_id: currentUser.id,
-        lesson_id: aula.id, // Ou aula.code dependendo do seu banco
+        lesson_id: aula.id,
         completed: true
       });
 
-      // 2. Dá Moedas
       const { data: perfil } = await supabase
         .from('profiles')
         .select('moedas_pro_acumuladas')
@@ -56,13 +53,14 @@ export default function PlayerElite({ aula, currentUser }: any) {
         .update({ moedas_pro_acumuladas: novoSaldo })
         .eq('id', currentUser.id);
 
-      alert("🔥 AULA CONCLUÍDA! +50 MOEDAS PRO!");
+      // Feedback visual opcional (pode remover o alert se preferir)
+      // alert("🔥 AULA CONCLUÍDA! +50 MOEDAS PRO!");
     } catch (err) {
-      console.error("Erro silencioso ao salvar:", err);
+      console.error(err);
     }
   };
 
-  // Se não tiver URL, não mostra nada para não quebrar
+  // Proteção: Se não tiver vídeo, não mostra nada
   if (!aula?.url) return null;
 
   return (
