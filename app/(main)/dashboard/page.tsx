@@ -2,68 +2,128 @@
 
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Trophy } from "lucide-react";
-
-// Estas podem vir depois
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+import { Trophy, TrendingUp, Users, ShoppingBag, Loader2 } from "lucide-react";
+import Link from "next/link";
 
 export default function DashboardPage() {
   const supabase = createClientComponentClient();
-
-  // COLOQUE AQUI:
-  const formatNumber = (n: any) => {
-    if (n === undefined || n === null) return "0";
-    return Number(n).toLocaleString('pt-BR');
-  };
-
-  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  // Saldos
+  const [totalCoins, setTotalCoins] = useState(0); 
+  const [personalScore, setPersonalScore] = useState(0); 
+  const [networkScore, setNetworkScore] = useState(0); 
+  const [storeScore, setStoreScore] = useState(0); 
+  const [userName, setUserName] = useState("");
 
   useEffect(() => {
-    async function loadData() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('moedas_pro_acumuladas, meritocracia_total, residual_rede_total')
-          .eq('id', session.user.id)
-          .single();
-        setProfile(data);
-      }
+    async function init() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            setUserId(user.id);
+            fetchData(user.id);
+        } else {
+            setLoading(false);
+        }
     }
-    loadData();
+    init();
   }, []);
 
+  // REALTIME: Escuta alterações no banco e atualiza a tela na hora
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase.channel('dashboard_realtime_coins')
+        .on('postgres_changes', { 
+            event: 'UPDATE', 
+            schema: 'public', 
+            table: 'profiles',
+            filter: `id=eq.${userId}` 
+        }, (payload: any) => {
+            console.log("💰 Saldo atualizado!", payload.new);
+            const p = payload.new;
+            setTotalCoins(p.moedas_pro_acumuladas || 0);
+            setPersonalScore(p.personal_coins || 0);
+            setNetworkScore(p.network_coins || 0);
+            setStoreScore(p.store_coins || 0);
+        })
+        .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
+
+  async function fetchData(uid: string) {
+      try {
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("*") 
+            .eq("id", uid)
+            .single();
+
+        if (profile) {
+            setUserName(profile.full_name || "Membro Elite");
+            setTotalCoins(profile.moedas_pro_acumuladas || 0);
+            setPersonalScore(profile.personal_coins || 0);
+            setNetworkScore(profile.network_coins || 0);
+            setStoreScore(profile.store_coins || 0);
+        }
+      } catch (error) {
+        console.error("Erro:", error);
+      } finally {
+        setLoading(false);
+      }
+  }
+
+  if (loading) return (
+    <div className="flex justify-center items-center h-screen bg-[#000000] text-white">
+        <Loader2 className="animate-spin text-[#C9A66B]" size={32} />
+    </div>
+  );
+
   return (
-    <div className="p-4 space-y-4 max-w-5xl mx-auto">
-      {/* CARD TOTAL: 4.620 PRO */}
-      <div className="bg-zinc-900/50 p-6 rounded-[2rem] border border-[#C9A66B]/20">
-        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-1">RUMO AO CERTIFIED</p>
-        <h2 className="text-5xl font-black italic text-white tracking-tighter mb-4">
-          {formatNumber(profile?.moedas_pro_acumuladas)} <span className="text-sm text-[#C9A66B] font-black italic uppercase">PRO</span>
-        </h2>
-        <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
-          <div className="bg-[#C9A66B] h-full" style={{ width: `${Math.min(((profile?.moedas_pro_acumuladas || 0) / 10000) * 100, 100)}%` }} />
+    <div className="p-4 md:p-8 min-h-screen bg-[#000000] text-white pb-20">
+      
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold italic tracking-wide">
+          OLÁ, <span className="text-[#C9A66B] uppercase">{userName}</span>
+        </h1>
+        <p className="text-gray-400 mt-2 text-sm">Painel de Controle Oficial</p>
+      </div>
+
+      {/* CARD PRINCIPAL */}
+      <div className="bg-gradient-to-r from-[#C9A66B] to-[#b08d55] rounded-2xl p-6 mb-8 shadow-lg shadow-[#C9A66B]/20 relative overflow-hidden">
+         <div className="relative z-10">
+            <p className="text-black font-bold uppercase text-xs tracking-widest mb-1">Saldo Disponível</p>
+            <h2 className="text-5xl font-black text-black">
+                {totalCoins} <span className="text-2xl">PRO</span>
+            </h2>
+            <p className="text-black/70 text-xs mt-2 font-medium">Pronto para usar na Loja MASC.</p>
+         </div>
+         <Trophy className="absolute -right-6 -bottom-6 text-black/10 w-48 h-48 rotate-12" />
+      </div>
+
+      {/* CARDS DETALHADOS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-[#111] border border-[#222] p-5 rounded-xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-blue-900/20 text-blue-500 flex items-center justify-center"><TrendingUp size={24} /></div>
+            <div><p className="text-gray-500 text-xs uppercase font-bold">Mérito Pessoal</p><p className="text-xl font-bold text-white">{personalScore}</p></div>
+        </div>
+        <div className="bg-[#111] border border-[#222] p-5 rounded-xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-purple-900/20 text-purple-500 flex items-center justify-center"><Users size={24} /></div>
+            <div><p className="text-gray-500 text-xs uppercase font-bold">Bônus de Rede</p><p className="text-xl font-bold text-white">{networkScore}</p></div>
+        </div>
+        <div className="bg-[#111] border border-[#222] p-5 rounded-xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-green-900/20 text-green-500 flex items-center justify-center"><ShoppingBag size={24} /></div>
+            <div><p className="text-gray-500 text-xs uppercase font-bold">Cashback Loja</p><p className="text-xl font-bold text-white">{storeScore}</p></div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        {/* TÉCNICA: 3.920 PRO */}
-        <div className="bg-zinc-900/30 p-5 rounded-[1.5rem] border border-white/5">
-          <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Evolução Técnica</p>
-          <p className="text-3xl font-black text-white italic tracking-tighter">
-            {formatNumber(profile?.meritocracia_total)} <span className="text-[10px] text-zinc-700 font-bold italic">PRO</span>
-          </p>
-        </div>
-
-        {/* REDE: 700 PRO */}
-        <div className="bg-zinc-900/30 p-5 rounded-[1.5rem] border border-white/5">
-          <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Potencial da REDE</p>
-          <p className="text-3xl font-black text-green-500 italic tracking-tighter">
-            {formatNumber(profile?.residual_rede_total)} <span className="text-[10px] text-green-900 font-bold italic">PRO</span>
-          </p>
-        </div>
+      <div className="mt-8 flex gap-4">
+          <Link href="/loja" className="flex-1 bg-[#222] hover:bg-[#333] text-white py-4 rounded-xl text-center font-bold text-sm transition-colors border border-[#333]">IR PARA LOJA</Link>
+          <Link href="/evolucao" className="flex-1 bg-[#222] hover:bg-[#333] text-white py-4 rounded-xl text-center font-bold text-sm transition-colors border border-[#333]">VER AULAS</Link>
       </div>
+
     </div>
   );
 }

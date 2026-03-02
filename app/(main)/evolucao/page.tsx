@@ -8,7 +8,7 @@ import { Trophy, PlayCircle, Loader2, Lock } from "lucide-react";
 export default function EvolucaoPage() {
   const supabase = createClientComponentClient();
   const [loading, setLoading] = useState(true);
-  const [meritCoins, setMeritCoins] = useState(0); 
+  const [saldoPessoal, setSaldoPessoal] = useState(0);
   const [modules, setModules] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [aulasConcluidas, setAulasConcluidas] = useState<string[]>([]);
@@ -21,9 +21,21 @@ export default function EvolucaoPage() {
       if (!user) return;
       setCurrentUser(user);
 
-      // Busca Saldo
-      const { data: profile } = await supabase.from("profiles").select("personal_coins").eq("id", user.id).single();
-      if (profile) setMeritCoins(profile.personal_coins || 0);
+      // Busca o Total de moedas e o que veio da rede
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("moedas_pro_acumuladas, network_coins")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        const total = profile.moedas_pro_acumuladas || 0;
+        const rede = profile.network_coins || 0;
+
+        // Mérito pessoal = total - o que veio da rede
+        const pessoal = total - rede;
+        setSaldoPessoal(pessoal > 0 ? pessoal : 0);
+      }
 
       // Busca Módulos na Ordem Certa
       const { data: cursos } = await supabase.from("courses").select("*").order("sequence_order", { ascending: true });
@@ -70,11 +82,16 @@ export default function EvolucaoPage() {
           <p className="text-gray-400 text-sm">Sua trilha de especialização.</p>
         </div>
         <div className="bg-[#111] border border-[#333] px-6 py-3 rounded-xl flex flex-col items-end">
-            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">MÉRITO PESSOAL</span>
-            <div className="flex items-center gap-2">
-                <Trophy size={20} className="text-[#C9A66B]" />
-                <span className="font-bold text-white text-2xl">{meritCoins} PRO</span>
-            </div>
+          <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">
+            MÉRITO PESSOAL
+          </span>
+          <div className="flex items-center gap-2">
+            <Trophy size={20} className="text-[#C9A66B]" />
+            <p className="font-bold text-white text-2xl">
+              {loading ? "..." : saldoPessoal}{" "}
+              <span className="text-sm">PRO</span>
+            </p>
+          </div>
         </div>
       </div>
 

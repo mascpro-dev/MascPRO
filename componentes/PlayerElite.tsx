@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import dynamic from "next/dynamic";
 
-// Importação dinâmica segura para não quebrar no servidor
-const ReactPlayer = dynamic(() => import("react-player/lazy"), { ssr: false });
+// 👇 VOLTAMOS PARA O PADRÃO (Isso corrige o erro de módulo não encontrado)
+const ReactPlayer = dynamic(() => import("react-player"), { ssr: false });
 
 export default function PlayerElite({ aula, currentUser }) {
   const supabase = createClientComponentClient();
@@ -13,7 +13,7 @@ export default function PlayerElite({ aula, currentUser }) {
   const [montado, setMontado] = useState(false);
   const memoriaLocalKey = `mascpro_tempo_${aula?.id || 'geral'}`;
 
-  // Garante que só roda no navegador (evita Erro Interno do Vercel)
+  // Garante que só roda no navegador
   useEffect(() => {
     setMontado(true);
   }, []);
@@ -40,7 +40,7 @@ export default function PlayerElite({ aula, currentUser }) {
     try {
       await supabase.from('lesson_progress').upsert({
         user_id: currentUser.id,
-        lesson_id: aula.id, // ou aula.code
+        lesson_id: aula.id, 
         completed: true
       });
 
@@ -62,7 +62,7 @@ export default function PlayerElite({ aula, currentUser }) {
     }
   };
 
-  // Se o componente ainda não montou no navegador, não mostra nada
+  // Se não montou ou não tem aula, não mostra nada
   if (!montado) return null;
   if (!aula?.url) return null;
 

@@ -2,155 +2,158 @@
 
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, ShieldCheck, Users, Zap } from "lucide-react";
 
-// --- CONFIGURAÇÃO DOS NÍVEIS ---
-const LEVELS = [
-  { name: "CERTIFIED", target: 10000, color: "#22c55e" },      // Verde 🟢
-  { name: "EXPERT", target: 50000, color: "#3b82f6" },         // Azul 🔵
-  { name: "MASTER TÉCNICO", target: 150000, color: "#a855f7" },// Roxo 🟣
-  { name: "EDUCADOR MASC PRO", target: 500000, color: "#ef4444" } // Vermelho 🔴
-];
-
-// Componente do Gráfico de Velocímetro (Gauge)
-const GaugeChart = ({ value, max, label, color, subLabel, icon }: any) => {
-    const percentage = Math.min((value / max) * 100, 100);
-    const radius = 40;
-    const circumference = Math.PI * radius;
-    const dashoffset = circumference - (percentage / 100) * circumference;
-
-    return (
-        <div className="flex flex-col items-center justify-center bg-[#111] border border-[#222] rounded-2xl p-6 w-full relative overflow-hidden group hover:border-[#333] transition-colors">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">{label}</h3>
-            <div className="relative w-48 h-24 flex items-end justify-center mb-1">
-                <svg className="w-full h-full overflow-visible" viewBox="0 0 100 50">
-                    <path d="M10,50 A40,40 0 0,1 90,50" fill="none" stroke="#222" strokeWidth="8" strokeLinecap="round" />
-                    <path 
-                        d="M10,50 A40,40 0 0,1 90,50" 
-                        fill="none" 
-                        stroke={color} 
-                        strokeWidth="8" 
-                        strokeLinecap="round"
-                        strokeDasharray={circumference}
-                        strokeDashoffset={dashoffset}
-                        className="transition-all duration-1000 ease-out"
-                    />
-                </svg>
-                <div className="absolute bottom-0 translate-y-2 flex flex-col items-center">
-                    <span className="text-2xl font-bold text-white leading-none tracking-tighter shadow-black drop-shadow-lg">{value}</span>
-                    <span className="text-[9px] text-gray-500 font-bold uppercase mt-1">Meta: {max.toLocaleString()}</span>
-                </div>
-            </div>
-            <div className="text-center mt-4">
-                <p className="text-[10px] text-gray-400">{subLabel}</p>
-                {percentage >= 100 && <span className="text-green-500 text-xs font-bold mt-1 block">Conquistado! 🏆</span>}
-            </div>
-        </div>
-    );
-};
-
-export default function HomePage() {
+export default function DashboardPage() {
   const supabase = createClientComponentClient();
   const [loading, setLoading] = useState(true);
-  const [userName, setUserName] = useState("Mestre");
-  const [stats, setStats] = useState({ total: 0, own: 0, network: 0, store: 0 });
+  
+  // Dados do Usuário
+  const [nome, setNome] = useState("Embaixador");
+  
+  // Matemática da Gamificação
+  const [scoreTotal, setScoreTotal] = useState(0);      // O valor real (Ex: 4620)
+  const [scoreRede, setScoreRede] = useState(0);        // O valor da rede (Ex: 700)
+  const [scorePessoal, setScorePessoal] = useState(0);  // A diferença (Ex: 3920)
 
-  // Estado para o Nível Atual
-  const [currentLevel, setCurrentLevel] = useState(LEVELS[0]);
+  // Metas
+  const META_CERTIFIED = 10000;
+  const META_REDE = 20000; // Exemplo de meta para rede
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+    async function carregarDados() {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single();
 
-        const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
-        if (profile?.full_name) setUserName(profile.full_name.split(' ')[0]);
+        if (profile) {
+          setNome(profile.full_name || "Marcelo");
 
-        const { data } = await supabase.from("v_pro_totals").select("*").eq("profile_id", user.id).single();
+          // 1. Pega o TOTAL REAL do banco (Aquele que estava 4620)
+          const totalReal = profile.moedas_pro_acumuladas || 0;
+          
+          // 2. Pega o valor da REDE (Se não tiver coluna, assume 0 ou valor fixo antigo)
+          // Se você tiver a coluna 'network_coins', usa ela. Se não, usa lógica antiga.
+          const redeReal = profile.network_coins || 0; 
 
-        if (data) {
-          const total = data.pro_total || 0;
-          setStats({
-            total: total,
-            own: data.pro_own || 0,
-            network: data.pro_network || 0,
-            store: data.pro_store || 0
-          });
+          // 3. A MÁGICA: O Pessoal é a diferença exata.
+          // Assim: Pessoal (3920) + Rede (700) = Total (4620)
+          const pessoalCalculado = totalReal - redeReal;
 
-          // Lógica para descobrir qual o próximo nível
-          // Encontra o primeiro nível cuja meta é MAIOR que o total atual
-          const nextLevel = LEVELS.find(lvl => lvl.target > total) || LEVELS[LEVELS.length - 1];
-          setCurrentLevel(nextLevel);
+          setScoreTotal(totalReal);
+          setScoreRede(redeReal);
+          setScorePessoal(pessoalCalculado > 0 ? pessoalCalculado : 0);
         }
-      } catch (error) {
-        console.error("Erro:", error);
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     }
-    fetchData();
+    
+    carregarDados();
   }, []);
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[#C9A66B]"><Loader2 className="animate-spin"/></div>;
+  // Calcula porcentagem para a barra de progresso
+  const progressoCertified = Math.min((scoreTotal / META_CERTIFIED) * 100, 100);
+
+  if (loading) return (
+    <div className="flex justify-center items-center h-screen bg-black text-white">
+        <Loader2 className="animate-spin text-[#C9A66B]" size={32} />
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 pb-24">
+    <div className="p-6 md:p-10 min-h-screen bg-black text-white">
+      
       {/* CABEÇALHO */}
-      <div className="mb-8 flex justify-between items-end">
+      <div className="mb-10 flex justify-between items-end">
         <div>
-            <h1 className="text-3xl font-bold text-white">Olá, {userName}</h1>
-            <p className="text-gray-400 text-sm">Painel de Controle</p>
+            <h1 className="text-4xl font-black italic tracking-tighter">
+            OLÁ, <span className="text-white">{nome}</span>
+            </h1>
+            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs mt-1">Painel de Controle</p>
         </div>
-        <div className="hidden md:block px-4 py-1 rounded-full border bg-opacity-10" style={{ backgroundColor: `${currentLevel.color}20`, borderColor: `${currentLevel.color}40` }}>
-             <span className="text-xs font-bold uppercase" style={{ color: currentLevel.color }}>Rumo ao {currentLevel.name}</span>
+        
+        {/* Badge de Nível Atual */}
+        <div className="hidden md:flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-full">
+            <div className="w-2 h-2 rounded-full bg-[#C9A66B] animate-pulse"></div>
+            <span className="text-[#C9A66B] font-bold text-xs uppercase">Rumo ao Certified</span>
         </div>
       </div>
 
-      {/* DASHBOARD GRÁFICOS */}
+      {/* GRID DE CARDS (VISUAL GAMIFICADO) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          
-          {/* 1. GRÁFICO DA PLACA (Dinâmico) */}
-          <GaugeChart 
-            label={`Rumo ao ${currentLevel.name}`}
-            value={stats.total} 
-            max={currentLevel.target} 
-            color={currentLevel.color}
-            subLabel={`${((stats.total / currentLevel.target) * 100).toFixed(1)}% do objetivo`}
-          />
+         
+         {/* CARD 1: O PRINCIPAL (RUMO AO CERTIFIED) */}
+         <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl relative overflow-hidden group hover:border-[#C9A66B]/50 transition-all">
+            <div className="flex justify-between items-start mb-6">
+                <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Rumo ao Certified</span>
+                <ShieldCheck className="text-[#C9A66B]" size={24} />
+            </div>
+            
+            <div className="relative z-10">
+                <h2 className="text-5xl font-black text-white mb-1">{scoreTotal}</h2>
+                <p className="text-gray-500 text-xs font-bold uppercase">Meta: {META_CERTIFIED.toLocaleString()} PRO</p>
+                
+                {/* Barra de Progresso */}
+                <div className="w-full h-2 bg-zinc-800 rounded-full mt-6 overflow-hidden">
+                    <div 
+                        className="h-full bg-[#C9A66B] shadow-[0_0_15px_rgba(201,166,107,0.5)] transition-all duration-1000 ease-out"
+                        style={{ width: `${progressoCertified}%` }}
+                    ></div>
+                </div>
+                <p className="text-right text-[10px] text-[#C9A66B] mt-2 font-bold">{progressoCertified.toFixed(1)}% do objetivo</p>
+            </div>
+         </div>
 
-          {/* 2. GRÁFICO DA REDE (Meta Fixa ou Proporcional - deixei fixa em 20k para incentivo) */}
-          <GaugeChart 
-            label="Potencial da Rede" 
-            value={stats.network} 
-            max={20000} 
-            color="#C9A66B" // Dourado padrão
-            subLabel="Ganhos por indicação"
-          />
+         {/* CARD 2: POTENCIAL DA REDE */}
+         <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl group hover:border-zinc-700 transition-all">
+            <div className="flex justify-between items-start mb-6">
+                <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Potencial da Rede</span>
+                <Users className="text-purple-500" size={24} />
+            </div>
+            <div>
+                <h2 className="text-4xl font-black text-white mb-1">{scoreRede}</h2>
+                <p className="text-gray-500 text-xs font-bold uppercase">Ganhos por indicação</p>
+                <div className="w-full h-1 bg-zinc-800 rounded-full mt-6">
+                    <div className="h-full bg-purple-500 w-[10%]"></div> 
+                </div>
+            </div>
+         </div>
 
-           {/* 3. GRÁFICO EVOLUÇÃO (MÉRITO) */}
-           <GaugeChart 
-            label="Evolução Técnica" 
-            value={stats.own} 
-            max={currentLevel.target} // Usa a mesma meta da placa para incentivar estudo
-            color="#fff" // Branco
-            subLabel="Seu esforço pessoal"
-          />
+         {/* CARD 3: EVOLUÇÃO TÉCNICA (SEU ESFORÇO) */}
+         <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl group hover:border-zinc-700 transition-all">
+            <div className="flex justify-between items-start mb-6">
+                <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Evolução Técnica</span>
+                <Zap className="text-blue-500" size={24} />
+            </div>
+            <div>
+                {/* AQUI MOSTRAMOS O VALOR CALCULADO (Total - Rede) */}
+                <h2 className="text-4xl font-black text-white mb-1">{scorePessoal}</h2>
+                <p className="text-gray-500 text-xs font-bold uppercase">Seu esforço pessoal</p>
+                <div className="w-full h-1 bg-zinc-800 rounded-full mt-6">
+                     {/* Barra simples baseada no total */}
+                    <div className="h-full bg-blue-500" style={{ width: `${(scorePessoal/META_CERTIFIED)*100}%` }}></div> 
+                </div>
+            </div>
+         </div>
+
       </div>
 
-      {/* BANNER DE PRÓXIMO NÍVEL */}
-      <div className="relative group overflow-hidden rounded-xl border border-[#222] bg-[#0a0a0a]">
-          <div className="absolute inset-0 opacity-30 group-hover:opacity-50 transition-opacity" 
-               style={{ background: `linear-gradient(to right, ${currentLevel.color}40, transparent)` }}></div>
-          <div className="relative p-6 flex items-center justify-between">
-            <div>
-                <h3 className="font-bold text-white text-lg" style={{ color: currentLevel.color }}>Próxima Placa: {currentLevel.name}</h3>
-                <p className="text-gray-400 text-sm mt-1">Atingir <strong className="text-white">{currentLevel.target.toLocaleString()} PRO</strong> para desbloquear este status.</p>
-            </div>
-            <div className="bg-[#111] p-3 rounded-full border border-[#333] shadow-xl">
-                <Lock size={24} style={{ color: currentLevel.color }} />
-            </div>
-          </div>
+      {/* BANNER VERDE: PRÓXIMA PLACA (MANTIDO E PROTEGIDO) */}
+      <div className="w-full bg-green-900/10 border border-green-900/30 p-6 rounded-2xl flex items-center justify-between">
+         <div>
+            <h3 className="text-green-500 font-bold text-lg mb-1">Próxima Placa: CERTIFIED</h3>
+            <p className="text-gray-400 text-sm">
+                Atingir <span className="text-white font-bold">10.000 PRO</span> para desbloquear este status exclusivo.
+            </p>
+         </div>
+         <div className="h-12 w-12 rounded-full bg-green-900/20 border border-green-500/30 flex items-center justify-center text-green-500">
+            <Lock size={20} />
+         </div>
       </div>
 
     </div>
