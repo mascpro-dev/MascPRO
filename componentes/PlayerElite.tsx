@@ -119,7 +119,7 @@ export default function PlayerElite({ aula, currentUser }: { aula: any, currentU
     }
   };
 
-  return (
+ return (
     <div className="w-full rounded-2xl overflow-hidden border border-[#C9A66B]/20 shadow-2xl">
       <Player
         ref={playerRef}
@@ -134,3 +134,4 @@ export default function PlayerElite({ aula, currentUser }: { aula: any, currentU
       />
     </div>
   );
+}
