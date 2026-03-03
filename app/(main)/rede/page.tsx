@@ -1,288 +1,249 @@
 "use client";
 
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useEffect, useState } from "react";
-import { Copy, UserPlus, CheckCircle, TrendingUp, Search, Filter, Instagram, MessageCircle } from "lucide-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Users, CheckCircle, TrendingUp, Copy, Instagram, MessageCircle, Search, Filter, AlertTriangle } from "lucide-react";
 
 export default function RedePage() {
-  const [indicados, setIndicados] = useState<any[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [inviteLink, setInviteLink] = useState<string>("");
-  const [copied, setCopied] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [user, setUser] = useState<any>(null);
   const supabase = createClientComponentClient();
+  const [loading, setLoading] = useState(true);
+  
+  // Dados Gerais
+  const [linkConvite, setLinkConvite] = useState("");
+  
+  // Contadores
+  const [totalIndicados, setTotalIndicados] = useState(0);      // Mostra TODOS (ex: 14)
+  const [membrosAtivosCount, setMembrosAtivosCount] = useState(0); // Só os verdes
+
+  // Financeiro
+  const [bonusDireto, setBonusDireto] = useState(0);  
+  const [ganhoPassivo, setGanhoPassivo] = useState(0); 
+  const [saldoTotal, setSaldoTotal] = useState(0);     
+
+  // Lista da Equipe
+  const [listaEquipe, setListaEquipe] = useState<any[]>([]);
 
   useEffect(() => {
-    async function getData() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setUserId(session.user.id);
-        
-        // Buscar perfil do usuário logado (para saldo residual)
+    async function carregarDados() {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // 1. Link
+        if (typeof window !== 'undefined') {
+            const origem = window.location.origin;
+            setLinkConvite(`${origem}/cadastro?ref=${user.id}`);
+        }
+
+        // 2. Financeiro (Seu Perfil)
         const { data: profile } = await supabase
           .from("profiles")
-          .select("residual_rede_total, network_coins, passive_pro")
-          .eq("id", session.user.id)
+          .select("network_coins, passive_pro") 
+          .eq("id", user.id)
           .single();
-        if (profile) setUser(profile);
-        
-        // Buscar indicados
-        const { data } = await supabase
+
+        if (profile) {
+            const direto = profile.network_coins || 0;   
+            const passivo = profile.passive_pro || 0;    
+            
+            setBonusDireto(direto);
+            setGanhoPassivo(passivo);
+            setSaldoTotal(direto + passivo); 
+        }
+
+        // 3. Equipe (Busca TODOS que você indicou)
+        // DICA: Se continuar vindo 0, verifique se o RLS da tabela 'profiles' permite leitura.
+        const { data: equipe, error } = await supabase
           .from("profiles")
-          .select("full_name, created_at, city_state, specialty, instagram, phone")
-          .eq('invited_by', session.user.id)
+          .select("*") // Pega tudo para não ter erro de coluna
+          .eq("indicado_por", user.id)
           .order('created_at', { ascending: false });
-        if (data) setIndicados(data);
+
+        if (error) {
+            console.error("Erro ao buscar equipe:", error);
+        }
+
+        if (equipe) {
+            setListaEquipe(equipe); // Salva a lista completa (ex: 14 pessoas)
+            setTotalIndicados(equipe.length); // Mostra 14 no card
+
+            // 4. Calcula quantos estão ativos NESTE MÊS para o Card Verde
+            const agora = new Date();
+            const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1); 
+
+            const ativos = equipe.filter((membro: any) => {
+                if (!membro.last_sign_in_at) return false;
+                const ultimaAtividade = new Date(membro.last_sign_in_at);
+                return ultimaAtividade >= inicioMes;
+            });
+
+            setMembrosAtivosCount(ativos.length); // Ex: Se 2 entraram esse mês, mostra 2
+        }
       }
+      setLoading(false);
     }
-    getData();
-  }, [supabase]);
+    
+    carregarDados();
+  }, []);
 
-  // Monta o link de convite dinamicamente
-  useEffect(() => {
-    if (userId && typeof window !== "undefined") {
-      const link = `${window.location.origin}/cadastro?ref=${userId}`;
-      setInviteLink(link);
-    }
-  }, [userId]);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copiarLink = () => {
+    navigator.clipboard.writeText(linkConvite);
+    alert("Link copiado!");
   };
 
-  // Função para formatar profissão
-  const formatSpecialty = (specialty: string | null) => {
-    if (!specialty) return "";
-    const specialties: { [key: string]: string } = {
-      cabeleireiro: "CABELEIREIRO",
-      barbeiro: "BARBEIRO",
-      esteticista: "ESTETICISTA",
-      manicure: "MANICURE",
-      outro: "OUTRO"
-    };
-    return specialties[specialty] || specialty.toUpperCase();
-  };
-
-  // Função para obter inicial do nome
-  const getInitial = (name: string | null) => {
-    if (!name) return "?";
-    return name.charAt(0).toUpperCase();
-  };
-
-  // Função para formatar data
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
-
-  // Filtrar indicados pela busca
-  const filteredIndicados = indicados.filter(indicado => 
-    indicado.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Função para formatar link do Instagram
-  const getInstagramLink = (instagram: string | null) => {
-    if (!instagram) return null;
-    const handle = instagram.replace(/^@/, ""); // Remove @ se existir
-    return `https://instagram.com/${handle}`;
-  };
-
-  // Função para formatar link do WhatsApp
-  const getWhatsAppLink = (phone: string | null) => {
-    if (!phone) return null;
-    const cleanPhone = phone.replace(/\s|\(|\)|-/g, ""); // Remove espaços, parênteses e traços
-    return `https://wa.me/55${cleanPhone}`;
+  // Função para verificar status individual (Para pintar o botão)
+  const verificarStatus = (dataUltimoLogin: string | null) => {
+      if (!dataUltimoLogin) return false;
+      const agora = new Date();
+      const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+      const login = new Date(dataUltimoLogin);
+      // Retorna VERDADEIRO se entrou depois do dia 01 deste mês
+      return login >= inicioMes;
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      {/* Cabeçalho */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">
+    <div className="p-6 md:p-10 min-h-screen bg-black text-white pb-20">
+      
+      {/* CABEÇALHO */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-10 gap-6">
+        <div>
+          <h1 className="text-3xl font-black italic uppercase text-white mb-1">
             MINHA <span className="text-[#C9A66B]">REDE</span>
           </h1>
-          <p className="text-slate-400 text-sm">Gerencie sua equipe e amplie seus ganhos.</p>
+          <p className="text-gray-400 text-sm">Gerencie sua equipe e amplie seus ganhos.</p>
         </div>
+
+        <div className="w-full xl:w-auto flex flex-col items-end gap-2">
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">SEU LINK DE CONVITE</span>
+            <div className="flex bg-zinc-900 border border-zinc-800 p-1 rounded-lg items-center">
+                <div className="px-4 text-gray-300 text-xs font-mono truncate w-48 md:w-64">
+                    {linkConvite || "..."}
+                </div>
+                <button onClick={copiarLink} className="bg-[#C9A66B] hover:bg-[#b08d55] text-black font-bold text-xs uppercase px-4 py-2 rounded transition-colors">
+                    COPIAR
+                </button>
+            </div>
+        </div>
+      </div>
+
+      {/* CARDS DE TOPO */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         
-        {/* Card do Link de Convite */}
-        <div className="bg-[#111] border border-white/10 rounded-2xl p-5 w-full lg:w-auto">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-            SEU LINK DE CONVITE
-          </p>
-          <div className="flex items-center gap-3">
-            <p className="text-sm text-white font-mono flex-1 truncate min-w-0" title={inviteLink}>
-              {inviteLink || "Carregando..."}
+        {/* Total Indicados (AGORA VAI MOSTRAR 14) */}
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-lg bg-blue-900/20 text-blue-500 flex items-center justify-center">
+                <Users size={24} />
+            </div>
+            <div>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">TOTAL INDICADOS</p>
+                <p className="text-3xl font-black text-white">{totalIndicados}</p>
+            </div>
+        </div>
+
+        {/* Membros Ativos (Contador do Mês) */}
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex items-center gap-4 border-l-4 border-l-green-500">
+            <div className="w-12 h-12 rounded-lg bg-green-900/20 text-green-500 flex items-center justify-center">
+                <CheckCircle size={24} />
+            </div>
+            <div>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">MEMBROS ATIVOS</p>
+                <p className="text-3xl font-black text-white">{membrosAtivosCount}</p>
+                <p className="text-[10px] text-gray-600">No mês atual</p>
+            </div>
+        </div>
+
+        {/* PROs Gerados */}
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-lg bg-[#C9A66B]/20 text-[#C9A66B] flex items-center justify-center">
+                <TrendingUp size={24} />
+            </div>
+            <div>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">PROS GERADOS</p>
+                <p className="text-3xl font-black text-white">{bonusDireto} <span className="text-sm">PRO</span></p>
+            </div>
+        </div>
+      </div>
+
+      {/* BANNER RESIDUAL (750 PRO) */}
+      <div className="w-full bg-zinc-900 border border-zinc-800 p-8 rounded-3xl mb-10 relative overflow-hidden group hover:border-[#C9A66B]/30 transition-all">
+         <div className="relative z-10">
+            <p className="text-gray-500 font-bold uppercase text-xs tracking-widest mb-2">SALDO RESIDUAL (REDE)</p>
+            <h2 className="text-6xl font-black text-[#C9A66B] mb-2 tracking-tighter">
+                {saldoTotal} <span className="text-2xl text-white">PRO</span>
+            </h2>
+            <p className="text-gray-500 text-xs italic opacity-60">
+                * Este valor é a soma de network_coins ({bonusDireto}) + passive_pro ({ganhoPassivo}).
             </p>
-            <button 
-              onClick={handleCopy} 
-              disabled={!inviteLink}
-              className="bg-[#C9A66B] text-black px-6 py-2 rounded-lg font-black text-xs uppercase hover:opacity-90 transition-opacity whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {copied ? "Copiado!" : "Copiar"}
-            </button>
-          </div>
-        </div>
+         </div>
       </div>
 
-      {/* Cards de Métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-[#111] border border-white/5 p-6 rounded-2xl">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
-              <UserPlus size={24} />
+      {/* LISTA DE MEMBROS (AGORA MOSTRA TODOS) */}
+      <div>
+        <div className="flex flex-col md:flex-row justify-between items-end mb-4 gap-4">
+            <h3 className="text-xl font-black italic text-white uppercase">MEMBROS DA <span className="text-[#C9A66B]">EQUIPE</span></h3>
+            
+            <div className="flex gap-2">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                    <input type="text" placeholder="Buscar indicado..." className="bg-black border border-zinc-800 rounded-lg py-2 pl-10 pr-4 text-sm text-white focus:border-[#C9A66B] outline-none w-64"/>
+                </div>
+                <button className="bg-zinc-900 border border-zinc-800 p-2 rounded-lg text-gray-400 hover:text-white">
+                    <Filter size={18} />
+                </button>
             </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">TOTAL INDICADOS</p>
-              <p className="text-3xl font-black text-white">{indicados.length}</p>
-            </div>
-          </div>
         </div>
         
-        <div className="bg-[#111] border border-white/5 p-6 rounded-2xl">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500">
-              <CheckCircle size={24} />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">MEMBROS ATIVOS</p>
-              <p className="text-3xl font-black text-white">{indicados.length}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-[#111] border border-white/5 p-6 rounded-2xl">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-[#C9A66B]/10 flex items-center justify-center text-[#C9A66B]">
-              <TrendingUp size={24} />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">PROS GERADOS</p>
-              <p className="text-3xl font-black text-white">{indicados.length * 50} PRO</p>
-            </div>
-          </div>
-        </div>
-      </div>
+        {/* TABELA DE MEMBROS */}
+        <div className="flex flex-col gap-3">
+            {listaEquipe.length > 0 ? (
+                listaEquipe.map((membro) => {
+                    const isAtivo = verificarStatus(membro.last_sign_in_at);
 
-      {/* Card de Saldo Residual */}
-      <div className="bg-zinc-900/50 p-6 rounded-3xl border border-white/5">
-        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">
-          Saldo Residual (Rede)
-        </p>
-        <div className="flex items-end gap-2">
-          <span className="text-3xl font-black text-green-500">
-            {Number(user?.residual_rede_total || (user?.network_coins || 0) + (user?.passive_pro || 0)).toLocaleString('pt-BR')}
-          </span>
-          <span className="text-xs font-bold text-green-700 mb-1 tracking-tighter">PRO</span>
-        </div>
-        <p className="text-[9px] text-zinc-600 mt-2 italic">
-          *Este valor é a soma de network_coins e passive_pro.
-        </p>
-      </div>
+                    return (
+                        <div key={membro.id} className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl flex flex-col md:flex-row items-center justify-between hover:bg-zinc-900 transition-colors group">
+                            
+                            <div className="flex items-center gap-4 w-full md:w-auto mb-4 md:mb-0">
+                                <div className="w-10 h-10 rounded-lg bg-[#C9A66B] flex items-center justify-center font-bold text-black text-lg">
+                                    {membro.full_name ? membro.full_name.charAt(0) : "M"}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-white text-sm md:text-base">{membro.full_name || "Membro da Rede"}</p>
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wide">
+                                        {membro.role || "CABELEIREIRO"} • {new Date(membro.created_at).toLocaleDateString()}
+                                    </p>
+                                </div>
+                            </div>
 
-      {/* Seção de Membros da Equipe */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 className="text-xl font-black text-white italic uppercase tracking-tighter">
-            Membros da <span className="text-[#C9A66B]">Equipe</span>
-          </h2>
-          
-          {/* Barra de Busca */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:flex-initial">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-              <input
-                type="text"
-                placeholder="Buscar indicado..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full sm:w-64 bg-[#111] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder:text-slate-500 focus:outline-none focus:border-[#C9A66B] transition-colors text-sm"
-              />
-            </div>
-            <button className="bg-[#111] border border-white/10 rounded-xl p-2.5 hover:border-[#C9A66B] transition-colors">
-              <Filter size={18} className="text-slate-500" />
-            </button>
-          </div>
-        </div>
+                            <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                                <div className="flex gap-2 opacity-30 group-hover:opacity-100 transition-opacity">
+                                    <Instagram size={18} className="text-gray-400 hover:text-[#C9A66B] cursor-pointer" />
+                                    <MessageCircle size={18} className="text-gray-400 hover:text-green-500 cursor-pointer" />
+                                </div>
 
-        {/* Lista de Membros */}
-        {filteredIndicados.length > 0 ? (
-          <div className="space-y-3">
-            {filteredIndicados.map((indicado, index) => (
-              <div
-                key={index}
-                className="bg-[#111] border border-white/5 rounded-2xl p-5 flex items-center gap-4 hover:border-white/10 transition-colors"
-              >
-                {/* Avatar com Inicial */}
-                <div className="w-12 h-12 rounded-xl bg-[#C9A66B]/20 flex items-center justify-center text-[#C9A66B] font-black text-lg flex-shrink-0">
-                  {getInitial(indicado.full_name)}
+                                {/* BOTÃO DINÂMICO: MUDA A COR SOZINHO */}
+                                {isAtivo ? (
+                                    <span className="px-4 py-1.5 bg-green-900/20 text-green-500 text-[10px] font-black uppercase rounded border border-green-500/30 tracking-widest min-w-[80px] text-center shadow-[0_0_10px_rgba(34,197,94,0.2)]">
+                                        ATIVO
+                                    </span>
+                                ) : (
+                                    <span className="px-4 py-1.5 bg-zinc-800 text-gray-500 text-[10px] font-black uppercase rounded border border-zinc-700 tracking-widest min-w-[80px] text-center">
+                                        INATIVO
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })
+            ) : (
+                // MENSAGEM SE A LISTA ESTIVER ZERADA (DEBUG)
+                <div className="text-center py-10 bg-zinc-900/20 rounded-xl border border-dashed border-zinc-800">
+                    <AlertTriangle className="mx-auto text-yellow-500 mb-2" />
+                    <p className="text-white font-bold">Nenhum indicado encontrado (0).</p>
+                    <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
+                        Se você tem certeza que indicou pessoas, verifique se a coluna <strong>"indicado_por"</strong> existe no banco e se as permissões (RLS) da tabela 'profiles' permitem leitura.
+                    </p>
                 </div>
-                
-                {/* Informações do Membro */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-bold text-white truncate">
-                    {indicado.full_name || "Usuário sem nome"}
-                  </h3>
-                  <div className="flex items-center gap-2 text-slate-400 text-sm mt-1">
-                    {indicado.specialty && (
-                      <>
-                        <span className="font-semibold">{formatSpecialty(indicado.specialty)}</span>
-                        <span>•</span>
-                      </>
-                    )}
-                    <span>{formatDate(indicado.created_at)}</span>
-                  </div>
-                </div>
-                
-                {/* Botões de Ação Social e Badge ATIVO */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Botão Instagram */}
-                  {indicado.instagram && (
-                    <a
-                      href={getInstagramLink(indicado.instagram) || "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 text-slate-400 hover:text-pink-500 transition-colors rounded-lg hover:bg-pink-500/10"
-                      title={`Instagram: @${indicado.instagram.replace(/^@/, "")}`}
-                    >
-                      <Instagram size={18} />
-                    </a>
-                  )}
-                  
-                  {/* Botão WhatsApp */}
-                  {indicado.phone && (
-                    <a
-                      href={getWhatsAppLink(indicado.phone) || "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 text-slate-400 hover:text-emerald-500 transition-colors rounded-lg hover:bg-emerald-500/10"
-                      title={`WhatsApp: ${indicado.phone}`}
-                    >
-                      <MessageCircle size={18} />
-                    </a>
-                  )}
-                  
-                  {/* Badge ATIVO */}
-                  <span className="bg-green-500/20 text-green-400 px-4 py-1.5 rounded-lg text-xs font-bold uppercase">
-                    ATIVO
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-[#111] border border-white/5 rounded-2xl p-12 text-center">
-            <p className="text-slate-400 text-lg">
-              {searchTerm ? "Nenhum indicado encontrado." : "Você ainda não indicou ninguém."}
-            </p>
-          </div>
-        )}
+            )}
+        </div>
       </div>
     </div>
   );
