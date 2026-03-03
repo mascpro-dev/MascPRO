@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, User, Mail, Lock, Phone, MapPin, Home, Search } from "lucide-react";
+import { Loader2, User, Mail, Lock, Phone, MapPin, Home, Search, Building } from "lucide-react";
 import Link from "next/link";
 
 function CadastroContent() {
@@ -22,12 +22,13 @@ function CadastroContent() {
     password: "",
     whatsapp: "",
     instagram: "",
-    zip_code: "",      // CEP
-    address: "",       // Rua (Preenchido pelo CEP)
-    number: "",        // Número (Digitado)
-    neighborhood: "",  // Bairro (Preenchido pelo CEP)
-    city: "",          // Cidade (Preenchido pelo CEP)
-    state: "",         // Estado (Preenchido pelo CEP)
+    zip_code: "",      
+    address: "",       
+    number: "",        
+    complement: "",    // NOVO CAMPO: COMPLEMENTO
+    neighborhood: "",  
+    city: "",          
+    state: "",         
   });
 
   useEffect(() => {
@@ -36,7 +37,6 @@ function CadastroContent() {
   }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Aplica máscara simples no CEP
     if (e.target.name === "zip_code") {
         let val = e.target.value.replace(/\D/g, "");
         if (val.length > 8) val = val.slice(0, 8);
@@ -46,7 +46,6 @@ function CadastroContent() {
     }
   };
 
-  // FUNÇÃO PARA BUSCAR CEP AUTOMATICAMENTE
   const buscarCep = async () => {
     const cep = formData.zip_code.replace(/\D/g, "");
     if (cep.length !== 8) return;
@@ -92,7 +91,7 @@ function CadastroContent() {
       if (signUpError) throw signUpError;
 
       if (user) {
-        // 2. Salva no Banco (Colunas Corretas)
+        // 2. Salva no Banco (Com o campo complement)
         const { error: profileError } = await supabase
           .from("profiles")
           .insert([
@@ -104,11 +103,12 @@ function CadastroContent() {
               instagram: formData.instagram,
               
               // Endereço
-              address: formData.address,       // Rua
-              number: formData.number,         // Número
-              neighborhood: formData.neighborhood, // Bairro
-              city: formData.city,             // Cidade
-              state: formData.state,           // Estado
+              address: formData.address,
+              number: formData.number,
+              complement: formData.complement, // ENVIA O COMPLEMENTO
+              neighborhood: formData.neighborhood,
+              city: formData.city,
+              state: formData.state,
               
               // Dados de Sistema
               indicado_por: refId || null,
@@ -121,7 +121,10 @@ function CadastroContent() {
             },
           ]);
 
-        if (profileError) throw profileError;
+        if (profileError) {
+            console.error("Erro de Banco:", profileError);
+            throw profileError;
+        }
 
         router.push("/dashboard"); 
       }
@@ -147,25 +150,21 @@ function CadastroContent() {
         )}
 
         <form onSubmit={handleSignUp} className="space-y-4">
-            {/* Nome */}
             <div className="relative">
                 <User className="absolute left-3 top-3 text-gray-500" size={20} />
                 <input required name="name" type="text" placeholder="Nome Completo" onChange={handleChange} className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" />
             </div>
 
-            {/* Email */}
             <div className="relative">
                 <Mail className="absolute left-3 top-3 text-gray-500" size={20} />
                 <input required name="email" type="email" placeholder="Seu melhor e-mail" onChange={handleChange} className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" />
             </div>
 
-            {/* Senha */}
             <div className="relative">
                 <Lock className="absolute left-3 top-3 text-gray-500" size={20} />
                 <input required name="password" type="password" placeholder="Crie uma senha segura" onChange={handleChange} className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" />
             </div>
 
-            {/* WhatsApp e Instagram */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="relative">
                     <Phone className="absolute left-3 top-3 text-gray-500" size={20} />
@@ -179,7 +178,7 @@ function CadastroContent() {
             <hr className="border-zinc-800 my-4" />
             <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2">Endereço Profissional</p>
 
-            {/* CEP e Busca */}
+            {/* CEP */}
             <div className="flex gap-2">
                 <div className="relative w-full">
                     <Search className="absolute left-3 top-3 text-gray-500" size={20} />
@@ -190,23 +189,31 @@ function CadastroContent() {
                         type="text" 
                         placeholder="CEP (somente números)" 
                         onChange={handleChange} 
-                        onBlur={buscarCep} // Busca ao sair do campo
+                        onBlur={buscarCep} 
                         className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" 
                     />
                 </div>
                 {buscandoCep && <div className="flex items-center text-[#C9A66B] text-xs"><Loader2 className="animate-spin" /></div>}
             </div>
 
-            {/* Rua e Número */}
-            <div className="grid grid-cols-3 gap-4">
+            {/* Rua, Número e Complemento */}
+            <div className="grid grid-cols-4 gap-4">
+                {/* Rua ocupa 2 espaços */}
                 <div className="col-span-2 relative">
                     <MapPin className="absolute left-3 top-3 text-gray-500" size={20} />
                     <input required name="address" value={formData.address} type="text" placeholder="Rua / Av." readOnly className="w-full bg-zinc-900 border border-zinc-800 rounded-lg py-3 pl-10 text-gray-400 cursor-not-allowed outline-none" />
                 </div>
                 
-                <div className="relative">
+                {/* Número ocupa 1 espaço */}
+                <div className="relative col-span-1">
                     <Home className="absolute left-3 top-3 text-gray-500" size={20} />
                     <input required name="number" type="text" placeholder="Nº" onChange={handleChange} className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" />
+                </div>
+
+                 {/* Complemento ocupa 1 espaço */}
+                 <div className="relative col-span-1">
+                    <Building className="absolute left-3 top-3 text-gray-500" size={20} />
+                    <input name="complement" type="text" placeholder="Comp." onChange={handleChange} className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" />
                 </div>
             </div>
 
