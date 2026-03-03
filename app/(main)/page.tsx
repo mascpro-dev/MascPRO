@@ -9,6 +9,7 @@ export default function HomePage() {
   const supabase = createClientComponentClient();
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState("");
   
   // Saldos
   const [totalCoins, setTotalCoins] = useState(0); 
@@ -29,37 +30,45 @@ export default function HomePage() {
     init();
   }, []);
 
-  // REALTIME: Escuta alterações no banco e atualiza a tela na hora
+  // REALTIME: Mantém tudo atualizado
   useEffect(() => {
     if (!userId) return;
 
-    const channel = supabase.channel('home_realtime_coins')
+    const channel = supabase.channel('home_realtime_math')
         .on('postgres_changes', { 
             event: 'UPDATE', 
             schema: 'public', 
             table: 'profiles',
             filter: `id=eq.${userId}` 
         }, (payload: any) => {
-            console.log("💰 Saldo atualizado em tempo real!", payload.new);
             const p = payload.new;
-            
-            // AQUI ESTÁ O SEGREDO: Conectamos com o nome certo da coluna
-            setTotalCoins(p.moedas_pro_acumuladas || 0);
-            
-            // Se você tiver essas colunas no futuro, elas funcionarão. 
-            // Por enquanto, mantemos seguro para não quebrar.
-            setPersonalScore(p.personal_coins || 0);
-            setNetworkScore(p.network_coins || 0);
-            setStoreScore(p.store_coins || 0);
+            atualizarMatematica(p);
         })
         .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
 
+  // Função Inteligente: Calcula o Mérito Pessoal (Total - Rede)
+  function atualizarMatematica(profile: any) {
+      if (!profile) return;
+
+      const total = profile.moedas_pro_acumuladas || 0;
+      const rede = profile.network_coins || 0;     
+      const loja = profile.store_coins || 0;       
+      
+      // A MÁGICA: O Mérito Pessoal é a diferença
+      const pessoal = total - rede - loja; 
+
+      setUserName(profile.full_name || "Membro Elite");
+      setTotalCoins(total);
+      setNetworkScore(rede);
+      setStoreScore(loja);
+      setPersonalScore(pessoal > 0 ? pessoal : 0);
+  }
+
   async function fetchData(uid: string) {
       try {
-        // Buscamos TODOS os dados do perfil para garantir
         const { data: profile } = await supabase
             .from("profiles")
             .select("*") 
@@ -67,15 +76,10 @@ export default function HomePage() {
             .single();
 
         if (profile) {
-            // Conecta a coluna certa (moedas_pro_acumuladas) ao visual (totalCoins)
-            setTotalCoins(profile.moedas_pro_acumuladas || 0);
-            
-            setPersonalScore(profile.personal_coins || 0);
-            setNetworkScore(profile.network_coins || 0);
-            setStoreScore(profile.store_coins || 0);
+            atualizarMatematica(profile);
         }
       } catch (error) {
-        console.error("Erro ao buscar saldo:", error);
+        console.error("Erro ao calcular saldo:", error);
       } finally {
         setLoading(false);
       }
@@ -92,15 +96,15 @@ export default function HomePage() {
       
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold italic tracking-wide">
-          VISÃO <span className="text-[#C9A66B]">GERAL</span>
+          OLÁ, <span className="text-[#C9A66B] uppercase">{userName}</span>
         </h1>
-        <p className="text-gray-400 mt-2 text-sm">Acompanhe seu progresso e saldo total.</p>
+        <p className="text-gray-400 mt-2 text-sm">Painel Geral</p>
       </div>
 
-      {/* CARD PRINCIPAL - Agora mostrando o valor REAL */}
+      {/* CARD PRINCIPAL (Total Real) */}
       <div className="bg-gradient-to-r from-[#C9A66B] to-[#b08d55] rounded-2xl p-6 mb-8 shadow-lg shadow-[#C9A66B]/20 relative overflow-hidden">
          <div className="relative z-10">
-            <p className="text-black font-bold uppercase text-xs tracking-widest mb-1">Saldo Disponível</p>
+            <p className="text-black font-bold uppercase text-xs tracking-widest mb-1">Saldo Total</p>
             <h2 className="text-5xl font-black text-black">
                 {totalCoins} <span className="text-2xl">PRO</span>
             </h2>
@@ -111,4 +115,41 @@ export default function HomePage() {
 
       {/* CARDS DETALHADOS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className
+        
+        {/* Mérito Pessoal */}
+        <div className="bg-[#111] border border-[#222] p-5 rounded-xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-blue-900/20 text-blue-500 flex items-center justify-center"><TrendingUp size={24} /></div>
+            <div>
+                <p className="text-gray-500 text-xs uppercase font-bold">Mérito Pessoal</p>
+                <p className="text-xl font-bold text-white">{personalScore}</p>
+            </div>
+        </div>
+
+        {/* Bônus de Rede */}
+        <div className="bg-[#111] border border-[#222] p-5 rounded-xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-purple-900/20 text-purple-500 flex items-center justify-center"><Users size={24} /></div>
+            <div>
+                <p className="text-gray-500 text-xs uppercase font-bold">Bônus de Rede</p>
+                <p className="text-xl font-bold text-white">{networkScore}</p>
+            </div>
+        </div>
+
+        {/* Cashback */}
+        <div className="bg-[#111] border border-[#222] p-5 rounded-xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-green-900/20 text-green-500 flex items-center justify-center"><ShoppingBag size={24} /></div>
+            <div>
+                <p className="text-gray-500 text-xs uppercase font-bold">Cashback Loja</p>
+                <p className="text-xl font-bold text-white">{storeScore}</p>
+            </div>
+        </div>
+
+      </div>
+
+      <div className="mt-8 flex gap-4">
+          <Link href="/loja" className="flex-1 bg-[#222] hover:bg-[#333] text-white py-4 rounded-xl text-center font-bold text-sm transition-colors border border-[#333]">IR PARA LOJA</Link>
+          <Link href="/evolucao" className="flex-1 bg-[#222] hover:bg-[#333] text-white py-4 rounded-xl text-center font-bold text-sm transition-colors border border-[#333]">VER AULAS</Link>
+      </div>
+
+    </div>
+  );
+}
