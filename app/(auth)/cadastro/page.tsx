@@ -1,19 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react"; // Adicionei Suspense
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, User, Mail, Lock, Phone, MapPin, Home } from "lucide-react";
 import Link from "next/link";
 
-export default function CadastroPage() {
+// 1. CRIAMOS UM COMPONENTE SÓ PARA O CONTEÚDO (Onde usamos useSearchParams)
+function CadastroContent() {
   const supabase = createClientComponentClient();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParams(); // Agora está seguro aqui dentro
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // ID de quem indicou (vem do link ?ref=...)
   const [refId, setRefId] = useState<string | null>(null);
 
   // DADOS DO FORMULÁRIO
@@ -23,12 +22,11 @@ export default function CadastroPage() {
     password: "",
     whatsapp: "",
     instagram: "",
-    // Endereço
-    address: "",       // Rua
-    number: "",        // Número (Adicionado!)
-    neighborhood: "",  // Bairro
-    city: "",          // Cidade
-    state: "",         // Estado
+    address: "",       
+    number: "",        
+    neighborhood: "",  
+    city: "",          
+    state: "",         
   });
 
   useEffect(() => {
@@ -46,7 +44,7 @@ export default function CadastroPage() {
     setError(null);
 
     try {
-      // 1. Cria o usuário no Auth (Login)
+      // 1. Cria usuário
       const { data: { user }, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -60,9 +58,9 @@ export default function CadastroPage() {
       if (signUpError) throw signUpError;
 
       if (user) {
-        // 2. Salva os dados no Banco (CORRIGIDO PARA COLUNAS EM INGLÊS!)
+        // 2. Salva no Banco
         const { error: profileError } = await supabase
-          .from("profiles") // Verifique se o nome da tabela é 'profiles'
+          .from("profiles")
           .insert([
             {
               id: user.id,
@@ -71,23 +69,20 @@ export default function CadastroPage() {
               whatsapp: formData.whatsapp,
               instagram: formData.instagram,
               
-              // ENDEREÇO (Colunas em Inglês)
-              address: formData.address,       // Rua
-              number: formData.number,         // Número
-              neighborhood: formData.neighborhood, // Bairro
-              city: formData.city,             // Cidade
-              state: formData.state,           // Estado
+              // Endereço
+              address: formData.address,
+              number: formData.number,
+              neighborhood: formData.neighborhood,
+              city: formData.city,
+              state: formData.state,
               
-              // REDE (Indicação)
+              // Rede e Financeiro
               indicado_por: refId || null,
-
-              // FINANCEIRO (Inicia Zerado para evitar null)
               moedas_pro_acumuladas: 0,
               network_coins: 0,
               passive_pro: 0,
               store_coins: 0,
               
-              // OUTROS
               role: "CABELEIREIRO",
               created_at: new Date().toISOString(),
             },
@@ -95,10 +90,9 @@ export default function CadastroPage() {
 
         if (profileError) {
             console.error("Erro ao salvar perfil:", profileError);
-            throw new Error("Erro ao salvar dados no banco. Verifique as colunas.");
+            throw new Error("Erro ao salvar dados no banco.");
         }
 
-        // Sucesso!
         router.push("/dashboard"); 
       }
     } catch (err: any) {
@@ -110,9 +104,7 @@ export default function CadastroPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
       <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 p-8 rounded-2xl shadow-2xl">
-        
         <div className="text-center mb-8">
             <h1 className="text-3xl font-black italic text-[#C9A66B]">CRIE SUA CONTA</h1>
             <p className="text-gray-400 text-sm mt-2">Junte-se à elite MASC PRO.</p>
@@ -125,39 +117,32 @@ export default function CadastroPage() {
         )}
 
         <form onSubmit={handleSignUp} className="space-y-4">
-            
-            {/* Nome */}
             <div className="relative">
                 <User className="absolute left-3 top-3 text-gray-500" size={20} />
                 <input required name="name" type="text" placeholder="Nome Completo" onChange={handleChange} className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" />
             </div>
 
-            {/* Email */}
             <div className="relative">
                 <Mail className="absolute left-3 top-3 text-gray-500" size={20} />
                 <input required name="email" type="email" placeholder="Seu melhor e-mail" onChange={handleChange} className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" />
             </div>
 
-            {/* Senha */}
             <div className="relative">
                 <Lock className="absolute left-3 top-3 text-gray-500" size={20} />
                 <input required name="password" type="password" placeholder="Crie uma senha segura" onChange={handleChange} className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" />
             </div>
 
-            {/* WhatsApp */}
             <div className="relative">
                 <Phone className="absolute left-3 top-3 text-gray-500" size={20} />
                 <input required name="whatsapp" type="text" placeholder="WhatsApp (com DDD)" onChange={handleChange} className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" />
             </div>
 
-            {/* ENDEREÇO COMPLETO */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 relative">
                     <MapPin className="absolute left-3 top-3 text-gray-500" size={20} />
                     <input required name="address" type="text" placeholder="Endereço (Rua, Av...)" onChange={handleChange} className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" />
                 </div>
                 
-                {/* AQUI ESTÁ O NÚMERO QUE FALTAVA 👇 */}
                 <div className="relative">
                     <Home className="absolute left-3 top-3 text-gray-500" size={20} />
                     <input required name="number" type="text" placeholder="Número" onChange={handleChange} className="w-full bg-black border border-zinc-700 rounded-lg py-3 pl-10 text-white focus:border-[#C9A66B] outline-none" />
@@ -184,8 +169,17 @@ export default function CadastroPage() {
         <p className="text-center text-gray-500 text-sm mt-6">
             Já tem uma conta? <Link href="/login" className="text-[#C9A66B] hover:underline">Faça Login</Link>
         </p>
-
       </div>
+  );
+}
+
+// 2. AGORA A PÁGINA PRINCIPAL APENAS SEGURA O "ENVELOPE" (SUSPENSE)
+export default function CadastroPage() {
+  return (
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
+      <Suspense fallback={<div className="text-[#C9A66B]">Carregando formulário...</div>}>
+        <CadastroContent />
+      </Suspense>
     </div>
   );
 }
