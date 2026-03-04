@@ -7,6 +7,7 @@ import { Send, MessageSquare, Loader2, User } from "lucide-react";
 export default function AreaDuvidas({ lessonId, currentUser }: { lessonId: string, currentUser: any }) {
   const supabase = createClientComponentClient();
   const [duvidas, setDuvidas] = useState<any[]>([]);
+  const [respostas, setRespostas] = useState<any[]>([]);
   const [textoDuvida, setTextoDuvida] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -16,6 +17,7 @@ export default function AreaDuvidas({ lessonId, currentUser }: { lessonId: strin
   useEffect(() => {
     if (lessonId) {
       fetchDuvidas();
+      fetchRespostas();
     }
   }, [lessonId]);
 
@@ -27,6 +29,17 @@ export default function AreaDuvidas({ lessonId, currentUser }: { lessonId: strin
     loadUsers();
   }, []);
 
+  const fetchRespostas = async () => {
+    const { data, error } = await supabase
+      .from('lesson_comment_replies')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (!error && data) {
+      setRespostas(data);
+    }
+  };
+
   async function fetchDuvidas() {
     const { data, error } = await supabase
       .from('lesson_comments')
@@ -35,6 +48,8 @@ export default function AreaDuvidas({ lessonId, currentUser }: { lessonId: strin
       .order('created_at', { ascending: false });
 
     if (data) setDuvidas(data);
+    // Carrega as respostas após carregar os comentários principais
+    fetchRespostas();
   }
 
   // 2. LÓGICA DE MENÇÃO @
@@ -153,6 +168,21 @@ export default function AreaDuvidas({ lessonId, currentUser }: { lessonId: strin
                   word.startsWith("@") ? <span key={i} className="text-[#C9A66B] font-bold">{word} </span> : word + " "
                 )}
               </p>
+              
+              {/* Respostas do comentário */}
+              <div className="ml-10 space-y-2 mt-2">
+                {respostas
+                  .filter(r => r.comment_id === d.id) // Filtra respostas desse comentário
+                  .map(resposta => (
+                    <div key={resposta.id} className="bg-zinc-900/40 p-3 rounded-lg border-l-2 border-[#C9A66B]">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[#C9A66B] font-bold text-[11px]">{resposta.user_name}</span>
+                        <span className="text-gray-500 text-[9px]">Agora mesmo</span>
+                      </div>
+                      <p className="text-gray-300 text-sm">{resposta.content}</p>
+                    </div>
+                  ))}
+              </div>
             </div>
           ))
         )}

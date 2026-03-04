@@ -44,6 +44,12 @@ export default function PlayerPage() {
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [showMentionList, setShowMentionList] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
+  const [loadingResposta, setLoadingResposta] = useState(false);
+  const [respostasTexto, setRespostasTexto] = useState<Record<string, string>>({});
+  const [mostrandoResposta, setMostrandoResposta] = useState<string | null>(null);
+  const [respostas, setRespostas] = useState<any[]>([]);
+  // Estado para guardar os IDs dos comentários que estão "abertos"
+  const [comentariosAbertos, setComentariosAbertos] = useState<string[]>([]);
 
   const playerRef = useRef<any>(null);
   const progressInterval = useRef<any>(null);
@@ -93,9 +99,22 @@ export default function PlayerPage() {
     if (currentLesson?.id) loadComments();
   }, [currentLesson]);
 
+  const fetchRespostas = async () => {
+    const { data, error } = await supabase
+      .from('lesson_comment_replies')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (!error && data) {
+      setRespostas(data);
+    }
+  };
+
   async function loadComments() {
     const { data } = await supabase.from('lesson_comments').select('*, profiles(full_name, avatar_url)').eq('lesson_id', currentLesson.id).order('created_at', { ascending: false });
     setComments(data || []);
+    // Carrega as respostas junto com os comentários
+    fetchRespostas();
   }
 
   const formatTime = (seconds: number) => {
@@ -243,6 +262,13 @@ export default function PlayerPage() {
     setShowMentionList(false);
   };
 
+  // Função para abrir/fechar respostas
+  const toggleRespostas = (id: string) => {
+    setComentariosAbertos(prev => 
+      prev.includes(id) ? prev.filter(cid => cid !== id) : [...prev, id]
+    );
+  };
+
   const handlePostComment = async () => {
     if (!newComment.trim() || !currentUser) return;
     setIsSending(true);
@@ -258,6 +284,48 @@ export default function PlayerPage() {
       loadComments(); // Atualiza a lista de dúvidas
     }
     setIsSending(false);
+  };
+
+  const handleEnviarResposta = async (comentarioOriginal: any, textoDaResposta: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // 1. SALVAR A RESPOSTA (O que você já faz)
+      const { data: novaResposta, error: errorResposta } = await supabase
+        .from("lesson_comment_replies")
+        .insert([{
+          comment_id: comentarioOriginal.id,
+          user_id: user?.id,
+          user_name: user?.user_metadata.full_name,
+          content: textoDaResposta
+        }])
+        .select().single();
+
+      if (errorResposta) throw errorResposta;
+
+      // 2. ATUALIZAR A TELA NA HORA
+      setRespostas(prev => [...prev, novaResposta]);
+      setRespostasTexto({ ...respostasTexto, [comentarioOriginal.id]: "" });
+      setMostrandoResposta(null); // Fecha o campo de digitar
+
+      // 3. CRIAR NOTIFICAÇÃO (Usando sua tabela existente)
+      // Só notifica se não for você respondendo a você mesmo
+      if (comentarioOriginal.user_id !== user?.id) {
+        await supabase
+          .from("notifications")
+          .insert([{
+            user_id: comentarioOriginal.user_id, // Quem recebe
+            actor_id: user?.id, // Quem respondeu
+            type: 'comment',
+            content: `respondeu seu comentário: "${textoDaResposta.substring(0, 20)}..."`,
+            link: `/evolucao/${params.code}`, // Link para a aula específica
+            read: false
+          }]);
+      }
+
+    } catch (err) {
+      console.error("Erro no processo:", err);
+    }
   };
 
   // ATENÇÃO: Se a sua página recebe (props) ou ({ params }), garanta que 'params' está acessível.
@@ -466,9 +534,61 @@ export default function PlayerPage() {
                                                         )
                                                     )}
                                                 </p>
-                                                <button onClick={() => { setReplyingTo({ id: c.id, name: c.profiles?.full_name || "Usuário" }); window.scrollTo({ top: 300, behavior: 'smooth' }); }} className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-[#C9A66B] mt-4 hover:underline">
+                                                <button onClick={() => { setMostrandoResposta(mostrandoResposta === c.id ? null : c.id); }} className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-[#C9A66B] mt-4 hover:underline">
                                                     <Reply size={12} /> Responder
                                                 </button>
+                                                
+                                                {/* 1. O CONTADOR (Só aparece se houver respostas) */}
+                                                {respostas.filter(r => r.comment_id === c.id).length > 0 && (
+                                                  <button 
+                                                    onClick={() => toggleRespostas(c.id)}
+                                                    className="flex items-center gap-2 mt-2 text-[#C9A66B] hover:text-[#e2bc7d] text-xs font-bold transition-all"
+                                                  >
+                                                    <span className="bg-[#C9A66B]/10 px-2 py-0.5 rounded-full border border-[#C9A66B]/20">
+                                                      {respostas.filter(r => r.comment_id === c.id).length} respostas
+                                                    </span>
+                                                    {comentariosAbertos.includes(c.id) ? '▼ Recolher' : '▶ Ver respostas'}
+                                                  </button>
+                                                )}
+
+                                                {/* 2. AS RESPOSTAS (Escondidas por padrão) */}
+                                                {comentariosAbertos.includes(c.id) && (
+                                                  <div className="ml-10 mt-3 space-y-3 border-l-2 border-[#C9A66B]/30 pl-4 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                    {respostas
+                                                      .filter(r => r.comment_id === c.id)
+                                                      .map(resp => (
+                                                        <div key={resp.id} className="bg-zinc-900/60 p-3 rounded-lg border-l border-[#C9A66B]">
+                                                          <div className="flex justify-between items-center mb-1">
+                                                            <span className="text-[#C9A66B] font-bold text-[11px]">{resp.user_name}</span>
+                                                            <span className="text-gray-500 text-[9px]">
+                                                              {new Date(resp.created_at).toLocaleDateString()}
+                                                            </span>
+                                                          </div>
+                                                          <p className="text-gray-300 text-sm leading-relaxed">{resp.content}</p>
+                                                        </div>
+                                                      ))
+                                                    }
+                                                  </div>
+                                                )}
+                                                
+                                                {/* Campo de resposta (aparece quando clica em Responder) */}
+                                                {mostrandoResposta === c.id && (
+                                                    <div className="mt-4 space-y-2">
+                                                        <textarea
+                                                            value={respostasTexto[c.id] || ""}
+                                                            onChange={(e) => setRespostasTexto({ ...respostasTexto, [c.id]: e.target.value })}
+                                                            placeholder="Escreva sua resposta..."
+                                                            className="w-full bg-zinc-900/30 border border-white/5 p-3 text-sm focus:border-[#C9A66B]/30 outline-none min-h-[80px] resize-none rounded-xl"
+                                                        />
+                                                        <button
+                                                            disabled={loadingResposta}
+                                                            onClick={() => handleEnviarResposta(c, respostasTexto[c.id] || "")}
+                                                            className="text-[#C9A66B] hover:underline text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            {loadingResposta ? "Enviando..." : "POSTAR RESPOSTA"}
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
