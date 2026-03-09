@@ -65,7 +65,7 @@ export default function RankingComunidade() {
               <div className="bg-black/40 p-2 rounded-lg border border-white/5">
                 <p className="text-[8px] text-zinc-500 uppercase font-black">Meritocracia</p>
                 <p className="text-[10px] font-bold text-white">
-                  {user.meritocracia_total?.toLocaleString()} PRO
+                  {user.moedas_pro_acumuladas?.toLocaleString()} PRO
                 </p>
               </div>
               <div className="bg-black/40 p-2 rounded-lg border border-white/5">

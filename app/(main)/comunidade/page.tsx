@@ -9,7 +9,7 @@ import {
 
 export default function ComunidadePage() {
   const supabase = createClientComponentClient();
-  const [activeTab, setActiveTab] = useState<'ranking' | 'feed'>('ranking');
+  const [activeTab, setActiveTab] = useState<'ranking' | 'feed'>('feed');
   
   // Estados de Dados
   const [ranking, setRanking] = useState<any[]>([]); 
@@ -28,6 +28,8 @@ export default function ComunidadePage() {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionTarget, setMentionTarget] = useState<'post' | 'comment' | null>(null);
   const [posting, setPosting] = useState(false);
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [mentionResults, setMentionResults] = useState<any[]>([]);
 
   // Corretor de Segurança (toLocaleString)
   const formatNumber = (n: any) => {
@@ -38,6 +40,26 @@ export default function ComunidadePage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Busca de usuários para o @ mention
+  useEffect(() => {
+    const buscarUsuarios = async () => {
+      if (!mentionQuery || !mentionQuery.trim()) {
+        setMentionResults([]);
+        return;
+      }
+
+      const termoPesquisado = mentionQuery.trim();
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name") // O @ precisa desses dois campos
+        .ilike("full_name", `%${termoPesquisado}%`);
+
+      setMentionResults(data || []);
+    };
+
+    buscarUsuarios();
+  }, [mentionQuery]);
 
   async function fetchData() {
     try {
@@ -66,8 +88,8 @@ export default function ComunidadePage() {
 
   async function refreshFeed() {
     const { data } = await supabase
-      .from("posts")
-      .select(`*, profiles:posts_author_fkey(full_name, avatar_url)`)
+      .from("community_posts")
+      .select(`id, content, media_url, media_type, likes_count, created_at, user_id, profiles(full_name, avatar_url)`)
       .order("created_at", { ascending: false });
     if (data) setPosts(data);
   }
@@ -96,11 +118,10 @@ export default function ComunidadePage() {
 
   const MentionMenu = () => {
     if (!mentionQuery) return null;
-    const filtered = ranking.filter(u => u.full_name?.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 5);
-    if (filtered.length === 0) return null;
+    if (!mentionResults.length) return null;
     return (
       <div className="absolute z-[100] bg-zinc-900 border border-white/10 w-64 rounded-xl shadow-2xl overflow-hidden mb-2 bottom-full">
-        {filtered.map(u => (
+        {mentionResults.slice(0, 5).map((u: any) => (
           <button key={u.id} onClick={() => selectMention(u.full_name)} className="w-full text-left p-3 hover:bg-zinc-800 text-xs font-bold border-b border-white/5 last:border-0 text-white">
             {u.full_name}
           </button>
@@ -132,23 +153,84 @@ export default function ComunidadePage() {
 
   const sendComment = async (postId: string) => {
     if (!commentText.trim() || !currentUser) return;
-    const { error } = await supabase.from("comments").insert({ post_id: postId, user_id: currentUser.id, content: commentText.trim() });
+    const texto = commentText.trim();
+
+    // Salva o comentário
+    const { error } = await supabase
+      .from("comments")
+      .insert({ post_id: postId, user_id: currentUser.id, content: texto });
+
     if (!error) {
       setCommentText("");
-      const { data } = await supabase.from("comments").select(`*, profiles(full_name, avatar_url)`).eq("post_id", postId).order("created_at", { ascending: true });
+      const { data } = await supabase
+        .from("comments")
+        .select(`*, profiles(full_name, avatar_url)`)
+        .eq("post_id", postId)
+        .order("created_at", { ascending: true });
       if (data) setCommentsData(prev => ({ ...prev, [postId]: data }));
+
+      // Notificação para o dono do post (resposta ao post)
+      const postOriginal = posts.find(p => p.id === postId);
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user;
+
+      if (postOriginal && user && postOriginal.user_id !== user.id) {
+        await supabase.from("notifications").insert({
+          user_id: postOriginal.user_id,      // Dono do post
+          actor_id: user.id,                 // Quem respondeu
+          type: "reply",
+          content: `respondeu ao seu post na comunidade: "${texto.substring(0, 20)}..."`,
+          link: "/comunidade",
+          read: false,
+        });
+      }
     }
   };
 
+  // Upload de mídia para o Storage
+  const uploadMedia = async (file: File | null): Promise<string | null> => {
+    if (!file) return null;
+    const fileName = `${Math.random()}-${file.name}`;
+    const { data, error } = await supabase.storage
+      .from("community-media")
+      .upload(fileName, file);
+
+    if (error || !data) return null;
+
+    const publicUrl = supabase.storage
+      .from("community-media")
+      .getPublicUrl(fileName).data.publicUrl;
+
+    return publicUrl || null;
+  };
+
   const handlePublish = async () => {
-    if (!newPostText.trim() || !currentUser) return;
+    if ((!newPostText.trim() && !arquivo) || !currentUser) return;
     setPosting(true);
-    const { error } = await supabase.from("posts").insert({ user_id: currentUser.id, content: newPostText.trim() });
-    if (!error) {
-      setNewPostText("");
-      await refreshFeed();
+    try {
+      let mediaUrl: string | null = null;
+
+      if (arquivo) {
+        mediaUrl = await uploadMedia(arquivo);
+      }
+
+      const { error } = await supabase
+        .from("community_posts")
+        .insert({
+        user_id: currentUser.id,
+        content: newPostText.trim() || null,
+        media_url: mediaUrl,
+        media_type: arquivo ? (arquivo.type.includes("video") ? "video" : "image") : null,
+      });
+
+      if (!error) {
+        setNewPostText("");
+        setArquivo(null);
+        await refreshFeed();
+      }
+    } finally {
+      setPosting(false);
     }
-    setPosting(false);
   };
 
   return (
@@ -158,9 +240,23 @@ export default function ComunidadePage() {
 
         {/* TABS */}
         <div className="flex bg-zinc-900/50 p-1 rounded-2xl mb-10 border border-white/5">
-          <button onClick={() => setActiveTab('ranking')} className={`flex-1 py-3 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'ranking' ? "bg-[#C9A66B] text-black shadow-lg" : "text-zinc-500"}`}>Ranking</button>
-          <button onClick={() => setActiveTab('feed')} className={`flex-1 py-3 text-xs font-black uppercase rounded-xl transition-all ${activeTab === 'feed' ? "bg-[#C9A66B] text-black shadow-lg" : "text-zinc-500"}`}>Feed Social</button>
-        </div>
+          <button
+            onClick={() => setActiveTab('feed')}
+            className={`flex-1 py-3 text-xs font-black uppercase rounded-xl transition-all ${
+              activeTab === 'feed' ? "bg-[#C9A66B] text-black shadow-lg" : "text-zinc-500"
+            }`}
+          >
+            Feed Social
+          </button>
+              <button 
+            onClick={() => setActiveTab('ranking')}
+            className={`flex-1 py-3 text-xs font-black uppercase rounded-xl transition-all ${
+              activeTab === 'ranking' ? "bg-[#C9A66B] text-black shadow-lg" : "text-zinc-500"
+            }`}
+          >
+            Ranking
+              </button>
+            </div>
 
         {/* RANKING */}
         {activeTab === 'ranking' && (
@@ -201,7 +297,21 @@ export default function ComunidadePage() {
                 className="w-full bg-transparent text-sm outline-none h-24 resize-none" 
               />
               {mentionTarget === 'post' && <MentionMenu />}
-              <div className="flex justify-end pt-2 border-t border-white/5">
+              {/* Upload de mídia */}
+              <input
+                type="file"
+                accept="image/*,video/*"
+                onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+                className="hidden"
+                id="file-upload"
+              />
+              <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                <label
+                  htmlFor="file-upload"
+                  className="cursor-pointer p-2 hover:bg-zinc-800 rounded-full text-sm text-zinc-400"
+                >
+                  📷
+                </label>
                 <button onClick={handlePublish} disabled={posting} className="bg-[#C9A66B] text-black px-8 py-2 rounded-xl font-black text-[10px] uppercase italic">
                   {posting ? <Loader2 className="animate-spin" size={14}/> : "POSTAR"}
                 </button>
@@ -220,11 +330,23 @@ export default function ComunidadePage() {
                       </div>
                       <p className="font-black text-xs text-[#C9A66B] uppercase italic">{post.profiles?.full_name}</p>
                     </div>
-                    <p className="text-sm text-zinc-300 mb-6 leading-relaxed">
-                      {post.content.split(" ").map((word: string, i: number) => 
-                        word.startsWith("@") ? <span key={i} className="text-[#C9A66B] font-bold">{word} </span> : word + " "
-                      )}
-                    </p>
+                    {post.content && (
+                      <p className="text-sm text-zinc-300 mb-4 leading-relaxed">
+                        {post.content.split(" ").map((word: string, i: number) => 
+                          word.startsWith("@") ? <span key={i} className="text-[#C9A66B] font-bold">{word} </span> : word + " "
+                        )}
+                      </p>
+                    )}
+                    {post.media_url && post.media_type === "image" && (
+                      <div className="mb-4 rounded-xl overflow-hidden border border-white/10">
+                        <img src={post.media_url} className="w-full max-h-[420px] object-cover" />
+                      </div>
+                    )}
+                    {post.media_url && post.media_type === "video" && (
+                      <div className="mb-4 rounded-xl overflow-hidden border border-white/10">
+                        <video src={post.media_url} controls className="w-full max-h-[420px] object-contain bg-black" />
+                      </div>
+                    )}
                     <div className="flex gap-8 border-t border-white/5 pt-4">
                       <button onClick={() => handleLike(post.id)} className={`flex items-center gap-2 text-[10px] font-black uppercase transition-all ${isLiked ? "text-red-500 scale-110" : "text-zinc-500"}`}>
                         <Heart size={20} fill={isLiked ? "currentColor" : "none"} /> {post.likes_count || 0}
@@ -232,7 +354,7 @@ export default function ComunidadePage() {
                       <button onClick={() => toggleComments(post.id)} className={`flex items-center gap-2 text-[10px] font-black uppercase ${openComments === post.id ? "text-[#C9A66B]" : "text-zinc-500"}`}>
                         <MessageSquare size={20} /> Comentar
                       </button>
-                    </div>
+        </div>
 
                     {/* SEÇÃO DE COMENTÁRIOS */}
                     {openComments === post.id && (
