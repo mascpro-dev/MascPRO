@@ -60,7 +60,8 @@ export default function RankingComunidade() {
               </p>
             </div>
             
-            {/* BARRA DE DIVISÃO: MERITOCRACIA vs RESIDUAL */}
+            {/* BARRA DE DIVISÃO: MERITOCRACIA vs RESIDUAL - BLOCO REMOVIDO A PEDIDO */}
+            {/*
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-black/40 p-2 rounded-lg border border-white/5">
                 <p className="text-[8px] text-zinc-500 uppercase font-black">Meritocracia</p>
@@ -75,6 +76,7 @@ export default function RankingComunidade() {
                 </p>
               </div>
             </div>
+            */}
           </div>
         ))}
       </div>

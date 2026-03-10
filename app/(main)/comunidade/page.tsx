@@ -14,6 +14,7 @@ export default function ComunidadePage() {
   // Estados de Dados
   const [ranking, setRanking] = useState<any[]>([]); 
   const [posts, setPosts] = useState<any[]>([]);
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -87,11 +88,48 @@ export default function ComunidadePage() {
   }
 
   async function refreshFeed() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("community_posts")
-      .select(`id, content, media_url, media_type, likes_count, created_at, user_id, profiles(full_name, avatar_url)`)
+      .select(`
+        id,
+        content,
+        media_url,
+        media_type,
+        likes_count,
+        created_at,
+        user_id,
+        profiles!community_posts_user_id_fkey (
+          full_name,
+          avatar_url
+        )
+      `)
       .order("created_at", { ascending: false });
-    if (data) setPosts(data);
+
+    if (error) {
+      console.error("Erro ao carregar feed de community_posts:", error);
+      return;
+    }
+
+    if (data) {
+      setPosts(data);
+
+      // Pré-carrega contagem de comentários por post para exibir o número sempre
+      const postIds = data.map((p: any) => p.id);
+      if (postIds.length) {
+        const { data: allComments } = await supabase
+          .from("comments")
+          .select("id, post_id")
+          .in("post_id", postIds);
+
+        const counts: Record<string, number> = {};
+        (allComments || []).forEach((c: any) => {
+          counts[c.post_id] = (counts[c.post_id] || 0) + 1;
+        });
+        setCommentCounts(counts);
+      } else {
+        setCommentCounts({});
+      }
+    }
   }
 
   // Lógica de @ Mention
@@ -136,9 +174,12 @@ export default function ComunidadePage() {
     const newLikes = new Set(myLikes);
     if (isLiked) newLikes.delete(postId); else newLikes.add(postId);
     setMyLikes(newLikes);
-    
+
     setPosts(posts.map(p => p.id === postId ? { ...p, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p));
-    await supabase.rpc('toggle_like', { target_post_id: postId, target_user_id: currentUser.id });
+  const { error } = await supabase.rpc('toggle_like', { p_post_id: postId, p_user_id: currentUser.id });
+    if (error) {
+      console.error("Erro ao registrar like no Supabase:", error);
+    }
   };
 
   const toggleComments = async (postId: string) => {
@@ -160,30 +201,37 @@ export default function ComunidadePage() {
       .from("comments")
       .insert({ post_id: postId, user_id: currentUser.id, content: texto });
 
-    if (!error) {
-      setCommentText("");
-      const { data } = await supabase
-        .from("comments")
-        .select(`*, profiles(full_name, avatar_url)`)
-        .eq("post_id", postId)
-        .order("created_at", { ascending: true });
-      if (data) setCommentsData(prev => ({ ...prev, [postId]: data }));
+    if (error) {
+      console.error("Erro ao salvar comentário no Supabase:", error);
+      alert("Não foi possível salvar seu comentário. Veja o console (F12) para detalhes.");
+      return;
+    }
 
-      // Notificação para o dono do post (resposta ao post)
-      const postOriginal = posts.find(p => p.id === postId);
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData?.user;
+    setCommentText("");
+    const { data } = await supabase
+      .from("comments")
+      .select(`*, profiles(full_name, avatar_url)`)
+      .eq("post_id", postId)
+      .order("created_at", { ascending: true });
+    if (data) {
+      setCommentsData(prev => ({ ...prev, [postId]: data }));
+      setCommentCounts(prev => ({ ...prev, [postId]: data.length }));
+    }
 
-      if (postOriginal && user && postOriginal.user_id !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: postOriginal.user_id,      // Dono do post
-          actor_id: user.id,                 // Quem respondeu
-          type: "reply",
-          content: `respondeu ao seu post na comunidade: "${texto.substring(0, 20)}..."`,
-          link: "/comunidade",
-          read: false,
-        });
-      }
+    // Notificação para o dono do post (resposta ao post)
+    const postOriginal = posts.find(p => p.id === postId);
+    const { data: authData } = await supabase.auth.getUser();
+    const user = authData?.user;
+
+    if (postOriginal && user && postOriginal.user_id !== user.id) {
+      await supabase.from("notifications").insert({
+        user_id: postOriginal.user_id,      // Dono do post
+        actor_id: user.id,                 // Quem respondeu
+        type: "reply",
+        content: `respondeu ao seu post na comunidade: "${texto.substring(0, 20)}..."`,
+        link: "/comunidade",
+        read: false,
+      });
     }
   };
 
@@ -223,11 +271,15 @@ export default function ComunidadePage() {
         media_type: arquivo ? (arquivo.type.includes("video") ? "video" : "image") : null,
       });
 
-      if (!error) {
-        setNewPostText("");
-        setArquivo(null);
-        await refreshFeed();
+      if (error) {
+        console.error("Erro ao publicar post no Supabase:", error);
+        alert("Não foi possível publicar seu post. Veja o console (F12) para detalhes.");
+        return;
       }
+
+      setNewPostText("");
+      setArquivo(null);
+      await refreshFeed();
     } finally {
       setPosting(false);
     }
@@ -269,16 +321,6 @@ export default function ComunidadePage() {
                     <p className="font-black text-sm uppercase tracking-tight">{profile.full_name}</p>
                   </div>
                   <p className="text-[#C9A66B] font-black text-2xl italic tracking-tighter">{formatNumber(profile.pontos_totais)} <span className="text-xs font-bold">PRO</span></p>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-1 pt-1 border-t border-white/5">
-                  <div className="bg-black/40 p-3 rounded-xl border border-white/5">
-                    <p className="text-[10px] text-zinc-500 uppercase font-normal mb-1">Meritocracia</p>
-                    <p className="text-xl font-black text-white italic">{formatNumber(profile.pontos_merito)} <span className="text-[10px] text-zinc-600 font-bold">PRO</span></p>
-                  </div>
-                  <div className="bg-black/40 p-3 rounded-xl border border-white/5">
-                    <p className="text-[10px] text-zinc-500 uppercase font-normal mb-1">Residual Rede</p>
-                    <p className="text-xl font-black text-green-500 italic">{formatNumber(profile.pontos_residual)} <span className="text-[10px] text-zinc-800 font-bold">PRO</span></p>
-                  </div>
                 </div>
               </div>
             ))}
@@ -322,6 +364,7 @@ export default function ComunidadePage() {
             <div className="space-y-4">
               {posts.map((post) => {
                 const isLiked = myLikes.has(post.id);
+                const commentCount = commentCounts[post.id] ?? commentsData[post.id]?.length ?? 0;
                 return (
                   <div key={post.id} className="bg-zinc-900/30 border border-white/5 rounded-2xl p-5">
                     <div className="flex items-center gap-3 mb-4">
@@ -352,7 +395,7 @@ export default function ComunidadePage() {
                         <Heart size={20} fill={isLiked ? "currentColor" : "none"} /> {post.likes_count || 0}
                       </button>
                       <button onClick={() => toggleComments(post.id)} className={`flex items-center gap-2 text-[10px] font-black uppercase ${openComments === post.id ? "text-[#C9A66B]" : "text-zinc-500"}`}>
-                        <MessageSquare size={20} /> Comentar
+                        <MessageSquare size={20} /> {commentCount > 0 ? `Comentários (${commentCount})` : "Comentar"}
                       </button>
         </div>
 
