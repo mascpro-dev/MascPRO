@@ -16,7 +16,7 @@ export default function RankingComunidade() {
       const { data, error } = await supabase
         .from('v_ranking_global')
         .select('*')
-        .order('pontos', { ascending: false })
+        .order('pontos_totais', { ascending: false })
         .limit(50);
 
       if (!error) setRanking(data);
@@ -56,7 +56,7 @@ export default function RankingComunidade() {
                 <p className="font-bold text-sm uppercase">{user.full_name}</p>
               </div>
               <p className="text-[#C9A66B] font-black">
-                {user.pontos?.toLocaleString()} PRO
+                {user.pontos_totais?.toLocaleString()} PRO
               </p>
             </div>
             

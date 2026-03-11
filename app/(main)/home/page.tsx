@@ -27,27 +27,25 @@ export default function DashboardPage() {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("*")
+          .select("full_name, moedas_pro_acumuladas, network_coins, personal_coins")
           .eq("id", user.id)
           .single();
 
         if (profile) {
           setNome(profile.full_name || "Marcelo");
 
-          // Meritocracia (esforço pessoal)
-          const meritPersonal = profile.moedas_pro_acumuladas || 0;
-          
-          // Rede: direto + passivo, igual à tela "Minha Rede"
-          const redeDireta = profile.network_coins || 0;
-          const redePassiva = profile.passive_pro || 0;
-          const redeReal = redeDireta + redePassiva;
+          // moedas_pro_acumuladas JÁ É a soma de tudo (personal + rede + compras)
+          const totalGeral = profile.moedas_pro_acumuladas || 0;
 
-          // Total oficial para o card "Rumo ao Certified" e para o ranking
-          const totalComRede = meritPersonal + redeReal;
+          // Rede: só os PROs de entrada dos indicados (50 por indicado)
+          const redeEntrada = profile.network_coins || 0;
 
-          setScoreTotal(totalComRede);
-          setScoreRede(redeReal);
-          setScorePessoal(meritPersonal);
+          // Esforço pessoal: só os PROs de aulas assistidas pelo próprio usuário
+          const pessoal = profile.personal_coins || 0;
+
+          setScoreTotal(totalGeral);   // card: RUMO AO CERTIFIED
+          setScoreRede(redeEntrada);   // card: POTENCIAL DA REDE (16 × 50 = 800)
+          setScorePessoal(pessoal);    // card: EVOLUÇÃO TÉCNICA (só aulas próprias)
         }
       }
       setLoading(false);
