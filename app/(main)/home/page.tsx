@@ -34,20 +34,20 @@ export default function DashboardPage() {
         if (profile) {
           setNome(profile.full_name || "Marcelo");
 
-          // 1. Pega o TOTAL REAL do banco (Aquele que estava 4620)
-          const totalReal = profile.moedas_pro_acumuladas || 0;
+          // Meritocracia (esforço pessoal)
+          const meritPersonal = profile.moedas_pro_acumuladas || 0;
           
-          // 2. Pega o valor da REDE (Se não tiver coluna, assume 0 ou valor fixo antigo)
-          // Se você tiver a coluna 'network_coins', usa ela. Se não, usa lógica antiga.
-          const redeReal = profile.network_coins || 0; 
+          // Rede: direto + passivo, igual à tela "Minha Rede"
+          const redeDireta = profile.network_coins || 0;
+          const redePassiva = profile.passive_pro || 0;
+          const redeReal = redeDireta + redePassiva;
 
-          // 3. A MÁGICA: O Pessoal é a diferença exata.
-          // Assim: Pessoal (3920) + Rede (700) = Total (4620)
-          const pessoalCalculado = totalReal - redeReal;
+          // Total oficial para o card "Rumo ao Certified" e para o ranking
+          const totalComRede = meritPersonal + redeReal;
 
-          setScoreTotal(totalReal);
+          setScoreTotal(totalComRede);
           setScoreRede(redeReal);
-          setScorePessoal(pessoalCalculado > 0 ? pessoalCalculado : 0);
+          setScorePessoal(meritPersonal);
         }
       }
       setLoading(false);

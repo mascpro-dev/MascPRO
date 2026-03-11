@@ -36,28 +36,35 @@ export default function JornadaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Busca os totais da nossa View (que já conta pessoas e moedas)
-      const { data: totals } = await supabase.from("v_pro_totals").select("*").eq("profile_id", user.id).single();
+      // Busca dados do perfil direto da tabela profiles
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("moedas_pro_acumuladas")
+        .eq("id", user.id)
+        .single();
 
-      if (totals) {
-          const totalCoins = totals.pro_total || 0;
-          const totalPeople = totals.referral_count || 0;
+      // Conta quantos usuários foram indicados por este usuário
+      const { count: totalIndicados } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("indicado_por", user.id);
 
-          setStats({ total: totalCoins, referralCount: totalPeople });
+      const totalCoins = profile?.moedas_pro_acumuladas || 0;
+      const totalPeople = totalIndicados || 0;
 
-          // Lógica Nível Técnico (Moedas)
-          // Procura o primeiro nível cuja meta é maior que o total atual
-          const tech = TECH_LEVELS.find(lvl => lvl.limit > totalCoins) || TECH_LEVELS[TECH_LEVELS.length - 1];
-          setCurrentTech(tech);
+      setStats({ total: totalCoins, referralCount: totalPeople });
 
-          // Lógica Nível Embaixador (Pessoas)
-          // Procura o nível baseado na quantidade de indicados
-          let amb = AMBASSADOR_LEVELS[0];
-          if (totalPeople > 15) amb = AMBASSADOR_LEVELS[1];
-          if (totalPeople > 50) amb = AMBASSADOR_LEVELS[2];
-          if (totalPeople > 150) amb = AMBASSADOR_LEVELS[3];
-          setCurrentAmbassador(amb);
-      }
+      // Nível Técnico (baseado em PRO acumulado)
+      const tech = TECH_LEVELS.find(lvl => lvl.limit > totalCoins) || TECH_LEVELS[TECH_LEVELS.length - 1];
+      setCurrentTech(tech);
+
+      // Nível Embaixador (baseado em indicados)
+      let amb = AMBASSADOR_LEVELS[0];
+      if (totalPeople > 15) amb = AMBASSADOR_LEVELS[1];
+      if (totalPeople > 50) amb = AMBASSADOR_LEVELS[2];
+      if (totalPeople > 150) amb = AMBASSADOR_LEVELS[3];
+      setCurrentAmbassador(amb);
+
     } catch (e) { console.error(e); } finally { setLoading(false); }
   }
 
