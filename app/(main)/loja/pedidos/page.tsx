@@ -55,6 +55,7 @@ export default function MeusPedidosPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
 
   async function carregarPedidos() {
@@ -75,16 +76,35 @@ export default function MeusPedidosPage() {
 
   async function sincronizarPagamentos() {
     setSyncing(true);
+    setSyncMsg("Sincronizando pagamentos no Mercado Pago...");
     try {
       const pendentes = pedidos.filter((p) => p.status === "pending");
+      if (pendentes.length === 0) {
+        setSyncMsg("Nenhum pedido pendente para sincronizar.");
+        return;
+      }
+
+      let atualizados = 0;
+      let erros = 0;
+
       for (const pedido of pendentes) {
-        await fetch("/api/orders/confirm", {
+        const res = await fetch("/api/orders/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId: pedido.id }),
         });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.ok && data?.order?.status !== "pending") {
+          atualizados += 1;
+        } else if (!res.ok || data?.ok === false) {
+          erros += 1;
+          console.error("Erro ao sincronizar pedido:", pedido.id, data);
+        }
       }
       await carregarPedidos();
+      setSyncMsg(
+        `Sincronização finalizada: ${atualizados} atualizado(s), ${pendentes.length - atualizados} ainda pendente(s), ${erros} erro(s).`
+      );
     } finally {
       setSyncing(false);
     }
@@ -125,6 +145,11 @@ export default function MeusPedidosPage() {
             {syncing ? "Sincronizando..." : "Sincronizar pagamento"}
           </button>
         </div>
+        {syncMsg && (
+          <div className="mb-4 text-xs bg-zinc-900/70 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-300">
+            {syncMsg}
+          </div>
+        )}
 
         {pedidos.length === 0 ? (
           <div className="mt-10 text-center text-zinc-500">
