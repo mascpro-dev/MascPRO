@@ -46,6 +46,44 @@ async function garantirComissao(supabase: any, orderId: string) {
   });
 }
 
+async function obterStatusNoMercadoPago(orderId: string, paymentId?: string) {
+  const mpToken = process.env.MP_ACCESS_TOKEN;
+  if (!mpToken) return { status: "pending", paymentId: paymentId || null };
+
+  const statusMap: Record<string, string> = {
+    approved: "paid",
+    rejected: "cancelled",
+    pending: "pending",
+    in_process: "pending",
+  };
+
+  // 1) Se veio paymentId, consulta direta
+  if (paymentId) {
+    const mp = new MercadoPagoConfig({ accessToken: mpToken });
+    const paymentClient = new Payment(mp);
+    const payment = await paymentClient.get({ id: paymentId });
+    return {
+      status: statusMap[payment.status || ""] || "pending",
+      paymentId: String(payment.id || paymentId),
+    };
+  }
+
+  // 2) Sem paymentId, busca por external_reference
+  const url = `https://api.mercadopago.com/v1/payments/search?external_reference=${orderId}&sort=date_created&criteria=desc&limit=1`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${mpToken}` },
+    cache: "no-store",
+  });
+  const json = await res.json();
+  const first = json?.results?.[0];
+  if (!first) return { status: "pending", paymentId: null };
+
+  return {
+    status: statusMap[first.status || ""] || "pending",
+    paymentId: first.id ? String(first.id) : null,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { orderId, paymentId } = await req.json();
@@ -54,30 +92,15 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabase();
-    let novoStatus = "paid";
-
-    // Se vier paymentId, valida no MP
-    if (paymentId) {
-      const mpToken = process.env.MP_ACCESS_TOKEN;
-      if (mpToken) {
-        const mp = new MercadoPagoConfig({ accessToken: mpToken });
-        const paymentClient = new Payment(mp);
-        const payment = await paymentClient.get({ id: paymentId });
-        const statusMap: Record<string, string> = {
-          approved: "paid",
-          rejected: "cancelled",
-          pending: "pending",
-          in_process: "pending",
-        };
-        novoStatus = statusMap[payment.status || ""] || "pending";
-      }
-    }
+    const mpCheck = await obterStatusNoMercadoPago(orderId, paymentId);
+    const novoStatus = mpCheck.status;
+    const paymentIdFinal = mpCheck.paymentId;
 
     const { error } = await supabase
       .from("orders")
       .update({
         status: novoStatus,
-        ...(paymentId ? { mp_payment_id: String(paymentId) } : {}),
+        ...(paymentIdFinal ? { mp_payment_id: String(paymentIdFinal) } : {}),
       })
       .eq("id", orderId);
 

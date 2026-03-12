@@ -54,26 +54,45 @@ export default function MeusPedidosPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
 
-  useEffect(() => {
-    async function carregar() {
-      const { data: authData } = await supabase.auth.getSession();
-      const session = authData.session;
-      if (!session) {
-        router.push("/login");
-        return;
-      }
-      const { data: pedidosData } = await supabase
-        .from("orders")
-        .select("id, total, status, created_at")
-        .eq("profile_id", session.user.id)
-        .order("created_at", { ascending: false });
-      setPedidos((pedidosData as Pedido[]) || []);
-      setLoading(false);
+  async function carregarPedidos() {
+    const { data: authData } = await supabase.auth.getSession();
+    const session = authData.session;
+    if (!session) {
+      router.push("/login");
+      return;
     }
-    carregar();
-  }, [supabase, router]);
+    const { data: pedidosData } = await supabase
+      .from("orders")
+      .select("id, total, status, created_at")
+      .eq("profile_id", session.user.id)
+      .order("created_at", { ascending: false });
+    setPedidos((pedidosData as Pedido[]) || []);
+    setLoading(false);
+  }
+
+  async function sincronizarPagamentos() {
+    setSyncing(true);
+    try {
+      const pendentes = pedidos.filter((p) => p.status === "pending");
+      for (const pedido of pendentes) {
+        await fetch("/api/orders/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: pedido.id }),
+        });
+      }
+      await carregarPedidos();
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  useEffect(() => {
+    carregarPedidos();
+  }, []);
 
   if (loading) {
     return (
@@ -86,7 +105,8 @@ export default function MeusPedidosPage() {
   return (
     <div className="min-h-screen bg-black text-white p-6 md:p-10">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center justify-between gap-3 mb-8">
+          <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#C9A66B]/20 flex items-center justify-center">
             <ShoppingBag className="text-[#C9A66B]" size={22} />
           </div>
@@ -96,6 +116,14 @@ export default function MeusPedidosPage() {
               Acompanhe o status de cada compra na Loja MascPRO.
             </p>
           </div>
+          </div>
+          <button
+            onClick={sincronizarPagamentos}
+            disabled={syncing}
+            className="bg-zinc-900 border border-zinc-700 hover:border-[#C9A66B] text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg transition-all disabled:opacity-50"
+          >
+            {syncing ? "Sincronizando..." : "Sincronizar pagamento"}
+          </button>
         </div>
 
         {pedidos.length === 0 ? (

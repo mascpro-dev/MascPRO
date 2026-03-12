@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     const mpToken = process.env.MP_ACCESS_TOKEN;
     if (!mpToken) {
       console.error("MP_ACCESS_TOKEN não configurado");
-      return NextResponse.json({ ok: false, error: "MP token missing" });
+      return NextResponse.json({ ok: false, error: "MP token missing" }, { status: 500 });
     }
 
     const mp = new MercadoPagoConfig({ accessToken: mpToken });
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error("Supabase update error:", error);
-      return NextResponse.json({ ok: false, error: error.message });
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
     if (newStatus === "paid") {
@@ -116,6 +116,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("Webhook MP erro:", err);
-    return NextResponse.json({ ok: false, error: err.message });
+    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
 }
