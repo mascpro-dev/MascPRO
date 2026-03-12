@@ -21,20 +21,15 @@ export default function EvolucaoPage() {
       if (!user) return;
       setCurrentUser(user);
 
-      // Busca o Total de moedas e o que veio da rede
+      // Busca só personal_coins (mérito pessoal = aulas assistidas pelo próprio usuário)
       const { data: profile } = await supabase
         .from("profiles")
-        .select("moedas_pro_acumuladas, network_coins")
+        .select("personal_coins")
         .eq("id", user.id)
         .single();
 
       if (profile) {
-        const total = profile.moedas_pro_acumuladas || 0;
-        const rede = profile.network_coins || 0;
-
-        // Mérito pessoal = total - o que veio da rede
-        const pessoal = total - rede;
-        setSaldoPessoal(pessoal > 0 ? pessoal : 0);
+        setSaldoPessoal(profile.personal_coins || 0);
       }
 
       // Busca Módulos na Ordem Certa

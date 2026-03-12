@@ -10,15 +10,21 @@ export default function DashboardPage() {
   
   // Dados do Usuário
   const [nome, setNome] = useState("Embaixador");
+  const [nivelTecnico, setNivelTecnico] = useState("PROFISSIONAL BRONZE");
   
   // Matemática da Gamificação
-  const [scoreTotal, setScoreTotal] = useState(0);      // O valor real (Ex: 4620)
-  const [scoreRede, setScoreRede] = useState(0);        // O valor da rede (Ex: 700)
-  const [scorePessoal, setScorePessoal] = useState(0);  // A diferença (Ex: 3920)
+  const [scoreTotal, setScoreTotal] = useState(0);
+  const [scoreRede, setScoreRede] = useState(0);
+  const [scorePessoal, setScorePessoal] = useState(0);
 
-  // Metas
-  const META_CERTIFIED = 10000;
-  const META_REDE = 20000; // Exemplo de meta para rede
+  // Meta dinâmica baseada no nível atual
+  const METAS: Record<string, number> = {
+    "PROFISSIONAL BRONZE": 10000,
+    "PROFISSIONAL PRATA":  50000,
+    "PROFISSIONAL GOLD":   150000,
+    "PROFISSIONAL BLACK":  500000,
+  };
+  const META_CERTIFIED = METAS[nivelTecnico] || 10000;
 
   useEffect(() => {
     async function carregarDados() {
@@ -27,25 +33,16 @@ export default function DashboardPage() {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name, moedas_pro_acumuladas, network_coins, personal_coins")
+          .select("full_name, moedas_pro_acumuladas, network_coins, personal_coins, nivel_tecnico")
           .eq("id", user.id)
           .single();
 
         if (profile) {
           setNome(profile.full_name || "Marcelo");
-
-          // moedas_pro_acumuladas JÁ É a soma de tudo (personal + rede + compras)
-          const totalGeral = profile.moedas_pro_acumuladas || 0;
-
-          // Rede: só os PROs de entrada dos indicados (50 por indicado)
-          const redeEntrada = profile.network_coins || 0;
-
-          // Esforço pessoal: só os PROs de aulas assistidas pelo próprio usuário
-          const pessoal = profile.personal_coins || 0;
-
-          setScoreTotal(totalGeral);   // card: RUMO AO CERTIFIED
-          setScoreRede(redeEntrada);   // card: POTENCIAL DA REDE (16 × 50 = 800)
-          setScorePessoal(pessoal);    // card: EVOLUÇÃO TÉCNICA (só aulas próprias)
+          setNivelTecnico(profile.nivel_tecnico || "PROFISSIONAL BRONZE");
+          setScoreTotal(profile.moedas_pro_acumuladas || 0);
+          setScoreRede(profile.network_coins || 0);
+          setScorePessoal(profile.personal_coins || 0);
         }
       }
       setLoading(false);
@@ -78,7 +75,7 @@ export default function DashboardPage() {
         {/* Badge de Nível Atual */}
         <div className="hidden md:flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-full">
             <div className="w-2 h-2 rounded-full bg-[#C9A66B] animate-pulse"></div>
-            <span className="text-[#C9A66B] font-bold text-xs uppercase">Rumo ao Certified</span>
+            <span className="text-[#C9A66B] font-bold text-xs uppercase">{nivelTecnico}</span>
         </div>
       </div>
 
@@ -88,7 +85,7 @@ export default function DashboardPage() {
          {/* CARD 1: O PRINCIPAL (RUMO AO CERTIFIED) */}
          <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl relative overflow-hidden group hover:border-[#C9A66B]/50 transition-all">
             <div className="flex justify-between items-start mb-6">
-                <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Rumo ao Certified</span>
+                <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Rumo ao {nivelTecnico}</span>
                 <ShieldCheck className="text-[#C9A66B]" size={24} />
             </div>
             
@@ -141,12 +138,12 @@ export default function DashboardPage() {
 
       </div>
 
-      {/* BANNER VERDE: PRÓXIMA PLACA (MANTIDO E PROTEGIDO) */}
+      {/* BANNER VERDE: PRÓXIMA PLACA */}
       <div className="w-full bg-green-900/10 border border-green-900/30 p-6 rounded-2xl flex items-center justify-between">
          <div>
-            <h3 className="text-green-500 font-bold text-lg mb-1">Próxima Placa: CERTIFIED</h3>
+            <h3 className="text-green-500 font-bold text-lg mb-1">Nível Atual: {nivelTecnico}</h3>
             <p className="text-gray-400 text-sm">
-                Atingir <span className="text-white font-bold">10.000 PRO</span> para desbloquear este status exclusivo.
+                Meta próximo nível: <span className="text-white font-bold">{META_CERTIFIED.toLocaleString()} PRO</span> — {progressoCertified >= 100 ? "✅ Meta atingida!" : `faltam ${(META_CERTIFIED - scoreTotal).toLocaleString()} PRO`}
             </p>
          </div>
          <div className="h-12 w-12 rounded-full bg-green-900/20 border border-green-500/30 flex items-center justify-center text-green-500">

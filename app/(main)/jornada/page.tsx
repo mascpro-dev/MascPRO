@@ -4,21 +4,27 @@ import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Trophy, Users, Loader2 } from "lucide-react";
 
-// --- 1. NÍVEIS TÉCNICOS (Baseado em Moedas PRO) ---
+// Mapeamento de cores por nível (fonte única de verdade)
 const TECH_LEVELS = [
-  { name: "PROFISSIONAL BRONZE", limit: 10000, color: "#22c55e" },   // Verde 🟢
-  { name: "PROFISSIONAL PRATA", limit: 50000, color: "#3b82f6" },    // Azul 🔵
-  { name: "PROFISSIONAL GOLD", limit: 150000, color: "#a855f7" },   // Roxo 🟣
-  { name: "PROFISSIONAL BLACK", limit: 500000, color: "#ef4444" }   // Vermelho 🔴
+  { name: "PROFISSIONAL BRONZE", limit: 10000,  color: "#22c55e" },
+  { name: "PROFISSIONAL PRATA",  limit: 50000,  color: "#3b82f6" },
+  { name: "PROFISSIONAL GOLD",   limit: 150000, color: "#a855f7" },
+  { name: "PROFISSIONAL BLACK",  limit: 500000, color: "#ef4444" },
 ];
 
-// --- 2. NÍVEIS DE EMBAIXADOR (Baseado em Pessoas indicadas) ---
 const AMBASSADOR_LEVELS = [
-  { name: "EMBAIXADOR CERTIFIED", limit: 15, color: "#22c55e" },     // Verde 🟢 (0-15)
-  { name: "EMBAIXADOR EXPERT", limit: 50, color: "#3b82f6" },        // Azul 🔵 (16-50)
-  { name: "EMBAIXADOR MASTER", limit: 150, color: "#a855f7" },       // Roxo 🟣 (51-150)
-  { name: "EMBAIXADOR EDUCADOR", limit: 999999, color: "#ef4444" }   // Vermelho 🔴 (+150)
+  { name: "EMBAIXADOR CERTIFIED", limit: 15,     color: "#22c55e" },
+  { name: "EMBAIXADOR EXPERT",    limit: 50,     color: "#3b82f6" },
+  { name: "EMBAIXADOR MASTER",    limit: 150,    color: "#a855f7" },
+  { name: "EMBAIXADOR EDUCADOR",  limit: 999999, color: "#ef4444" },
 ];
+
+function techByName(name: string) {
+  return TECH_LEVELS.find(l => l.name === name) ?? TECH_LEVELS[0];
+}
+function ambByName(name: string) {
+  return AMBASSADOR_LEVELS.find(l => l.name === name) ?? AMBASSADOR_LEVELS[0];
+}
 
 export default function JornadaPage() {
   const supabase = createClientComponentClient();
@@ -36,34 +42,39 @@ export default function JornadaPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Busca dados do perfil direto da tabela profiles
+      // Busca PRO acumulado + níveis calculados pelo banco (via triggers)
       const { data: profile } = await supabase
         .from("profiles")
-        .select("moedas_pro_acumuladas")
+        .select("moedas_pro_acumuladas, nivel_tecnico, nivel_embaixador")
         .eq("id", user.id)
         .single();
 
-      // Conta quantos usuários foram indicados por este usuário
+      // Conta indicados para a barra de progresso do embaixador
       const { count: totalIndicados } = await supabase
         .from("profiles")
         .select("id", { count: "exact", head: true })
         .eq("indicado_por", user.id);
 
-      const totalCoins = profile?.moedas_pro_acumuladas || 0;
+      const totalCoins  = profile?.moedas_pro_acumuladas || 0;
       const totalPeople = totalIndicados || 0;
 
       setStats({ total: totalCoins, referralCount: totalPeople });
 
-      // Nível Técnico (baseado em PRO acumulado)
-      const tech = TECH_LEVELS.find(lvl => lvl.limit > totalCoins) || TECH_LEVELS[TECH_LEVELS.length - 1];
-      setCurrentTech(tech);
+      // Usa os níveis do banco; fallback para cálculo local se a coluna ainda não existir
+      const techName = profile?.nivel_tecnico || null;
+      const ambName  = profile?.nivel_embaixador || null;
 
-      // Nível Embaixador (baseado em indicados)
-      let amb = AMBASSADOR_LEVELS[0];
-      if (totalPeople > 15) amb = AMBASSADOR_LEVELS[1];
-      if (totalPeople > 50) amb = AMBASSADOR_LEVELS[2];
-      if (totalPeople > 150) amb = AMBASSADOR_LEVELS[3];
-      setCurrentAmbassador(amb);
+      setCurrentTech(
+        techName ? techByName(techName)
+                 : (TECH_LEVELS.find(l => l.limit > totalCoins) ?? TECH_LEVELS[TECH_LEVELS.length - 1])
+      );
+      setCurrentAmbassador(
+        ambName ? ambByName(ambName)
+                : (totalPeople > 150 ? AMBASSADOR_LEVELS[3]
+                 : totalPeople > 50  ? AMBASSADOR_LEVELS[2]
+                 : totalPeople > 15  ? AMBASSADOR_LEVELS[1]
+                 :                     AMBASSADOR_LEVELS[0])
+      );
 
     } catch (e) { console.error(e); } finally { setLoading(false); }
   }
@@ -103,7 +114,7 @@ export default function JornadaPage() {
                   <div className="mb-8">
                       <span className="text-5xl font-bold text-white block tracking-tighter">{stats.total.toLocaleString()}</span>
                       <span className="text-xs uppercase font-bold mt-1 block" style={{ color: currentTech.color }}>
-                          Rumo ao {currentTech.name}
+                          {currentTech.name}
                       </span>
                   </div>
                   
