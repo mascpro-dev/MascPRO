@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Users, CheckCircle, TrendingUp, Copy, Instagram, MessageCircle, Search, Filter, AlertTriangle } from "lucide-react";
+import { Users, CheckCircle, TrendingUp, Copy, Instagram, MessageCircle, Search, Filter, AlertTriangle, DollarSign, ArrowDownToLine, X, Loader2 } from "lucide-react";
 
 export default function RedePage() {
   const supabase = createClientComponentClient();
@@ -15,10 +15,20 @@ export default function RedePage() {
   const [totalIndicados, setTotalIndicados] = useState(0);      // Mostra TODOS (ex: 14)
   const [membrosAtivosCount, setMembrosAtivosCount] = useState(0); // Só os verdes
 
-  // Financeiro
+  // PRO Financeiro
   const [bonusDireto, setBonusDireto] = useState(0);  
   const [ganhoPassivo, setGanhoPassivo] = useState(0); 
   const [saldoTotal, setSaldoTotal] = useState(0);     
+
+  // Comissões de vendas (R$)
+  const [saldoComissoes, setSaldoComissoes] = useState(0);
+  const [totalComissoes, setTotalComissoes] = useState(0);
+
+  // Modal de saque
+  const [showSaque, setShowSaque] = useState(false);
+  const [chavePix, setChavePix] = useState("");
+  const [loadingSaque, setLoadingSaque] = useState(false);
+  const [saqueEnviado, setSaqueEnviado] = useState(false);
 
   // Lista da Equipe
   const [listaEquipe, setListaEquipe] = useState<any[]>([]);
@@ -62,6 +72,22 @@ export default function RedePage() {
             console.error("Erro ao buscar equipe:", error);
         }
 
+        // Busca saldo de comissões de vendas (R$)
+        const { data: comissoes } = await supabase
+          .from("commissions")
+          .select("valor_comissao, status")
+          .eq("embaixador_id", user.id);
+
+        if (comissoes) {
+          const disponivel = comissoes
+            .filter((c: any) => c.status === "disponivel")
+            .reduce((acc: number, c: any) => acc + Number(c.valor_comissao), 0);
+          const totalG = comissoes
+            .reduce((acc: number, c: any) => acc + Number(c.valor_comissao), 0);
+          setSaldoComissoes(disponivel);
+          setTotalComissoes(totalG);
+        }
+
         if (equipe) {
             setListaEquipe(equipe); // Salva a lista completa (ex: 14 pessoas)
             setTotalIndicados(equipe.length); // Mostra 14 no card
@@ -88,6 +114,38 @@ export default function RedePage() {
   const copiarLink = () => {
     navigator.clipboard.writeText(linkConvite);
     alert("Link copiado!");
+  };
+
+  const solicitarSaque = async () => {
+    if (saldoComissoes <= 0) { alert("Você não tem saldo disponível para saque."); return; }
+    if (!chavePix.trim()) { alert("Informe sua chave PIX."); return; }
+    setLoadingSaque(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const taxa = saldoComissoes * 0.11;
+      const liquido = saldoComissoes - taxa;
+      const { error } = await supabase.from("withdrawal_requests").insert({
+        embaixador_id: user.id,
+        valor_bruto: saldoComissoes,
+        taxa_percentual: 11,
+        valor_taxa: Number(taxa.toFixed(2)),
+        valor_liquido: Number(liquido.toFixed(2)),
+        chave_pix: chavePix.trim(),
+        status: "aguardando",
+      });
+      if (error) { alert("Erro ao solicitar saque: " + error.message); return; }
+      // Marca comissões como sacadas
+      await supabase
+        .from("commissions")
+        .update({ status: "sacado" })
+        .eq("embaixador_id", user.id)
+        .eq("status", "disponivel");
+      setSaldoComissoes(0);
+      setSaqueEnviado(true);
+    } finally {
+      setLoadingSaque(false);
+    }
   };
 
   // Função para verificar status individual (Para pintar o botão)
@@ -175,6 +233,85 @@ export default function RedePage() {
             </p>
          </div>
       </div>
+
+      {/* CARD DE COMISSÕES DE VENDAS (R$) */}
+      <div className="w-full bg-gradient-to-r from-green-950/40 to-zinc-900 border border-green-800/40 p-8 rounded-3xl mb-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div>
+          <p className="text-green-400 font-bold uppercase text-xs tracking-widest mb-1 flex items-center gap-2">
+            <DollarSign size={14} /> COMISSÕES DE VENDAS (15% por indicado)
+          </p>
+          <h2 className="text-5xl font-black text-white tracking-tighter">
+            R$ {saldoComissoes.toFixed(2)}
+          </h2>
+          <p className="text-gray-500 text-xs mt-1">
+            Total acumulado: R$ {totalComissoes.toFixed(2)} · Saque com desconto de 11% de impostos
+          </p>
+        </div>
+        <button
+          onClick={() => { setShowSaque(true); setSaqueEnviado(false); }}
+          disabled={saldoComissoes <= 0}
+          className="flex items-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-black uppercase text-xs tracking-widest px-6 py-4 rounded-xl transition-all whitespace-nowrap"
+        >
+          <ArrowDownToLine size={18} /> SACAR
+        </button>
+      </div>
+
+      {/* MODAL DE SAQUE */}
+      {showSaque && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#0f0f0f] border border-zinc-800 rounded-2xl p-8 w-full max-w-md relative">
+            <button onClick={() => setShowSaque(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-white">
+              <X size={20} />
+            </button>
+
+            {saqueEnviado ? (
+              <div className="text-center py-6">
+                <div className="text-5xl mb-4">✅</div>
+                <h3 className="text-xl font-black text-white mb-2">Saque solicitado!</h3>
+                <p className="text-gray-400 text-sm">O PIX será processado em até 2 dias úteis.</p>
+                <button onClick={() => setShowSaque(false)} className="mt-6 bg-[#C9A66B] text-black font-black uppercase text-xs px-8 py-3 rounded-xl">FECHAR</button>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-lg font-black text-white uppercase mb-1">Solicitar Saque</h3>
+                <p className="text-gray-500 text-xs mb-6">Valor bruto disponível: <strong className="text-white">R$ {saldoComissoes.toFixed(2)}</strong></p>
+
+                <div className="bg-zinc-900 rounded-xl p-4 mb-6 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Valor bruto</span>
+                    <span className="text-white font-bold">R$ {saldoComissoes.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Impostos (11%)</span>
+                    <span className="text-red-400 font-bold">- R$ {(saldoComissoes * 0.11).toFixed(2)}</span>
+                  </div>
+                  <div className="border-t border-zinc-700 pt-2 flex justify-between">
+                    <span className="text-white font-black uppercase text-xs">Você recebe</span>
+                    <span className="text-green-400 font-black text-lg">R$ {(saldoComissoes * 0.89).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Chave PIX</label>
+                <input
+                  type="text"
+                  value={chavePix}
+                  onChange={e => setChavePix(e.target.value)}
+                  placeholder="CPF, telefone, e-mail ou chave aleatória"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-[#C9A66B] mb-6"
+                />
+
+                <button
+                  onClick={solicitarSaque}
+                  disabled={loadingSaque}
+                  className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white font-black uppercase text-xs tracking-widest h-12 rounded-xl flex items-center justify-center gap-2"
+                >
+                  {loadingSaque ? <Loader2 size={18} className="animate-spin" /> : <><ArrowDownToLine size={16} /> CONFIRMAR SAQUE</>}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* LISTA DE MEMBROS (AGORA MOSTRA TODOS) */}
       <div>

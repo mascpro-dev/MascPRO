@@ -48,8 +48,8 @@ function LojaContent() {
   };
 
   const handleQuickBuy = (product: any) => {
-    addToCart({ ...product, quantity: 1 });
-    // setIsCartOpen(true); <-- REMOVIDO PARA NÃO ABRIR SOZINHO
+    // Salva o preço correto para o nível do usuário como 'displayPrice'
+    addToCart({ ...product, quantity: 1, displayPrice: getDisplayPrice(product) });
   };
 
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;

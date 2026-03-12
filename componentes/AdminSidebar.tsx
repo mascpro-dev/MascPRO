@@ -12,7 +12,8 @@ import {
   LayoutDashboard,
   ChevronRight,
   ShieldCheck,
-  Search
+  Search,
+  ArrowDownToLine
 } from 'lucide-react';
 
 export default function AdminSidebar() {
@@ -59,6 +60,18 @@ export default function AdminSidebar() {
           href: "/admin/inativos",
           color: "text-red-500"
         },
+      ]
+    },
+    {
+      title: "FINANCEIRO",
+      items: [
+        {
+          name: "Saques",
+          description: "Comissões de embaixadores",
+          icon: ArrowDownToLine,
+          href: "/admin/saques",
+          color: "text-green-500"
+        }
       ]
     }
   ];
