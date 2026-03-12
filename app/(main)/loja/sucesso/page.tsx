@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Link from "next/link";
-import { CheckCircle2, Loader2, ArrowRight, ShoppingBag } from "lucide-react";
+import { CheckCircle2, Loader2, ArrowRight, ShoppingBag, XCircle } from "lucide-react";
 
 export default function SucessoPage() {
   const supabase = createClientComponentClient();
@@ -23,8 +23,8 @@ export default function SucessoPage() {
         return;
       }
 
-      const { data } = await supabase.auth.getSession();
-      const session = data.session;
+      const { data: authData } = await supabase.auth.getSession();
+      const session = authData.session;
       if (!session) {
         setStatus("error");
         setMensagem("Faça login para visualizar seu pedido.");
@@ -38,33 +38,41 @@ export default function SucessoPage() {
         .eq("profile_id", session.user.id);
 
       if (error) {
-        console.error("Erro ao atualizar pedido como pago:", error);
+        console.error("Erro ao atualizar pedido:", error);
         setStatus("error");
-        setMensagem("Pagamento aprovado, mas não conseguimos atualizar o pedido. Avise o suporte.");
+        setMensagem(
+          "Pagamento aprovado, mas não conseguimos atualizar o pedido. Avise o suporte."
+        );
         return;
       }
 
       setStatus("ok");
-      setMensagem("Pagamento confirmado! Seu pedido foi registrado e as comissões calculadas.");
+      setMensagem(
+        "Pagamento confirmado! Seu pedido foi registrado e as comissões calculadas."
+      );
     }
     confirmar();
   }, [searchParams, supabase]);
 
-  const loading = status === "loading";
+  const isLoading = status === "loading";
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
       <div className="max-w-md w-full bg-zinc-900/70 border border-zinc-800 rounded-3xl p-8 text-center">
-        {loading ? (
+        {isLoading ? (
           <Loader2 className="mx-auto mb-4 text-[#C9A66B] animate-spin" size={40} />
         ) : status === "ok" ? (
           <CheckCircle2 className="mx-auto mb-4 text-emerald-400" size={40} />
         ) : (
-          <CheckCircle2 className="mx-auto mb-4 text-red-500" size={40} />
+          <XCircle className="mx-auto mb-4 text-red-500" size={40} />
         )}
 
         <h1 className="text-2xl font-black mb-2 uppercase tracking-tight">
-          {status === "ok" ? "Pagamento aprovado" : loading ? "Processando" : "Algo deu errado"}
+          {status === "ok"
+            ? "Pagamento aprovado"
+            : isLoading
+            ? "Processando"
+            : "Algo deu errado"}
         </h1>
         <p className="text-sm text-zinc-400 mb-6">{mensagem}</p>
 
@@ -77,7 +85,7 @@ export default function SucessoPage() {
           </button>
           <Link
             href="/loja"
-            className="w-full bg-zinc-900 border border-zinc-700 text-zinc-300 font-bold uppercase text-[11px] tracking-widest py-3 rounded-xl flex items-center justify-center gap-2 hover:border-zinc-400 transition-all"
+            className="w-full bg-zinc-900 border border-zinc-700 text-zinc-300 font-bold uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2 hover:border-zinc-400 transition-all"
           >
             Continuar comprando <ArrowRight size={14} />
           </Link>
@@ -86,4 +94,3 @@ export default function SucessoPage() {
     </div>
   );
 }
-
