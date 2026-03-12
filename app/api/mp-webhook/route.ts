@@ -10,17 +10,64 @@ function getSupabase() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
 }
 
+async function garantirComissao(supabase: any, orderId: string) {
+  // Evita comissão duplicada
+  const { data: existente } = await supabase
+    .from("commissions")
+    .select("id")
+    .eq("order_id", orderId)
+    .maybeSingle();
+  if (existente) return;
+
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, profile_id, total")
+    .eq("id", orderId)
+    .single();
+  if (!order?.profile_id) return;
+
+  const { data: comprador } = await supabase
+    .from("profiles")
+    .select("id, indicado_por")
+    .eq("id", order.profile_id)
+    .single();
+  if (!comprador?.indicado_por) return;
+
+  const valorPedido = Number(order.total || 0);
+  const valorComissao = Number((valorPedido * 0.15).toFixed(2));
+  if (valorComissao <= 0) return;
+
+  await supabase.from("commissions").insert({
+    embaixador_id: comprador.indicado_por,
+    cabeleireiro_id: comprador.id,
+    order_id: order.id,
+    valor_pedido: valorPedido,
+    percentual: 15,
+    valor_comissao: valorComissao,
+    status: "disponivel",
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    console.log("MP Webhook recebido:", JSON.stringify(body));
+    const url = new URL(req.url);
+    const queryTopic = url.searchParams.get("topic") || url.searchParams.get("type");
+    const queryId = url.searchParams.get("id") || url.searchParams.get("data.id");
 
-    // MP envia vários tipos de notificação; só processa pagamentos
-    if (body.type !== "payment") {
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+    console.log("MP Webhook recebido:", JSON.stringify({ queryTopic, queryId, body }));
+
+    const type = body.type || queryTopic;
+    if (type !== "payment") {
       return NextResponse.json({ ok: true });
     }
 
-    const paymentId = body.data?.id;
+    const paymentId = body.data?.id || queryId;
     if (!paymentId) return NextResponse.json({ ok: true });
 
     const mpToken = process.env.MP_ACCESS_TOKEN;
@@ -59,6 +106,10 @@ export async function POST(req: NextRequest) {
     if (error) {
       console.error("Supabase update error:", error);
       return NextResponse.json({ ok: false, error: error.message });
+    }
+
+    if (newStatus === "paid") {
+      await garantirComissao(supabase, String(orderId));
     }
 
     console.log(`Pedido ${orderId} atualizado para ${newStatus}`);

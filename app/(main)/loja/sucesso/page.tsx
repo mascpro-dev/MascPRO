@@ -2,57 +2,59 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Link from "next/link";
 import { CheckCircle2, Loader2, ArrowRight, ShoppingBag, XCircle } from "lucide-react";
 
+type PedidoInfo = {
+  id: string;
+  total: number;
+  status: string;
+  created_at: string;
+  shipping_address?: string | null;
+  shipping_cost?: number | null;
+} | null;
+
 export default function SucessoPage() {
-  const supabase = createClientComponentClient();
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [mensagem, setMensagem] = useState("Confirmando pagamento...");
+  const [pedido, setPedido] = useState<PedidoInfo>(null);
 
   useEffect(() => {
     async function confirmar() {
       const orderId = searchParams.get("order_id");
+      const paymentId = searchParams.get("payment_id") || searchParams.get("collection_id");
       if (!orderId) {
         setStatus("error");
         setMensagem("Pedido não encontrado.");
         return;
       }
 
-      const { data: authData } = await supabase.auth.getSession();
-      const session = authData.session;
-      if (!session) {
-        setStatus("error");
-        setMensagem("Faça login para visualizar seu pedido.");
-        return;
-      }
-
-      const { error } = await supabase
-        .from("orders")
-        .update({ status: "paid" })
-        .eq("id", orderId)
-        .eq("profile_id", session.user.id);
-
-      if (error) {
-        console.error("Erro ao atualizar pedido:", error);
+      const res = await fetch("/api/orders/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, paymentId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        console.error("Erro ao confirmar pedido:", data);
         setStatus("error");
         setMensagem(
-          "Pagamento aprovado, mas não conseguimos atualizar o pedido. Avise o suporte."
+          data?.error || "Pagamento aprovado, mas não conseguimos atualizar o pedido. Avise o suporte."
         );
         return;
       }
 
+      setPedido(data.order || null);
       setStatus("ok");
       setMensagem(
-        "Pagamento confirmado! Seu pedido foi registrado e as comissões calculadas."
+        "Pagamento confirmado! Seu pedido foi atualizado e sua comissão de rede foi processada."
       );
     }
     confirmar();
-  }, [searchParams, supabase]);
+  }, [searchParams]);
 
   const isLoading = status === "loading";
 
@@ -75,6 +77,26 @@ export default function SucessoPage() {
             : "Algo deu errado"}
         </h1>
         <p className="text-sm text-zinc-400 mb-6">{mensagem}</p>
+
+        {status === "ok" && pedido && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-left mb-6">
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Resumo do pedido</p>
+            <p className="text-sm text-white font-bold">
+              Pedido: {pedido.id.slice(0, 8)}...
+            </p>
+            <p className="text-sm text-white">
+              Total: R$ {Number(pedido.total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </p>
+            <p className="text-xs text-zinc-400">
+              Status: {pedido.status} · {new Date(pedido.created_at).toLocaleDateString("pt-BR")}
+            </p>
+            {pedido.shipping_address && (
+              <p className="text-xs text-zinc-500 mt-2">
+                Entrega: {pedido.shipping_address}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-col gap-3">
           <button

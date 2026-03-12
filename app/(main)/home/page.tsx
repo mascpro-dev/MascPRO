@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Loader2, Lock, ShieldCheck, Users, Zap } from "lucide-react";
+import Link from "next/link";
+
+type PedidoResumo = {
+  id: string;
+  status: string;
+  total: number;
+  created_at: string;
+} | null;
 
 export default function DashboardPage() {
   const supabase = createClientComponentClient();
@@ -16,6 +24,7 @@ export default function DashboardPage() {
   const [scoreTotal, setScoreTotal] = useState(0);
   const [scoreRede, setScoreRede] = useState(0);
   const [scorePessoal, setScorePessoal] = useState(0);
+  const [ultimoPedido, setUltimoPedido] = useState<PedidoResumo>(null);
 
   // Meta dinâmica baseada no nível atual
   const METAS: Record<string, number> = {
@@ -44,6 +53,17 @@ export default function DashboardPage() {
           setScoreRede(profile.network_coins || 0);
           setScorePessoal(profile.personal_coins || 0);
         }
+
+        const { data: pedidos } = await supabase
+          .from("orders")
+          .select("id, status, total, created_at")
+          .eq("profile_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (pedidos && pedidos.length > 0) {
+          setUltimoPedido(pedidos[0] as any);
+        }
       }
       setLoading(false);
     }
@@ -53,6 +73,13 @@ export default function DashboardPage() {
 
   // Calcula porcentagem para a barra de progresso
   const progressoCertified = Math.min((scoreTotal / META_CERTIFIED) * 100, 100);
+  const statusPedidoTexto: Record<string, string> = {
+    pending: "Aguardando pagamento",
+    paid: "Pago · aguardando separação",
+    separacao: "Em separação",
+    despachado: "Despachado",
+    cancelled: "Cancelado",
+  };
 
   if (loading) return (
     <div className="flex justify-center items-center h-screen bg-black text-white">
@@ -149,6 +176,29 @@ export default function DashboardPage() {
          <div className="h-12 w-12 rounded-full bg-green-900/20 border border-green-500/30 flex items-center justify-center text-green-500">
             <Lock size={20} />
          </div>
+      </div>
+
+      {/* PEDIDOS DO USUÁRIO */}
+      <div className="mt-6 w-full bg-zinc-900/40 border border-zinc-800 p-6 rounded-2xl">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-black uppercase tracking-widest text-gray-300">Meus Pedidos</h3>
+          <Link href="/loja/pedidos" className="text-xs font-bold text-[#C9A66B] hover:text-white transition-colors">
+            acompanhar →
+          </Link>
+        </div>
+
+        {ultimoPedido ? (
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <p className="text-white font-bold text-sm">
+              Último pedido: R$ {Number(ultimoPedido.total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </p>
+            <p className="text-xs text-gray-400">
+              {statusPedidoTexto[ultimoPedido.status] || ultimoPedido.status} · {new Date(ultimoPedido.created_at).toLocaleDateString("pt-BR")}
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500">Você ainda não possui pedidos.</p>
+        )}
       </div>
 
     </div>

@@ -32,6 +32,7 @@ export default function RedePage() {
 
   // Lista da Equipe
   const [listaEquipe, setListaEquipe] = useState<any[]>([]);
+  const [membrosComPedidoNoMes, setMembrosComPedidoNoMes] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     async function carregarDados() {
@@ -92,14 +93,34 @@ export default function RedePage() {
             setListaEquipe(equipe); // Salva a lista completa (ex: 14 pessoas)
             setTotalIndicados(equipe.length); // Mostra 14 no card
 
-            // 4. Calcula quantos estão ativos NESTE MÊS para o Card Verde
             const agora = new Date();
             const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1); 
 
+            // Busca quem da equipe teve pedido pago no mês
+            const equipeIds = equipe.map((m: any) => m.id);
+            let mapPedidosNoMes: Record<string, boolean> = {};
+            if (equipeIds.length > 0) {
+              const { data: pedidosNoMes } = await supabase
+                .from("orders")
+                .select("profile_id, created_at, status")
+                .in("profile_id", equipeIds)
+                .in("status", ["paid", "separacao", "despachado"])
+                .gte("created_at", inicioMes.toISOString());
+
+              mapPedidosNoMes = (pedidosNoMes || []).reduce((acc: Record<string, boolean>, p: any) => {
+                if (p.profile_id) acc[p.profile_id] = true;
+                return acc;
+              }, {});
+            }
+            setMembrosComPedidoNoMes(mapPedidosNoMes);
+
+            // Ativo = login no mês OU pedido pago no mês
             const ativos = equipe.filter((membro: any) => {
-                if (!membro.last_sign_in_at) return false;
-                const ultimaAtividade = new Date(membro.last_sign_in_at);
-                return ultimaAtividade >= inicioMes;
+              const ativoPorPedido = !!mapPedidosNoMes[membro.id];
+              if (ativoPorPedido) return true;
+              if (!membro.last_sign_in_at) return false;
+              const ultimaAtividade = new Date(membro.last_sign_in_at);
+              return ultimaAtividade >= inicioMes;
             });
 
             setMembrosAtivosCount(ativos.length); // Ex: Se 2 entraram esse mês, mostra 2
@@ -149,7 +170,8 @@ export default function RedePage() {
   };
 
   // Função para verificar status individual (Para pintar o botão)
-  const verificarStatus = (dataUltimoLogin: string | null) => {
+  const verificarStatus = (memberId: string, dataUltimoLogin: string | null) => {
+      if (membrosComPedidoNoMes[memberId]) return true;
       if (!dataUltimoLogin) return false;
       const agora = new Date();
       const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
@@ -333,7 +355,7 @@ export default function RedePage() {
         <div className="flex flex-col gap-3">
             {listaEquipe.length > 0 ? (
                 listaEquipe.map((membro) => {
-                    const isAtivo = verificarStatus(membro.last_sign_in_at);
+                    const isAtivo = verificarStatus(membro.id, membro.last_sign_in_at);
 
                     return (
                         <div key={membro.id} className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl flex flex-col md:flex-row items-center justify-between hover:bg-zinc-900 transition-colors group">
