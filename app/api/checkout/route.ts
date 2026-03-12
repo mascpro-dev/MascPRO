@@ -2,38 +2,36 @@ import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 
-const mp = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! });
-
-// Cliente Supabase com service_role para operações server-side
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
-// Taxas de parcelamento repassadas ao comprador (MercadoPago Brasil)
-const INSTALLMENT_RATES: Record<number, number> = {
-  1: 0,     // à vista — absorvido pela loja
-  2: 0.0199,
-  3: 0.0299,
-  4: 0.0399,
-  6: 0.0599,
-  10: 0.0999,
-  12: 0.1199,
-};
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://appcerto-xi.vercel.app";
 
 export async function POST(req: NextRequest) {
   try {
-    const { items, userId, userEmail, userName } = await req.json();
+    const { items, userId, userEmail, userName, accessToken } = await req.json();
 
     if (!items?.length || !userId) {
       return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
     }
 
-    // Cria o pedido no Supabase com status 'pending'
+    // Verifica se a chave MP está configurada
+    const mpToken = process.env.MP_ACCESS_TOKEN;
+    if (!mpToken || mpToken === "COLE_SEU_ACCESS_TOKEN_AQUI") {
+      return NextResponse.json(
+        { error: "MercadoPago não configurado. Adicione MP_ACCESS_TOKEN nas variáveis de ambiente do Vercel." },
+        { status: 500 }
+      );
+    }
+
+    // Supabase com o token do usuário logado (RLS funciona corretamente)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      accessToken
+        ? { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
+        : {}
+    );
+
     const total = items.reduce(
-      (acc: number, i: any) => acc + i.displayPrice * i.quantity,
+      (acc: number, i: any) => acc + Number(i.displayPrice || i.price || 0) * Number(i.quantity || 1),
       0
     );
 
@@ -49,39 +47,42 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (orderError || !order) {
-      console.error("Erro ao criar pedido:", orderError);
-      return NextResponse.json({ error: "Erro ao registrar pedido." }, { status: 500 });
+      console.error("Supabase order error:", JSON.stringify(orderError));
+      return NextResponse.json(
+        { error: `Erro ao registrar pedido: ${orderError?.message || "Tabela orders não encontrada. Execute o SQL no Supabase."}` },
+        { status: 500 }
+      );
     }
 
-    // Salva os itens do pedido
-    await supabase.from("order_items").insert(
+    // Itens do pedido
+    const { error: itemsError } = await supabase.from("order_items").insert(
       items.map((i: any) => ({
         order_id: order.id,
         product_id: i.id,
-        quantidade: i.quantity,
-        preco_unitario: i.displayPrice,
+        quantidade: Number(i.quantity || 1),
+        preco_unitario: Number(i.displayPrice || i.price || 0),
       }))
     );
+    if (itemsError) console.error("order_items error:", itemsError);
 
-    // Monta os itens para o MercadoPago
+    // Cria preferência no MercadoPago
+    const mp = new MercadoPagoConfig({ accessToken: mpToken });
+    const preference = new Preference(mp);
+
     const mpItems = items.map((i: any) => ({
-      id: i.id,
+      id: String(i.id),
       title: i.title || i.name || "Produto MascPRO",
-      description: i.category || "Produto",
+      description: i.category || "Produto MascPRO",
       picture_url: i.image_url || undefined,
-      quantity: Number(i.quantity),
-      unit_price: Number(Number(i.displayPrice).toFixed(2)),
+      quantity: Number(i.quantity || 1),
+      unit_price: Number(Number(i.displayPrice || i.price || 0).toFixed(2)),
       currency_id: "BRL",
     }));
 
-    const preference = new Preference(mp);
     const result = await preference.create({
       body: {
         items: mpItems,
-        payer: {
-          name: userName || "",
-          email: userEmail || "",
-        },
+        payer: { name: userName || "", email: userEmail || "" },
         back_urls: {
           success: `${APP_URL}/loja/sucesso?order_id=${order.id}`,
           failure: `${APP_URL}/loja/falha?order_id=${order.id}`,
@@ -90,16 +91,11 @@ export async function POST(req: NextRequest) {
         auto_return: "approved",
         notification_url: `${APP_URL}/api/mp-webhook`,
         external_reference: order.id,
-        // Parcelamento: comprador assume as taxas a partir de 2x
-        payment_methods: {
-          installments: 12,
-          default_installments: 1,
-        },
+        payment_methods: { installments: 12, default_installments: 1 },
         statement_descriptor: "MASCPRO",
       },
     });
 
-    // Salva o preference_id no pedido
     await supabase
       .from("orders")
       .update({ mp_preference_id: result.id })
@@ -111,7 +107,7 @@ export async function POST(req: NextRequest) {
       order_id: order.id,
     });
   } catch (err: any) {
-    console.error("Erro no checkout MP:", err);
+    console.error("Checkout erro:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

@@ -19,13 +19,13 @@ export default function CartDrawer() {
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { alert("Faça login para continuar."); setLoading(false); return; }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { alert("Faça login para continuar."); setLoading(false); return; }
 
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
-        .eq("id", user.id)
+        .eq("id", session.user.id)
         .single();
 
       const res = await fetch("/api/checkout", {
@@ -33,9 +33,10 @@ export default function CartDrawer() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items: cart,
-          userId: user.id,
-          userEmail: user.email,
+          userId: session.user.id,
+          userEmail: session.user.email,
           userName: profile?.full_name || "",
+          accessToken: session.access_token, // passa o token para o RLS funcionar
         }),
       });
 
