@@ -48,17 +48,18 @@ export default function MeusPedidosPage() {
 
   useEffect(() => {
     async function carregar() {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
       if (!session) {
         router.push(\"/login\");
         return;
       }
-      const { data } = await supabase
+      const { data: pedidosData } = await supabase
         .from(\"orders\")
         .select(\"id, total, status, created_at\")
         .eq(\"profile_id\", session.user.id)
         .order(\"created_at\", { ascending: false });
-      setPedidos((data as any) || []);
+      setPedidos((pedidosData as any) || []);
       setLoading(false);
     }
     carregar();
