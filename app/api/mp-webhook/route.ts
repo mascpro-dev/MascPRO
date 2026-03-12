@@ -2,18 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 
-const mp = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function getSupabase() {
+  // Usa service_role se disponível (bypassa RLS), senão anon key com grants manuais
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    console.log("MP Webhook recebido:", JSON.stringify(body));
 
-    // MercadoPago envia notificações de vários tipos; só processa pagamentos
+    // MP envia vários tipos de notificação; só processa pagamentos
     if (body.type !== "payment") {
       return NextResponse.json({ ok: true });
     }
@@ -21,26 +23,32 @@ export async function POST(req: NextRequest) {
     const paymentId = body.data?.id;
     if (!paymentId) return NextResponse.json({ ok: true });
 
-    // Busca detalhes do pagamento na API do MercadoPago
+    const mpToken = process.env.MP_ACCESS_TOKEN;
+    if (!mpToken) {
+      console.error("MP_ACCESS_TOKEN não configurado");
+      return NextResponse.json({ ok: false, error: "MP token missing" });
+    }
+
+    const mp = new MercadoPagoConfig({ accessToken: mpToken });
     const paymentClient = new Payment(mp);
     const payment = await paymentClient.get({ id: paymentId });
 
-    const orderId = payment.external_reference;
-    const mpStatus = payment.status; // approved | rejected | pending
+    console.log("MP payment status:", payment.status, "external_reference:", payment.external_reference);
 
+    const orderId = payment.external_reference;
     if (!orderId) return NextResponse.json({ ok: true });
 
-    // Mapeia status MP → status interno
     const statusMap: Record<string, string> = {
-      approved: "paid",
-      rejected: "cancelled",
-      pending: "pending",
+      approved:   "paid",
+      rejected:   "cancelled",
+      pending:    "pending",
       in_process: "pending",
     };
-    const newStatus = statusMap[mpStatus || ""] || "pending";
+    const newStatus = statusMap[payment.status || ""] || "pending";
 
-    // Atualiza o pedido — o trigger fn_gera_comissao dispara automaticamente quando status = 'paid'
-    await supabase
+    const supabase = getSupabase();
+
+    const { error } = await supabase
       .from("orders")
       .update({
         status: newStatus,
@@ -48,10 +56,15 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", orderId);
 
+    if (error) {
+      console.error("Supabase update error:", error);
+      return NextResponse.json({ ok: false, error: error.message });
+    }
+
+    console.log(`Pedido ${orderId} atualizado para ${newStatus}`);
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("Webhook MP erro:", err);
-    // Sempre retorna 200 para o MP não retentar em erros de lógica
     return NextResponse.json({ ok: false, error: err.message });
   }
 }

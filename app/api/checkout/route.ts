@@ -6,7 +6,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://appcerto-xi.vercel.a
 
 export async function POST(req: NextRequest) {
   try {
-    const { items, userId, userEmail, userName, accessToken } = await req.json();
+    const { items, userId, userEmail, userName, accessToken, shippingCost, shippingCep, shippingAddress } = await req.json();
 
     if (!items?.length || !userId) {
       return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
@@ -30,10 +30,12 @@ export async function POST(req: NextRequest) {
         : {}
     );
 
-    const total = items.reduce(
+    const subtotal = items.reduce(
       (acc: number, i: any) => acc + Number(i.displayPrice || i.price || 0) * Number(i.quantity || 1),
       0
     );
+    const frete = Number(shippingCost || 0);
+    const total = subtotal + frete;
 
     const { data: order, error: orderError } = await supabase
       .from("orders")
@@ -42,6 +44,9 @@ export async function POST(req: NextRequest) {
         total: Number(total.toFixed(2)),
         payment_method: "mercadopago",
         status: "pending",
+        shipping_cost: frete,
+        shipping_cep: shippingCep || null,
+        shipping_address: shippingAddress || null,
       })
       .select()
       .single();
@@ -69,7 +74,7 @@ export async function POST(req: NextRequest) {
     const mp = new MercadoPagoConfig({ accessToken: mpToken });
     const preference = new Preference(mp);
 
-    const mpItems = items.map((i: any) => ({
+    const mpItems: any[] = items.map((i: any) => ({
       id: String(i.id),
       title: i.title || i.name || "Produto MascPRO",
       description: i.category || "Produto MascPRO",
@@ -78,6 +83,18 @@ export async function POST(req: NextRequest) {
       unit_price: Number(Number(i.displayPrice || i.price || 0).toFixed(2)),
       currency_id: "BRL",
     }));
+
+    // Adiciona frete como item separado no MP (se houver)
+    if (frete > 0) {
+      mpItems.push({
+        id: "frete",
+        title: "Frete — PAC Correios",
+        description: shippingCep ? `CEP ${shippingCep}` : "Entrega",
+        quantity: 1,
+        unit_price: Number(frete.toFixed(2)),
+        currency_id: "BRL",
+      });
+    }
 
     const result = await preference.create({
       body: {
