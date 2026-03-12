@@ -13,7 +13,8 @@ import {
   ChevronRight,
   ShieldCheck,
   Search,
-  ArrowDownToLine
+  ArrowDownToLine,
+  ShoppingBag
 } from 'lucide-react';
 
 export default function AdminSidebar() {
@@ -65,6 +66,13 @@ export default function AdminSidebar() {
     {
       title: "FINANCEIRO",
       items: [
+        {
+          name: "Pedidos",
+          description: "Separação e despacho",
+          icon: ShoppingBag,
+          href: "/admin/pedidos",
+          color: "text-blue-400"
+        },
         {
           name: "Saques",
           description: "Comissões de embaixadores",
