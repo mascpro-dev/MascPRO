@@ -385,6 +385,22 @@ export default function PlayerPage() {
     }
   };
 
+  const getMaterialLinks = (materialValue: any): string[] => {
+    if (!materialValue) return [];
+    if (Array.isArray(materialValue)) {
+      return materialValue.map((item) => String(item).trim()).filter(Boolean);
+    }
+    if (typeof materialValue === "string") {
+      return materialValue
+        .split(/\r?\n|,|;/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+    return [String(materialValue).trim()].filter(Boolean);
+  };
+
+  const materialLinks = getMaterialLinks(currentLesson?.material_url);
+
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
   
   // 3. No seu HTML, só mostre o cadeado se o loadingProgresso for falso
@@ -469,6 +485,46 @@ export default function PlayerPage() {
                 {/* CONTEÚDO DAS ABAS (MANTIDO) */}
 
                 <div className="min-h-[200px]">
+                    {activeTab === 'sobre' && (
+                        <div className="max-w-3xl bg-white/[0.03] border border-white/[0.05] rounded-2xl p-6">
+                            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[#C9A66B] mb-4">Sobre a aula</h2>
+                            {currentLesson?.description ? (
+                                <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-line">
+                                    {currentLesson.description}
+                                </p>
+                            ) : (
+                                <p className="text-sm text-zinc-500">
+                                    Esta aula ainda não possui descrição cadastrada.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'materiais' && (
+                        <div className="max-w-3xl bg-white/[0.03] border border-white/[0.05] rounded-2xl p-6">
+                            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[#C9A66B] mb-4">Materiais</h2>
+                            {materialLinks.length > 0 ? (
+                                <div className="space-y-3">
+                                    {materialLinks.map((url, index) => (
+                                        <a
+                                            key={`${url}-${index}`}
+                                            href={url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="block w-full bg-zinc-900/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-200 hover:border-[#C9A66B]/50 hover:text-white transition-colors break-all"
+                                        >
+                                            {url}
+                                        </a>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-zinc-500">
+                                    Esta aula ainda não possui materiais cadastrados.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
                     {activeTab === 'duvidas' && (
                         <div className="max-w-3xl relative">
                             <div className="relative mb-10">
