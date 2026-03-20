@@ -40,6 +40,7 @@ export default function AdminPedidosPage() {
   const [processando, setProcessando] = useState<string | null>(null);
   const [adminSecret, setAdminSecret] = useState("");
   const [limpando, setLimpando] = useState(false);
+  const [syncingMp, setSyncingMp] = useState(false);
 
   useEffect(() => { carregarPedidos(); }, [filtro]);
 
@@ -63,6 +64,35 @@ export default function AdminPedidosPage() {
     const { data } = await query;
     setPedidos((data as any) || []);
     setLoading(false);
+  }
+
+  async function sincronizarPendentesMP(showFeedback = false) {
+    if (syncingMp) return;
+    setSyncingMp(true);
+    try {
+      const { data: pendentes } = await supabase
+        .from("orders")
+        .select("id")
+        .in("status", ["pending", "novo"])
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (!pendentes?.length) return;
+
+      for (const pedido of pendentes) {
+        await fetch("/api/orders/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: pedido.id }),
+        });
+      }
+
+      if (showFeedback) {
+        alert("Sincronização com Mercado Pago finalizada.");
+      }
+    } finally {
+      setSyncingMp(false);
+    }
   }
 
   async function apagarPedidoAdmin(id: string) {
@@ -129,6 +159,14 @@ export default function AdminPedidosPage() {
     { key: "todos",      label: "Todos" },
   ];
 
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      await sincronizarPendentesMP(false);
+      await carregarPedidos();
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [filtro]);
+
   return (
     <div className="flex min-h-screen bg-black text-white">
       <AdminSidebar />
@@ -149,6 +187,19 @@ export default function AdminPedidosPage() {
           </div>
           <button onClick={carregarPedidos} className="text-zinc-500 hover:text-white transition-colors">
             <RefreshCw size={20} />
+          </button>
+        </div>
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={async () => {
+              await sincronizarPendentesMP(true);
+              await carregarPedidos();
+            }}
+            disabled={syncingMp}
+            className="bg-blue-950/30 border border-blue-700/40 hover:border-blue-500/60 text-blue-300 text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg transition-all disabled:opacity-50"
+          >
+            {syncingMp ? "Sincronizando MP..." : "Sincronizar pagamentos MP"}
           </button>
         </div>
 

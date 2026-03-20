@@ -2,10 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://appcerto-xi.vercel.app";
+function getAppUrl(req: NextRequest): string {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (envUrl) return envUrl.replace(/\/$/, "");
+
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") || "https";
+  if (host) return `${proto}://${host}`;
+
+  return "http://localhost:3000";
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const APP_URL = getAppUrl(req);
     const { items, userId, userEmail, userName, accessToken, shippingCost, shippingCep, shippingAddress } = await req.json();
 
     if (!items?.length || !userId) {

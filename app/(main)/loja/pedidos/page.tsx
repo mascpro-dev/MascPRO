@@ -109,13 +109,13 @@ export default function MeusPedidosPage() {
     }
   }
 
-  async function sincronizarPagamentos() {
+  async function sincronizarPagamentos(showFeedback = true) {
     setSyncing(true);
-    setSyncMsg("Sincronizando pagamentos no Mercado Pago...");
+    if (showFeedback) setSyncMsg("Sincronizando pagamentos no Mercado Pago...");
     try {
       const pendentes = pedidos.filter((p) => p.status === "pending");
       if (pendentes.length === 0) {
-        setSyncMsg("Nenhum pedido pendente para sincronizar.");
+        if (showFeedback) setSyncMsg("Nenhum pedido pendente para sincronizar.");
         return;
       }
 
@@ -137,9 +137,11 @@ export default function MeusPedidosPage() {
         }
       }
       await carregarPedidos();
-      setSyncMsg(
-        `Sincronização finalizada: ${atualizados} atualizado(s), ${pendentes.length - atualizados} ainda pendente(s), ${erros} erro(s).`
-      );
+      if (showFeedback) {
+        setSyncMsg(
+          `Sincronização finalizada: ${atualizados} atualizado(s), ${pendentes.length - atualizados} ainda pendente(s), ${erros} erro(s).`
+        );
+      }
     } finally {
       setSyncing(false);
     }
@@ -148,6 +150,19 @@ export default function MeusPedidosPage() {
   useEffect(() => {
     carregarPedidos();
   }, []);
+
+  // Auto-sincroniza quando existir pedido pendente para o usuário ver status quase em tempo real.
+  useEffect(() => {
+    if (loading || syncing) return;
+    const temPendente = pedidos.some((p) => p.status === "pending");
+    if (!temPendente) return;
+
+    const t = setTimeout(async () => {
+      await sincronizarPagamentos(false);
+    }, 5000);
+
+    return () => clearTimeout(t);
+  }, [pedidos, loading]);
 
   if (loading) {
     return (
@@ -173,7 +188,7 @@ export default function MeusPedidosPage() {
           </div>
           </div>
           <button
-            onClick={sincronizarPagamentos}
+            onClick={() => sincronizarPagamentos(true)}
             disabled={syncing}
             className="bg-zinc-900 border border-zinc-700 hover:border-[#C9A66B] text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg transition-all disabled:opacity-50"
           >
