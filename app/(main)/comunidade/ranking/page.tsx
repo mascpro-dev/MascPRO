@@ -9,17 +9,30 @@ export default function RankingComunidade() {
   const [ranking, setRanking] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const getTotalProfissional = (profile: any) => {
+    const totalBase = Number(profile?.moedas_pro_acumuladas || 0);
+    const moedasTecnicas = Number(profile?.personal_coins || 0);
+    return totalBase + moedasTecnicas;
+  };
+
   useEffect(() => {
     async function fetchRanking() {
       setLoading(true);
-      // Buscamos da View que criamos, que já tem a soma e o status certo
       const { data, error } = await supabase
-        .from('v_ranking_global')
-        .select('*')
-        .order('pontos_totais', { ascending: false })
+        .from("profiles")
+        .select("id, full_name, moedas_pro_acumuladas, personal_coins")
         .limit(50);
 
-      if (!error) setRanking(data);
+      if (!error && data) {
+        const rankingNormalizado = data
+          .map((profile) => ({
+            ...profile,
+            pontos_totais: getTotalProfissional(profile),
+          }))
+          .sort((a, b) => b.pontos_totais - a.pontos_totais);
+
+        setRanking(rankingNormalizado);
+      }
       setLoading(false);
     }
     fetchRanking();

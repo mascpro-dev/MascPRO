@@ -35,6 +35,12 @@ export default function JornadaPage() {
   const [currentTech, setCurrentTech] = useState(TECH_LEVELS[0]);
   const [currentAmbassador, setCurrentAmbassador] = useState(AMBASSADOR_LEVELS[0]);
 
+  const getTotalProfissional = (profile: any) => {
+    const totalBase = Number(profile?.moedas_pro_acumuladas || 0);
+    const moedasTecnicas = Number(profile?.personal_coins || 0);
+    return totalBase + moedasTecnicas;
+  };
+
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
@@ -45,7 +51,7 @@ export default function JornadaPage() {
       // Busca PRO acumulado + níveis calculados pelo banco (via triggers)
       const { data: profile } = await supabase
         .from("profiles")
-        .select("moedas_pro_acumuladas, nivel_tecnico, nivel_embaixador")
+        .select("moedas_pro_acumuladas, personal_coins, nivel_tecnico, nivel_embaixador")
         .eq("id", user.id)
         .single();
 
@@ -55,7 +61,7 @@ export default function JornadaPage() {
         .select("id", { count: "exact", head: true })
         .eq("indicado_por", user.id);
 
-      const totalCoins  = profile?.moedas_pro_acumuladas || 0;
+      const totalCoins  = getTotalProfissional(profile);
       const totalPeople = totalIndicados || 0;
 
       setStats({ total: totalCoins, referralCount: totalPeople });

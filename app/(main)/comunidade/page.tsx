@@ -32,6 +32,12 @@ export default function ComunidadePage() {
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [mentionResults, setMentionResults] = useState<any[]>([]);
 
+  const getTotalProfissional = (profile: any) => {
+    const totalBase = Number(profile?.moedas_pro_acumuladas || 0);
+    const moedasTecnicas = Number(profile?.personal_coins || 0);
+    return totalBase + moedasTecnicas;
+  };
+
   // Corretor de Segurança (toLocaleString)
   const formatNumber = (n: any) => {
     if (n === undefined || n === null) return "0";
@@ -76,11 +82,19 @@ export default function ComunidadePage() {
       }
 
       const { data: rankingData } = await supabase
-        .from("v_ranking_global")
-        .select("*")
-        .order('pontos_totais', { ascending: false });
+        .from("profiles")
+        .select("id, full_name, moedas_pro_acumuladas, personal_coins");
 
-      if (rankingData) setRanking(rankingData);
+      if (rankingData) {
+        const rankingNormalizado = rankingData
+          .map((profile) => ({
+            ...profile,
+            pontos_totais: getTotalProfissional(profile),
+          }))
+          .sort((a, b) => b.pontos_totais - a.pontos_totais);
+
+        setRanking(rankingNormalizado);
+      }
       await refreshFeed();
     } finally {
       setLoading(false);

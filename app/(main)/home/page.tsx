@@ -35,6 +35,12 @@ export default function DashboardPage() {
   };
   const META_CERTIFIED = METAS[nivelTecnico] || 10000;
 
+  const getTotalProfissional = (profile: any) => {
+    const totalBase = Number(profile?.moedas_pro_acumuladas || 0);
+    const moedasTecnicas = Number(profile?.personal_coins || 0);
+    return totalBase + moedasTecnicas;
+  };
+
   useEffect(() => {
     async function carregarDados() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -49,7 +55,7 @@ export default function DashboardPage() {
         if (profile) {
           setNome(profile.full_name || "Marcelo");
           setNivelTecnico(profile.nivel_tecnico || "PROFISSIONAL BRONZE");
-          setScoreTotal(profile.moedas_pro_acumuladas || 0);
+          setScoreTotal(getTotalProfissional(profile));
           setScoreRede(profile.network_coins || 0);
           setScorePessoal(profile.personal_coins || 0);
         }
