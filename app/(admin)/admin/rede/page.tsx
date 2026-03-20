@@ -1,40 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import AdminSidebar from "@/componentes/AdminSidebar";
 
 export default function RadarRedePage() {
-  const supabase = createClientComponentClient();
   const [influencers, setInfluencers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState("");
 
   useEffect(() => {
     async function fetchRedeTotal() {
       setLoading(true);
-      
-      // 1. Puxa TODOS os perfis sem filtro nenhum
-      const { data: todos } = await supabase.from('profiles').select('id, full_name, avatar_url, indicado_por');
-
-      if (todos) {
-        const mapa: Record<string, number> = {};
-        // 2. Conta no braço quem indicou quem
-        todos.forEach(u => {
-          if (u.indicado_por) mapa[u.indicado_por] = (mapa[u.indicado_por] || 0) + 1;
-        });
-
-        // 3. Monta o ranking (Aqui vai aparecer seus 13 e a Patrícia com as indicações dela)
-        const lideres = todos
-          .filter(u => mapa[u.id] > 0)
-          .map(lider => ({
-            ...lider,
-            count: mapa[lider.id],
-            indicados: todos.filter(i => i.indicado_por === lider.id)
-          }))
-          .sort((a, b) => b.count - a.count);
-
-        setInfluencers(lideres);
+      setErro("");
+      const res = await fetch("/api/admin/rede", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        setErro(data?.error || "Erro ao carregar dados da rede.");
+        setInfluencers([]);
+        setLoading(false);
+        return;
       }
+      setInfluencers(data.lideres || []);
       setLoading(false);
     }
     fetchRedeTotal();
@@ -46,6 +32,11 @@ export default function RadarRedePage() {
       <AdminSidebar />
       <main className="flex-1 p-8 text-white">
         <h1 className="text-2xl font-black italic uppercase mb-8">Radar de <span className="text-[#C9A66B]">Influência</span></h1>
+        {erro && (
+          <div className="mb-4 rounded-xl border border-red-800/50 bg-red-950/30 px-4 py-3 text-xs text-red-300">
+            {erro}
+          </div>
+        )}
         
         {loading ? (
           <p className="animate-pulse text-zinc-500 font-black">RASTREAMENTO EM CURSO...</p>

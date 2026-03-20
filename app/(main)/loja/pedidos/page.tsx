@@ -23,6 +23,12 @@ type Pedido = {
 type LabelInfo = { texto: string; cor: string; icon: React.ReactNode };
 
 const LABELS: Record<string, LabelInfo> = {
+  /** Legado / testes antigos — tratar como pendente */
+  novo: {
+    texto: "Aguardando pagamento",
+    cor: "bg-zinc-800 text-zinc-300 border-zinc-700",
+    icon: <Clock size={12} className="mr-1" />,
+  },
   pending: {
     texto: "Aguardando pagamento",
     cor: "bg-zinc-800 text-zinc-300 border-zinc-700",
@@ -57,6 +63,7 @@ export default function MeusPedidosPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function carregarPedidos() {
     const { data: authData } = await supabase.auth.getSession();
@@ -72,6 +79,34 @@ export default function MeusPedidosPage() {
       .order("created_at", { ascending: false });
     setPedidos((pedidosData as Pedido[]) || []);
     setLoading(false);
+  }
+
+  async function excluirPedido(p: Pedido) {
+    const pode =
+      p.status === "pending" ||
+      p.status === "novo" ||
+      p.status === "cancelled";
+    if (!pode) {
+      alert("Só é possível excluir pedidos pendentes ou cancelados.");
+      return;
+    }
+    if (!confirm("Excluir este pedido permanentemente?")) return;
+    setDeletingId(p.id);
+    try {
+      const res = await fetch("/api/orders/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: p.id }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        alert(data?.error || "Não foi possível excluir.");
+        return;
+      }
+      await carregarPedidos();
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function sincronizarPagamentos() {
@@ -182,6 +217,16 @@ export default function MeusPedidosPage() {
                       {info.icon}
                       {info.texto}
                     </span>
+                    {(p.status === "pending" || p.status === "novo" || p.status === "cancelled") && (
+                      <button
+                        type="button"
+                        onClick={() => excluirPedido(p)}
+                        disabled={deletingId === p.id}
+                        className="text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg px-3 py-1 disabled:opacity-50"
+                      >
+                        {deletingId === p.id ? "Excluindo..." : "Excluir pedido"}
+                      </button>
+                    )}
                     {p.status === "despachado" && (
                       <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
                         Seu pedido já está a caminho!

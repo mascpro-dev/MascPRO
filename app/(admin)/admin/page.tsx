@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import Link from "next/link";
 import {
@@ -9,7 +8,6 @@ import {
 } from "lucide-react";
 
 export default function AdminDashboard() {
-  const supabase = createClientComponentClient();
   const [membros, setMembros] = useState(0);
   const [acessosHoje, setAcessosHoje] = useState(0);
   const [totalVendas, setTotalVendas] = useState(0);
@@ -17,37 +15,29 @@ export default function AdminDashboard() {
   const [pedidosPendentes, setPedidosPendentes] = useState(0);
   const [saquesAbertos, setSaquesAbertos] = useState(0);
   const [valorSaquesAbertos, setValorSaquesAbertos] = useState(0);
+  const [erroResumo, setErroResumo] = useState("");
 
   useEffect(() => {
     async function carregar() {
-      const hoje = new Date().toISOString().split("T")[0];
+      setErroResumo("");
+      const res = await fetch("/api/admin/summary", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
 
-      const { data: perfis } = await supabase.from("profiles").select("id, last_sign_in_at");
-      if (perfis) {
-        setMembros(perfis.length);
-        setAcessosHoje(perfis.filter((u: any) => u.last_sign_in_at?.startsWith(hoje)).length);
+      if (!res.ok || !data?.ok || !data?.resumo) {
+        setErroResumo(data?.error || "Falha ao carregar métricas do painel admin.");
+        return;
       }
 
-      const { data: vendas } = await supabase.from("orders").select("total").eq("status", "paid");
-      if (vendas) {
-        setPedidosPagos(vendas.length);
-        setTotalVendas(vendas.reduce((acc: number, p: any) => acc + Number(p.total), 0));
-      }
-
-      const { count: pendentes } = await supabase
-        .from("orders").select("id", { count: "exact", head: true })
-        .in("status", ["paid", "separacao"]);
-      setPedidosPendentes(pendentes || 0);
-
-      const { data: saques } = await supabase
-        .from("withdrawal_requests").select("valor_liquido").eq("status", "aguardando");
-      if (saques) {
-        setSaquesAbertos(saques.length);
-        setValorSaquesAbertos(saques.reduce((acc: number, s: any) => acc + Number(s.valor_liquido), 0));
-      }
+      setMembros(Number(data.resumo.membros || 0));
+      setAcessosHoje(Number(data.resumo.acessosHoje || 0));
+      setTotalVendas(Number(data.resumo.totalVendas || 0));
+      setPedidosPagos(Number(data.resumo.pedidosPagos || 0));
+      setPedidosPendentes(Number(data.resumo.pedidosPendentes || 0));
+      setSaquesAbertos(Number(data.resumo.saquesAbertos || 0));
+      setValorSaquesAbertos(Number(data.resumo.valorSaquesAbertos || 0));
     }
     carregar();
-  }, [supabase]);
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-black text-white">
@@ -56,6 +46,11 @@ export default function AdminDashboard() {
         <h1 className="text-2xl font-black italic uppercase mb-8">
           Painel <span className="text-[#C9A66B]">Admin</span>
         </h1>
+        {erroResumo && (
+          <div className="mb-6 rounded-xl border border-red-800/50 bg-red-950/30 px-4 py-3 text-xs text-red-300">
+            {erroResumo}
+          </div>
+        )}
 
         {/* ALERTAS */}
         <div className="flex flex-col gap-3 mb-8">

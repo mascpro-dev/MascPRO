@@ -1,26 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import AdminSidebar from "@/componentes/AdminSidebar";
 
 export default function NovosMembrosPage() {
-  const supabase = createClientComponentClient();
   const [membros, setMembros] = useState<any[]>([]);
   const [prazo, setPrazo] = useState(7);
+  const [erro, setErro] = useState("");
 
   useEffect(() => {
     async function buscar() {
-      const dataLimite = new Date();
-      dataLimite.setDate(dataLimite.getDate() - prazo);
-      
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .gte('created_at', dataLimite.toISOString())
-        .order('created_at', { ascending: false });
-      
-      if (data) setMembros(data);
+      setErro("");
+      const res = await fetch(`/api/admin/novos?days=${prazo}`, { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        setErro(data?.error || "Erro ao carregar novos membros.");
+        setMembros([]);
+        return;
+      }
+      setMembros(data.membros || []);
     }
     buscar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -42,6 +40,11 @@ export default function NovosMembrosPage() {
             <option value={30}>Últimos 30 dias</option>
           </select>
         </div>
+        {erro && (
+          <div className="mb-4 rounded-xl border border-red-800/50 bg-red-950/30 px-4 py-3 text-xs text-red-300">
+            {erro}
+          </div>
+        )}
 
         {membros.length === 0 ? (
           <div className="bg-zinc-900/30 p-12 rounded-2xl border border-white/5 text-center">

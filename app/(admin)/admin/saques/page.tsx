@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import { ArrowDownToLine, CheckCircle, XCircle, Clock, Loader2, RefreshCw } from "lucide-react";
 
@@ -25,34 +24,40 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export default function AdminSaquesPage() {
-  const supabase = createClientComponentClient();
   const [saques, setSaques] = useState<Saque[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState<"todos" | "aguardando" | "aprovado" | "rejeitado">("aguardando");
   const [processando, setProcessando] = useState<string | null>(null);
+  const [erro, setErro] = useState("");
 
   useEffect(() => { carregarSaques(); }, [filtro]);
 
   async function carregarSaques() {
     setLoading(true);
-    let query = supabase
-      .from("withdrawal_requests")
-      .select(`*, profiles!withdrawal_requests_embaixador_id_fkey(full_name, nivel)`)
-      .order("created_at", { ascending: false });
-
-    if (filtro !== "todos") query = query.eq("status", filtro);
-
-    const { data } = await query;
-    setSaques((data as any) || []);
+    setErro("");
+    const res = await fetch(`/api/admin/saques?status=${filtro}`, { cache: "no-store" });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.ok) {
+      setErro(data?.error || "Erro ao carregar saques.");
+      setSaques([]);
+      setLoading(false);
+      return;
+    }
+    setSaques((data.saques as any) || []);
     setLoading(false);
   }
 
   async function atualizarStatus(id: string, novoStatus: "aprovado" | "rejeitado") {
     setProcessando(id);
-    await supabase
-      .from("withdrawal_requests")
-      .update({ status: novoStatus, processado_em: new Date().toISOString() })
-      .eq("id", id);
+    const res = await fetch("/api/admin/saques/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, novoStatus }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.ok) {
+      setErro(data?.error || "Erro ao atualizar saque.");
+    }
     await carregarSaques();
     setProcessando(null);
   }
@@ -81,6 +86,11 @@ export default function AdminSaquesPage() {
             <RefreshCw size={20} />
           </button>
         </div>
+        {erro && (
+          <div className="mb-4 rounded-xl border border-red-800/50 bg-red-950/30 px-4 py-3 text-xs text-red-300">
+            {erro}
+          </div>
+        )}
 
         {/* Filtros */}
         <div className="flex gap-2 mb-6 flex-wrap">

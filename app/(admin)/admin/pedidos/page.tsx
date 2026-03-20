@@ -4,7 +4,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import {
   ShoppingBag, CheckCircle, XCircle, Clock,
-  Loader2, RefreshCw, PackageCheck, Truck,
+  Loader2, RefreshCw, PackageCheck, Truck, Trash2,
 } from "lucide-react";
 
 type Pedido = {
@@ -22,6 +22,7 @@ type Pedido = {
 type StatusInfo = { label: string; style: string; icon: React.ReactNode };
 
 const STATUS: Record<string, StatusInfo> = {
+  novo:       { label: "Rascunho / legado",    style: "bg-zinc-800 text-zinc-400 border-zinc-700",       icon: <Clock size={10} className="inline mr-1" /> },
   pending:    { label: "Aguardando pagamento", style: "bg-zinc-800 text-zinc-400 border-zinc-700",       icon: <Clock size={10} className="inline mr-1" /> },
   paid:       { label: "Pago — aguardando separação", style: "bg-blue-900/30 text-blue-400 border-blue-800/40", icon: <CheckCircle size={10} className="inline mr-1" /> },
   separacao:  { label: "Em separação",         style: "bg-yellow-900/30 text-yellow-400 border-yellow-800/40", icon: <PackageCheck size={10} className="inline mr-1" /> },
@@ -29,7 +30,7 @@ const STATUS: Record<string, StatusInfo> = {
   cancelled:  { label: "Cancelado",            style: "bg-red-900/30 text-red-400 border-red-800/40",         icon: <XCircle size={10} className="inline mr-1" /> },
 };
 
-type Filtro = "todos" | "paid" | "separacao" | "despachado" | "cancelled";
+type Filtro = "todos" | "pending" | "paid" | "separacao" | "despachado" | "cancelled";
 
 export default function AdminPedidosPage() {
   const supabase = createClientComponentClient();
@@ -37,6 +38,8 @@ export default function AdminPedidosPage() {
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState<Filtro>("paid");
   const [processando, setProcessando] = useState<string | null>(null);
+  const [adminSecret, setAdminSecret] = useState("");
+  const [limpando, setLimpando] = useState(false);
 
   useEffect(() => { carregarPedidos(); }, [filtro]);
 
@@ -51,11 +54,61 @@ export default function AdminPedidosPage() {
       `)
       .order("created_at", { ascending: false });
 
-    if (filtro !== "todos") query = query.eq("status", filtro);
+    if (filtro === "pending") {
+      query = query.in("status", ["pending", "novo"]);
+    } else if (filtro !== "todos") {
+      query = query.eq("status", filtro);
+    }
 
     const { data } = await query;
     setPedidos((data as any) || []);
     setLoading(false);
+  }
+
+  async function apagarPedidoAdmin(id: string) {
+    if (!adminSecret.trim()) {
+      alert("Informe o segredo de admin (ADMIN_ORDERS_SECRET) para apagar.");
+      return;
+    }
+    if (!confirm("Apagar este pedido e itens vinculados?")) return;
+    setProcessando(id);
+    const res = await fetch("/api/admin/orders/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId: id, secret: adminSecret.trim() }),
+    });
+    const data = await res.json().catch(() => null);
+    setProcessando(null);
+    if (!res.ok || !data?.ok) {
+      alert(data?.error || "Erro ao apagar.");
+      return;
+    }
+    await carregarPedidos();
+  }
+
+  async function apagarTodosPedidos() {
+    if (!adminSecret.trim()) {
+      alert("Informe o segredo de admin (ADMIN_ORDERS_SECRET).");
+      return;
+    }
+    if (!confirm("ATENÇÃO: Isso apaga TODOS os pedidos do sistema. Continuar?")) return;
+    setLimpando(true);
+    try {
+      const res = await fetch("/api/admin/orders/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: adminSecret.trim() }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        alert(data?.error || "Erro ao limpar pedidos.");
+        return;
+      }
+      alert(`Pedidos removidos: ${data.removed ?? 0}`);
+      await carregarPedidos();
+    } finally {
+      setLimpando(false);
+    }
   }
 
   async function atualizarStatus(id: string, novoStatus: string) {
@@ -68,6 +121,7 @@ export default function AdminPedidosPage() {
   const totalFiltrado = pedidos.reduce((acc, p) => acc + Number(p.total), 0);
 
   const FILTROS: { key: Filtro; label: string }[] = [
+    { key: "pending",    label: "Pendentes" },
     { key: "paid",       label: "Pagos" },
     { key: "separacao",  label: "Em Separação" },
     { key: "despachado", label: "Despachados" },
@@ -115,6 +169,34 @@ export default function AdminPedidosPage() {
           ))}
         </div>
 
+        {/* Limpeza / pedidos de teste — requer ADMIN_ORDERS_SECRET no servidor */}
+        <div className="mb-8 p-4 rounded-2xl border border-red-900/40 bg-red-950/20 space-y-3">
+          <p className="text-[10px] font-black uppercase tracking-widest text-red-400">
+            Zona perigosa — apagar pedidos
+          </p>
+          <p className="text-xs text-zinc-500">
+            Defina <code className="text-zinc-400">ADMIN_ORDERS_SECRET</code> no Vercel (e local no{" "}
+            <code className="text-zinc-400">.env.local</code>) e cole o mesmo valor abaixo para confirmar exclusões.
+          </p>
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Segredo admin (ADMIN_ORDERS_SECRET)"
+            value={adminSecret}
+            onChange={(e) => setAdminSecret(e.target.value)}
+            className="w-full max-w-md bg-black border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-red-500/50"
+          />
+          <button
+            type="button"
+            onClick={apagarTodosPedidos}
+            disabled={limpando}
+            className="flex items-center gap-2 bg-red-900/50 hover:bg-red-800/60 text-red-200 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl border border-red-800/60 disabled:opacity-50"
+          >
+            {limpando ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+            Zerar todos os pedidos (banco)
+          </button>
+        </div>
+
         {/* Lista */}
         {loading ? (
           <div className="flex justify-center py-20">
@@ -128,7 +210,7 @@ export default function AdminPedidosPage() {
         ) : (
           <div className="flex flex-col gap-4">
             {pedidos.map(pedido => {
-              const statusInfo = STATUS[pedido.status] || STATUS["pending"];
+              const statusInfo = STATUS[pedido.status] || STATUS.pending;
               const isProcessando = processando === pedido.id;
 
               return (
@@ -182,7 +264,17 @@ export default function AdminPedidosPage() {
                   )}
 
                   {/* Ações de status */}
-                  <div className="border-t border-zinc-800 pt-3 flex flex-wrap gap-2">
+                  <div className="border-t border-zinc-800 pt-3 flex flex-wrap gap-2 items-center">
+
+                    <button
+                      type="button"
+                      onClick={() => apagarPedidoAdmin(pedido.id)}
+                      disabled={isProcessando}
+                      className="flex items-center gap-1 bg-red-900/20 hover:bg-red-900/40 text-red-400 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all disabled:opacity-50 border border-red-800/40"
+                    >
+                      {isProcessando ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      Apagar pedido
+                    </button>
 
                     {/* PAGO → pode ir para separação ou cancelar */}
                     {pedido.status === "paid" && (

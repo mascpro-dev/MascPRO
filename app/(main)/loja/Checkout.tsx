@@ -30,7 +30,8 @@ export default function Checkout() {
         profile_id: profile.id,
         total,
         payment_method: 'pendente',
-        status: 'novo',
+        /** Alinhar com checkout Mercado Pago e telas de pedidos */
+        status: 'pending',
       })
       .select()
       .single();
