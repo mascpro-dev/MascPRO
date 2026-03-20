@@ -20,7 +20,13 @@ export async function POST(req: NextRequest) {
   try {
     const { orderId, secret } = await req.json().catch(() => ({}));
     const expected = process.env.ADMIN_ORDERS_SECRET;
-    if (!expected || secret !== expected) {
+    const okSecret =
+      typeof expected === "string" &&
+      expected.trim().length > 0 &&
+      typeof secret === "string" &&
+      secret.trim() === expected.trim();
+
+    if (!okSecret) {
       return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
     }
     if (!orderId || typeof orderId !== "string") {
