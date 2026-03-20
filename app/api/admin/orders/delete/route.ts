@@ -19,14 +19,12 @@ function getServiceSupabase(): { supabase: SupabaseClient | null; error: string 
 export async function POST(req: NextRequest) {
   try {
     const { orderId, secret } = await req.json().catch(() => ({}));
-    const expected = process.env.ADMIN_ORDERS_SECRET;
-    const okSecret =
-      typeof expected === "string" &&
-      expected.trim().length > 0 &&
-      typeof secret === "string" &&
-      secret.trim() === expected.trim();
+    const expected = (process.env.ADMIN_ORDERS_SECRET ?? "").trim();
 
-    if (!okSecret) {
+    // Debug: ajuda a identificar divergência de segredo em produção
+    console.log("[admin/orders/delete] expected_len:", expected.length, "received_len:", String(secret ?? "").trim().length);
+
+    if (!expected || String(secret ?? "").trim() !== expected) {
       return NextResponse.json({ ok: false, error: "Não autorizado." }, { status: 401 });
     }
     if (!orderId || typeof orderId !== "string") {
