@@ -141,7 +141,6 @@ function CadastroContent() {
               moedas_pro_acumuladas: 0,
               network_coins: 0,
               passive_pro: 0,
-              store_coins: 0,
               role: "CABELEIREIRO",
               updated_at: new Date().toISOString(),
             },
