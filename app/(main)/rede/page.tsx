@@ -90,40 +90,32 @@ export default function RedePage() {
         }
 
         if (equipe) {
-            setListaEquipe(equipe); // Salva a lista completa (ex: 14 pessoas)
-            setTotalIndicados(equipe.length); // Mostra 14 no card
+            setListaEquipe(equipe);
+            setTotalIndicados(equipe.length);
 
-            const agora = new Date();
-            const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1); 
-
-            // Busca quem da equipe teve pedido pago no mês
             const equipeIds = equipe.map((m: any) => m.id);
-            let mapPedidosNoMes: Record<string, boolean> = {};
+            let mapAtivos: Record<string, boolean> = {};
+
             if (equipeIds.length > 0) {
-              const { data: pedidosNoMes } = await supabase
-                .from("orders")
-                .select("profile_id, created_at, status")
-                .in("profile_id", equipeIds)
-                .in("status", ["paid", "separacao", "despachado"])
-                .gte("created_at", inicioMes.toISOString());
-
-              mapPedidosNoMes = (pedidosNoMes || []).reduce((acc: Record<string, boolean>, p: any) => {
-                if (p.profile_id) acc[p.profile_id] = true;
-                return acc;
-              }, {});
+              // Usa API com service role para contornar RLS nos pedidos dos membros
+              try {
+                const res = await fetch("/api/rede/status", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ equipeIds }),
+                });
+                if (res.ok) {
+                  const json = await res.json();
+                  mapAtivos = json.ativos || {};
+                }
+              } catch (e) {
+                console.error("Erro ao buscar status da equipe:", e);
+              }
             }
-            setMembrosComPedidoNoMes(mapPedidosNoMes);
 
-            // Ativo = login no mês OU pedido pago no mês
-            const ativos = equipe.filter((membro: any) => {
-              const ativoPorPedido = !!mapPedidosNoMes[membro.id];
-              if (ativoPorPedido) return true;
-              if (!membro.last_sign_in_at) return false;
-              const ultimaAtividade = new Date(membro.last_sign_in_at);
-              return ultimaAtividade >= inicioMes;
-            });
-
-            setMembrosAtivosCount(ativos.length); // Ex: Se 2 entraram esse mês, mostra 2
+            setMembrosComPedidoNoMes(mapAtivos);
+            const totalAtivos = equipe.filter((m: any) => !!mapAtivos[m.id]).length;
+            setMembrosAtivosCount(totalAtivos);
         }
       }
       setLoading(false);
@@ -169,15 +161,9 @@ export default function RedePage() {
     }
   };
 
-  // Função para verificar status individual (Para pintar o botão)
-  const verificarStatus = (memberId: string, dataUltimoLogin: string | null) => {
-      if (membrosComPedidoNoMes[memberId]) return true;
-      if (!dataUltimoLogin) return false;
-      const agora = new Date();
-      const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
-      const login = new Date(dataUltimoLogin);
-      // Retorna VERDADEIRO se entrou depois do dia 01 deste mês
-      return login >= inicioMes;
+  // ATIVO = tem pedido pago/em separação/despachado atualizado este mês
+  const verificarStatus = (memberId: string) => {
+    return !!membrosComPedidoNoMes[memberId];
   };
 
   return (
@@ -355,7 +341,7 @@ export default function RedePage() {
         <div className="flex flex-col gap-3">
             {listaEquipe.length > 0 ? (
                 listaEquipe.map((membro) => {
-                    const isAtivo = verificarStatus(membro.id, membro.last_sign_in_at);
+                    const isAtivo = verificarStatus(membro.id);
 
                     return (
                         <div key={membro.id} className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl flex flex-col md:flex-row items-center justify-between hover:bg-zinc-900 transition-colors group">
@@ -374,8 +360,30 @@ export default function RedePage() {
 
                             <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
                                 <div className="flex gap-2 opacity-30 group-hover:opacity-100 transition-opacity">
-                                    <Instagram size={18} className="text-gray-400 hover:text-[#C9A66B] cursor-pointer" />
-                                    <MessageCircle size={18} className="text-gray-400 hover:text-green-500 cursor-pointer" />
+                                    {membro.instagram ? (
+                                      <a
+                                        href={`https://instagram.com/${membro.instagram.replace(/^@/, "")}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title={`@${membro.instagram.replace(/^@/, "")}`}
+                                      >
+                                        <Instagram size={18} className="text-gray-400 hover:text-[#C9A66B] cursor-pointer" />
+                                      </a>
+                                    ) : (
+                                      <Instagram size={18} className="text-gray-600 cursor-not-allowed" />
+                                    )}
+                                    {membro.whatsapp ? (
+                                      <a
+                                        href={`https://wa.me/55${membro.whatsapp.replace(/\D/g, "")}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title={membro.whatsapp}
+                                      >
+                                        <MessageCircle size={18} className="text-gray-400 hover:text-green-500 cursor-pointer" />
+                                      </a>
+                                    ) : (
+                                      <MessageCircle size={18} className="text-gray-600 cursor-not-allowed" />
+                                    )}
                                 </div>
 
                                 {/* BOTÃO DINÂMICO: MUDA A COR SOZINHO */}

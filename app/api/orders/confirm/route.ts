@@ -44,6 +44,21 @@ async function garantirComissao(supabase: any, orderId: string) {
     valor_comissao: valorComissao,
     status: "disponivel",
   });
+
+  // Credita PRO coins ao embaixador (1 PRO por R$1 do pedido)
+  const proBonus = Math.round(valorPedido);
+  const { data: embaixadorProfile } = await supabase
+    .from("profiles")
+    .select("network_coins")
+    .eq("id", comprador.indicado_por)
+    .single();
+
+  if (embaixadorProfile) {
+    await supabase
+      .from("profiles")
+      .update({ network_coins: (embaixadorProfile.network_coins || 0) + proBonus })
+      .eq("id", comprador.indicado_por);
+  }
 }
 
 async function obterStatusNoMercadoPago(orderId: string, paymentId?: string) {
