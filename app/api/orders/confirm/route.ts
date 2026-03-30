@@ -45,18 +45,18 @@ async function garantirComissao(supabase: any, orderId: string) {
     status: "disponivel",
   });
 
-  // Credita PRO coins ao embaixador (1 PRO por R$1 do pedido)
+  // Credita PRO coins ao embaixador na coluna total_compras_rede
   const proBonus = Math.round(valorPedido);
   const { data: embaixadorProfile } = await supabase
     .from("profiles")
-    .select("network_coins")
+    .select("total_compras_rede")
     .eq("id", comprador.indicado_por)
     .single();
 
-  if (embaixadorProfile) {
+  if (embaixadorProfile !== null) {
     await supabase
       .from("profiles")
-      .update({ network_coins: (embaixadorProfile.network_coins || 0) + proBonus })
+      .update({ total_compras_rede: (embaixadorProfile?.total_compras_rede || 0) + proBonus })
       .eq("id", comprador.indicado_por);
   }
 }
