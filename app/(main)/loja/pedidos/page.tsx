@@ -151,17 +151,33 @@ export default function MeusPedidosPage() {
     carregarPedidos();
   }, []);
 
-  // Auto-sincroniza quando existir pedido pendente para o usuário ver status quase em tempo real.
+  // Realtime: atualiza pedidos instantaneamente quando o webhook ou admin muda status
   useEffect(() => {
-    if (loading || syncing) return;
-    const temPendente = pedidos.some((p) => p.status === "pending");
+    const channel = supabase
+      .channel("pedidos-realtime")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders" },
+        () => { carregarPedidos(); }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  // Polling: consulta MP a cada 5s enquanto houver pedido pendente (máx 20 min)
+  useEffect(() => {
+    if (loading) return;
+    const temPendente = pedidos.some((p) => p.status === "pending" || p.status === "novo");
     if (!temPendente) return;
 
-    const t = setTimeout(async () => {
+    const t = setInterval(async () => {
       await sincronizarPagamentos(false);
     }, 5000);
 
-    return () => clearTimeout(t);
+    // Para de verificar após 20 minutos (PIX expira em 30 min)
+    const stop = setTimeout(() => clearInterval(t), 20 * 60 * 1000);
+
+    return () => { clearInterval(t); clearTimeout(stop); };
   }, [pedidos, loading]);
 
   if (loading) {

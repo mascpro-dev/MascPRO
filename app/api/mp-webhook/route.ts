@@ -11,7 +11,6 @@ function getSupabase() {
 }
 
 async function garantirComissao(supabase: any, orderId: string) {
-  // Evita comissão duplicada
   const { data: existente } = await supabase
     .from("commissions")
     .select("id")
@@ -46,28 +45,48 @@ async function garantirComissao(supabase: any, orderId: string) {
     valor_comissao: valorComissao,
     status: "disponivel",
   });
+
+  // Credita PRO coins (total_compras_rede) ao embaixador
+  const proBonus = Math.round(valorPedido);
+  if (proBonus > 0) {
+    const { data: emb } = await supabase
+      .from("profiles")
+      .select("total_compras_rede")
+      .eq("id", comprador.indicado_por)
+      .single();
+    await supabase
+      .from("profiles")
+      .update({ total_compras_rede: (emb?.total_compras_rede || 0) + proBonus })
+      .eq("id", comprador.indicado_por);
+  }
+}
+
+// Suporta GET para validação inicial do MP
+export async function GET() {
+  return NextResponse.json({ ok: true });
 }
 
 export async function POST(req: NextRequest) {
   try {
     const url = new URL(req.url);
+    // Formato IPN: ?topic=payment&id=PAYMENT_ID
+    // Formato novo: body { type: "payment", data: { id: "PAYMENT_ID" } }
     const queryTopic = url.searchParams.get("topic") || url.searchParams.get("type");
-    const queryId = url.searchParams.get("id") || url.searchParams.get("data.id");
+    const queryId    = url.searchParams.get("id") || url.searchParams.get("data.id");
 
     let body: any = {};
-    try {
-      body = await req.json();
-    } catch {
-      body = {};
-    }
-    console.log("MP Webhook recebido:", JSON.stringify({ queryTopic, queryId, body }));
+    try { body = await req.json(); } catch { body = {}; }
 
-    const type = body.type || queryTopic;
-    if (type !== "payment") {
+    const type      = body.type || body.action?.split(".")?.[0] || queryTopic;
+    const paymentId = body.data?.id || queryId;
+
+    console.log("[mp-webhook] type:", type, "paymentId:", paymentId, "body:", JSON.stringify(body));
+
+    // Aceita tanto "payment" quanto "payment.updated" / "payment.created"
+    if (!String(type || "").includes("payment")) {
       return NextResponse.json({ ok: true });
     }
 
-    const paymentId = body.data?.id || queryId;
     if (!paymentId) return NextResponse.json({ ok: true });
 
     const mpToken = process.env.MP_ACCESS_TOKEN;
