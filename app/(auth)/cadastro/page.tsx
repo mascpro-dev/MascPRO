@@ -99,12 +99,16 @@ function CadastroContent() {
     if (!formData.has_schedule) { setError("Informe se possui agenda online."); setLoading(false); return; }
 
     try {
-      // 1. Cria usuário Auth
+      // 1. Cria usuário Auth — salva full_name E indicado_por nos metadados
+      // (garante que o vínculo seja preservado mesmo se o perfil falhar)
       const { data: { user }, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
-          data: { full_name: formData.name },
+          data: {
+            full_name: formData.name,
+            indicado_por: refId || null,
+          },
         },
       });
 
