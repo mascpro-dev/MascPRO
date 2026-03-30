@@ -16,16 +16,17 @@ export async function POST(req: NextRequest) {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
 
-  const agora = new Date();
-  const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
-
-  // Usa updated_at para pegar pedidos que foram confirmados/atualizados este mês
-  const { data: pedidos } = await supabase
+  // ATIVO = tem qualquer pedido confirmado/pago (sem filtro de data)
+  const { data: pedidos, error } = await supabase
     .from("orders")
     .select("profile_id")
     .in("profile_id", equipeIds)
-    .in("status", ["paid", "separacao", "despachado", "entregue"])
-    .gte("updated_at", inicioMes.toISOString());
+    .in("status", ["paid", "separacao", "despachado", "entregue"]);
+
+  if (error) {
+    console.error("[api/rede/status] erro:", error.message);
+    return NextResponse.json({ ativos: {}, error: error.message }, { status: 500 });
+  }
 
   const ativos: Record<string, boolean> = {};
   for (const p of pedidos || []) {

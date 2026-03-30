@@ -144,6 +144,16 @@ export default function AdminPedidosPage() {
   async function atualizarStatus(id: string, novoStatus: string) {
     setProcessando(id);
     await supabase.from("orders").update({ status: novoStatus }).eq("id", id);
+
+    // Ao marcar como pago: processa comissão R$ e PRO coins do embaixador
+    if (novoStatus === "paid") {
+      await fetch("/api/orders/processar-pagamento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: id }),
+      }).catch(() => null);
+    }
+
     await carregarPedidos();
     setProcessando(null);
   }
