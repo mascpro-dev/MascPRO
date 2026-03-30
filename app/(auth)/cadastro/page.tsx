@@ -38,7 +38,8 @@ function CadastroContent() {
   });
 
   useEffect(() => {
-    const ref = searchParams.get("ref");
+    // Aceita tanto ?ref= quanto ?invite= para compatibilidade total
+    const ref = searchParams.get("ref") || searchParams.get("invite");
     if (ref) setRefId(ref);
   }, [searchParams]);
 
@@ -150,7 +151,11 @@ function CadastroContent() {
             },
           ]);
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          // Perfil falhou mas auth foi criado — loga o erro detalhado e avisa o usuário
+          console.error("Erro ao criar perfil:", profileError);
+          throw new Error(`Conta criada mas perfil não salvo: ${profileError.message}. Entre em contato com o suporte informando seu e-mail.`);
+        }
 
         router.push("/dashboard"); 
       }

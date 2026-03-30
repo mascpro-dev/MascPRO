@@ -37,19 +37,26 @@ export default function LoginPage() {
 
   // 2. Lógica de Redirecionamento pelo Link
   const handleInviteRedirect = () => {
-    if (!inviteLink.trim()) return alert("Por favor, cole o link primeiro.");
-    
-    // Tenta ser inteligente: se a pessoa colar só o código, ou o link completo
+    const link = inviteLink.trim();
+    if (!link) return alert("Por favor, cole o link primeiro.");
+
     try {
-        // Se for um link completo, vai direto
-        if (inviteLink.includes('http')) {
-            window.location.href = inviteLink;
+      if (link.includes("http")) {
+        // Link completo — extrai o parâmetro ref para garantir formato correto
+        const url = new URL(link);
+        const ref = url.searchParams.get("ref") || url.searchParams.get("invite");
+        if (ref) {
+          router.push(`/cadastro?ref=${ref}`);
         } else {
-            // Se colar só um código solto, assume que é para cadastro
-            router.push(`/cadastro?invite=${inviteLink}`);
+          // Link sem ref — redireciona direto (pode ser outro tipo de link)
+          window.location.href = link;
         }
+      } else {
+        // Só o código/UUID — usa como ref diretamente
+        router.push(`/cadastro?ref=${link}`);
+      }
     } catch (e) {
-        alert("Link inválido.");
+      alert("Link inválido. Cole o link completo recebido pelo embaixador.");
     }
   };
 
