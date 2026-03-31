@@ -15,6 +15,7 @@ import {
   ArrowDownToLine,
   ShoppingBag,
   UsersRound,
+  Calendar,
 } from 'lucide-react';
 
 export default function AdminSidebar() {
@@ -67,6 +68,18 @@ export default function AdminSidebar() {
           icon: Clock, 
           href: "/admin/inativos",
           color: "text-red-500"
+        },
+      ]
+    },
+    {
+      title: "CONTEÚDO",
+      items: [
+        {
+          name: "Eventos",
+          description: "Flyers e detalhes",
+          icon: Calendar,
+          href: "/admin/eventos",
+          color: "text-[#C9A66B]"
         },
       ]
     },
