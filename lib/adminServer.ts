@@ -17,17 +17,22 @@ export async function getAdminServiceClient(): Promise<{
   }
 
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) {
+
+  // Se service role key disponível: usa client privilegiado (ignora RLS)
+  if (serviceKey) {
     return {
-      supabase: null,
-      error: "SUPABASE_SERVICE_ROLE_KEY não configurada.",
-      status: 500,
+      supabase: createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey),
+      error: null,
+      status: 200,
     };
   }
 
-  return {
-    supabase: createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey),
-    error: null,
-    status: 200,
-  };
+  // Fallback: usa o JWT do usuário logado (requer GRANTs corretos nas tabelas)
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${session.access_token}` } } }
+  );
+
+  return { supabase, error: null, status: 200 };
 }
