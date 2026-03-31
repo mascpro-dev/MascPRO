@@ -108,10 +108,27 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabase();
 
+    // Busca status atual do pedido
+    const { data: orderAtual } = await supabase
+      .from("orders")
+      .select("id, status, mp_payment_id")
+      .eq("id", orderId)
+      .single();
+
+    // Se já foi pago/cancelado, não consulta MP nem atualiza
+    if (orderAtual?.status && ["paid", "separacao", "despachado", "entregue", "cancelled"].includes(orderAtual.status)) {
+      const { data: order } = await supabase
+        .from("orders")
+        .select("id, total, status, created_at, shipping_address, shipping_cost")
+        .eq("id", orderId)
+        .single();
+      return NextResponse.json({ ok: true, order, status: orderAtual.status });
+    }
+
     // Consulta MP para obter status atual
-    let mpCheck = { status: "pending", paymentId: paymentId || null };
+    let mpCheck = { status: "pending", paymentId: paymentId || orderAtual?.mp_payment_id || null };
     try {
-      mpCheck = await obterStatusNoMercadoPago(orderId, paymentId);
+      mpCheck = await obterStatusNoMercadoPago(orderId, paymentId || orderAtual?.mp_payment_id || undefined);
     } catch (mpErr: any) {
       console.error("[confirm] Erro ao consultar MP:", mpErr.message);
       // Continua com status atual — não quebra o fluxo
@@ -120,18 +137,20 @@ export async function POST(req: NextRequest) {
     const novoStatus = mpCheck.status;
     const paymentIdFinal = mpCheck.paymentId;
 
-    // Atualiza status no banco
-    const { error: updateError } = await supabase
-      .from("orders")
-      .update({
-        status: novoStatus,
-        ...(paymentIdFinal ? { mp_payment_id: String(paymentIdFinal) } : {}),
-      })
-      .eq("id", orderId);
+    // Só atualiza no banco se o status realmente mudou (evita acionar triggers desnecessariamente)
+    if (novoStatus !== orderAtual?.status || paymentIdFinal) {
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({
+          status: novoStatus,
+          ...(paymentIdFinal ? { mp_payment_id: String(paymentIdFinal) } : {}),
+        })
+        .eq("id", orderId);
 
-    if (updateError) {
-      console.error("[confirm] Erro ao atualizar order:", updateError.message);
-      return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
+      if (updateError) {
+        console.error("[confirm] Erro ao atualizar order:", updateError.message);
+        return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
+      }
     }
 
     // Processa comissão apenas se aprovado

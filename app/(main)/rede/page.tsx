@@ -135,26 +135,16 @@ export default function RedePage() {
     if (!chavePix.trim()) { alert("Informe sua chave PIX."); return; }
     setLoadingSaque(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const taxa = saldoComissoes * 0.11;
-      const liquido = saldoComissoes - taxa;
-      const { error } = await supabase.from("withdrawal_requests").insert({
-        embaixador_id: user.id,
-        valor_bruto: saldoComissoes,
-        taxa_percentual: 11,
-        valor_taxa: Number(taxa.toFixed(2)),
-        valor_liquido: Number(liquido.toFixed(2)),
-        chave_pix: chavePix.trim(),
-        status: "aguardando",
+      const res = await fetch("/api/saques/solicitar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ valorBruto: saldoComissoes, chavePix }),
       });
-      if (error) { alert("Erro ao solicitar saque: " + error.message); return; }
-      // Marca comissões como sacadas
-      await supabase
-        .from("commissions")
-        .update({ status: "sacado" })
-        .eq("embaixador_id", user.id)
-        .eq("status", "disponivel");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        alert("Erro ao solicitar saque: " + (data?.error || "Tente novamente."));
+        return;
+      }
       setSaldoComissoes(0);
       setSaqueEnviado(true);
     } finally {
