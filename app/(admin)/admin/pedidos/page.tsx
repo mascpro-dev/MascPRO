@@ -143,19 +143,24 @@ export default function AdminPedidosPage() {
 
   async function atualizarStatus(id: string, novoStatus: string) {
     setProcessando(id);
-    await supabase.from("orders").update({ status: novoStatus }).eq("id", id);
-
-    // Ao marcar como pago: processa comissão R$ e PRO coins do embaixador
-    if (novoStatus === "paid") {
-      await fetch("/api/orders/processar-pagamento", {
+    try {
+      const res = await fetch("/api/admin/orders/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: id }),
-      }).catch(() => null);
+        body: JSON.stringify({ orderId: id, novoStatus }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        alert(data?.error || "Erro ao atualizar status. Verifique os logs do Vercel.");
+        return;
+      }
+    } catch (e: any) {
+      alert("Erro de conexão: " + e.message);
+      return;
+    } finally {
+      setProcessando(null);
     }
-
     await carregarPedidos();
-    setProcessando(null);
   }
 
   const totalFiltrado = pedidos.reduce((acc, p) => acc + Number(p.total), 0);
