@@ -24,7 +24,7 @@ export async function GET() {
     ] = await Promise.all([
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("profiles").select("id, last_sign_in_at, created_at"),
-      supabase.from("orders").select("id, total, status, created_at, profile_id"),
+      supabase.from("orders").select("id, total, status, created_at, profile_id").in("status", ["paid", "separacao", "despachado", "entregue", "pending", "novo", "cancelled"]),
       supabase.from("withdrawal_requests").select("valor_liquido, status").eq("status", "aguardando"),
       supabase
         .from("profiles")
@@ -45,11 +45,13 @@ export async function GET() {
       new Date(u.created_at) >= inicioSemana
     ).length;
 
-    const pedidosPagos = (todosPedidos || []).filter((p: any) => p.status === "paid");
+    // Pedidos confirmados = paid + separacao + despachado + entregue
+    const statusConfirmados = ["paid", "separacao", "despachado", "entregue"];
+    const pedidosPagos = (todosPedidos || []).filter((p: any) => statusConfirmados.includes(p.status));
     const totalVendas = pedidosPagos.reduce((acc: number, p: any) => acc + Number(p.total), 0);
 
-    const vendasMes = (todosPedidos || [])
-      .filter((p: any) => p.status === "paid" && new Date(p.created_at) >= inicioMes)
+    const vendasMes = pedidosPagos
+      .filter((p: any) => new Date(p.created_at) >= inicioMes)
       .reduce((acc: number, p: any) => acc + Number(p.total), 0);
 
     const pedidosPendentes = (todosPedidos || []).filter((p: any) =>
