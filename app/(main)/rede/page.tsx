@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Users, CheckCircle, TrendingUp, Copy, Instagram, MessageCircle, Search, Filter, AlertTriangle, DollarSign, ArrowDownToLine, X, Loader2 } from "lucide-react";
+import { Users, CheckCircle, TrendingUp, Copy, Instagram, MessageCircle, Search, Filter, AlertTriangle, DollarSign, ArrowDownToLine, X, Loader2, Clock, XCircle, ChevronDown, ChevronUp, Receipt } from "lucide-react";
 
 export default function RedePage() {
   const supabase = createClientComponentClient();
@@ -29,6 +29,10 @@ export default function RedePage() {
   const [chavePix, setChavePix] = useState("");
   const [loadingSaque, setLoadingSaque] = useState(false);
   const [saqueEnviado, setSaqueEnviado] = useState(false);
+
+  // Histórico de saques
+  const [historicoSaques, setHistoricoSaques] = useState<any[]>([]);
+  const [showHistorico, setShowHistorico] = useState(false);
 
   // Lista da Equipe
   const [listaEquipe, setListaEquipe] = useState<any[]>([]);
@@ -79,6 +83,14 @@ export default function RedePage() {
           .from("commissions")
           .select("valor_comissao, status")
           .eq("embaixador_id", user.id);
+
+        // Busca histórico de saques
+        const { data: saques } = await supabase
+          .from("withdrawal_requests")
+          .select("id, valor_bruto, valor_taxa, valor_liquido, chave_pix, status, created_at, processado_em")
+          .eq("embaixador_id", user.id)
+          .order("created_at", { ascending: false });
+        setHistoricoSaques(saques || []);
 
         if (comissoes) {
           const disponivel = comissoes
@@ -246,14 +258,84 @@ export default function RedePage() {
             Total acumulado: R$ {totalComissoes.toFixed(2)} · Saque com desconto de 11% de impostos
           </p>
         </div>
-        <button
-          onClick={() => { setShowSaque(true); setSaqueEnviado(false); }}
-          disabled={saldoComissoes <= 0}
-          className="flex items-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-black uppercase text-xs tracking-widest px-6 py-4 rounded-xl transition-all whitespace-nowrap"
-        >
-          <ArrowDownToLine size={18} /> SACAR
-        </button>
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => { setShowSaque(true); setSaqueEnviado(false); }}
+            disabled={saldoComissoes <= 0}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-black uppercase text-xs tracking-widest px-6 py-4 rounded-xl transition-all whitespace-nowrap"
+          >
+            <ArrowDownToLine size={18} /> SACAR
+          </button>
+          {historicoSaques.length > 0 && (
+            <button
+              onClick={() => setShowHistorico(!showHistorico)}
+              className="flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all"
+            >
+              <Receipt size={13} />
+              {showHistorico ? "Ocultar" : "Ver recibos"}
+              {showHistorico ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* HISTÓRICO DE SAQUES */}
+      {showHistorico && historicoSaques.length > 0 && (
+        <div className="mb-10 bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-800 flex items-center gap-2">
+            <Receipt size={16} className="text-[#C9A66B]" />
+            <p className="text-sm font-black uppercase tracking-widest text-white">Histórico de Saques</p>
+          </div>
+          <div className="flex flex-col divide-y divide-zinc-800">
+            {historicoSaques.map((s) => {
+              const status = s.status as string;
+              const isAprovado = status === "aprovado";
+              const isRejeitado = status === "rejeitado";
+              return (
+                <div key={s.id} className="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isAprovado ? "bg-green-900/30" : isRejeitado ? "bg-red-900/30" : "bg-zinc-800"}`}>
+                      {isAprovado ? <CheckCircle size={18} className="text-green-400" /> : isRejeitado ? <XCircle size={18} className="text-red-400" /> : <Clock size={18} className="text-zinc-400" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">
+                        R$ {Number(s.valor_liquido).toFixed(2)}{" "}
+                        <span className="text-zinc-500 font-normal text-xs">(bruto R$ {Number(s.valor_bruto).toFixed(2)})</span>
+                      </p>
+                      <p className="text-[10px] text-zinc-500">
+                        PIX: <span className="text-zinc-300 font-mono">{s.chave_pix}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 md:text-right">
+                    <div>
+                      <p className="text-[10px] text-zinc-600 uppercase tracking-widest">Solicitado em</p>
+                      <p className="text-xs font-bold text-zinc-300">
+                        {new Date(s.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                      </p>
+                    </div>
+                    {s.processado_em && (
+                      <div>
+                        <p className="text-[10px] text-zinc-600 uppercase tracking-widest">Processado em</p>
+                        <p className="text-xs font-bold text-green-400">
+                          {new Date(s.processado_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                        </p>
+                      </div>
+                    )}
+                    <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
+                      isAprovado ? "bg-green-900/20 text-green-400 border-green-800/40" :
+                      isRejeitado ? "bg-red-900/20 text-red-400 border-red-800/40" :
+                      "bg-zinc-800 text-zinc-400 border-zinc-700"
+                    }`}>
+                      {isAprovado ? "✓ Aprovado · PIX enviado" : isRejeitado ? "✗ Rejeitado" : "⏳ Aguardando"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE SAQUE */}
       {showSaque && (
