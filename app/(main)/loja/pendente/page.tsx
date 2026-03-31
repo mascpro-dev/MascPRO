@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Clock, Loader2, ShoppingBag, RefreshCw } from "lucide-react";
+import { Clock, Loader2, ShoppingBag } from "lucide-react";
 
 function PendentePage() {
   const searchParams = useSearchParams();
@@ -50,41 +50,25 @@ function PendentePage() {
         </div>
 
         <h1 className="text-2xl font-black uppercase tracking-tight mb-2">
-          Aguardando PIX
+          Aguardando a Masc PRO
         </h1>
         <p className="text-zinc-400 text-sm mb-6">
-          Seu pedido foi criado. Assim que o pagamento PIX for confirmado pelo banco, o status atualiza automaticamente.
+          Seu pedido foi criado. Já avisamos a Masc PRO — assim que eles confirmarem no banco, o status será atualizado.
         </p>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6 text-left">
           <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">O que fazer agora</p>
           <ul className="text-sm text-zinc-300 space-y-2">
-            <li>✅ Abra o app do seu banco</li>
-            <li>✅ Escaneie o QR Code ou copie o código PIX</li>
-            <li>✅ Essa página atualiza sozinha após o pagamento</li>
+            <li>✅ Clique em ver meus pedidos</li>
+            <li>✅ Aguarde a confirmação da empresa</li>
+            <li>☕ Tome um café que já já atualizaremos</li>
           </ul>
         </div>
 
-        <div className="flex items-center justify-center gap-2 text-xs text-zinc-500 mb-6">
-          {checando ? (
-            <><Loader2 size={12} className="animate-spin" /> Verificando pagamento...</>
-          ) : (
-            <><RefreshCw size={12} /> Verificação automática ativa {tentativas > 0 && `(${tentativas})`}</>
-          )}
-        </div>
-
         <div className="flex flex-col gap-3">
-          <button
-            onClick={verificarPagamento}
-            disabled={checando}
-            className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:opacity-60 text-black font-black uppercase text-xs tracking-widest py-3 rounded-xl transition-all flex items-center justify-center gap-2"
-          >
-            {checando ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-            Verificar agora
-          </button>
           <Link
             href="/loja/pedidos"
-            className="w-full bg-zinc-900 border border-zinc-700 text-zinc-300 font-bold uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2 hover:border-zinc-400 transition-all"
+            className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2 transition-all"
           >
             <ShoppingBag size={14} /> Ver meus pedidos
           </Link>

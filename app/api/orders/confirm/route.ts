@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     // Busca status atual do pedido
     const { data: orderAtual } = await supabase
       .from("orders")
-      .select("id, status, mp_payment_id")
+      .select("id, status")
       .eq("id", orderId)
       .single();
 
@@ -126,9 +126,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Consulta MP para obter status atual
-    let mpCheck = { status: "pending", paymentId: paymentId || orderAtual?.mp_payment_id || null };
+    let mpCheck = { status: "pending", paymentId: paymentId || null };
     try {
-      mpCheck = await obterStatusNoMercadoPago(orderId, paymentId || orderAtual?.mp_payment_id || undefined);
+      mpCheck = await obterStatusNoMercadoPago(orderId, paymentId || undefined);
     } catch (mpErr: any) {
       console.error("[confirm] Erro ao consultar MP:", mpErr.message);
       // Continua com status atual — não quebra o fluxo
@@ -138,13 +138,10 @@ export async function POST(req: NextRequest) {
     const paymentIdFinal = mpCheck.paymentId;
 
     // Só atualiza no banco se o status realmente mudou (evita acionar triggers desnecessariamente)
-    if (novoStatus !== orderAtual?.status || paymentIdFinal) {
+    if (novoStatus !== orderAtual?.status) {
       const { error: updateError } = await supabase
         .from("orders")
-        .update({
-          status: novoStatus,
-          ...(paymentIdFinal ? { mp_payment_id: String(paymentIdFinal) } : {}),
-        })
+        .update({ status: novoStatus })
         .eq("id", orderId);
 
       if (updateError) {
