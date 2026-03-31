@@ -10,11 +10,11 @@ import {
   Zap, 
   Clock, 
   LayoutDashboard,
-  ChevronRight,
   ShieldCheck,
   Search,
   ArrowDownToLine,
-  ShoppingBag
+  ShoppingBag,
+  UsersRound,
 } from 'lucide-react';
 
 export default function AdminSidebar() {
@@ -30,6 +30,13 @@ export default function AdminSidebar() {
     {
       title: "RADAR DE MOVIMENTO",
       items: [
+        {
+          name: "Todos os Membros",
+          description: "Busca e filtros",
+          icon: UsersRound,
+          href: "/admin/membros",
+          color: "text-[#C9A66B]"
+        },
         { 
           name: "Quem Entrou", 
           description: "Novos cadastros", 
