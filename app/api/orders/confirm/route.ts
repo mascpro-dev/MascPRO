@@ -107,11 +107,21 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabase();
-    const mpCheck = await obterStatusNoMercadoPago(orderId, paymentId);
+
+    // Consulta MP para obter status atual
+    let mpCheck = { status: "pending", paymentId: paymentId || null };
+    try {
+      mpCheck = await obterStatusNoMercadoPago(orderId, paymentId);
+    } catch (mpErr: any) {
+      console.error("[confirm] Erro ao consultar MP:", mpErr.message);
+      // Continua com status atual — não quebra o fluxo
+    }
+
     const novoStatus = mpCheck.status;
     const paymentIdFinal = mpCheck.paymentId;
 
-    const { error } = await supabase
+    // Atualiza status no banco
+    const { error: updateError } = await supabase
       .from("orders")
       .update({
         status: novoStatus,
@@ -119,12 +129,19 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", orderId);
 
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (updateError) {
+      console.error("[confirm] Erro ao atualizar order:", updateError.message);
+      return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
     }
 
+    // Processa comissão apenas se aprovado
     if (novoStatus === "paid") {
-      await garantirComissao(supabase, orderId);
+      try {
+        await garantirComissao(supabase, orderId);
+      } catch (comErr: any) {
+        console.error("[confirm] Erro ao processar comissão:", comErr.message);
+        // Não bloqueia — status já foi atualizado
+      }
     }
 
     const { data: order } = await supabase
@@ -133,8 +150,9 @@ export async function POST(req: NextRequest) {
       .eq("id", orderId)
       .single();
 
-    return NextResponse.json({ ok: true, order });
+    return NextResponse.json({ ok: true, order, status: novoStatus });
   } catch (err: any) {
+    console.error("[confirm] Erro geral:", err.message);
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
 }

@@ -18,7 +18,6 @@ export default function DashboardPage() {
   
   // Dados do Usuário
   const [nome, setNome] = useState("Embaixador");
-  const [nivelTecnico, setNivelTecnico] = useState("PROFISSIONAL BRONZE");
   
   // Matemática da Gamificação
   const [scoreTotal, setScoreTotal] = useState(0);
@@ -26,14 +25,25 @@ export default function DashboardPage() {
   const [scorePessoal, setScorePessoal] = useState(0);
   const [ultimoPedido, setUltimoPedido] = useState<PedidoResumo>(null);
 
-  // Meta dinâmica baseada no nível atual
-  const METAS: Record<string, number> = {
-    "PROFISSIONAL BRONZE": 10000,
-    "PROFISSIONAL PRATA":  50000,
-    "PROFISSIONAL GOLD":   150000,
-    "PROFISSIONAL BLACK":  500000,
+  // Níveis calculados dinamicamente pelo score — nunca dependem do banco
+  const NIVEIS = [
+    { nome: "INICIANTE",           min: 0,      meta: 10000  },
+    { nome: "PROFISSIONAL BRONZE", min: 10001,  meta: 50000  },
+    { nome: "PROFISSIONAL PRATA",  min: 50001,  meta: 150000 },
+    { nome: "PROFISSIONAL GOLD",   min: 150001, meta: 500000 },
+    { nome: "PROFISSIONAL BLACK",  min: 500001, meta: null   },
+  ];
+
+  const calcularNivel = (score: number) => {
+    for (let i = NIVEIS.length - 1; i >= 0; i--) {
+      if (score >= NIVEIS[i].min) return NIVEIS[i];
+    }
+    return NIVEIS[0];
   };
-  const META_CERTIFIED = METAS[nivelTecnico] || 10000;
+
+  const nivelAtual = calcularNivel(scoreTotal);
+  const nivelTecnico = nivelAtual.nome;
+  const META_CERTIFIED = nivelAtual.meta ?? 500000;
 
   const getTotalProfissional = (profile: any) => {
     const totalBase = Number(profile?.moedas_pro_acumuladas || 0);
@@ -48,13 +58,12 @@ export default function DashboardPage() {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name, moedas_pro_acumuladas, network_coins, personal_coins, nivel_tecnico")
+          .select("full_name, moedas_pro_acumuladas, network_coins, personal_coins")
           .eq("id", user.id)
           .single();
 
         if (profile) {
-          setNome(profile.full_name || "Marcelo");
-          setNivelTecnico(profile.nivel_tecnico || "PROFISSIONAL BRONZE");
+          setNome(profile.full_name || "Membro");
           setScoreTotal(getTotalProfissional(profile));
           setScoreRede(profile.network_coins || 0);
           setScorePessoal(profile.personal_coins || 0);
@@ -175,9 +184,19 @@ export default function DashboardPage() {
       <div className="w-full bg-green-900/10 border border-green-900/30 p-6 rounded-2xl flex items-center justify-between">
          <div>
             <h3 className="text-green-500 font-bold text-lg mb-1">Nível Atual: {nivelTecnico}</h3>
-            <p className="text-gray-400 text-sm">
-                Meta próximo nível: <span className="text-white font-bold">{META_CERTIFIED.toLocaleString()} PRO</span> — {progressoCertified >= 100 ? "✅ Meta atingida!" : `faltam ${(META_CERTIFIED - scoreTotal).toLocaleString()} PRO`}
-            </p>
+            {nivelAtual.meta ? (
+              <p className="text-gray-400 text-sm">
+                Meta próximo nível: <span className="text-white font-bold">{META_CERTIFIED.toLocaleString()} PRO</span>
+                {" — "}
+                {progressoCertified >= 100
+                  ? "✅ Nível superado! Suba para o próximo."
+                  : `faltam ${(META_CERTIFIED - scoreTotal).toLocaleString()} PRO`}
+              </p>
+            ) : (
+              <p className="text-gray-400 text-sm">
+                🏆 <span className="text-white font-bold">Nível máximo atingido!</span> Você é PROFISSIONAL BLACK.
+              </p>
+            )}
          </div>
          <div className="h-12 w-12 rounded-full bg-green-900/20 border border-green-500/30 flex items-center justify-center text-green-500">
             <Lock size={20} />
