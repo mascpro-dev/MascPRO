@@ -56,7 +56,8 @@ export default function AdminSaquesPage() {
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.ok) {
-      setErro(data?.error || "Erro ao atualizar saque.");
+      const detalhe = data?.hint || data?.details || data?.code || "";
+      setErro(`Erro ${res.status}: ${data?.error || "Erro ao atualizar saque."}${detalhe ? ` [${detalhe}]` : ""}`);
     }
     await carregarSaques();
     setProcessando(null);

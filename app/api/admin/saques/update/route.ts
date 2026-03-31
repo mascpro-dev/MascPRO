@@ -1,43 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function getSupabase() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const { id, novoStatus } = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({}));
+    const { id, novoStatus } = body;
+
     if (!id || !["aprovado", "rejeitado"].includes(novoStatus)) {
-      return NextResponse.json({ ok: false, error: "Payload inválido." }, { status: 400 });
+      return NextResponse.json({ ok: false, error: `Payload inválido. id=${id} novoStatus=${novoStatus}` }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    // Tenta com processado_em primeiro; se a coluna não existir, tenta só status
-    let { error: uErr } = await supabase
+    if (!url || !key) {
+      return NextResponse.json({ ok: false, error: `Env vars ausentes: url=${!!url} key=${!!key}` }, { status: 500 });
+    }
+
+    const supabase = createClient(url, key);
+
+    // Update mínimo — só o status
+    const { error, data } = await supabase
       .from("withdrawal_requests")
-      .update({ status: novoStatus, processado_em: new Date().toISOString() })
-      .eq("id", id);
+      .update({ status: novoStatus })
+      .eq("id", id)
+      .select("id, status");
 
-    if (uErr?.message?.includes("processado_em") || uErr?.message?.includes("column")) {
-      console.warn("[saques/update] coluna processado_em ausente, atualizando só status");
-      const { error: uErr2 } = await supabase
-        .from("withdrawal_requests")
-        .update({ status: novoStatus })
-        .eq("id", id);
-      uErr = uErr2 ?? null;
+    if (error) {
+      console.error("[saques/update]", error);
+      return NextResponse.json({
+        ok: false,
+        error: error.message,
+        code: error.code,
+        details: (error as any).details,
+        hint: (error as any).hint,
+      }, { status: 500 });
     }
 
-    if (uErr) {
-      console.error("[saques/update] erro:", uErr.message);
-      return NextResponse.json({ ok: false, error: uErr.message }, { status: 500 });
+    if (!data || data.length === 0) {
+      return NextResponse.json({ ok: false, error: `Nenhuma linha atualizada. id=${id} pode não existir.` }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, saque: data[0] });
   } catch (e: any) {
-    console.error("[saques/update] erro geral:", e.message);
+    console.error("[saques/update] catch:", e.message);
     return NextResponse.json({ ok: false, error: e?.message || "Erro interno." }, { status: 500 });
   }
 }
