@@ -11,6 +11,7 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  PackageOpen,
 } from "lucide-react";
 
 type Pedido = {
@@ -49,6 +50,11 @@ const LABELS: Record<string, LabelInfo> = {
     cor: "bg-emerald-900/40 text-emerald-300 border-emerald-700/60",
     icon: <Truck size={12} className="mr-1" />,
   },
+  entregue: {
+    texto: "Entregue",
+    cor: "bg-emerald-900/60 text-emerald-200 border-emerald-600/60",
+    icon: <PackageOpen size={12} className="mr-1" />,
+  },
   cancelled: {
     texto: "Cancelado",
     cor: "bg-red-900/40 text-red-300 border-red-700/60",
@@ -64,6 +70,7 @@ export default function MeusPedidosPage() {
   const [syncMsg, setSyncMsg] = useState("");
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
 
   async function carregarPedidos() {
     const { data: authData } = await supabase.auth.getSession();
@@ -106,6 +113,26 @@ export default function MeusPedidosPage() {
       await carregarPedidos();
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function confirmarRecebimento(pedidoId: string) {
+    if (!confirm("Confirmar que você recebeu este pedido?")) return;
+    setConfirmandoId(pedidoId);
+    try {
+      const res = await fetch("/api/orders/confirmar-recebimento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: pedidoId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        alert(data?.error || "Não foi possível confirmar o recebimento.");
+        return;
+      }
+      await carregarPedidos();
+    } finally {
+      setConfirmandoId(null);
     }
   }
 
@@ -259,9 +286,18 @@ export default function MeusPedidosPage() {
                       </button>
                     )}
                     {p.status === "despachado" && (
-                      <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
-                        Seu pedido já está a caminho!
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => confirmarRecebimento(p.id)}
+                        disabled={confirmandoId === p.id}
+                        className="text-[10px] font-black uppercase tracking-widest text-emerald-300 hover:text-white bg-emerald-700/30 hover:bg-emerald-600/50 border border-emerald-600/40 rounded-lg px-3 py-1.5 disabled:opacity-50 transition-all flex items-center gap-1"
+                      >
+                        {confirmandoId === p.id ? (
+                          <><Loader2 size={10} className="animate-spin" /> Confirmando...</>
+                        ) : (
+                          <><PackageOpen size={10} /> Confirmar recebimento</>
+                        )}
+                      </button>
                     )}
                   </div>
                 </div>
