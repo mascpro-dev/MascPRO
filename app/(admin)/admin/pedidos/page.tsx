@@ -23,7 +23,7 @@ type StatusInfo = { label: string; style: string; icon: React.ReactNode };
 
 const STATUS: Record<string, StatusInfo> = {
   novo:       { label: "Rascunho / legado",    style: "bg-zinc-800 text-zinc-400 border-zinc-700",       icon: <Clock size={10} className="inline mr-1" /> },
-  pending:    { label: "Aguardando pagamento", style: "bg-zinc-800 text-zinc-400 border-zinc-700",       icon: <Clock size={10} className="inline mr-1" /> },
+  pending:    { label: "Aguardando confirmação da Masc PRO", style: "bg-zinc-800 text-zinc-400 border-zinc-700",       icon: <Clock size={10} className="inline mr-1" /> },
   paid:       { label: "Pago — aguardando separação", style: "bg-blue-900/30 text-blue-400 border-blue-800/40", icon: <CheckCircle size={10} className="inline mr-1" /> },
   separacao:  { label: "Em separação",         style: "bg-yellow-900/30 text-yellow-400 border-yellow-800/40", icon: <PackageCheck size={10} className="inline mr-1" /> },
   despachado: { label: "Despachado",           style: "bg-green-900/30 text-green-400 border-green-800/40",  icon: <Truck size={10} className="inline mr-1" /> },

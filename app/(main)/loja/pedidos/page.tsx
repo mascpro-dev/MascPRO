@@ -25,12 +25,12 @@ type LabelInfo = { texto: string; cor: string; icon: React.ReactNode };
 const LABELS: Record<string, LabelInfo> = {
   /** Legado / testes antigos — tratar como pendente */
   novo: {
-    texto: "Aguardando pagamento",
+    texto: "Aguardando confirmação da Masc PRO",
     cor: "bg-zinc-800 text-zinc-300 border-zinc-700",
     icon: <Clock size={12} className="mr-1" />,
   },
   pending: {
-    texto: "Aguardando pagamento",
+    texto: "Aguardando confirmação da Masc PRO",
     cor: "bg-zinc-800 text-zinc-300 border-zinc-700",
     icon: <Clock size={12} className="mr-1" />,
   },
