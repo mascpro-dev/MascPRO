@@ -337,6 +337,27 @@ export default function AdminPedidosPage() {
                       Apagar pedido
                     </button>
 
+                    {/* PENDENTE / NOVO → confirmar pagamento ou cancelar */}
+                    {(pedido.status === "pending" || pedido.status === "novo") && (
+                      <>
+                        <button
+                          onClick={() => atualizarStatus(pedido.id, "paid")}
+                          disabled={isProcessando}
+                          className="flex items-center gap-1 bg-blue-700/40 hover:bg-blue-600/60 text-blue-200 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all disabled:opacity-50 border border-blue-600/40"
+                        >
+                          {isProcessando ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                          CONFIRMAR PAGAMENTO
+                        </button>
+                        <button
+                          onClick={() => atualizarStatus(pedido.id, "cancelled")}
+                          disabled={isProcessando}
+                          className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all disabled:opacity-50"
+                        >
+                          <XCircle size={14} /> CANCELAR
+                        </button>
+                      </>
+                    )}
+
                     {/* PAGO → pode ir para separação ou cancelar */}
                     {pedido.status === "paid" && (
                       <>
