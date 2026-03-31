@@ -88,7 +88,7 @@ export default function PerfilPage() {
                 <input type="text" placeholder="Ex: Marília - SP" defaultValue={profile?.location} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#C9A66B]" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase">Nome da Barbearia</label>
+                <label className="text-[10px] font-bold text-zinc-500 uppercase">Nome do Salão / Barbearia</label>
                 <input type="text" defaultValue={profile?.barber_shop} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#C9A66B]" />
               </div>
               <div className="space-y-1">
