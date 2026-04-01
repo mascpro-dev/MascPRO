@@ -17,6 +17,7 @@ import {
   MoreVertical,
   Award,
   CheckCircle,
+  Calculator,
   type LucideIcon
 } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -44,6 +45,7 @@ const BOTTOM_NAV_RIGHT: NavItem[] = [
 const DROPDOWN_ITEMS: NavItem[] = [
   { icon: ShoppingBag, label: "Loja PRO", href: "/loja" },
   { icon: Calendar, label: "Eventos", href: "/eventos" },
+  { icon: Calculator, label: "Calculadora PRO", href: "/calculadora" },
 ];
 
 // Função para obter itens do menu (Jornada disponível para todos)
@@ -56,6 +58,7 @@ const getMenuItems = () => {
     { icon: Award, label: "Minha Jornada", href: "/jornada" },
     { icon: ShoppingBag, label: "Loja PRO", href: "/loja" },
     { icon: Calendar, label: "Eventos", href: "/eventos" },
+    { icon: Calculator, label: "Calculadora PRO", href: "/calculadora" },
     { icon: User, label: "Meu Perfil", href: "/perfil" }
   ];
 };

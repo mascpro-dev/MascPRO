@@ -16,6 +16,9 @@ import {
   ShoppingBag,
   UsersRound,
   Calendar,
+  BookOpen,
+  Bell,
+  Package,
 } from 'lucide-react';
 
 export default function AdminSidebar() {
@@ -81,11 +84,32 @@ export default function AdminSidebar() {
           href: "/admin/eventos",
           color: "text-[#C9A66B]"
         },
+        {
+          name: "Cursos & Aulas",
+          description: "Módulos e vídeos",
+          icon: BookOpen,
+          href: "/admin/cursos",
+          color: "text-blue-400"
+        },
+        {
+          name: "Comunicados",
+          description: "Recados por segmento",
+          icon: Bell,
+          href: "/admin/comunicados",
+          color: "text-yellow-400"
+        },
       ]
     },
     {
-      title: "FINANCEIRO",
+      title: "LOJA",
       items: [
+        {
+          name: "Produtos",
+          description: "Preços, estoque, fotos",
+          icon: Package,
+          href: "/admin/produtos",
+          color: "text-emerald-400"
+        },
         {
           name: "Pedidos",
           description: "Separação e despacho",
@@ -93,6 +117,11 @@ export default function AdminSidebar() {
           href: "/admin/pedidos",
           color: "text-blue-400"
         },
+      ]
+    },
+    {
+      title: "FINANCEIRO",
+      items: [
         {
           name: "Saques",
           description: "Comissões de embaixadores",
