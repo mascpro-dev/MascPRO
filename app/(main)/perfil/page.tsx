@@ -40,7 +40,11 @@ export default function PerfilPage() {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+      const { data } = await supabase
+        .from("profiles")
+        .select("*, moedas_pro_acumuladas, personal_coins, network_coins")
+        .eq("id", session.user.id)
+        .single();
       if (data) {
         setProfile(data);
         setForm({
@@ -127,12 +131,18 @@ export default function PerfilPage() {
               <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">Seu Saldo PRO</p>
               <div className="flex flex-col gap-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-zinc-400">Moedas Acumuladas</span>
-                  <span className="text-sm font-black text-[#C9A66B]">{profile.moedas_pro_acumuladas || 0} PRO</span>
+                  <span className="text-xs text-zinc-400">Rumo ao Profissional</span>
+                  <span className="text-sm font-black text-[#C9A66B]">
+                    {(Number(profile.moedas_pro_acumuladas || 0) + Number(profile.personal_coins || 0)).toLocaleString("pt-BR")} PRO
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-zinc-400">Mérito de Rede</span>
                   <span className="text-sm font-black text-white">{profile.network_coins || 0}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-zinc-400">Mérito Técnico</span>
+                  <span className="text-sm font-black text-white">{profile.personal_coins || 0}</span>
                 </div>
               </div>
             </div>
