@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
-import { Bell, Plus, Loader2, Trash2, X, ToggleRight, ToggleLeft, Send, Users, User, Briefcase, Shield } from "lucide-react";
+import { Bell, Plus, Loader2, Trash2, X, ToggleRight, ToggleLeft, Send, Users, User, Briefcase, Shield, BellRing, CheckCircle, AlertCircle } from "lucide-react";
 
 const PUBLICOS = [
   { value: "TODOS", label: "Todos os membros", icon: Users, cor: "text-[#C9A66B] bg-[#C9A66B]/10" },
@@ -24,6 +24,8 @@ export default function AdminComunicadosPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ titulo: "", mensagem: "", publico: "TODOS", tipo: "info" });
   const [erro, setErro] = useState("");
+  const [enviandoPush, setEnviandoPush] = useState<string | null>(null);
+  const [pushFeedback, setPushFeedback] = useState<{ id: string; msg: string; ok: boolean } | null>(null);
 
   useEffect(() => { carregar(); }, []);
 
@@ -62,13 +64,33 @@ export default function AdminComunicadosPage() {
     await carregar();
   }
 
+  async function enviarPush(c: any) {
+    setEnviandoPush(c.id);
+    setPushFeedback(null);
+    const res = await fetch("/api/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: c.titulo, body: c.mensagem, publico: c.publico, url: "/" }),
+    });
+    const d = await res.json().catch(() => null);
+    setPushFeedback({
+      id: c.id,
+      ok: !!d?.ok,
+      msg: d?.ok
+        ? `Push enviado para ${d.enviados} dispositivo(s)`
+        : `Erro: ${d?.error || "falha"}`,
+    });
+    setEnviandoPush(null);
+    setTimeout(() => setPushFeedback(null), 5000);
+  }
+
   const publicoInfo = (p: string) => PUBLICOS.find(x => x.value === p) || PUBLICOS[0];
   const tipoInfo = (t: string) => TIPOS.find(x => x.value === t) || TIPOS[0];
 
   return (
     <div className="flex min-h-screen bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-4 md:p-6 overflow-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Bell className="text-[#C9A66B]" size={26} />
@@ -113,6 +135,18 @@ export default function AdminComunicadosPage() {
                       </p>
                     </div>
                     <div className="flex flex-col gap-2 shrink-0">
+                      {/* ENVIAR PUSH */}
+                      <button
+                        onClick={() => enviarPush(c)}
+                        disabled={enviandoPush === c.id}
+                        title="Enviar notificação push agora"
+                        className="p-2 rounded-lg bg-zinc-800 hover:bg-[#C9A66B]/20 text-zinc-400 hover:text-[#C9A66B] transition-all disabled:opacity-50"
+                      >
+                        {enviandoPush === c.id
+                          ? <Loader2 size={16} className="animate-spin" />
+                          : <BellRing size={16} />
+                        }
+                      </button>
                       <button onClick={() => toggleAtivo(c.id, c.ativo)} className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-[#C9A66B]">
                         {c.ativo ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                       </button>
@@ -121,6 +155,12 @@ export default function AdminComunicadosPage() {
                       </button>
                     </div>
                   </div>
+                  {pushFeedback?.id === c.id && (
+                    <div className={`mt-3 flex items-center gap-2 text-xs font-bold rounded-xl px-3 py-2 ${pushFeedback.ok ? "bg-green-900/30 text-green-400" : "bg-red-900/30 text-red-400"}`}>
+                      {pushFeedback.ok ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
+                      {pushFeedback.msg}
+                    </div>
+                  )}
                 </div>
               );
             })}

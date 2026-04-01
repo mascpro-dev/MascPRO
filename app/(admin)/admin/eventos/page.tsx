@@ -121,7 +121,7 @@ export default function AdminEventosPage() {
   return (
     <div className="flex min-h-screen bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">
+      <main className="flex-1 p-4 md:p-8 overflow-auto">
 
         {/* HEADER */}
         <div className="flex items-center justify-between mb-8">

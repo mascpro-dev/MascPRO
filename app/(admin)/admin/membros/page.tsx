@@ -121,7 +121,7 @@ export default function AdminMembrosPage() {
   return (
     <div className="flex min-h-screen bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">
+      <main className="flex-1 p-4 md:p-8 overflow-auto">
         <div className="flex items-center gap-3 mb-6">
           <Users className="text-[#C9A66B]" size={26} />
           <div>

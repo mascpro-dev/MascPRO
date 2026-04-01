@@ -83,7 +83,7 @@ export default function AdminDashboard() {
   return (
     <div className="flex min-h-screen bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">
+      <main className="flex-1 p-4 md:p-8 overflow-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl font-black italic uppercase">
             Painel <span className="text-[#C9A66B]">Admin</span>
