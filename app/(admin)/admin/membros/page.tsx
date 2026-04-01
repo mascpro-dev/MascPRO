@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import {
   Search, Users, Instagram, MessageCircle, Loader2,
-  ShoppingBag, Pencil, X, Save, AlertCircle, CheckCircle, KeyRound,
+  ShoppingBag, Pencil, X, Save, AlertCircle, CheckCircle, KeyRound, Link2, Copy,
 } from "lucide-react";
 
 type Membro = {
@@ -16,7 +16,19 @@ type Membro = {
 };
 
 const ROLES = ["CABELEIREIRO", "EMBAIXADOR", "DISTRIBUIDOR", "ADMIN"];
-const NIVEIS = ["cabeleireiro", "embaixador", "distribuidor"];
+
+// Quando muda o role, sincroniza o nivel automaticamente
+function roleParaNivel(role: string): string {
+  const m: Record<string, string> = {
+    CABELEIREIRO: "cabeleireiro",
+    EMBAIXADOR: "embaixador",
+    DISTRIBUIDOR: "distribuidor",
+    ADMIN: "cabeleireiro",
+  };
+  return m[role] || "cabeleireiro";
+}
+
+const BASE_URL = typeof window !== "undefined" ? window.location.origin : "https://mascpro.com.br";
 
 export default function AdminMembrosPage() {
   const [membros, setMembros] = useState<Membro[]>([]);
@@ -31,6 +43,7 @@ export default function AdminMembrosPage() {
   const [salvando, setSalvando] = useState(false);
   const [feedback, setFeedback] = useState<{tipo: "ok"|"erro"; msg: string}|null>(null);
   const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [linkCopiado, setLinkCopiado] = useState(false);
 
   useEffect(() => { carregar(); }, []);
 
@@ -61,16 +74,20 @@ export default function AdminMembrosPage() {
       full_name: m.full_name || "", email: m.email || "",
       whatsapp: m.whatsapp || "", instagram: m.instagram || "",
       city: m.city || "", state: m.state || "",
-      role: m.role || "CABELEIREIRO", nivel: m.nivel || "cabeleireiro",
+      role: m.role || "CABELEIREIRO",
       indicado_por: m.indicado_por || "", nova_senha: "",
     });
-    setFeedback(null); setMostrarSenha(false);
+    setFeedback(null); setMostrarSenha(false); setLinkCopiado(false);
   }
 
   async function salvar() {
     if (!editando) return;
     setSalvando(true); setFeedback(null);
-    const body: any = { user_id: editando.id, ...form };
+    const body: any = {
+      user_id: editando.id,
+      ...form,
+      nivel: roleParaNivel(form.role),
+    };
     if (!body.nova_senha) delete body.nova_senha;
     if (!body.indicado_por) body.indicado_por = null;
 
@@ -201,25 +218,42 @@ export default function AdminMembrosPage() {
                   <div><label className={labelClass}>Estado (UF)</label><input value={form.state} onChange={e => set("state", e.target.value)} maxLength={2} className={inputClass} /></div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelClass}>Nível / Role</label>
-                    <select value={form.role} onChange={e => set("role", e.target.value)} className={inputClass}>
-                      {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelClass}>Tabela de Preços</label>
-                    <select value={form.nivel} onChange={e => set("nivel", e.target.value)} className={inputClass}>
-                      {NIVEIS.map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                  </div>
+                <div>
+                  <label className={labelClass}>Nível / Role</label>
+                  <select value={form.role} onChange={e => set("role", e.target.value)} className={inputClass}>
+                    {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  <p className="text-[10px] text-zinc-600 mt-1">Tabela de preços aplicada automaticamente: <span className="text-zinc-400 font-bold">{roleParaNivel(form.role)}</span></p>
                 </div>
 
                 <div>
                   <label className={labelClass}>ID do Indicador (quem indicou)</label>
                   <input value={form.indicado_por} onChange={e => set("indicado_por", e.target.value)} placeholder="UUID do membro que indicou (ou vazio)" className={inputClass} />
                   {editando.indicador && <p className="text-[10px] text-zinc-600 mt-1">Atual: <span className="text-zinc-400">{editando.indicador.full_name}</span></p>}
+                </div>
+
+                {/* LINK DE INDICAÇÃO DO MEMBRO */}
+                <div className="bg-zinc-900 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Link2 size={13} className="text-[#C9A66B]" />
+                    <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Link de Indicação</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="flex-1 text-xs text-zinc-300 bg-black/40 rounded-lg px-3 py-2 truncate select-all font-mono">
+                      {`${typeof window !== "undefined" ? window.location.origin : "https://mascpro.com.br"}/cadastro?ref=${editando.id}`}
+                    </p>
+                    <button
+                      onClick={() => {
+                        const link = `${window.location.origin}/cadastro?ref=${editando!.id}`;
+                        navigator.clipboard.writeText(link);
+                        setLinkCopiado(true);
+                        setTimeout(() => setLinkCopiado(false), 2000);
+                      }}
+                      className="shrink-0 px-3 py-2 rounded-lg bg-[#C9A66B]/10 border border-[#C9A66B]/30 hover:bg-[#C9A66B]/20 text-[#C9A66B] text-[10px] font-black uppercase tracking-widest flex items-center gap-1"
+                    >
+                      <Copy size={12} /> {linkCopiado ? "Copiado!" : "Copiar"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="bg-zinc-900 rounded-xl p-4">
