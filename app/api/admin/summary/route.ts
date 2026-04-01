@@ -1,67 +1,83 @@
 import { NextResponse } from "next/server";
-import { getAdminServiceClient } from "@/lib/adminServer";
+import { createClient } from "@supabase/supabase-js";
+
+function getSupabase() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
+}
 
 export async function GET() {
   try {
-    const { supabase, error, status } = await getAdminServiceClient();
-    if (!supabase) return NextResponse.json({ ok: false, error }, { status });
+    const supabase = getSupabase();
 
-    const hoje = new Date().toISOString().split("T")[0];
-    const inicioSemana = new Date();
-    inicioSemana.setDate(inicioSemana.getDate() - 7);
-    const inicioMes = new Date();
-    inicioMes.setDate(1);
-    inicioMes.setHours(0, 0, 0, 0);
+    const agora = new Date();
+    const hoje = agora.toISOString().split("T")[0];
+    const inicioSemana = new Date(agora);
+    inicioSemana.setDate(agora.getDate() - 7);
+    const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+
+    const statusConfirmados = ["paid", "separacao", "despachado", "entregue"];
 
     const [
       { count: membros },
-      { data: perfisHoje },
+      { count: cadastrosHoje },
+      { count: cadastrosSemana },
+      { count: acessosHoje },
       { data: todosPedidos },
+      { data: pedidosDoMes },
       { data: saques },
       { data: ultimosMembros },
       { data: ultimosPedidos },
       { data: comissoes },
     ] = await Promise.all([
       supabase.from("profiles").select("id", { count: "exact", head: true }),
-      supabase.from("profiles").select("id, last_sign_in_at, created_at"),
-      supabase.from("orders").select("id, total, status, created_at, profile_id").in("status", ["paid", "separacao", "despachado", "entregue", "pending", "novo", "cancelled"]),
+      // Novos hoje — filtro no banco
+      supabase.from("profiles")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", `${hoje}T00:00:00.000Z`)
+        .lte("created_at", `${hoje}T23:59:59.999Z`),
+      // Novos nos últimos 7 dias — filtro no banco
+      supabase.from("profiles")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", inicioSemana.toISOString()),
+      // Online hoje (last_sign_in)
+      supabase.from("profiles")
+        .select("id", { count: "exact", head: true })
+        .gte("last_sign_in_at", `${hoje}T00:00:00.000Z`),
+      // Todos os pedidos (para totais históricos e por status)
+      supabase.from("orders")
+        .select("id, total, status, created_at, profile_id")
+        .in("status", ["paid", "separacao", "despachado", "entregue", "pending", "novo"]),
+      // Pedidos confirmados ESTE MÊS (para ativos e vendas do mês)
+      supabase.from("orders")
+        .select("id, total, profile_id")
+        .in("status", statusConfirmados)
+        .gte("created_at", inicioMes.toISOString()),
       supabase.from("withdrawal_requests").select("valor_liquido, status").eq("status", "aguardando"),
-      supabase
-        .from("profiles")
+      supabase.from("profiles")
         .select("id, full_name, email, created_at, role")
         .order("created_at", { ascending: false })
         .limit(6),
-      supabase
-        .from("orders")
+      supabase.from("orders")
         .select("id, total, status, created_at, profiles(full_name)")
         .order("created_at", { ascending: false })
         .limit(6),
       supabase.from("commissions").select("valor_comissao"),
     ]);
 
-    const acessosHoje = (perfisHoje || []).filter((u: any) => u.last_sign_in_at?.startsWith(hoje)).length;
-    const cadastrosHoje = (perfisHoje || []).filter((u: any) => u.created_at?.startsWith(hoje)).length;
-    const cadastrosSemana = (perfisHoje || []).filter((u: any) =>
-      new Date(u.created_at) >= inicioSemana
-    ).length;
-
-    // Pedidos confirmados = paid + separacao + despachado + entregue
-    const statusConfirmados = ["paid", "separacao", "despachado", "entregue"];
+    // Cálculos históricos
     const pedidosPagos = (todosPedidos || []).filter((p: any) => statusConfirmados.includes(p.status));
     const totalVendas = pedidosPagos.reduce((acc: number, p: any) => acc + Number(p.total), 0);
 
-    const vendasMes = pedidosPagos
-      .filter((p: any) => new Date(p.created_at) >= inicioMes)
-      .reduce((acc: number, p: any) => acc + Number(p.total), 0);
+    // Vendas e ativos do MÊS ATUAL
+    const vendasMes = (pedidosDoMes || []).reduce((acc: number, p: any) => acc + Number(p.total), 0);
+    const ativosNoMes = new Set((pedidosDoMes || []).map((p: any) => p.profile_id).filter(Boolean)).size;
 
-    const pedidosPendentes = (todosPedidos || []).filter((p: any) =>
-      ["paid", "separacao"].includes(p.status)
-    ).length;
+    // Por status (todos os tempos)
+    const pedidosPendentes = (todosPedidos || []).filter((p: any) => ["paid", "separacao"].includes(p.status)).length;
     const pedidosDespachados = (todosPedidos || []).filter((p: any) => p.status === "despachado").length;
     const pedidosEntregues = (todosPedidos || []).filter((p: any) => p.status === "entregue").length;
-    const pedidosAguardando = (todosPedidos || []).filter((p: any) =>
-      ["pending", "novo"].includes(p.status)
-    ).length;
+    const pedidosAguardando = (todosPedidos || []).filter((p: any) => ["pending", "novo"].includes(p.status)).length;
 
     const saquesAbertos = (saques || []).length;
     const valorSaquesAbertos = (saques || []).reduce((acc: number, s: any) => acc + Number(s.valor_liquido), 0);
@@ -71,9 +87,10 @@ export async function GET() {
       ok: true,
       resumo: {
         membros: membros || 0,
-        acessosHoje,
-        cadastrosHoje,
-        cadastrosSemana,
+        acessosHoje: acessosHoje || 0,
+        cadastrosHoje: cadastrosHoje || 0,
+        cadastrosSemana: cadastrosSemana || 0,
+        ativosNoMes,
         totalVendas,
         vendasMes,
         pedidosPagos: pedidosPagos.length,

@@ -14,6 +14,7 @@ type Resumo = {
   acessosHoje: number;
   cadastrosHoje: number;
   cadastrosSemana: number;
+  ativosNoMes: number;
   totalVendas: number;
   vendasMes: number;
   pedidosPagos: number;
@@ -169,8 +170,8 @@ export default function AdminDashboard() {
               />
               <Card
                 icon={<Activity className="text-blue-400" size={22} />}
-                label="Ativos (com compra)"
-                value={resumo.pedidosEntregues + resumo.pedidosDespachados}
+                label="Ativos este mês"
+                value={resumo.ativosNoMes}
                 sub="Ver termômetro →"
                 color="text-blue-400"
                 bg="bg-blue-900/20"
@@ -179,7 +180,7 @@ export default function AdminDashboard() {
               <Card
                 icon={<Users className="text-red-400" size={22} />}
                 label="Inativos"
-                value={resumo.membros - (resumo.pedidosEntregues + resumo.pedidosDespachados)}
+                value={resumo.membros - resumo.ativosNoMes}
                 sub="Ver quem está parado →"
                 color="text-red-400"
                 bg="bg-red-900/20"
