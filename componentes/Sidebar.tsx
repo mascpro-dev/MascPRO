@@ -46,6 +46,7 @@ const DROPDOWN_ITEMS: NavItem[] = [
   { icon: ShoppingBag, label: "Loja PRO", href: "/loja" },
   { icon: Calendar, label: "Eventos", href: "/eventos" },
   { icon: Calculator, label: "Calculadora PRO", href: "/calculadora" },
+  { icon: Users, label: "Rede de Profissionais", href: "/profissionais" },
 ];
 
 // Função para obter itens do menu (Jornada disponível para todos)
@@ -59,6 +60,7 @@ const getMenuItems = () => {
     { icon: ShoppingBag, label: "Loja PRO", href: "/loja" },
     { icon: Calendar, label: "Eventos", href: "/eventos" },
     { icon: Calculator, label: "Calculadora PRO", href: "/calculadora" },
+    { icon: Users, label: "Rede de Profissionais", href: "/profissionais" },
     { icon: User, label: "Meu Perfil", href: "/perfil" }
   ];
 };

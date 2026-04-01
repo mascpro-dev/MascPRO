@@ -4,12 +4,15 @@ import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { 
   Trophy, Heart, MessageSquare, Send, Loader2, 
-  ImageIcon, MoreHorizontal, MessageCircle 
+  ImageIcon, MoreHorizontal, MessageCircle, Zap, Users,
 } from "lucide-react";
+import Link from "next/link";
 
 export default function ComunidadePage() {
   const supabase = createClientComponentClient();
-  const [activeTab, setActiveTab] = useState<'ranking' | 'feed'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'ranking' | 'conquistas'>('feed');
+  const [conquistas, setConquistas] = useState<any[]>([]);
+  const [loadingConquistas, setLoadingConquistas] = useState(false);
   
   // Estados de Dados
   const [ranking, setRanking] = useState<any[]>([]); 
@@ -44,9 +47,16 @@ export default function ComunidadePage() {
     return Number(n).toLocaleString('pt-BR');
   };
 
+  useEffect(() => { fetchData(); }, []);
+
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (activeTab === "conquistas" && conquistas.length === 0) {
+      setLoadingConquistas(true);
+      fetch("/api/conquistas").then(r => r.json()).then(d => {
+        setConquistas(d.eventos || []);
+      }).finally(() => setLoadingConquistas(false));
+    }
+  }, [activeTab]);
 
   // Busca de usuários para o @ mention
   useEffect(() => {
@@ -305,24 +315,30 @@ export default function ComunidadePage() {
         <h1 className="text-3xl font-black italic uppercase mb-8">COMUNIDADE <span className="text-[#C9A66B]">PRO</span></h1>
 
         {/* TABS */}
-        <div className="flex bg-zinc-900/50 p-1 rounded-2xl mb-10 border border-white/5">
-          <button
-            onClick={() => setActiveTab('feed')}
-            className={`flex-1 py-3 text-xs font-black uppercase rounded-xl transition-all ${
-              activeTab === 'feed' ? "bg-[#C9A66B] text-black shadow-lg" : "text-zinc-500"
-            }`}
-          >
-            Feed Social
-          </button>
-              <button 
-            onClick={() => setActiveTab('ranking')}
-            className={`flex-1 py-3 text-xs font-black uppercase rounded-xl transition-all ${
-              activeTab === 'ranking' ? "bg-[#C9A66B] text-black shadow-lg" : "text-zinc-500"
-            }`}
-          >
-            Ranking
-              </button>
+        <div className="flex bg-zinc-900/50 p-1 rounded-2xl mb-8 border border-white/5">
+          {[
+            { key: "feed", label: "Feed Social" },
+            { key: "ranking", label: "Ranking" },
+            { key: "conquistas", label: "⚡ Atividade" },
+          ].map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key as any)}
+              className={`flex-1 py-3 text-xs font-black uppercase rounded-xl transition-all ${activeTab === t.key ? "bg-[#C9A66B] text-black shadow-lg" : "text-zinc-500"}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* LINK REDE DE PROFISSIONAIS */}
+        <Link href="/profissionais" className="flex items-center justify-between bg-zinc-900/50 border border-zinc-800 hover:border-[#C9A66B]/40 rounded-2xl px-5 py-3 mb-6 transition-all group">
+          <div className="flex items-center gap-3">
+            <Users size={18} className="text-[#C9A66B]" />
+            <div>
+              <p className="text-sm font-black uppercase">Rede de Profissionais</p>
+              <p className="text-[10px] text-zinc-500">Encontre profissionais perto de você</p>
             </div>
+          </div>
+          <span className="text-[10px] text-zinc-600 group-hover:text-[#C9A66B] font-bold uppercase">Ver →</span>
+        </Link>
 
         {/* RANKING */}
         {activeTab === 'ranking' && (
@@ -338,6 +354,40 @@ export default function ComunidadePage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* CONQUISTAS / ATIVIDADE */}
+        {activeTab === "conquistas" && (
+          <div className="max-w-2xl mx-auto">
+            {loadingConquistas ? (
+              <div className="flex justify-center mt-10"><Loader2 className="animate-spin text-[#C9A66B]" size={28} /></div>
+            ) : conquistas.length === 0 ? (
+              <p className="text-zinc-600 text-center mt-10">Nenhuma atividade recente.</p>
+            ) : (
+              <div className="relative pl-6">
+                <div className="absolute left-2 top-0 bottom-0 w-px bg-zinc-800" />
+                <div className="space-y-4">
+                  {conquistas.map(e => (
+                    <div key={e.id} className="relative">
+                      <div className="absolute -left-4 top-3 w-3 h-3 rounded-full border-2 border-[#C9A66B] bg-black" />
+                      <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl px-4 py-3">
+                        <div className="flex items-start gap-3">
+                          <span className="text-xl shrink-0">{e.emoji}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold leading-tight">{e.titulo}</p>
+                            {e.subtitulo && <p className="text-[11px] text-zinc-500 mt-0.5">{e.subtitulo}</p>}
+                          </div>
+                          <span className="text-[9px] text-zinc-700 font-bold shrink-0">
+                            {new Date(e.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
