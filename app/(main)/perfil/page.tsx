@@ -2,35 +2,113 @@
 
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { ShieldCheck, LayoutDashboard, User, Camera, Save, Instagram, Phone, MapPin } from "lucide-react";
+import {
+  ShieldCheck, LayoutDashboard, User, Camera, Save,
+  Instagram, Phone, MapPin, Briefcase, Clock, Loader2, CheckCircle, AlertCircle,
+} from "lucide-react";
+
+type Form = {
+  full_name: string;
+  whatsapp: string;
+  instagram: string;
+  bio: string;
+  city: string;
+  state: string;
+  barber_shop: string;
+  work_type: string;
+  experience: string;
+};
+
+const WORK_TYPES = ["Salão Próprio", "Alugo Cadeira", "Comissionado"];
+const EXPERIENCE_OPTIONS = [
+  { value: "menos de 1 ano", label: "Iniciante (menos de 1 ano)" },
+  { value: "1 a 5 anos", label: "1 a 5 anos" },
+  { value: "mais de 5 anos", label: "Mais de 5 anos" },
+];
 
 export default function PerfilPage() {
   const supabase = createClientComponentClient();
   const [profile, setProfile] = useState<any>(null);
+  const [form, setForm] = useState<Form>({
+    full_name: "", whatsapp: "", instagram: "", bio: "",
+    city: "", state: "", barber_shop: "", work_type: "", experience: "",
+  });
+  const [salvando, setSalvando] = useState(false);
+  const [feedback, setFeedback] = useState<{ tipo: "ok" | "erro"; msg: string } | null>(null);
 
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+      if (!session) return;
+      const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+      if (data) {
         setProfile(data);
+        setForm({
+          full_name: data.full_name || "",
+          whatsapp: data.whatsapp || "",
+          instagram: data.instagram || "",
+          bio: data.bio || "",
+          city: data.city || "",
+          state: data.state || "",
+          barber_shop: data.barber_shop || "",
+          work_type: data.work_type || "",
+          experience: data.experience || "",
+        });
       }
     }
     load();
   }, []);
 
+  const set = (field: keyof Form, val: string) =>
+    setForm(f => ({ ...f, [field]: val }));
+
+  async function salvar() {
+    setSalvando(true);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/perfil/atualizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok) {
+        setFeedback({ tipo: "ok", msg: "Perfil atualizado com sucesso!" });
+        setProfile((p: any) => ({ ...p, ...form }));
+      } else {
+        setFeedback({ tipo: "erro", msg: data?.error || "Erro ao salvar." });
+      }
+    } catch {
+      setFeedback({ tipo: "erro", msg: "Falha de rede. Tente novamente." });
+    } finally {
+      setSalvando(false);
+      setTimeout(() => setFeedback(null), 4000);
+    }
+  }
+
+  const inputClass = "w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white outline-none focus:border-[#C9A66B] transition-colors";
+
   return (
-    <div className="p-4 md:p-8 min-h-screen bg-black text-white">
+    <div className="p-4 md:p-8 min-h-screen bg-black text-white pb-24">
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+
         {/* COLUNA DA ESQUERDA */}
         <div className="space-y-4">
           <div className="bg-zinc-900/50 p-6 rounded-3xl border border-white/5 text-center flex flex-col items-center gap-4">
-            <div className="w-32 h-32 rounded-full bg-zinc-800 border-2 border-[#C9A66B] overflow-hidden">
-              {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User size={48} className="mt-8 mx-auto" />}
+            <div className="w-32 h-32 rounded-full bg-zinc-800 border-2 border-[#C9A66B] overflow-hidden flex items-center justify-center">
+              {profile?.avatar_url
+                ? <img src={profile.avatar_url} className="w-full h-full object-cover" alt="avatar" />
+                : <User size={48} className="text-zinc-600" />
+              }
             </div>
-            <button className="text-[10px] font-black uppercase text-[#C9A66B]">
-              <Camera size={14} className="inline mr-2"/>Alterar Foto
+            <button className="text-[10px] font-black uppercase text-[#C9A66B] flex items-center gap-1 hover:opacity-80 transition-opacity">
+              <Camera size={13} /> Alterar Foto
             </button>
+            {profile?.role && (
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 border border-zinc-800 rounded-full px-3 py-1">
+                {profile.role}
+              </span>
+            )}
           </div>
 
           <div className="bg-zinc-900/50 p-5 rounded-3xl border border-white/5">
@@ -38,67 +116,175 @@ export default function PerfilPage() {
               <ShieldCheck className="text-[#C9A66B] w-4 h-4" />
               <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Dica MASC PRO</p>
             </div>
-            <p className="text-[11px] text-zinc-400">Mantenha seu perfil atualizado para o networking.</p>
+            <p className="text-[11px] text-zinc-400 leading-relaxed">
+              Mantenha seu perfil atualizado. Isso ajuda no networking e na visibilidade dentro da comunidade.
+            </p>
           </div>
 
-          {/* O BOTÃO NO LUGAR QUE VOCÊ CIRCULOU */}
-          {profile?.role === 'ADMIN' && (
-            <button 
-              onClick={() => window.location.href='/admin'}
+          {/* Moedas acumuladas */}
+          {profile && (
+            <div className="bg-zinc-900/50 p-5 rounded-3xl border border-white/5">
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">Seu Saldo PRO</p>
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-zinc-400">Moedas Acumuladas</span>
+                  <span className="text-sm font-black text-[#C9A66B]">{profile.moedas_pro_acumuladas || 0} PRO</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-zinc-400">Mérito de Rede</span>
+                  <span className="text-sm font-black text-white">{profile.network_coins || 0}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {profile?.role === "ADMIN" && (
+            <button
+              onClick={() => window.location.href = "/admin"}
               className="w-full flex items-center justify-center gap-3 bg-[#C9A66B] text-black font-black uppercase italic py-5 rounded-2xl hover:scale-[1.02] transition-all shadow-[0_0_30px_rgba(201,166,107,0.2)]"
             >
-              <LayoutDashboard size={20} />
-              Acessar Radar Admin
+              <LayoutDashboard size={20} /> Acessar Radar Admin
             </button>
           )}
         </div>
 
-        {/* COLUNA DA DIREITA (IDENTIDADE PRO) */}
+        {/* COLUNA DIREITA — FORMULÁRIO */}
         <div className="md:col-span-2">
           <div className="bg-zinc-900/50 p-8 rounded-3xl border border-white/5">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black italic uppercase">Identidade <span className="text-[#C9A66B]">PRO</span></h3>
-              <button className="bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all">
-                <Save size={14} /> Salvar Alterações
+              <h3 className="text-xl font-black italic uppercase">
+                Identidade <span className="text-[#C9A66B]">PRO</span>
+              </h3>
+              <button
+                onClick={salvar}
+                disabled={salvando}
+                className="bg-[#C9A66B] hover:bg-[#b08d55] disabled:opacity-60 text-black px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all"
+              >
+                {salvando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {salvando ? "Salvando..." : "Salvar Alterações"}
               </button>
             </div>
+
+            {/* FEEDBACK */}
+            {feedback && (
+              <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold mb-5 ${
+                feedback.tipo === "ok"
+                  ? "bg-green-500/10 border border-green-500/30 text-green-400"
+                  : "bg-red-500/10 border border-red-500/30 text-red-400"
+              }`}>
+                {feedback.tipo === "ok" ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+                {feedback.msg}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Nome */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase">Nome Completo</label>
-                <input type="text" defaultValue={profile?.full_name} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#C9A66B]" />
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1">
+                  <User size={11} /> Nome Completo
+                </label>
+                <input type="text" value={form.full_name} onChange={e => set("full_name", e.target.value)} className={inputClass} />
               </div>
+
+              {/* Bio */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase">Apelido (Username)</label>
-                <input type="text" placeholder="@" defaultValue={profile?.username} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#C9A66B]" />
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Apelido / Especialidade</label>
+                <input type="text" placeholder="Ex: Especialista em Degradê" value={form.barber_shop} onChange={e => set("barber_shop", e.target.value)} className={inputClass} />
               </div>
+
+              {/* Bio textarea */}
               <div className="md:col-span-2 space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase">Bio (Sobre você)</label>
-                <textarea defaultValue={profile?.bio} rows={3} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#C9A66B] resize-none" />
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Bio (Sobre você)</label>
+                <textarea
+                  rows={3}
+                  value={form.bio}
+                  onChange={e => set("bio", e.target.value)}
+                  placeholder="Fale um pouco sobre você..."
+                  className={`${inputClass} resize-none`}
+                />
               </div>
+
+              {/* Instagram */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2"><Instagram size={12} /> Instagram</label>
-                <input type="text" defaultValue={profile?.instagram} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#C9A66B]" />
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1">
+                  <Instagram size={11} /> Instagram
+                </label>
+                <input type="text" placeholder="@seuinstagram" value={form.instagram} onChange={e => set("instagram", e.target.value)} className={inputClass} />
               </div>
+
+              {/* WhatsApp */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2"><Phone size={12} /> WhatsApp</label>
-                <input type="text" defaultValue={profile?.phone} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#C9A66B]" />
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1">
+                  <Phone size={11} /> WhatsApp
+                </label>
+                <input type="text" placeholder="(11) 99999-9999" value={form.whatsapp} onChange={e => set("whatsapp", e.target.value)} className={inputClass} />
               </div>
+
+              {/* Cidade */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2"><MapPin size={12} /> Cidade / Estado</label>
-                <input type="text" placeholder="Ex: Marília - SP" defaultValue={profile?.location} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#C9A66B]" />
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1">
+                  <MapPin size={11} /> Cidade
+                </label>
+                <input type="text" placeholder="Ex: São Paulo" value={form.city} onChange={e => set("city", e.target.value)} className={inputClass} />
               </div>
+
+              {/* Estado */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase">Nome do Salão / Barbearia</label>
-                <input type="text" defaultValue={profile?.barber_shop} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#C9A66B]" />
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Estado (UF)</label>
+                <input type="text" placeholder="Ex: SP" maxLength={2} value={form.state} onChange={e => set("state", e.target.value.toUpperCase())} className={inputClass} />
               </div>
+
+              {/* Situação Profissional */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1">
+                  <Briefcase size={11} /> Situação Profissional
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {WORK_TYPES.map(opt => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => set("work_type", opt)}
+                      className={`flex-1 py-2 px-2 text-[10px] font-black uppercase rounded-lg border transition-all ${
+                        form.work_type === opt
+                          ? "bg-[#C9A66B] text-black border-[#C9A66B]"
+                          : "bg-black/40 text-zinc-500 border-white/10 hover:border-[#C9A66B]/50"
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tempo de Profissão */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase">Tempo de Profissão</label>
-                <select defaultValue={profile?.experience_level} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-[#C9A66B] text-white">
-                  <option value="iniciante">Iniciante (menos de 1 ano)</option>
-                  <option value="intermediario">1 a 5 anos</option>
-                  <option value="master">Mais de 5 anos</option>
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1">
+                  <Clock size={11} /> Tempo de Profissão
+                </label>
+                <select
+                  value={form.experience}
+                  onChange={e => set("experience", e.target.value)}
+                  className={`${inputClass} cursor-pointer`}
+                >
+                  <option value="">Selecionar...</option>
+                  {EXPERIENCE_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
                 </select>
               </div>
+            </div>
+
+            {/* Botão salvar inferior */}
+            <div className="mt-8 pt-6 border-t border-white/5">
+              <button
+                onClick={salvar}
+                disabled={salvando}
+                className="w-full bg-[#C9A66B] hover:bg-[#b08d55] disabled:opacity-60 text-black font-black uppercase tracking-widest py-4 rounded-2xl flex items-center justify-center gap-2 transition-all text-sm"
+              >
+                {salvando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                {salvando ? "Salvando..." : "Salvar Alterações"}
+              </button>
             </div>
           </div>
         </div>
