@@ -51,7 +51,14 @@ export default function AdminMembrosPage() {
     setLoading(true);
     const res = await fetch("/api/admin/membros");
     const data = await res.json().catch(() => null);
-    if (data?.ok) { setMembros(data.membros || []); setFiltrado(data.membros || []); }
+    if (data?.ok) {
+      const sorted = (data.membros || []).sort((a: Membro, b: Membro) =>
+        ((b.moedas_pro_acumuladas || 0) + (b.network_coins || 0)) -
+        ((a.moedas_pro_acumuladas || 0) + (a.network_coins || 0))
+      );
+      setMembros(sorted);
+      setFiltrado(sorted);
+    }
     setLoading(false);
   }
 
@@ -148,11 +155,14 @@ export default function AdminMembrosPage() {
           <p className="text-zinc-500 text-center mt-20">Nenhum membro encontrado.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            {filtrado.map(m => {
+            {filtrado.map((m, idx) => {
               const proTotal = (m.moedas_pro_acumuladas || 0) + (m.network_coins || 0);
               return (
                 <div key={m.id} className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                   <div className="flex items-center gap-4">
+                    <div className="w-8 text-right shrink-0">
+                      <span className="text-[11px] font-black text-zinc-600 italic">#{idx + 1}</span>
+                    </div>
                     <div className="w-10 h-10 rounded-xl bg-[#C9A66B]/10 flex items-center justify-center font-black text-[#C9A66B] text-sm shrink-0">
                       {m.full_name?.charAt(0) || "?"}
                     </div>

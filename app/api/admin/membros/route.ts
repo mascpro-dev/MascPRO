@@ -10,7 +10,7 @@ export async function GET() {
       supabase
         .from("profiles")
         .select("id, full_name, email, whatsapp, instagram, role, nivel, city, state, created_at, indicado_por, moedas_pro_acumuladas, network_coins, total_compras_rede")
-        .order("created_at", { ascending: false }),
+        .order("moedas_pro_acumuladas", { ascending: false }),
       supabase
         .from("orders")
         .select("profile_id")
