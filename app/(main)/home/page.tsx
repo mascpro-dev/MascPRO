@@ -5,6 +5,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Loader2, Lock, ShieldCheck, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import ComunicadosBanner from "@/componentes/ComunicadosBanner";
+import PushNotificationManager from "@/componentes/PushNotificationManager";
 
 type PedidoResumo = {
   id: string;
@@ -108,6 +109,7 @@ export default function DashboardPage() {
 
       {/* COMUNICADOS DO ADMIN */}
       <ComunicadosBanner />
+      <PushNotificationManager />
 
       {/* CABEÇALHO */}
       <div className="mb-10 flex justify-between items-end">

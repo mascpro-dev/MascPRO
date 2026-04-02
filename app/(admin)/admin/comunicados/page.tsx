@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
-import { Bell, Plus, Loader2, Trash2, X, ToggleRight, ToggleLeft, Send, Users, User, Briefcase, Shield, BellRing, CheckCircle, AlertCircle } from "lucide-react";
+import { Bell, Plus, Loader2, Trash2, X, ToggleRight, ToggleLeft, Send, Users, User, Briefcase, Shield } from "lucide-react";
 
 const PUBLICOS = [
   { value: "TODOS", label: "Todos os membros", icon: Users, cor: "text-[#C9A66B] bg-[#C9A66B]/10" },
@@ -24,8 +24,8 @@ export default function AdminComunicadosPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ titulo: "", mensagem: "", publico: "TODOS", tipo: "info" });
   const [erro, setErro] = useState("");
-  const [enviandoPush, setEnviandoPush] = useState<string | null>(null);
-  const [pushFeedback, setPushFeedback] = useState<{ id: string; msg: string; ok: boolean } | null>(null);
+  const [enviarPush, setEnviarPush] = useState(true);
+  const [pushStatus, setPushStatus] = useState("");
 
   useEffect(() => { carregar(); }, []);
 
@@ -45,6 +45,18 @@ export default function AdminComunicadosPage() {
     });
     const d = await res.json().catch(() => null);
     if (!res.ok || !d?.ok) { setErro(d?.error || "Erro ao enviar."); setSalvando(false); return; }
+
+    // Dispara push notification se marcado
+    if (enviarPush) {
+      const pushRes = await fetch("/api/push/send", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: form.titulo, body: form.mensagem, url: "/", publico: form.publico }),
+      });
+      const pushData = await pushRes.json().catch(() => null);
+      setPushStatus(pushData?.enviados > 0 ? `🔔 Push enviado para ${pushData.enviados} dispositivo(s)` : "🔔 Push enviado (nenhum dispositivo registrado ainda)");
+      setTimeout(() => setPushStatus(""), 5000);
+    }
+
     await carregar(); setShowForm(false); setSalvando(false);
     setForm({ titulo: "", mensagem: "", publico: "TODOS", tipo: "info" });
   }
@@ -64,33 +76,13 @@ export default function AdminComunicadosPage() {
     await carregar();
   }
 
-  async function enviarPush(c: any) {
-    setEnviandoPush(c.id);
-    setPushFeedback(null);
-    const res = await fetch("/api/push/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: c.titulo, body: c.mensagem, publico: c.publico, url: "/" }),
-    });
-    const d = await res.json().catch(() => null);
-    setPushFeedback({
-      id: c.id,
-      ok: !!d?.ok,
-      msg: d?.ok
-        ? `Push enviado para ${d.enviados} dispositivo(s)`
-        : `Erro: ${d?.error || "falha"}`,
-    });
-    setEnviandoPush(null);
-    setTimeout(() => setPushFeedback(null), 5000);
-  }
-
   const publicoInfo = (p: string) => PUBLICOS.find(x => x.value === p) || PUBLICOS[0];
   const tipoInfo = (t: string) => TIPOS.find(x => x.value === t) || TIPOS[0];
 
   return (
     <div className="flex min-h-screen bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-4 md:p-6 overflow-auto">
+      <main className="flex-1 p-6 overflow-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Bell className="text-[#C9A66B]" size={26} />
@@ -103,6 +95,12 @@ export default function AdminComunicadosPage() {
             <Plus size={16} /> Novo Comunicado
           </button>
         </div>
+
+        {pushStatus && (
+          <div className="mb-4 flex items-center gap-2 bg-[#C9A66B]/10 border border-[#C9A66B]/30 rounded-xl px-4 py-3 text-sm text-[#C9A66B] font-bold">
+            {pushStatus}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center mt-20"><Loader2 className="animate-spin text-[#C9A66B]" size={32} /></div>
@@ -135,18 +133,6 @@ export default function AdminComunicadosPage() {
                       </p>
                     </div>
                     <div className="flex flex-col gap-2 shrink-0">
-                      {/* ENVIAR PUSH */}
-                      <button
-                        onClick={() => enviarPush(c)}
-                        disabled={enviandoPush === c.id}
-                        title="Enviar notificação push agora"
-                        className="p-2 rounded-lg bg-zinc-800 hover:bg-[#C9A66B]/20 text-zinc-400 hover:text-[#C9A66B] transition-all disabled:opacity-50"
-                      >
-                        {enviandoPush === c.id
-                          ? <Loader2 size={16} className="animate-spin" />
-                          : <BellRing size={16} />
-                        }
-                      </button>
                       <button onClick={() => toggleAtivo(c.id, c.ativo)} className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-[#C9A66B]">
                         {c.ativo ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                       </button>
@@ -155,12 +141,6 @@ export default function AdminComunicadosPage() {
                       </button>
                     </div>
                   </div>
-                  {pushFeedback?.id === c.id && (
-                    <div className={`mt-3 flex items-center gap-2 text-xs font-bold rounded-xl px-3 py-2 ${pushFeedback.ok ? "bg-green-900/30 text-green-400" : "bg-red-900/30 text-red-400"}`}>
-                      {pushFeedback.ok ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
-                      {pushFeedback.msg}
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -209,6 +189,17 @@ export default function AdminComunicadosPage() {
                   <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Mensagem</label>
                   <textarea rows={4} value={form.mensagem} onChange={e => setForm(f => ({ ...f, mensagem: e.target.value }))} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#C9A66B] resize-none" />
                 </div>
+                {/* Toggle Push */}
+                <button onClick={() => setEnviarPush(v => !v)}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${enviarPush ? "bg-[#C9A66B]/10 border-[#C9A66B]/40 text-[#C9A66B]" : "bg-zinc-900 border-zinc-800 text-zinc-500"}`}>
+                  <div className="flex items-center gap-2 text-xs font-black uppercase">
+                    <Bell size={14} /> Enviar push notification no celular
+                  </div>
+                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${enviarPush ? "bg-[#C9A66B] text-black" : "bg-zinc-800 text-zinc-600"}`}>
+                    {enviarPush ? "ON" : "OFF"}
+                  </span>
+                </button>
+
                 {erro && <p className="text-red-400 text-xs">{erro}</p>}
                 <button onClick={salvar} disabled={salvando} className="w-full bg-[#C9A66B] hover:bg-[#b08d55] disabled:opacity-60 text-black font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2">
                   {salvando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
