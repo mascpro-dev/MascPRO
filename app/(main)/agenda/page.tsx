@@ -1,507 +1,1152 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
-  Calendar, Plus, Clock, Scissors, X, Check,
-  ChevronLeft, ChevronRight, Loader2, Settings, Link2, Copy,
-  CheckCircle, XCircle, AlertCircle, Trash2, MessageCircle,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Loader2,
+  MessageCircle,
+  Pencil,
+  Trash2,
+  X,
+  Copy,
+  CheckCircle,
+  Cake,
 } from "lucide-react";
 
 type Appointment = {
-  id: string; client_name: string; client_phone: string | null;
-  service: string | null; appointment_date: string; appointment_time: string;
-  duration_min: number; price: number | null; status: string; notes: string | null;
+  id: string;
+  client_name: string;
+  client_phone: string | null;
+  service: string | null;
+  appointment_date: string;
+  appointment_time: string;
+  duration_min: number;
+  price: number | null;
+  status: string;
+  notes: string | null;
 };
 
-const STATUS_CONFIG: Record<string, { label: string; cor: string; icon: any }> = {
-  pendente:   { label: "Pendente",   cor: "bg-yellow-900/30 text-yellow-400 border-yellow-800/40", icon: AlertCircle },
-  confirmado: { label: "Confirmado", cor: "bg-blue-900/30 text-blue-400 border-blue-800/40",       icon: CheckCircle },
-  concluido:  { label: "Concluído",  cor: "bg-green-900/30 text-green-400 border-green-800/40",    icon: CheckCircle },
-  cancelado:  { label: "Cancelado",  cor: "bg-red-900/30 text-red-400 border-red-800/40",          icon: XCircle },
+type ProClient = { id: string; name: string; phone: string | null; birthday: string | null; notes: string | null };
+type ProService = { id: string; name: string; price: number; duration_min: number; active: boolean };
+type ProExpense = { id: string; description: string; amount: number; category: string; expense_date: string };
+type ProCharge = { id: string; client_name: string; client_phone: string | null; description: string | null; amount: number; paid: boolean; charge_date: string };
+
+const EXP_CATS = [
+  { v: "produtos", l: "Produtos" },
+  { v: "acessorios", l: "Acessorios" },
+  { v: "aluguel", l: "Aluguel" },
+  { v: "contas", l: "Contas" },
+  { v: "marketing", l: "Marketing" },
+  { v: "comissao", l: "Comissao" },
+  { v: "impostos", l: "Impostos" },
+  { v: "diversos", l: "Diversos" },
+];
+
+const STATUS_STYLE: Record<string, string> = {
+  pendente: "border-amber-500/50 bg-amber-950/40",
+  confirmado: "border-blue-500/50 bg-blue-950/30",
+  concluido: "border-emerald-500/50 bg-emerald-950/30",
+  cancelado: "border-zinc-600 bg-zinc-900/50 opacity-60",
 };
 
-const DIAS_COMPLETO = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
-
-function getMesAtual() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+function toISO(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function formatarData(d: string) {
-  const [y, m, dia] = d.split("-");
-  return `${dia}/${m}/${y}`;
+function startOfWeekSun(d: Date) {
+  const x = new Date(d);
+  const day = x.getDay();
+  x.setDate(x.getDate() - day);
+  x.setHours(0, 0, 0, 0);
+  return x;
 }
 
-function gerarLinkWhats(phone: string, nome: string, data: string, hora: string, servico?: string | null, profNome?: string) {
+function parseMin(t: string) {
+  const s = (t || "09:00").slice(0, 5);
+  const [h, m] = s.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function fmtMoney(n: number) {
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function waLink(phone: string, text: string) {
   const tel = phone.replace(/\D/g, "");
-  const fone = tel.startsWith("55") ? tel : `55${tel}`;
-  const [y, m, dia] = data.split("-");
-  const dataFmt = `${dia}/${m}/${y}`;
-  const srv = servico ? ` (${servico})` : "";
-  const pro = profNome ? `\n\n${profNome}` : "";
-  const msg = encodeURIComponent(
-    `Olá, ${nome}! 😊\n\nSeu agendamento${srv} foi confirmado para *${dataFmt}* às *${hora.slice(0,5)}*.${pro}\n\nTe aguardo! ✂️`
-  );
-  return `https://wa.me/${fone}?text=${msg}`;
+  const f = tel.startsWith("55") ? tel : `55${tel}`;
+  return `https://wa.me/${f}?text=${encodeURIComponent(text)}`;
 }
 
-const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-[#C9A66B]";
-const labelClass = "block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1";
+const START_MIN = 7 * 60;
+const END_MIN = 21 * 60;
+const SLOT = 30;
+const PX = 44;
 
-export default function AgendaPage() {
+export default function AgendaGestaoPage() {
   const supabase = createClientComponentClient();
   const [userId, setUserId] = useState("");
-  const [profNome, setProfNome] = useState("");
-  const [aba, setAba] = useState<"agenda" | "config">("agenda");
-  const [mes, setMes] = useState(getMesAtual());
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [avisoSQL, setAvisoSQL] = useState("");
-  const [linkCopiado, setLinkCopiado] = useState(false);
+  const [aba, setAba] = useState<"agenda" | "clientes" | "servicos" | "financeiro">("agenda");
+  const [finSub, setFinSub] = useState<"resumo" | "fluxo" | "despesas" | "cobrancas">("resumo");
+  const [mesFin, setMesFin] = useState(() => new Date().toISOString().slice(0, 7));
 
-  // Novo/editar agendamento
-  const [showForm, setShowForm] = useState(false);
-  const [salvando, setSalvando] = useState(false);
-  const [salvoId, setSalvoId] = useState<string | null>(null); // ID do recém-criado para o botão WhatsApp
-  const [salvoInfo, setSalvoInfo] = useState<any>(null);
-  const [erroForm, setErroForm] = useState("");
-  const [editando, setEditando] = useState<Appointment | null>(null);
-  const [form, setForm] = useState({
-    client_name: "", client_phone: "", service: "",
-    appointment_date: "", appointment_time: "",
-    duration_min: "60", price: "", notes: "",
+  const [dia, setDia] = useState(() => new Date());
+  const diaStr = toISO(dia);
+
+  const [apts, setApts] = useState<Appointment[]>([]);
+  const [loadA, setLoadA] = useState(false);
+  const [clients, setClients] = useState<ProClient[]>([]);
+  const [services, setServices] = useState<ProService[]>([]);
+  const [expenses, setExpenses] = useState<ProExpense[]>([]);
+  const [charges, setCharges] = useState<ProCharge[]>([]);
+  const [fin, setFin] = useState<any>(null);
+
+  const [modalApt, setModalApt] = useState<Appointment | "new" | null>(null);
+  const [formApt, setFormApt] = useState({
+    client_name: "",
+    client_phone: "",
+    service: "",
+    appointment_time: "",
+    duration_min: "60",
+    price: "",
+    notes: "",
+    status: "confirmado",
   });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const [linkOk, setLinkOk] = useState(false);
 
-  // Disponibilidade
-  const [disponibilidade, setDisponibilidade] = useState<any[]>([]);
-  const [salvandoDisp, setSalvandoDisp] = useState(false);
-  const [erroDisp, setErroDisp] = useState("");
-  const [okDisp, setOkDisp] = useState(false);
+  const [modalClient, setModalClient] = useState<ProClient | "new" | null>(null);
+  const [formCli, setFormCli] = useState({ name: "", phone: "", birthday: "", notes: "" });
+
+  const [modalSvc, setModalSvc] = useState<ProService | "new" | null>(null);
+  const [formSvc, setFormSvc] = useState({ name: "", price: "", duration_min: "60" });
+
+  const [formExp, setFormExp] = useState({ description: "", amount: "", category: "produtos", expense_date: diaStr });
+  const [formChg, setFormChg] = useState({ client_name: "", client_phone: "", description: "", amount: "", charge_date: diaStr });
+
+  const weekDays = useMemo(() => {
+    const s = startOfWeekSun(dia);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(s);
+      d.setDate(s.getDate() + i);
+      return d;
+    });
+  }, [dia]);
+
+  const labelsDow = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setUserId(session.user.id);
-        supabase.from("profiles").select("full_name").eq("id", session.user.id).single()
-          .then(({ data }) => { if (data) setProfNome(data.full_name); });
-      }
+      if (session?.user) setUserId(session.user.id);
     });
+  }, [supabase]);
+
+  const carregarDia = useCallback(async () => {
+    setLoadA(true);
+    const r = await fetch(`/api/agenda?dia=${diaStr}`);
+    const d = await r.json();
+    setApts(d.appointments || []);
+    setLoadA(false);
+  }, [diaStr]);
+
+  const carregarClientes = useCallback(async () => {
+    const r = await fetch("/api/pro/gestao/clients");
+    const d = await r.json();
+    if (d.ok) setClients(d.clients || []);
   }, []);
 
-  const carregar = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch(`/api/agenda?mes=${mes}`);
-    const d = await res.json();
-    setAppointments(d.appointments || []);
-    setLoading(false);
-  }, [mes]);
-
-  const carregarDisp = useCallback(async () => {
-    const res = await fetch("/api/agenda/disponibilidade");
-    const d = await res.json();
-    if (d.ok) setDisponibilidade(d.disponibilidade || []);
+  const carregarServicos = useCallback(async () => {
+    const r = await fetch("/api/pro/gestao/services");
+    const d = await r.json();
+    if (d.ok) setServices((d.services || []).filter((x: ProService) => x.active !== false));
   }, []);
 
-  useEffect(() => { carregar(); }, [carregar]);
-  useEffect(() => { if (aba === "config") carregarDisp(); }, [aba, carregarDisp]);
+  const carregarDespesas = useCallback(async () => {
+    const r = await fetch(`/api/pro/gestao/expenses?mes=${mesFin}`);
+    const d = await r.json();
+    if (d.ok) setExpenses(d.expenses || []);
+  }, [mesFin]);
 
-  function mudarMes(delta: number) {
-    const [y, m] = mes.split("-").map(Number);
-    const nova = new Date(y, m - 1 + delta);
-    setMes(`${nova.getFullYear()}-${String(nova.getMonth() + 1).padStart(2, "0")}`);
-  }
+  const carregarCobrancas = useCallback(async () => {
+    const r = await fetch("/api/pro/gestao/charges");
+    const d = await r.json();
+    if (d.ok) setCharges(d.charges || []);
+  }, []);
 
-  const nomeMes = new Date(`${mes}-15`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const carregarFin = useCallback(async () => {
+    const r = await fetch(`/api/pro/gestao/financeiro?mes=${mesFin}`);
+    const d = await r.json();
+    if (d.ok) setFin(d);
+  }, [mesFin]);
 
-  async function salvar() {
-    if (!form.client_name || !form.appointment_date || !form.appointment_time) return;
-    setSalvando(true); setErroForm("");
-    const method = editando ? "PATCH" : "POST";
-    const body = editando ? { id: editando.id, ...form } : form;
-    const res = await fetch("/api/agenda", {
-      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    });
-    const d = await res.json();
-    if (d.ok) {
-      if (!editando && d.appointment) {
-        // Mostra botão de WhatsApp após criar
-        setSalvoInfo({ ...d.appointment, ...form });
-        setSalvoId(d.appointment.id);
-      } else {
-        setShowForm(false);
-        setEditando(null);
-      }
-      resetForm();
-      await carregar();
-    } else {
-      setErroForm(d.error || "Erro ao salvar. Verifique as permissões no Supabase.");
+  useEffect(() => {
+    if (aba === "agenda") carregarDia();
+  }, [aba, carregarDia]);
+
+  useEffect(() => {
+    if (aba === "clientes") carregarClientes();
+  }, [aba, carregarClientes]);
+
+  useEffect(() => {
+    if (aba === "servicos") carregarServicos();
+  }, [aba, carregarServicos]);
+
+  useEffect(() => {
+    if (aba === "financeiro") {
+      carregarFin();
+      carregarDespesas();
+      carregarCobrancas();
     }
-    setSalvando(false);
-  }
+  }, [aba, mesFin, carregarFin, carregarDespesas, carregarCobrancas]);
 
-  function resetForm() {
-    setForm({ client_name: "", client_phone: "", service: "", appointment_date: "", appointment_time: "", duration_min: "60", price: "", notes: "" });
-  }
-
-  function fecharForm() {
-    setShowForm(false); setEditando(null); setSalvoId(null); setSalvoInfo(null); setErroForm(""); resetForm();
-  }
-
-  async function mudarStatus(id: string, status: string) {
-    await fetch("/api/agenda", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status }),
+  function abrirNovoApt() {
+    setErr("");
+    setFormApt({
+      client_name: "",
+      client_phone: "",
+      service: "",
+      appointment_time: "09:00",
+      duration_min: "60",
+      price: "",
+      notes: "",
+      status: "confirmado",
     });
-    await carregar();
+    setModalApt("new");
   }
 
-  async function excluir(id: string) {
-    if (!confirm("Excluir este agendamento?")) return;
+  function abrirEditApt(a: Appointment) {
+    setErr("");
+    setFormApt({
+      client_name: a.client_name,
+      client_phone: a.client_phone || "",
+      service: a.service || "",
+      appointment_time: a.appointment_time.slice(0, 5),
+      duration_min: String(a.duration_min || 60),
+      price: a.price != null ? String(a.price) : "",
+      notes: a.notes || "",
+      status: a.status,
+    });
+    setModalApt(a);
+  }
+
+  async function salvarApt() {
+    setSaving(true);
+    setErr("");
+    const body =
+      modalApt === "new"
+        ? { ...formApt, appointment_date: diaStr }
+        : { id: (modalApt as Appointment).id, ...formApt, appointment_date: diaStr };
+    const method = modalApt === "new" ? "POST" : "PATCH";
+    const r = await fetch("/api/agenda", {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!d.ok) setErr(d.error || "Erro ao salvar");
+    else {
+      setModalApt(null);
+      carregarDia();
+    }
+    setSaving(false);
+  }
+
+  async function excluirApt(id: string) {
+    if (!confirm("Excluir agendamento?")) return;
     await fetch("/api/agenda", {
-      method: "DELETE", headers: { "Content-Type": "application/json" },
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
-    await carregar();
+    carregarDia();
+    setModalApt(null);
   }
 
-  function abrirEditar(a: Appointment) {
-    setEditando(a); setSalvoId(null); setSalvoInfo(null); setErroForm("");
-    setForm({
-      client_name: a.client_name, client_phone: a.client_phone || "",
-      service: a.service || "", appointment_date: a.appointment_date,
-      appointment_time: a.appointment_time.slice(0, 5),
-      duration_min: String(a.duration_min), price: a.price ? String(a.price) : "",
-      notes: a.notes || "",
+  async function salvarCliente() {
+    setSaving(true);
+    if (modalClient === "new") {
+      await fetch("/api/pro/gestao/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formCli),
+      });
+    } else if (modalClient) {
+      await fetch("/api/pro/gestao/clients", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: (modalClient as ProClient).id, ...formCli }),
+      });
+    }
+    setModalClient(null);
+    carregarClientes();
+    setSaving(false);
+  }
+
+  async function salvarServico() {
+    setSaving(true);
+    const payload = {
+      name: formSvc.name,
+      price: formSvc.price === "" ? 0 : Number(formSvc.price),
+      duration_min: Number(formSvc.duration_min) || 60,
+    };
+    if (modalSvc === "new") {
+      await fetch("/api/pro/gestao/services", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } else if (modalSvc) {
+      await fetch("/api/pro/gestao/services", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: (modalSvc as ProService).id, ...payload }),
+      });
+    }
+    setModalSvc(null);
+    carregarServicos();
+    setSaving(false);
+  }
+
+  async function salvarDespesa() {
+    if (!formExp.description || !formExp.amount) return;
+    await fetch("/api/pro/gestao/expenses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formExp),
     });
-    setShowForm(true);
+    setFormExp({ ...formExp, description: "", amount: "" });
+    carregarDespesas();
+    carregarFin();
   }
 
-  // Disponibilidade
-  function getDia(dow: number) { return disponibilidade.find(d => d.day_of_week === dow); }
-  function toggleDia(dow: number) {
-    const existe = getDia(dow);
-    if (existe) setDisponibilidade(prev => prev.filter(d => d.day_of_week !== dow));
-    else setDisponibilidade(prev => [...prev, { day_of_week: dow, start_time: "09:00", end_time: "18:00", slot_duration_min: 60, active: true }]);
-  }
-  function setDiaField(dow: number, field: string, value: any) {
-    setDisponibilidade(prev => prev.map(d => d.day_of_week === dow ? { ...d, [field]: value } : d));
-  }
-  async function salvarDisp() {
-    setSalvandoDisp(true); setErroDisp(""); setOkDisp(false);
-    const res = await fetch("/api/agenda/disponibilidade", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dias: disponibilidade }),
+  async function salvarCobranca() {
+    if (!formChg.client_name || !formChg.amount) return;
+    await fetch("/api/pro/gestao/charges", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formChg),
     });
-    const d = await res.json();
-    if (d.ok) { setOkDisp(true); setTimeout(() => setOkDisp(false), 3000); }
-    else setErroDisp(d.error || "Erro ao salvar. Verifique as permissões no Supabase.");
-    setSalvandoDisp(false);
+    setFormChg({ ...formChg, client_name: "", amount: "", description: "" });
+    carregarCobrancas();
+    carregarFin();
   }
 
-  function copiarLink() {
-    const link = `${window.location.origin}/agendar/${userId}`;
-    navigator.clipboard.writeText(link);
-    setLinkCopiado(true);
-    setTimeout(() => setLinkCopiado(false), 2000);
+  const slots = useMemo(() => {
+    const n = (END_MIN - START_MIN) / SLOT;
+    return Array.from({ length: n }, (_, i) => START_MIN + i * SLOT);
+  }, []);
+
+  const hoje = toISO(new Date());
+  const aniversariantes = useMemo(() => {
+    const agora = new Date();
+    const lim = new Date(agora);
+    lim.setDate(lim.getDate() + 14);
+    return clients.filter((c) => {
+      if (!c.birthday) return false;
+      const [y, m, day] = c.birthday.split("-").map(Number);
+      const bThisYear = new Date(agora.getFullYear(), m - 1, day);
+      const bNext = new Date(agora.getFullYear() + 1, m - 1, day);
+      let b = bThisYear;
+      if (bThisYear < agora) b = bNext;
+      return b >= agora && b <= lim;
+    });
+  }, [clients]);
+
+  const chargesByClient = useMemo(() => {
+    const unpaid = charges.filter((c) => !c.paid);
+    const g: Record<string, ProCharge[]> = {};
+    for (const c of unpaid) {
+      if (!g[c.client_name]) g[c.client_name] = [];
+      g[c.client_name].push(c);
+    }
+    return g;
+  }, [charges]);
+
+  function aplicarCliente(c: ProClient) {
+    setFormApt((f) => ({
+      ...f,
+      client_name: c.name,
+      client_phone: c.phone || "",
+    }));
   }
 
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  function aplicarServico(s: ProService) {
+    setFormApt((f) => ({
+      ...f,
+      service: s.name,
+      price: String(s.price),
+      duration_min: String(s.duration_min || 60),
+    }));
+  }
 
-  const porData = appointments.reduce((acc: Record<string, Appointment[]>, a) => {
-    if (!acc[a.appointment_date]) acc[a.appointment_date] = [];
-    acc[a.appointment_date].push(a);
-    return acc;
-  }, {});
-
-  const pendentes = appointments.filter(a => a.status === "pendente").length;
+  async function copiarLink() {
+    if (!userId || typeof window === "undefined") return;
+    const u = `${window.location.origin}/agendar/${userId}`;
+    await navigator.clipboard.writeText(u);
+    setLinkOk(true);
+    setTimeout(() => setLinkOk(false), 2500);
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 md:p-8 pb-28">
-      <div className="max-w-3xl mx-auto">
-        {/* HEADER */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#C9A66B]/20 flex items-center justify-center">
-              <Calendar className="text-[#C9A66B]" size={22} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black uppercase tracking-tight">Minha <span className="text-[#C9A66B]">Agenda</span></h1>
-              <p className="text-xs text-zinc-500">
-                {appointments.length} agendamento(s)
-                {pendentes > 0 && <span className="text-yellow-400 font-bold ml-1">· {pendentes} pendente(s)</span>}
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setAba(aba === "agenda" ? "config" : "agenda")}
-              className={`p-2.5 rounded-xl border transition-all ${aba === "config" ? "bg-[#C9A66B]/20 border-[#C9A66B]/40 text-[#C9A66B]" : "bg-zinc-900 border-zinc-800 text-zinc-400"}`}>
-              <Settings size={18} />
-            </button>
-            {aba === "agenda" && (
-              <button onClick={() => { fecharForm(); setShowForm(true); }}
-                className="flex items-center gap-2 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black text-xs uppercase px-4 py-2.5 rounded-xl">
-                <Plus size={16} /> Novo
-              </button>
-            )}
-          </div>
+    <div className="max-w-4xl mx-auto pb-24">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-black italic uppercase tracking-tight text-white">
+            Gestao <span className="text-[#C9A66B]">PRO</span>
+          </h1>
+          <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mt-1">
+            Agenda, clientes, servicos e financeiro
+          </p>
         </div>
-
-        {/* LINK DE AGENDAMENTO */}
         {userId && (
-          <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl px-4 py-3 mb-5 flex items-center gap-3">
-            <Link2 size={14} className="text-[#C9A66B] shrink-0" />
-            <p className="text-xs text-zinc-400 flex-1 truncate font-mono">{typeof window !== "undefined" ? window.location.origin : ""}/agendar/{userId}</p>
-            <button onClick={copiarLink}
-              className="shrink-0 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg bg-[#C9A66B]/10 border border-[#C9A66B]/30 text-[#C9A66B] hover:bg-[#C9A66B]/20 flex items-center gap-1">
-              <Copy size={11} /> {linkCopiado ? "Copiado!" : "Copiar link"}
+          <button
+            type="button"
+            onClick={copiarLink}
+            className="flex items-center gap-2 text-xs font-black uppercase bg-zinc-900 border border-zinc-700 text-[#C9A66B] px-4 py-2 rounded-xl"
+          >
+            {linkOk ? <CheckCircle size={14} /> : <Copy size={14} />}
+            {linkOk ? "Copiado!" : "Link publico agendar"}
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {(
+          [
+            ["agenda", "Agenda"],
+            ["clientes", "Clientes"],
+            ["servicos", "Servicos"],
+            ["financeiro", "Financeiro"],
+          ] as const
+        ).map(([k, l]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setAba(k)}
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all ${
+              aba === k
+                ? "bg-[#C9A66B] text-black border-[#C9A66B]"
+                : "bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-600"
+            }`}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* AGENDA */}
+      {aba === "agenda" && (
+        <>
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={() => {
+                const x = new Date(dia);
+                x.setDate(x.getDate() - 7);
+                setDia(x);
+              }}
+              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <p className="text-sm font-bold text-[#C9A66B] capitalize">
+              {dia.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                const x = new Date(dia);
+                x.setDate(x.getDate() + 7);
+                setDia(x);
+              }}
+              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400"
+            >
+              <ChevronRight size={18} />
             </button>
           </div>
-        )}
 
-        {/* AVISO SQL */}
-        {avisoSQL && (
-          <div className="flex items-center gap-2 bg-yellow-900/20 border border-yellow-800/30 rounded-xl px-4 py-3 mb-4 text-yellow-400 text-xs font-bold">
-            <AlertCircle size={14} className="shrink-0" /> {avisoSQL}
+          <div className="grid grid-cols-7 gap-1 mb-4">
+            {weekDays.map((d, i) => {
+              const ds = toISO(d);
+              const sel = ds === diaStr;
+              const isToday = ds === hoje;
+              return (
+                <button
+                  key={ds}
+                  type="button"
+                  onClick={() => setDia(new Date(d))}
+                  className={`flex flex-col items-center py-2 rounded-xl border text-center transition-all ${
+                    sel
+                      ? "bg-[#C9A66B] border-[#C9A66B] text-black"
+                      : isToday
+                        ? "border-red-500/60 bg-red-950/20 text-white"
+                        : "border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-600"
+                  }`}
+                >
+                  <span className="text-[9px] font-bold opacity-80">{labelsDow[i]}</span>
+                  <span className="text-lg font-black">{d.getDate()}</span>
+                </button>
+              );
+            })}
           </div>
-        )}
 
-        {/* ABA: AGENDA */}
-        {aba === "agenda" && (
-          <>
-            <div className="flex items-center justify-between bg-zinc-900/60 border border-zinc-800 rounded-2xl px-5 py-3 mb-5">
-              <button onClick={() => mudarMes(-1)} className="p-1 hover:text-[#C9A66B] transition-colors"><ChevronLeft size={20} /></button>
-              <p className="font-black uppercase text-sm tracking-wider capitalize">{nomeMes}</p>
-              <button onClick={() => mudarMes(1)} className="p-1 hover:text-[#C9A66B] transition-colors"><ChevronRight size={20} /></button>
-            </div>
-
-            {loading ? (
-              <div className="flex justify-center mt-16"><Loader2 className="animate-spin text-[#C9A66B]" size={32} /></div>
-            ) : Object.keys(porData).length === 0 ? (
-              <div className="text-center mt-16 text-zinc-600">
-                <Calendar size={48} className="mx-auto mb-4 opacity-20" />
-                <p className="font-bold uppercase text-sm">Nenhum agendamento neste mês</p>
-                <p className="text-xs mt-1">Clique em "+ Novo" para adicionar</p>
+          <div className="relative rounded-2xl border border-zinc-800 bg-zinc-950/80 overflow-hidden min-h-[480px]">
+            {loadA && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10">
+                <Loader2 className="animate-spin text-[#C9A66B]" />
               </div>
-            ) : (
-              <div className="space-y-6">
-                {Object.entries(porData).map(([data, lista]) => {
-                  const dataObj = new Date(`${data}T12:00:00`);
-                  const diaSemana = DIAS_COMPLETO[dataObj.getDay()];
+            )}
+            <div className="flex">
+              <div className="w-14 shrink-0 border-r border-zinc-800">
+                {slots.map((m) => (
+                  <div
+                    key={m}
+                    style={{ height: PX }}
+                    className="text-[10px] text-zinc-500 font-mono flex items-start justify-end pr-2 pt-0.5 border-b border-zinc-800/50"
+                  >
+                    {String(Math.floor(m / 60)).padStart(2, "0")}:{String(m % 60).padStart(2, "0")}
+                  </div>
+                ))}
+              </div>
+              <div className="flex-1 relative" style={{ height: slots.length * PX }}>
+                {apts.map((a) => {
+                  const start = parseMin(a.appointment_time);
+                  const dur = Number(a.duration_min) || 60;
+                  if (start + dur <= START_MIN || start >= END_MIN) return null;
+                  const top = ((Math.max(start, START_MIN) - START_MIN) / SLOT) * PX;
+                  const h = (Math.min(start + dur, END_MIN) - Math.max(start, START_MIN)) / SLOT * PX;
+                  const st = STATUS_STYLE[a.status] || STATUS_STYLE.confirmado;
                   return (
-                    <div key={data}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-8 h-8 rounded-lg bg-[#C9A66B]/10 flex items-center justify-center">
-                          <span className="text-[#C9A66B] font-black text-xs">{data.split("-")[2]}</span>
-                        </div>
-                        <p className="text-[11px] font-black uppercase text-zinc-500 tracking-widest">{diaSemana} · {formatarData(data)}</p>
-                      </div>
-                      <div className="space-y-2 pl-10">
-                        {lista.map(a => {
-                          const cfg = STATUS_CONFIG[a.status] || STATUS_CONFIG.pendente;
-                          const Icon = cfg.icon;
-                          return (
-                            <div key={a.id} className={`bg-zinc-900/60 border rounded-2xl p-4 ${a.status === "cancelado" ? "opacity-50 border-zinc-900" : "border-zinc-800"}`}>
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                    <span className="font-black text-sm">{a.client_name}</span>
-                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border flex items-center gap-1 ${cfg.cor}`}>
-                                      <Icon size={9} /> {cfg.label}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-3 text-xs text-zinc-500 flex-wrap">
-                                    <span className="flex items-center gap-1"><Clock size={11} /> {a.appointment_time.slice(0, 5)}</span>
-                                    {a.service && <span className="flex items-center gap-1"><Scissors size={11} /> {a.service}</span>}
-                                    {a.price && <span className="font-bold text-[#C9A66B]">R$ {Number(a.price).toFixed(2)}</span>}
-                                  </div>
-                                  {a.client_phone && (
-                                    <p className="text-[11px] text-zinc-600 mt-1">{a.client_phone}</p>
-                                  )}
-                                  {a.notes && <p className="text-xs text-zinc-600 mt-1 italic">"{a.notes}"</p>}
-                                </div>
-                                <div className="flex gap-1 shrink-0 flex-wrap justify-end">
-                                  {/* WHATSAPP */}
-                                  {a.client_phone && (
-                                    <a href={gerarLinkWhats(a.client_phone, a.client_name, a.appointment_date, a.appointment_time, a.service, profNome)}
-                                      target="_blank" rel="noopener noreferrer" title="Avisar pelo WhatsApp"
-                                      className="p-1.5 rounded-lg bg-green-900/20 border border-green-800/30 text-green-400 hover:bg-green-900/40">
-                                      <MessageCircle size={13} />
-                                    </a>
-                                  )}
-                                  {a.status === "pendente" && (
-                                    <button onClick={() => mudarStatus(a.id, "confirmado")} title="Confirmar"
-                                      className="p-1.5 rounded-lg bg-blue-900/20 border border-blue-800/30 text-blue-400 hover:bg-blue-900/40">
-                                      <Check size={13} />
-                                    </button>
-                                  )}
-                                  {(a.status === "confirmado" || a.status === "pendente") && (
-                                    <button onClick={() => mudarStatus(a.id, "concluido")} title="Concluir"
-                                      className="p-1.5 rounded-lg bg-green-900/20 border border-green-800/30 text-green-400 hover:bg-green-900/40">
-                                      <CheckCircle size={13} />
-                                    </button>
-                                  )}
-                                  <button onClick={() => abrirEditar(a)} title="Editar"
-                                    className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-[#C9A66B] hover:bg-zinc-700">
-                                    <Settings size={13} />
-                                  </button>
-                                  <button onClick={() => excluir(a.id)} title="Excluir"
-                                    className="p-1.5 rounded-lg bg-red-900/20 border border-red-800/30 text-red-400 hover:bg-red-900/40">
-                                    <Trash2 size={13} />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => abrirEditApt(a)}
+                      className={`absolute left-1 right-1 rounded-xl border px-2 py-1 text-left overflow-hidden ${st}`}
+                      style={{ top, height: Math.max(h, 36) }}
+                    >
+                      <p className="text-[10px] font-black text-white truncate">
+                        {a.appointment_time.slice(0, 5)} · {a.client_name}
+                      </p>
+                      <p className="text-[9px] text-zinc-400 truncate">{a.service || "Servico"}</p>
+                    </button>
                   );
                 })}
               </div>
-            )}
-          </>
-        )}
+            </div>
+          </div>
 
-        {/* ABA: CONFIG DISPONIBILIDADE */}
-        {aba === "config" && (
-          <div>
-            <p className="text-xs text-zinc-500 mb-4">Configure os dias e horários que você atende. Seus clientes só poderão agendar dentro desses horários.</p>
-            <div className="space-y-3">
-              {[1,2,3,4,5,6,0].map(dow => {
-                const dia = getDia(dow);
-                const ativo = !!dia;
+          <button
+            type="button"
+            onClick={abrirNovoApt}
+            className="fixed bottom-6 right-6 md:absolute md:bottom-auto md:right-auto md:relative md:mt-4 w-14 h-14 rounded-full bg-[#C9A66B] text-black flex items-center justify-center shadow-lg z-[100]"
+          >
+            <Plus size={28} />
+          </button>
+        </>
+      )}
+
+      {/* CLIENTES */}
+      {aba === "clientes" && (
+        <div className="space-y-4">
+          {aniversariantes.length > 0 && (
+            <div className="rounded-2xl border border-pink-500/30 bg-pink-950/20 p-4">
+              <p className="text-xs font-black uppercase text-pink-300 flex items-center gap-2 mb-2">
+                <Cake size={14} /> Proximos aniversarios (14 dias)
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {aniversariantes.map((c) => (
+                  <span key={c.id} className="text-xs bg-zinc-900 px-2 py-1 rounded-lg text-white">
+                    {c.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setFormCli({ name: "", phone: "", birthday: "", notes: "" });
+              setModalClient("new");
+            }}
+            className="w-full py-3 rounded-xl bg-[#C9A66B] text-black font-black uppercase text-xs"
+          >
+            + Novo cliente
+          </button>
+          <div className="space-y-2">
+            {clients.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  setFormCli({
+                    name: c.name,
+                    phone: c.phone || "",
+                    birthday: c.birthday || "",
+                    notes: c.notes || "",
+                  });
+                  setModalClient(c);
+                }}
+                className="w-full text-left rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 flex items-center justify-between"
+              >
+                <span className="font-bold text-white">{c.name}</span>
+                {c.phone && <span className="text-xs text-zinc-500">{c.phone}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SERVICOS */}
+      {aba === "servicos" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {["Corte masc.", "Barba", "Pezinho", "Sobrancelha", "Pigmentacao"].map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => {
+                  setFormSvc({ name: chip, price: "", duration_min: "60" });
+                  setModalSvc("new");
+                }}
+                className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-zinc-800 text-[#C9A66B] border border-zinc-700"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setFormSvc({ name: "", price: "", duration_min: "60" });
+              setModalSvc("new");
+            }}
+            className="w-full py-3 rounded-xl bg-zinc-800 border border-zinc-700 text-[#C9A66B] font-black uppercase text-xs"
+          >
+            + Cadastrar servico
+          </button>
+          {services.map((s) => (
+            <div
+              key={s.id}
+              className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 flex justify-between items-center"
+            >
+              <div>
+                <p className="font-bold text-white">{s.name}</p>
+                <p className="text-xs text-zinc-500">
+                  {fmtMoney(Number(s.price))} · {s.duration_min} min
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setFormSvc({
+                    name: s.name,
+                    price: String(s.price),
+                    duration_min: String(s.duration_min),
+                  });
+                  setModalSvc(s);
+                }}
+                className="p-2 text-zinc-400"
+              >
+                <Pencil size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* FINANCEIRO */}
+      {aba === "financeiro" && (
+        <div className="space-y-4">
+          <input
+            type="month"
+            value={mesFin}
+            onChange={(e) => setMesFin(e.target.value)}
+            className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white"
+            style={{ colorScheme: "dark" }}
+          />
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["resumo", "Resumo"],
+                ["fluxo", "Fluxo diario"],
+                ["despesas", "Despesas"],
+                ["cobrancas", "Cobrancas"],
+              ] as const
+            ).map(([k, l]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setFinSub(k)}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase ${
+                  finSub === k ? "bg-[#C9A66B] text-black" : "bg-zinc-800 text-zinc-400"
+                }`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+
+          {finSub === "resumo" && fin && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-emerald-800/40 bg-emerald-950/20 p-4">
+                <p className="text-[10px] font-black uppercase text-emerald-400">Receita</p>
+                <p className="text-2xl font-black text-white">{fmtMoney(fin.resumo.receita)}</p>
+              </div>
+              <div className="rounded-2xl border border-red-800/40 bg-red-950/20 p-4">
+                <p className="text-[10px] font-black uppercase text-red-400">Despesas</p>
+                <p className="text-2xl font-black text-white">{fmtMoney(fin.resumo.despesas)}</p>
+              </div>
+              <div className="rounded-2xl border border-[#C9A66B]/40 bg-[#C9A66B]/10 p-4">
+                <p className="text-[10px] font-black uppercase text-[#C9A66B]">Lucro</p>
+                <p className="text-2xl font-black text-white">{fmtMoney(fin.resumo.lucro)}</p>
+                <p className="text-[10px] text-zinc-500 mt-1">A receber: {fmtMoney(fin.resumo.a_receber)}</p>
+              </div>
+            </div>
+          )}
+
+          {finSub === "resumo" && fin?.porCategoria && Object.keys(fin.porCategoria).length > 0 && (
+            <div className="rounded-2xl border border-zinc-800 p-4">
+              <p className="text-xs font-black uppercase text-zinc-400 mb-2">Despesas por categoria</p>
+              {Object.entries(fin.porCategoria).map(([cat, val]) => (
+                <div key={cat} className="flex justify-between text-sm py-1 border-b border-zinc-800/50">
+                  <span className="text-zinc-300">{cat}</span>
+                  <span className="text-red-300">{fmtMoney(Number(val))}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {finSub === "resumo" && fin?.topServicos?.length > 0 && (
+            <div className="rounded-2xl border border-zinc-800 p-4">
+              <p className="text-xs font-black uppercase text-zinc-400 mb-2">Top servicos</p>
+              {fin.topServicos.map((s: any) => (
+                <div key={s.name} className="flex justify-between text-sm py-1">
+                  <span className="text-white">{s.name}</span>
+                  <span className="text-[#C9A66B]">{fmtMoney(s.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {finSub === "resumo" && fin?.topClientes?.length > 0 && (
+            <div className="rounded-2xl border border-zinc-800 p-4">
+              <p className="text-xs font-black uppercase text-zinc-400 mb-2">Melhores clientes (mes)</p>
+              {fin.topClientes.map((c: any, i: number) => (
+                <div key={c.name} className="flex justify-between text-sm py-1">
+                  <span className="text-zinc-300">
+                    {i + 1}. {c.name}
+                  </span>
+                  <span className="text-white font-bold">{fmtMoney(c.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {finSub === "fluxo" && fin?.fluxoDiario && (
+            <div className="rounded-2xl border border-zinc-800 overflow-hidden">
+              <div className="grid grid-cols-4 gap-2 text-[10px] font-black uppercase text-zinc-500 p-3 bg-zinc-900 border-b border-zinc-800">
+                <span>Dia</span>
+                <span>Receita</span>
+                <span>Despesa</span>
+                <span>Resultado</span>
+              </div>
+              {fin.fluxoDiario.map((row: any) => (
+                <div key={row.dia} className="grid grid-cols-4 gap-2 text-xs p-3 border-b border-zinc-800/80">
+                  <span className="text-zinc-400">{row.dia.slice(8)}</span>
+                  <span className="text-emerald-400">{fmtMoney(row.receita)}</span>
+                  <span className="text-red-400">{fmtMoney(row.despesa)}</span>
+                  <span className={row.resultado >= 0 ? "text-emerald-300" : "text-red-300"}>
+                    {fmtMoney(row.resultado)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {finSub === "despesas" && (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-zinc-800 p-4 space-y-3">
+                <p className="text-xs font-black uppercase text-[#C9A66B]">Nova despesa</p>
+                <input
+                  placeholder="Descricao"
+                  value={formExp.description}
+                  onChange={(e) => setFormExp({ ...formExp, description: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    placeholder="Valor"
+                    type="number"
+                    value={formExp.amount}
+                    onChange={(e) => setFormExp({ ...formExp, amount: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="date"
+                    value={formExp.expense_date}
+                    onChange={(e) => setFormExp({ ...formExp, expense_date: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                    style={{ colorScheme: "dark" }}
+                  />
+                </div>
+                <select
+                  value={formExp.category}
+                  onChange={(e) => setFormExp({ ...formExp, category: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                >
+                  {EXP_CATS.map((c) => (
+                    <option key={c.v} value={c.v}>
+                      {c.l}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={salvarDespesa}
+                  className="w-full py-2 rounded-xl bg-[#C9A66B] text-black font-black text-xs uppercase"
+                >
+                  Salvar despesa
+                </button>
+              </div>
+              {expenses.map((e) => (
+                <div key={e.id} className="rounded-xl border border-zinc-800 p-3 flex justify-between">
+                  <div>
+                    <p className="font-bold text-white text-sm">{e.description}</p>
+                    <p className="text-[10px] text-zinc-500">
+                      {e.expense_date} · {e.category}
+                    </p>
+                  </div>
+                  <span className="text-red-300 font-bold">{fmtMoney(Number(e.amount))}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {finSub === "cobrancas" && (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-zinc-800 p-4 space-y-3">
+                <p className="text-xs font-black uppercase text-[#C9A66B]">Nova cobranca</p>
+                <input
+                  placeholder="Cliente"
+                  value={formChg.client_name}
+                  onChange={(e) => setFormChg({ ...formChg, client_name: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                />
+                <input
+                  placeholder="WhatsApp"
+                  value={formChg.client_phone}
+                  onChange={(e) => setFormChg({ ...formChg, client_phone: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                />
+                <input
+                  placeholder="Servicos / obs"
+                  value={formChg.description}
+                  onChange={(e) => setFormChg({ ...formChg, description: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    placeholder="Valor"
+                    type="number"
+                    value={formChg.amount}
+                    onChange={(e) => setFormChg({ ...formChg, amount: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="date"
+                    value={formChg.charge_date}
+                    onChange={(e) => setFormChg({ ...formChg, charge_date: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                    style={{ colorScheme: "dark" }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={salvarCobranca}
+                  className="w-full py-2 rounded-xl bg-[#C9A66B] text-black font-black text-xs uppercase"
+                >
+                  Registrar
+                </button>
+              </div>
+              {Object.entries(chargesByClient).map(([nome, lista]) => {
+                const tot = lista.reduce((s, c) => s + Number(c.amount), 0);
                 return (
-                  <div key={dow} className={`bg-zinc-900/60 border rounded-2xl p-4 transition-all ${ativo ? "border-zinc-700" : "border-zinc-900 opacity-50"}`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <button onClick={() => toggleDia(dow)}
-                          className={`w-10 h-6 rounded-full transition-all relative ${ativo ? "bg-[#C9A66B]" : "bg-zinc-800"}`}>
-                          <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${ativo ? "left-5" : "left-1"}`} />
-                        </button>
-                        <p className="font-black text-sm uppercase">{DIAS_COMPLETO[dow]}</p>
-                      </div>
-                      {ativo && <span className="text-[10px] text-zinc-500">{dia.start_time?.slice(0,5)} – {dia.end_time?.slice(0,5)}</span>}
+                  <div key={nome} className="rounded-xl border border-zinc-800 overflow-hidden">
+                    <div className="bg-zinc-800/80 px-3 py-2 flex justify-between text-sm font-bold">
+                      <span>{nome}</span>
+                      <span className="text-red-300">Devendo: {fmtMoney(tot)}</span>
                     </div>
-                    {ativo && (
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <label className={labelClass}>Início</label>
-                          <input type="time" value={dia.start_time?.slice(0,5) || "09:00"}
-                            onChange={e => setDiaField(dow, "start_time", e.target.value)} className={inputClass} />
-                        </div>
-                        <div>
-                          <label className={labelClass}>Fim</label>
-                          <input type="time" value={dia.end_time?.slice(0,5) || "18:00"}
-                            onChange={e => setDiaField(dow, "end_time", e.target.value)} className={inputClass} />
-                        </div>
-                        <div>
-                          <label className={labelClass}>Duração (min)</label>
-                          <select value={dia.slot_duration_min || 60}
-                            onChange={e => setDiaField(dow, "slot_duration_min", Number(e.target.value))} className={inputClass}>
-                            {[30, 45, 60, 90, 120].map(m => <option key={m} value={m}>{m} min</option>)}
-                          </select>
+                    {lista.map((c) => (
+                      <div key={c.id} className="px-3 py-2 border-t border-zinc-800 flex justify-between items-center text-xs">
+                        <span className="text-zinc-400">{c.description || "—"}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-red-200 font-bold">{fmtMoney(Number(c.amount))}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              fetch("/api/pro/gestao/charges", {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ id: c.id, paid: true }),
+                              }).then(() => {
+                                carregarCobrancas();
+                                carregarFin();
+                              })
+                            }
+                            className="text-[10px] text-emerald-400 font-bold"
+                          >
+                            Pago
+                          </button>
                         </div>
                       </div>
-                    )}
+                    ))}
                   </div>
                 );
               })}
             </div>
-            {erroDisp && (
-              <div className="mt-4 flex items-center gap-2 bg-red-900/20 border border-red-800/30 rounded-xl px-4 py-3 text-red-400 text-xs font-bold">
-                <AlertCircle size={14} /> {erroDisp}
-              </div>
-            )}
-            {okDisp && (
-              <div className="mt-4 flex items-center gap-2 bg-green-900/20 border border-green-800/30 rounded-xl px-4 py-3 text-green-400 text-xs font-bold">
-                <CheckCircle size={14} /> Disponibilidade salva com sucesso!
-              </div>
-            )}
-            <button onClick={salvarDisp} disabled={salvandoDisp}
-              className="w-full mt-4 bg-[#C9A66B] hover:bg-[#b08d55] disabled:opacity-60 text-black font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2">
-              {salvandoDisp ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-              {salvandoDisp ? "Salvando..." : "Salvar Disponibilidade"}
-            </button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
-      {/* MODAL NOVO/EDITAR */}
-      {showForm && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-950">
-              <h2 className="font-black uppercase text-sm">{editando ? "Editar" : salvoId ? "Agendado!" : "Novo Agendamento"}</h2>
-              <button onClick={fecharForm}><X size={20} className="text-zinc-500" /></button>
+      {/* MODAL AGENDAMENTO */}
+      {modalApt && (
+        <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/80 p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-4 border-b border-zinc-800">
+              <h3 className="font-black uppercase text-sm">
+                {modalApt === "new" ? "Novo agendamento" : "Editar"}
+              </h3>
+              <button type="button" onClick={() => setModalApt(null)}>
+                <X size={20} className="text-zinc-500" />
+              </button>
             </div>
-            <div className="p-6 space-y-3">
-
-              {/* APÓS CRIAR — mostra confirmação + botão WhatsApp */}
-              {salvoId && salvoInfo && (
-                <div className="space-y-3">
-                  <div className="bg-green-900/20 border border-green-800/30 rounded-xl px-4 py-3 flex items-center gap-2 text-green-400 text-sm font-bold">
-                    <CheckCircle size={16} /> Agendamento criado com sucesso!
+            <div className="p-4 space-y-3">
+              {clients.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Cliente cadastrado</p>
+                  <div className="flex flex-wrap gap-1">
+                    {clients.slice(0, 8).map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => aplicarCliente(c)}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-zinc-800 text-[#C9A66B]"
+                      >
+                        {c.name}
+                      </button>
+                    ))}
                   </div>
-                  <div className="bg-zinc-900 rounded-xl px-4 py-3 text-sm text-zinc-300 space-y-1">
-                    <p><span className="text-zinc-500 text-xs">Cliente:</span> <strong>{salvoInfo.client_name}</strong></p>
-                    <p><span className="text-zinc-500 text-xs">Data:</span> <strong>{formatarData(salvoInfo.appointment_date)}</strong></p>
-                    <p><span className="text-zinc-500 text-xs">Horário:</span> <strong>{salvoInfo.appointment_time?.slice(0,5)}</strong></p>
-                    {salvoInfo.service && <p><span className="text-zinc-500 text-xs">Serviço:</span> {salvoInfo.service}</p>}
-                  </div>
-                  {salvoInfo.client_phone && (
-                    <a href={gerarLinkWhats(salvoInfo.client_phone, salvoInfo.client_name, salvoInfo.appointment_date, salvoInfo.appointment_time, salvoInfo.service, profNome)}
-                      target="_blank" rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white font-black uppercase text-xs tracking-widest py-3 rounded-xl transition-all">
-                      <MessageCircle size={16} /> Avisar Cliente pelo WhatsApp
-                    </a>
-                  )}
-                  <button onClick={fecharForm}
-                    className="w-full py-2.5 rounded-xl bg-zinc-800 text-zinc-400 font-bold text-xs uppercase hover:bg-zinc-700 transition-all">
-                    Fechar
-                  </button>
                 </div>
               )}
-
-              {/* FORMULÁRIO */}
-              {!salvoId && (
-                <>
-                  <div><label className={labelClass}>Nome do Cliente *</label><input value={form.client_name} onChange={e => set("client_name", e.target.value)} className={inputClass} placeholder="Ex: João Silva" /></div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className={labelClass}>Data *</label><input type="date" value={form.appointment_date} onChange={e => set("appointment_date", e.target.value)} className={inputClass} style={{ colorScheme: "dark" }} min={new Date().toISOString().split("T")[0]} /></div>
-                    <div><label className={labelClass}>Horário *</label><input type="time" value={form.appointment_time} onChange={e => set("appointment_time", e.target.value)} className={inputClass} /></div>
-                  </div>
-                  <div><label className={labelClass}>Serviço</label><input value={form.service} onChange={e => set("service", e.target.value)} className={inputClass} placeholder="Ex: Corte + Barba" /></div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className={labelClass}>WhatsApp</label><input value={form.client_phone} onChange={e => set("client_phone", e.target.value)} className={inputClass} placeholder="11999999999" /></div>
-                    <div><label className={labelClass}>Valor (R$)</label><input type="number" value={form.price} onChange={e => set("price", e.target.value)} className={inputClass} placeholder="0,00" /></div>
-                  </div>
-                  <div>
-                    <label className={labelClass}>Duração</label>
-                    <select value={form.duration_min} onChange={e => set("duration_min", e.target.value)} className={inputClass}>
-                      {[30,45,60,90,120].map(m => <option key={m} value={m}>{m} minutos</option>)}
-                    </select>
-                  </div>
-                  <div><label className={labelClass}>Observações</label><textarea rows={2} value={form.notes} onChange={e => set("notes", e.target.value)} className={`${inputClass} resize-none`} /></div>
-                  {erroForm && (
-                    <div className="flex items-center gap-2 bg-red-900/20 border border-red-800/30 rounded-xl px-3 py-2.5 text-red-400 text-xs font-bold">
-                      <AlertCircle size={13} /> {erroForm}
-                    </div>
-                  )}
-                  <button onClick={salvar} disabled={salvando || !form.client_name || !form.appointment_date || !form.appointment_time}
-                    className="w-full bg-[#C9A66B] hover:bg-[#b08d55] disabled:opacity-60 text-black font-black uppercase text-xs py-3 rounded-xl flex items-center justify-center gap-2">
-                    {salvando ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                    {salvando ? "Salvando..." : editando ? "Salvar Alterações" : "Agendar"}
-                  </button>
-                </>
+              <input
+                placeholder="Nome do cliente"
+                value={formApt.client_name}
+                onChange={(e) => setFormApt({ ...formApt, client_name: e.target.value })}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+              />
+              <input
+                placeholder="WhatsApp"
+                value={formApt.client_phone}
+                onChange={(e) => setFormApt({ ...formApt, client_phone: e.target.value })}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+              />
+              {services.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {services.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => aplicarServico(s)}
+                      className="text-[10px] px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700"
+                    >
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input
+                placeholder="Servico"
+                value={formApt.service}
+                onChange={(e) => setFormApt({ ...formApt, service: e.target.value })}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="time"
+                  value={formApt.appointment_time}
+                  onChange={(e) => setFormApt({ ...formApt, appointment_time: e.target.value })}
+                  className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                  style={{ colorScheme: "dark" }}
+                />
+                <input
+                  placeholder="Duracao min"
+                  value={formApt.duration_min}
+                  onChange={(e) => setFormApt({ ...formApt, duration_min: e.target.value })}
+                  className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+              <input
+                placeholder="Preco R$"
+                value={formApt.price}
+                onChange={(e) => setFormApt({ ...formApt, price: e.target.value })}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+              />
+              <select
+                value={formApt.status}
+                onChange={(e) => setFormApt({ ...formApt, status: e.target.value })}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+              >
+                <option value="pendente">Pendente</option>
+                <option value="confirmado">Confirmado</option>
+                <option value="concluido">Concluido</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+              <textarea
+                placeholder="Observacoes"
+                value={formApt.notes}
+                onChange={(e) => setFormApt({ ...formApt, notes: e.target.value })}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm min-h-[70px]"
+              />
+              {err && <p className="text-red-400 text-xs">{err}</p>}
+              <div className="flex flex-wrap gap-2">
+                {formApt.client_phone && (
+                  <a
+                    href={waLink(formApt.client_phone, `Ola ${formApt.client_name}!`)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 text-xs font-bold text-emerald-400 px-3 py-2 rounded-xl bg-emerald-950/30 border border-emerald-800/50"
+                  >
+                    <MessageCircle size={14} /> WhatsApp
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={salvarApt}
+                  disabled={saving}
+                  className="flex-1 py-3 rounded-xl bg-[#C9A66B] text-black font-black text-xs uppercase"
+                >
+                  {saving ? "Salvando..." : "Salvar"}
+                </button>
+              </div>
+              {modalApt !== "new" && (
+                <button
+                  type="button"
+                  onClick={() => excluirApt((modalApt as Appointment).id)}
+                  className="w-full py-2 text-red-400 text-xs font-bold flex items-center justify-center gap-1"
+                >
+                  <Trash2 size={14} /> Excluir
+                </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CLIENTE */}
+      {modalClient && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md p-4 space-y-3">
+            <div className="flex justify-between">
+              <h3 className="font-black uppercase text-sm">Cliente</h3>
+              <button type="button" onClick={() => setModalClient(null)}>
+                <X size={18} />
+              </button>
+            </div>
+            <input
+              placeholder="Nome"
+              value={formCli.name}
+              onChange={(e) => setFormCli({ ...formCli, name: e.target.value })}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+            />
+            <input
+              placeholder="Telefone"
+              value={formCli.phone}
+              onChange={(e) => setFormCli({ ...formCli, phone: e.target.value })}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+            />
+            <input
+              type="date"
+              value={formCli.birthday}
+              onChange={(e) => setFormCli({ ...formCli, birthday: e.target.value })}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+              style={{ colorScheme: "dark" }}
+            />
+            <textarea
+              placeholder="Anotacoes / anamnese"
+              value={formCli.notes}
+              onChange={(e) => setFormCli({ ...formCli, notes: e.target.value })}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm min-h-[80px]"
+            />
+            <button
+              type="button"
+              onClick={salvarCliente}
+              className="w-full py-3 bg-[#C9A66B] text-black font-black text-xs uppercase rounded-xl"
+            >
+              Salvar
+            </button>
+            {modalClient !== "new" && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await fetch("/api/pro/gestao/clients", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: (modalClient as ProClient).id }),
+                  });
+                  setModalClient(null);
+                  carregarClientes();
+                }}
+                className="w-full py-2 text-red-400 text-xs"
+              >
+                Excluir cliente
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SERVICO */}
+      {modalSvc && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md p-4 space-y-3">
+            <div className="flex justify-between">
+              <h3 className="font-black uppercase text-sm">Servico</h3>
+              <button type="button" onClick={() => setModalSvc(null)}>
+                <X size={18} />
+              </button>
+            </div>
+            <input
+              placeholder="Nome"
+              value={formSvc.name}
+              onChange={(e) => setFormSvc({ ...formSvc, name: e.target.value })}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+            />
+            <input
+              placeholder="Preco"
+              type="number"
+              value={formSvc.price}
+              onChange={(e) => setFormSvc({ ...formSvc, price: e.target.value })}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+            />
+            <input
+              placeholder="Duracao minutos"
+              value={formSvc.duration_min}
+              onChange={(e) => setFormSvc({ ...formSvc, duration_min: e.target.value })}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={salvarServico}
+              className="w-full py-3 bg-[#C9A66B] text-black font-black text-xs uppercase rounded-xl"
+            >
+              Salvar
+            </button>
           </div>
         </div>
       )}
     </div>
   );
 }
-
-
-
-
