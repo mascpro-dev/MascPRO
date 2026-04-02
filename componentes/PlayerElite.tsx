@@ -5,7 +5,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import dynamic from "next/dynamic";
 
 // 👇 VOLTAMOS PARA O PADRÃO (Isso corrige o erro de módulo não encontrado)
-const ReactPlayer = dynamic(() => import("react-player"), { ssr: false });
+const ReactPlayer = dynamic(() => import("react-player/lazy"), { ssr: false });
 
 export default function PlayerElite({ aula, currentUser }) {
   const supabase = createClientComponentClient();

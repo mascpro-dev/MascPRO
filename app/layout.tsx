@@ -1,10 +1,14 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/react'
 import './globals.css'
-// Importação da ferramenta de análise (O erro visual acontece aqui, mas vai funcionar)
-import { Analytics } from '@vercel/analytics/react';
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  preload: true,
+  adjustFontFallback: true,
+})
 
 export const metadata: Metadata = {
   title: 'MASC PRO',

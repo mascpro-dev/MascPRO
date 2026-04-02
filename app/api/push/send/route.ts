@@ -2,11 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import * as webpush from "web-push";
 
-webpush.setVapidDetails(
-  process.env.VAPID_EMAIL || "mailto:marceloconelheiros@conexoes.digital",
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
+let vapidConfigured = false;
+function ensureVapid() {
+  if (vapidConfigured) return;
+  const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const priv = process.env.VAPID_PRIVATE_KEY;
+  if (!pub || !priv) {
+    throw new Error("Push não configurado: defina NEXT_PUBLIC_VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY.");
+  }
+  webpush.setVapidDetails(
+    process.env.VAPID_EMAIL || "mailto:marceloconelheiros@conexoes.digital",
+    pub,
+    priv
+  );
+  vapidConfigured = true;
+}
 
 function sb() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -15,6 +25,7 @@ function sb() {
 
 export async function POST(req: NextRequest) {
   try {
+    ensureVapid();
     const { title, body, url, publico } = await req.json();
     if (!title || !body) return NextResponse.json({ ok: false, error: "title e body obrigatórios" }, { status: 400 });
 

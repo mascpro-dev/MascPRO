@@ -49,16 +49,24 @@ export default function MainLayout({ children }: MainLayoutProps) {
     checkOnboarding();
   }, [supabase, router, pathname]);
 
-  if (checking) return <div className="min-h-screen bg-black w-full" />;
-
-  return (
+  const shell = (
     <div className="min-h-screen bg-black text-white">
       <Sidebar />
       <main className="transition-all duration-300 w-full min-h-screen">
         <div className="pt-20 pb-24 md:pb-20 px-4 md:px-6 md:pt-12 md:pb-12 md:pl-[280px] max-w-[1600px] mx-auto">
-          {children}
+          {checking ? (
+            <div className="animate-pulse space-y-4 pt-2" aria-busy="true" aria-label="Carregando">
+              <div className="h-9 bg-zinc-800 rounded-lg w-2/5 max-w-[220px]" />
+              <div className="h-36 bg-zinc-900/80 rounded-2xl border border-white/5" />
+              <div className="h-36 bg-zinc-900/80 rounded-2xl border border-white/5" />
+            </div>
+          ) : (
+            children
+          )}
         </div>
       </main>
     </div>
   );
+
+  return shell;
 }
