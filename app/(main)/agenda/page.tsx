@@ -56,6 +56,7 @@ export default function AgendaPage() {
   const [mes, setMes] = useState(getMesAtual());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [avisoSQL, setAvisoSQL] = useState("");
   const [linkCopiado, setLinkCopiado] = useState(false);
 
   // Novo/editar agendamento
@@ -254,6 +255,13 @@ export default function AgendaPage() {
               className="shrink-0 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg bg-[#C9A66B]/10 border border-[#C9A66B]/30 text-[#C9A66B] hover:bg-[#C9A66B]/20 flex items-center gap-1">
               <Copy size={11} /> {linkCopiado ? "Copiado!" : "Copiar link"}
             </button>
+          </div>
+        )}
+
+        {/* AVISO SQL */}
+        {avisoSQL && (
+          <div className="flex items-center gap-2 bg-yellow-900/20 border border-yellow-800/30 rounded-xl px-4 py-3 mb-4 text-yellow-400 text-xs font-bold">
+            <AlertCircle size={14} className="shrink-0" /> {avisoSQL}
           </div>
         )}
 
@@ -493,4 +501,7 @@ export default function AgendaPage() {
     </div>
   );
 }
+
+
+
 

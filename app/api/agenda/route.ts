@@ -28,7 +28,13 @@ export async function GET(req: NextRequest) {
     if (status) query = query.eq("status", status);
 
     const { data, error } = await query;
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+
+    // Tabela não existe ainda — retorna vazio em vez de erro
+    if (error) {
+      if (error.code === "42P01") return NextResponse.json({ ok: true, appointments: [], aviso: "Tabela appointments não existe. Rode o SQL no Supabase." });
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
     return NextResponse.json({ ok: true, appointments: data || [] });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
@@ -44,19 +50,29 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { client_name, client_phone, service, appointment_date, appointment_time, duration_min, price, notes } = body;
+
     if (!client_name || !appointment_date || !appointment_time) {
       return NextResponse.json({ ok: false, error: "Nome, data e horário são obrigatórios" }, { status: 400 });
     }
 
     const { data, error } = await supabase.from("appointments").insert({
       professional_id: session.user.id,
-      client_name, client_phone, service, appointment_date, appointment_time,
-      duration_min: duration_min || 60,
+      client_name,
+      client_phone: client_phone || null,
+      service: service || null,
+      appointment_date,
+      appointment_time,
+      duration_min: duration_min ? Number(duration_min) : 60,
       price: price ? Number(price) : null,
-      notes, status: "confirmado",
+      notes: notes || null,
+      status: "confirmado",
     }).select().single();
 
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (error) {
+      if (error.code === "42P01") return NextResponse.json({ ok: false, error: "Tabela não existe. Rode o SQL no Supabase para criar a tabela appointments." }, { status: 500 });
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
     return NextResponse.json({ ok: true, appointment: data });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
@@ -74,8 +90,11 @@ export async function PATCH(req: NextRequest) {
     const { id, ...campos } = body;
     if (!id) return NextResponse.json({ ok: false, error: "id obrigatório" }, { status: 400 });
 
-    const { error } = await supabase.from("appointments").update(campos)
-      .eq("id", id).eq("professional_id", session.user.id);
+    const { error } = await supabase.from("appointments")
+      .update(campos)
+      .eq("id", id)
+      .eq("professional_id", session.user.id);
+
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
@@ -83,7 +102,7 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// DELETE — cancelar/excluir
+// DELETE
 export async function DELETE(req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
@@ -91,8 +110,11 @@ export async function DELETE(req: NextRequest) {
     if (!session) return NextResponse.json({ ok: false, error: "Não autenticado" }, { status: 401 });
 
     const { id } = await req.json();
-    const { error } = await supabase.from("appointments").delete()
-      .eq("id", id).eq("professional_id", session.user.id);
+    const { error } = await supabase.from("appointments")
+      .delete()
+      .eq("id", id)
+      .eq("professional_id", session.user.id);
+
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
