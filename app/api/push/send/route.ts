@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import webpush from "web-push";
+import * as webpush from "web-push";
 
 webpush.setVapidDetails(
   process.env.VAPID_EMAIL || "mailto:contato@mascpro.com.br",
@@ -18,11 +18,9 @@ export async function POST(req: NextRequest) {
     const { title, body, url, publico } = await req.json();
     if (!title || !body) return NextResponse.json({ ok: false, error: "title e body obrigatórios" }, { status: 400 });
 
-    // Busca subscriptions — filtra por role se publico != TODOS
     let query = sb().from("push_subscriptions").select("endpoint, p256dh, auth, user_id");
 
     if (publico && publico !== "TODOS") {
-      // Busca IDs dos usuários com o role correto
       const { data: perfis } = await sb()
         .from("profiles")
         .select("id")
@@ -49,7 +47,6 @@ export async function POST(req: NextRequest) {
           );
           enviados++;
         } catch (err: any) {
-          // 410 Gone = subscription expirada, remove do banco
           if (err.statusCode === 410 || err.statusCode === 404) {
             expirados.push(sub.endpoint);
           }
@@ -57,7 +54,6 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    // Remove subscriptions expiradas
     if (expirados.length > 0) {
       await sb().from("push_subscriptions").delete().in("endpoint", expirados);
     }
