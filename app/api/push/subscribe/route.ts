@@ -1,24 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
-function sb() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
-}
-
-// POST — salva subscription
+// POST — salva subscription usando o cliente autenticado do usuário
 export async function POST(req: NextRequest) {
   try {
-    const supabaseUser = createRouteHandlerClient({ cookies });
-    const { data: { session } } = await supabaseUser.auth.getSession();
+    // Usa o cliente com sessão do usuário (bypassa RLS corretamente)
+    const supabase = createRouteHandlerClient({ cookies });
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session) return NextResponse.json({ ok: false, error: "Não autenticado" }, { status: 401 });
 
-    const { subscription } = await req.json();
+    const body = await req.json();
+    const { subscription } = body;
     if (!subscription?.endpoint) return NextResponse.json({ ok: false, error: "Subscription inválida" }, { status: 400 });
 
-    const { error } = await sb()
+    // Tenta upsert — se a tabela não existir, retorna erro claro
+    const { error } = await supabase
       .from("push_subscriptions")
       .upsert({
         user_id: session.user.id,
@@ -28,9 +25,14 @@ export async function POST(req: NextRequest) {
         updated_at: new Date().toISOString(),
       }, { onConflict: "endpoint" });
 
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (error) {
+      console.error("[push/subscribe] Erro ao salvar:", error);
+      return NextResponse.json({ ok: false, error: error.message, code: error.code }, { status: 500 });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e: any) {
+    console.error("[push/subscribe] Exceção:", e);
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
@@ -38,9 +40,10 @@ export async function POST(req: NextRequest) {
 // DELETE — remove subscription
 export async function DELETE(req: NextRequest) {
   try {
+    const supabase = createRouteHandlerClient({ cookies });
     const { endpoint } = await req.json();
     if (!endpoint) return NextResponse.json({ ok: false, error: "endpoint obrigatório" }, { status: 400 });
-    await sb().from("push_subscriptions").delete().eq("endpoint", endpoint);
+    await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
