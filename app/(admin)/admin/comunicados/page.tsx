@@ -26,6 +26,7 @@ export default function AdminComunicadosPage() {
   const [erro, setErro] = useState("");
   const [enviarPush, setEnviarPush] = useState(true);
   const [pushStatus, setPushStatus] = useState("");
+  const [testando, setTestando] = useState(false);
 
   useEffect(() => { carregar(); }, []);
 
@@ -74,6 +75,19 @@ export default function AdminComunicadosPage() {
       method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }),
     });
     await carregar();
+  }
+
+    async function testarPush() {
+    setTestando(true);
+    const res = await fetch("/api/push/send", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "?? Teste MascPRO", body: "Push funcionando! Suas notificações estão ativas.", url: "/", publico: "TODOS" }),
+    });
+    const d = await res.json().catch(() => null);
+    if (d?.ok) setPushStatus(`? Teste enviado para ${d.enviados} dispositivo(s). Verifique o celular!`);
+    else setPushStatus(`? Erro: ${d?.error || "Falha no envio. Verifique as variáveis VAPID no Vercel."}`);
+    setTimeout(() => setPushStatus(""), 8000);
+    setTestando(false);
   }
 
   const publicoInfo = (p: string) => PUBLICOS.find(x => x.value === p) || PUBLICOS[0];
@@ -213,3 +227,5 @@ export default function AdminComunicadosPage() {
     </div>
   );
 }
+
+

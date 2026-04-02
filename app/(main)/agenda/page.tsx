@@ -459,7 +459,7 @@ export default function AgendaPage() {
                 <>
                   <div><label className={labelClass}>Nome do Cliente *</label><input value={form.client_name} onChange={e => set("client_name", e.target.value)} className={inputClass} placeholder="Ex: João Silva" /></div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><label className={labelClass}>Data *</label><input type="date" value={form.appointment_date} onChange={e => set("appointment_date", e.target.value)} className={inputClass} /></div>
+                    <div><label className={labelClass}>Data *</label><input type="date" value={form.appointment_date} onChange={e => set("appointment_date", e.target.value)} className={inputClass} style={{ colorScheme: "dark" }} min={new Date().toISOString().split("T")[0]} /></div>
                     <div><label className={labelClass}>Horário *</label><input type="time" value={form.appointment_time} onChange={e => set("appointment_time", e.target.value)} className={inputClass} /></div>
                   </div>
                   <div><label className={labelClass}>Serviço</label><input value={form.service} onChange={e => set("service", e.target.value)} className={inputClass} placeholder="Ex: Corte + Barba" /></div>
@@ -493,3 +493,4 @@ export default function AgendaPage() {
     </div>
   );
 }
+
