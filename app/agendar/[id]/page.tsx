@@ -1,0 +1,257 @@
+"use client";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { Calendar, Clock, Scissors, Phone, User, MapPin, CheckCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+
+type Slot = { hora: string; ocupado: boolean };
+
+function gerarSlots(startTime: string, endTime: string, duracaoMin: number, ocupados: string[]): Slot[] {
+  const slots: Slot[] = [];
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  let cur = sh * 60 + sm;
+  const fim = eh * 60 + em;
+  while (cur + duracaoMin <= fim) {
+    const h = String(Math.floor(cur / 60)).padStart(2, "0");
+    const m = String(cur % 60).padStart(2, "0");
+    const hora = `${h}:${m}`;
+    slots.push({ hora, ocupado: ocupados.includes(hora) });
+    cur += duracaoMin;
+  }
+  return slots;
+}
+
+function formatarData(d: Date) {
+  return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
+}
+
+function addDias(d: Date, n: number) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+function toISO(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+const inputClass = "w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-sm text-white placeholder-white/40 outline-none focus:border-[#C9A66B] backdrop-blur-sm";
+
+export default function AgendarPage() {
+  const { id } = useParams<{ id: string }>();
+  const [perfil, setPerfil] = useState<any>(null);
+  const [disponibilidade, setDisponibilidade] = useState<any[]>([]);
+  const [agendados, setAgendados] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState("");
+
+  const [semanaOffset, setSemanaOffset] = useState(0);
+  const [dataSel, setDataSel] = useState<Date | null>(null);
+  const [horaSel, setHoraSel] = useState<string>("");
+
+  const [form, setForm] = useState({ client_name: "", client_phone: "", service: "" });
+  const [enviando, setEnviando] = useState(false);
+  const [sucesso, setSucesso] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/agendar/${id}`)
+      .then(r => r.json())
+      .then(d => {
+        if (!d.ok) { setErro(d.error || "Profissional não encontrado"); return; }
+        setPerfil(d.perfil);
+        setDisponibilidade(d.disponibilidade);
+        setAgendados(d.agendados);
+      })
+      .catch(() => setErro("Erro ao carregar"))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  // 7 dias a partir de hoje + offset
+  const hoje = new Date();
+  hoje.setHours(0,0,0,0);
+  const dias = Array.from({ length: 7 }, (_, i) => addDias(hoje, semanaOffset * 7 + i)).filter(d => d >= hoje);
+
+  function getDisp(d: Date) {
+    return disponibilidade.find(di => di.day_of_week === d.getDay());
+  }
+
+  function getSlots(d: Date): Slot[] {
+    const disp = getDisp(d);
+    if (!disp) return [];
+    const iso = toISO(d);
+    const ocupados = agendados
+      .filter(a => a.appointment_date === iso)
+      .map(a => a.appointment_time.slice(0,5));
+    return gerarSlots(disp.start_time.slice(0,5), disp.end_time.slice(0,5), disp.slot_duration_min || 60, ocupados);
+  }
+
+  async function agendar() {
+    if (!dataSel || !horaSel || !form.client_name) return;
+    setEnviando(true);
+    const res = await fetch(`/api/agendar/${id}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...form,
+        appointment_date: toISO(dataSel),
+        appointment_time: horaSel,
+      }),
+    });
+    const d = await res.json();
+    if (d.ok) {
+      setSucesso(true);
+    } else {
+      alert(d.error || "Erro ao agendar");
+    }
+    setEnviando(false);
+  }
+
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <Loader2 className="animate-spin text-[#C9A66B]" size={40} />
+    </div>
+  );
+
+  if (erro) return (
+    <div className="min-h-screen bg-black flex items-center justify-center text-white">
+      <div className="text-center"><p className="text-zinc-500 text-sm">{erro}</p></div>
+    </div>
+  );
+
+  if (sucesso) return (
+    <div className="min-h-screen bg-black flex items-center justify-center p-6">
+      <div className="text-center max-w-sm">
+        <div className="w-20 h-20 rounded-full bg-green-900/30 border-2 border-green-500 flex items-center justify-center mx-auto mb-6">
+          <CheckCircle size={40} className="text-green-400" />
+        </div>
+        <h1 className="text-2xl font-black text-white uppercase mb-2">Agendado!</h1>
+        <p className="text-zinc-400 text-sm mb-1">
+          <strong className="text-white">{form.client_name}</strong>, seu horário foi solicitado para:
+        </p>
+        <p className="text-[#C9A66B] font-black text-lg mb-1">{dataSel ? formatarData(dataSel) : ""}</p>
+        <p className="text-white font-bold text-xl mb-4">às {horaSel}</p>
+        <p className="text-zinc-500 text-xs">O profissional irá confirmar em breve. Anote o horário!</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-black text-white">
+      {/* HERO */}
+      <div className="bg-gradient-to-b from-zinc-900 to-black px-6 pt-10 pb-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-[#C9A66B]/20 border border-[#C9A66B]/30 flex items-center justify-center mx-auto mb-4">
+          <Scissors size={28} className="text-[#C9A66B]" />
+        </div>
+        <h1 className="text-2xl font-black uppercase">{perfil?.full_name}</h1>
+        {perfil?.barber_shop && <p className="text-[#C9A66B] font-bold text-sm mt-0.5">{perfil.barber_shop}</p>}
+        {(perfil?.city || perfil?.state) && (
+          <p className="text-zinc-500 text-xs mt-1 flex items-center justify-center gap-1">
+            <MapPin size={11} /> {[perfil.city, perfil.state].filter(Boolean).join(", ")}
+          </p>
+        )}
+      </div>
+
+      <div className="px-4 pb-16 max-w-lg mx-auto">
+        {disponibilidade.length === 0 ? (
+          <div className="text-center mt-16 text-zinc-600">
+            <Calendar size={48} className="mx-auto mb-4 opacity-20" />
+            <p className="font-bold text-sm">Agenda não configurada</p>
+          </div>
+        ) : (
+          <>
+            {/* SELEÇÃO DE DIA */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Escolha o dia</h2>
+                <div className="flex gap-1">
+                  <button disabled={semanaOffset === 0} onClick={() => setSemanaOffset(s => s - 1)}
+                    className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 disabled:opacity-30">
+                    <ChevronLeft size={14} />
+                  </button>
+                  <button onClick={() => setSemanaOffset(s => s + 1)}
+                    className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400">
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {dias.map(d => {
+                  const disp = getDisp(d);
+                  const slots = getSlots(d);
+                  const temLivre = slots.some(s => !s.ocupado);
+                  const sel = dataSel && toISO(dataSel) === toISO(d);
+                  return (
+                    <button key={toISO(d)} disabled={!disp || !temLivre}
+                      onClick={() => { setDataSel(d); setHoraSel(""); }}
+                      className={`flex flex-col items-center py-2.5 px-1 rounded-xl border transition-all text-center ${
+                        sel ? "bg-[#C9A66B] border-[#C9A66B] text-black" :
+                        (!disp || !temLivre) ? "border-zinc-900 text-zinc-700 bg-zinc-950 cursor-not-allowed" :
+                        "border-zinc-800 bg-zinc-900 text-white hover:border-zinc-600"
+                      }`}>
+                      <span className="text-[9px] font-bold uppercase">{["D","S","T","Q","Q","S","S"][d.getDay()]}</span>
+                      <span className="text-base font-black">{d.getDate()}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* SELEÇÃO DE HORÁRIO */}
+            {dataSel && (
+              <div className="mb-6">
+                <h2 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-3">
+                  Horários — {formatarData(dataSel)}
+                </h2>
+                <div className="grid grid-cols-4 gap-2">
+                  {getSlots(dataSel).map(s => (
+                    <button key={s.hora} disabled={s.ocupado}
+                      onClick={() => setHoraSel(s.hora)}
+                      className={`py-2.5 rounded-xl text-sm font-black border transition-all ${
+                        s.ocupado ? "border-zinc-900 text-zinc-700 bg-zinc-950 cursor-not-allowed line-through" :
+                        horaSel === s.hora ? "bg-[#C9A66B] border-[#C9A66B] text-black" :
+                        "border-zinc-800 bg-zinc-900 text-white hover:border-zinc-600"
+                      }`}>
+                      {s.hora}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* FORMULÁRIO DO CLIENTE */}
+            {dataSel && horaSel && (
+              <div className="space-y-3">
+                <div className="bg-[#C9A66B]/10 border border-[#C9A66B]/30 rounded-2xl px-4 py-3 flex items-center gap-3 mb-4">
+                  <Calendar size={16} className="text-[#C9A66B]" />
+                  <div>
+                    <p className="text-xs text-zinc-400">Horário selecionado</p>
+                    <p className="font-black text-sm">{formatarData(dataSel)} às {horaSel}</p>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Seu nome *</label>
+                  <input value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))}
+                    className={inputClass} placeholder="Seu nome completo" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">WhatsApp</label>
+                  <input value={form.client_phone} onChange={e => setForm(f => ({ ...f, client_phone: e.target.value }))}
+                    className={inputClass} placeholder="(11) 99999-9999" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Serviço desejado</label>
+                  <input value={form.service} onChange={e => setForm(f => ({ ...f, service: e.target.value }))}
+                    className={inputClass} placeholder="Ex: Corte masculino, Barba..." />
+                </div>
+                <button onClick={agendar} disabled={enviando || !form.client_name}
+                  className="w-full mt-2 bg-[#C9A66B] hover:bg-[#b08d55] disabled:opacity-60 text-black font-black uppercase text-sm tracking-widest py-4 rounded-2xl flex items-center justify-center gap-2">
+                  {enviando ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                  {enviando ? "Agendando..." : "Confirmar Agendamento"}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

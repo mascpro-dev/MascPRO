@@ -45,6 +45,7 @@ const BOTTOM_NAV_RIGHT: NavItem[] = [
 const DROPDOWN_ITEMS: NavItem[] = [
   { icon: ShoppingBag, label: "Loja PRO", href: "/loja" },
   { icon: Calendar, label: "Eventos", href: "/eventos" },
+  { icon: Calendar, label: "Minha Agenda", href: "/agenda" },
   { icon: Calculator, label: "Calculadora PRO", href: "/calculadora" },
   { icon: Users, label: "Rede de Profissionais", href: "/profissionais" },
 ];
@@ -59,6 +60,7 @@ const getMenuItems = () => {
     { icon: Award, label: "Minha Jornada", href: "/jornada" },
     { icon: ShoppingBag, label: "Loja PRO", href: "/loja" },
     { icon: Calendar, label: "Eventos", href: "/eventos" },
+  { icon: Calendar, label: "Minha Agenda", href: "/agenda" },
     { icon: Calculator, label: "Calculadora PRO", href: "/calculadora" },
     { icon: Users, label: "Rede de Profissionais", href: "/profissionais" },
     { icon: User, label: "Meu Perfil", href: "/perfil" }
