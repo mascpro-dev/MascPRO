@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import * as webpush from "web-push";
 
 webpush.setVapidDetails(
-  process.env.VAPID_EMAIL || "mailto:contato@mascpro.com.br",
+  process.env.VAPID_EMAIL || "mailto:marceloconelheiros@conexoes.digital",
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
   process.env.VAPID_PRIVATE_KEY!
 );
