@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
   ShieldCheck, LayoutDashboard, User, Camera, Save,
@@ -34,7 +34,10 @@ export default function PerfilPage() {
     city: "", state: "", barber_shop: "", work_type: "", experience: "",
   });
   const [salvando, setSalvando] = useState(false);
+  const [alterandoFoto, setAlterandoFoto] = useState(false);
+  const [feedbackFoto, setFeedbackFoto] = useState<{ tipo: "ok" | "erro"; msg: string } | null>(null);
   const [feedback, setFeedback] = useState<{ tipo: "ok" | "erro"; msg: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function load() {
@@ -65,6 +68,51 @@ export default function PerfilPage() {
 
   const set = (field: keyof Form, val: string) =>
     setForm(f => ({ ...f, [field]: val }));
+
+  async function uploadAvatar(file: File) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setFeedback({ tipo: "erro", msg: "Faça login novamente." });
+      setTimeout(() => setFeedback(null), 4000);
+      return;
+    }
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    if (!/^(jpe?g|png|webp|gif)$/.test(ext)) {
+      setFeedback({ tipo: "erro", msg: "Use JPG, PNG, WebP ou GIF." });
+      setTimeout(() => setFeedback(null), 4000);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFeedback({ tipo: "erro", msg: "Imagem até 5 MB." });
+      setTimeout(() => setFeedback(null), 4000);
+      return;
+    }
+    const path = `profile-avatars/${session.user.id}/${Date.now()}.${ext}`;
+    setAlterandoFoto(true);
+    setFeedback(null);
+    try {
+      const { error: upErr } = await supabase.storage
+        .from("community-media")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+      if (upErr) throw upErr;
+      const publicUrl = supabase.storage.from("community-media").getPublicUrl(path).data.publicUrl;
+      const res = await fetch("/api/perfil/atualizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatar_url: publicUrl }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "Erro ao salvar foto.");
+      setProfile((p: any) => ({ ...p, avatar_url: publicUrl }));
+      setFeedback({ tipo: "ok", msg: "Foto atualizada!" });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Não foi possível enviar a foto.";
+      setFeedback({ tipo: "erro", msg });
+    } finally {
+      setAlterandoFoto(false);
+      setTimeout(() => setFeedback(null), 4000);
+    }
+  }
 
   async function salvar() {
     setSalvando(true);
@@ -105,8 +153,25 @@ export default function PerfilPage() {
                 : <User size={48} className="text-zinc-600" />
               }
             </div>
-            <button className="text-[10px] font-black uppercase text-[#C9A66B] flex items-center gap-1 hover:opacity-80 transition-opacity">
-              <Camera size={13} /> Alterar Foto
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={e => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (f) void uploadAvatar(f);
+              }}
+            />
+            <button
+              type="button"
+              disabled={alterandoFoto}
+              onClick={() => fileInputRef.current?.click()}
+              className="text-[10px] font-black uppercase text-[#C9A66B] flex items-center gap-1 hover:opacity-80 transition-opacity disabled:opacity-50"
+            >
+              {alterandoFoto ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+              {alterandoFoto ? "Enviando..." : "Alterar Foto"}
             </button>
             {profile?.role && (
               <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 border border-zinc-800 rounded-full px-3 py-1">

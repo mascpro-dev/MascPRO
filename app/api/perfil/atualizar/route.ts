@@ -26,6 +26,9 @@ export async function POST(req: NextRequest) {
     if (body.bio !== undefined) campos.bio = body.bio;
     if (body.barber_shop !== undefined) campos.barber_shop = body.barber_shop;
     if (body.username !== undefined) campos.username = body.username;
+    if (body.avatar_url !== undefined && typeof body.avatar_url === "string") {
+      campos.avatar_url = body.avatar_url.trim() || null;
+    }
 
     // Remove campos undefined
     Object.keys(campos).forEach(k => campos[k] === undefined && delete campos[k]);
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
     if (error) {
       // Se erro por coluna inexistente, tenta sem os opcionais
       if (error.message.includes("column") || error.code === "PGRST204") {
-        const camposBase = {
+        const camposBase: Record<string, unknown> = {
           full_name: body.full_name,
           whatsapp: body.whatsapp,
           instagram: body.instagram,
@@ -48,6 +51,9 @@ export async function POST(req: NextRequest) {
           experience: body.experience,
           updated_at: new Date().toISOString(),
         };
+        if (body.avatar_url !== undefined && typeof body.avatar_url === "string") {
+          camposBase.avatar_url = body.avatar_url.trim() || null;
+        }
         const { error: err2 } = await supabase
           .from("profiles")
           .update(camposBase)

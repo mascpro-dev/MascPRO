@@ -38,14 +38,14 @@ const BOTTOM_NAV_LEFT: NavItem[] = [
 
 const BOTTOM_NAV_RIGHT: NavItem[] = [
   { icon: MessageSquare, label: "Comunidade", href: "/comunidade" },
-  { icon: Share2, label: "Rede", href: "/rede" },
+  { icon: Calendar, label: "Agenda", href: "/agenda" },
 ];
 
 // Itens do dropdown (apenas os que não estão na barra inferior)
 const DROPDOWN_ITEMS: NavItem[] = [
   { icon: ShoppingBag, label: "Loja PRO", href: "/loja" },
   { icon: Calendar, label: "Eventos", href: "/eventos" },
-  { icon: Calendar, label: "Minha Agenda", href: "/agenda" },
+  { icon: Share2, label: "Minha Rede", href: "/rede" },
   { icon: Calculator, label: "Calculadora PRO", href: "/calculadora" },
   { icon: Users, label: "Rede de Profissionais", href: "/profissionais" },
 ];
@@ -283,7 +283,7 @@ export default function Sidebar() {
             </div>
           </Link>
 
-          {/* Itens da direita (Comunidade e Rede) */}
+          {/* Itens da direita (Comunidade e Agenda) */}
           {BOTTOM_NAV_RIGHT.map((item) => {
             const isActive = pathname === item.href;
             return (
