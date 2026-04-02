@@ -5,6 +5,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Plus,
   Loader2,
   MessageCircle,
@@ -14,6 +15,9 @@ import {
   Copy,
   CheckCircle,
   Cake,
+  Ban,
+  Banknote,
+  Send,
 } from "lucide-react";
 
 type Appointment = {
@@ -27,7 +31,41 @@ type Appointment = {
   price: number | null;
   status: string;
   notes: string | null;
+  paid?: boolean | null;
+  payment_method?: string | null;
+  payment_due_date?: string | null;
+  paid_at?: string | null;
 };
+
+const FORMAS_PAGAMENTO = [
+  { v: "pix", l: "PIX" },
+  { v: "credito", l: "Cartao credito" },
+  { v: "debito", l: "Cartao debito" },
+  { v: "carteira", l: "Pagar depois (carteira)" },
+] as const;
+
+const FORMAS_RECEBIMENTO = [
+  { v: "pix", l: "PIX" },
+  { v: "credito", l: "Cartao credito" },
+  { v: "debito", l: "Cartao debito" },
+] as const;
+
+function labelFormaPagamento(k: string) {
+  const m: Record<string, string> = {
+    pix: "PIX",
+    credito: "Cartao credito",
+    debito: "Cartao debito",
+    carteira: "Carteira (pendente)",
+    nao_info: "Nao informado",
+  };
+  return m[k] || k;
+}
+
+function addDaysISO(d: Date, days: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return toISO(x);
+}
 
 type ProClient = { id: string; name: string; phone: string | null; birthday: string | null; notes: string | null };
 type ProService = { id: string; name: string; price: number; duration_min: number; active: boolean };
@@ -80,6 +118,28 @@ function waLink(phone: string, text: string) {
   return `https://wa.me/${f}?text=${encodeURIComponent(text)}`;
 }
 
+function fmtDataBr(iso: string) {
+  const p = String(iso || "").slice(0, 10);
+  const [y, m, d] = p.split("-");
+  if (!d || !m) return iso;
+  return `${d}/${m}/${y}`;
+}
+
+function textoLembreteAgenda(a: Appointment) {
+  const hora = (a.appointment_time || "").slice(0, 5);
+  const svc = a.service?.trim() || "seu atendimento";
+  return `Ola ${a.client_name}! Passando para lembrar do horario ${fmtDataBr(a.appointment_date)} as ${hora} — ${svc}. Nos vemos la!`;
+}
+
+function labelStatusAgenda(s: string) {
+  const x = (s || "").toLowerCase();
+  if (x === "pendente") return "Pendente";
+  if (x === "confirmado") return "Confirmado";
+  if (x === "concluido") return "Concluido";
+  if (x === "cancelado") return "Cancelado";
+  return s;
+}
+
 const START_MIN = 7 * 60;
 const END_MIN = 21 * 60;
 const SLOT = 30;
@@ -113,6 +173,10 @@ export default function AgendaGestaoPage() {
     price: "",
     notes: "",
     status: "confirmado",
+    paid: false,
+    payment_method: "pix",
+    payment_due_date: "",
+    paid_at: "",
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -126,6 +190,17 @@ export default function AgendaGestaoPage() {
 
   const [formExp, setFormExp] = useState({ description: "", amount: "", category: "produtos", expense_date: diaStr });
   const [formChg, setFormChg] = useState({ client_name: "", client_phone: "", description: "", amount: "", charge_date: diaStr });
+
+  const [sheetApt, setSheetApt] = useState<Appointment | null>(null);
+  const [sheetWaOpen, setSheetWaOpen] = useState(false);
+  const [sheetPanel, setSheetPanel] = useState<null | "concluir" | "cobranca" | "receber">(null);
+  const [valorConcluir, setValorConcluir] = useState("");
+  const [formaPagamentoConcluir, setFormaPagamentoConcluir] = useState<(typeof FORMAS_PAGAMENTO)[number]["v"]>("pix");
+  const [dataPrevistaCarteira, setDataPrevistaCarteira] = useState("");
+  const [formaRecebimentoFinal, setFormaRecebimentoFinal] = useState<(typeof FORMAS_RECEBIMENTO)[number]["v"]>("pix");
+  const [dataRecebimento, setDataRecebimento] = useState(() => toISO(new Date()));
+  const [formCobApt, setFormCobApt] = useState({ amount: "", description: "" });
+  const [aptActionBusy, setAptActionBusy] = useState(false);
 
   const weekDays = useMemo(() => {
     const s = startOfWeekSun(dia);
@@ -183,8 +258,12 @@ export default function AgendaGestaoPage() {
   }, [mesFin]);
 
   useEffect(() => {
-    if (aba === "agenda") carregarDia();
-  }, [aba, carregarDia]);
+    if (aba === "agenda") {
+      carregarDia();
+      carregarClientes();
+      carregarServicos();
+    }
+  }, [aba, carregarDia, carregarClientes, carregarServicos]);
 
   useEffect(() => {
     if (aba === "clientes") carregarClientes();
@@ -204,6 +283,7 @@ export default function AgendaGestaoPage() {
 
   function abrirNovoApt() {
     setErr("");
+    const hoje = toISO(new Date());
     setFormApt({
       client_name: "",
       client_phone: "",
@@ -213,12 +293,18 @@ export default function AgendaGestaoPage() {
       price: "",
       notes: "",
       status: "confirmado",
+      paid: false,
+      payment_method: "pix",
+      payment_due_date: "",
+      paid_at: hoje,
     });
     setModalApt("new");
   }
 
   function abrirEditApt(a: Appointment) {
     setErr("");
+    const hoje = toISO(new Date());
+    const pago = a.paid === true;
     setFormApt({
       client_name: a.client_name,
       client_phone: a.client_phone || "",
@@ -228,6 +314,10 @@ export default function AgendaGestaoPage() {
       price: a.price != null ? String(a.price) : "",
       notes: a.notes || "",
       status: a.status,
+      paid: pago,
+      payment_method: (a.payment_method as string) || "pix",
+      payment_due_date: (a.payment_due_date || "").slice(0, 10),
+      paid_at: (a.paid_at || hoje).slice(0, 10),
     });
     setModalApt(a);
   }
@@ -235,10 +325,57 @@ export default function AgendaGestaoPage() {
   async function salvarApt() {
     setSaving(true);
     setErr("");
-    const body =
-      modalApt === "new"
-        ? { ...formApt, appointment_date: diaStr }
-        : { id: (modalApt as Appointment).id, ...formApt, appointment_date: diaStr };
+    const hoje = toISO(new Date());
+    let body: Record<string, unknown>;
+
+    if (modalApt === "new") {
+      body = {
+        client_name: formApt.client_name,
+        client_phone: formApt.client_phone || null,
+        service: formApt.service || null,
+        appointment_date: diaStr,
+        appointment_time: formApt.appointment_time,
+        duration_min: Number(formApt.duration_min) || 60,
+        notes: formApt.notes || null,
+        status: formApt.status,
+      };
+      if (formApt.price.trim() !== "") body.price = Number(formApt.price.replace(",", "."));
+    } else {
+      const id = (modalApt as Appointment).id;
+      body = {
+        id,
+        client_name: formApt.client_name,
+        client_phone: formApt.client_phone || null,
+        service: formApt.service || null,
+        appointment_date: diaStr,
+        appointment_time: formApt.appointment_time,
+        duration_min: Number(formApt.duration_min) || 60,
+        notes: formApt.notes || null,
+        status: formApt.status,
+      };
+      if (formApt.price.trim() !== "") body.price = Number(formApt.price.replace(",", "."));
+      else body.price = null;
+
+      const st = formApt.status.toLowerCase();
+      if (st === "concluido") {
+        body.paid = formApt.paid;
+        if (formApt.paid) {
+          body.payment_method = formApt.payment_method || "pix";
+          body.paid_at = formApt.paid_at || hoje;
+          body.payment_due_date = null;
+        } else {
+          body.payment_method = "carteira";
+          body.paid_at = null;
+          body.payment_due_date = formApt.payment_due_date || null;
+        }
+      } else {
+        body.paid = false;
+        body.payment_method = null;
+        body.paid_at = null;
+        body.payment_due_date = null;
+      }
+    }
+
     const method = modalApt === "new" ? "POST" : "PATCH";
     const r = await fetch("/api/agenda", {
       method,
@@ -263,6 +400,129 @@ export default function AgendaGestaoPage() {
     });
     carregarDia();
     setModalApt(null);
+    setSheetApt(null);
+    setSheetPanel(null);
+  }
+
+  function abrirSheetApt(a: Appointment) {
+    setSheetApt(a);
+    setSheetWaOpen(false);
+    setSheetPanel(null);
+    setValorConcluir(a.price != null && a.price !== 0 ? String(a.price) : "");
+    setFormaPagamentoConcluir("pix");
+    setDataPrevistaCarteira(addDaysISO(dia, 7));
+    setFormaRecebimentoFinal("pix");
+    setDataRecebimento(toISO(new Date()));
+    setFormCobApt({
+      amount: a.price != null ? String(a.price) : "",
+      description: a.service || "Agendamento",
+    });
+  }
+
+  async function patchAgendamento(id: string, campos: Record<string, unknown>) {
+    setAptActionBusy(true);
+    const r = await fetch("/api/agenda", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...campos }),
+    });
+    const d = await r.json();
+    setAptActionBusy(false);
+    if (!d.ok) {
+      alert(d.error || "Nao foi possivel atualizar");
+      return;
+    }
+    carregarDia();
+    setSheetApt(null);
+    setSheetPanel(null);
+    setSheetWaOpen(false);
+  }
+
+  function irEditarDoSheet(a: Appointment) {
+    setSheetApt(null);
+    setSheetPanel(null);
+    abrirEditApt(a);
+  }
+
+  async function confirmarConcluir(a: Appointment) {
+    const body: Record<string, unknown> = { status: "concluido" };
+    const t = valorConcluir.trim().replace(",", ".");
+    if (t !== "") {
+      const n = Number(t);
+      if (!Number.isFinite(n) || n < 0) {
+        alert("Valor invalido");
+        return;
+      }
+      body.price = n;
+    }
+    if (formaPagamentoConcluir === "carteira") {
+      if (!dataPrevistaCarteira.trim()) {
+        alert("Informe a data prevista de pagamento (carteira).");
+        return;
+      }
+      body.paid = false;
+      body.payment_method = "carteira";
+      body.payment_due_date = dataPrevistaCarteira;
+      body.paid_at = null;
+    } else {
+      body.paid = true;
+      body.payment_method = formaPagamentoConcluir;
+      body.paid_at = toISO(new Date());
+      body.payment_due_date = null;
+    }
+    await patchAgendamento(a.id, body);
+  }
+
+  async function confirmarRecebimentoCarteira(a: Appointment) {
+    if (!dataRecebimento.trim()) {
+      alert("Informe a data em que o pagamento foi recebido.");
+      return;
+    }
+    await patchAgendamento(a.id, {
+      paid: true,
+      payment_method: formaRecebimentoFinal,
+      paid_at: dataRecebimento,
+      payment_due_date: null,
+    });
+  }
+
+  async function registrarCobrancaDoSheet(a: Appointment) {
+    const t = formCobApt.amount.trim().replace(",", ".");
+    if (!t) {
+      alert("Informe o valor");
+      return;
+    }
+    const n = Number(t);
+    if (!Number.isFinite(n) || n <= 0) {
+      alert("Valor invalido");
+      return;
+    }
+    setAptActionBusy(true);
+    const r = await fetch("/api/pro/gestao/charges", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_name: a.client_name,
+        client_phone: a.client_phone || "",
+        description: formCobApt.description || a.service || "Agendamento",
+        amount: n,
+        charge_date: a.appointment_date || diaStr,
+      }),
+    });
+    const d = await r.json();
+    setAptActionBusy(false);
+    if (!d.ok) {
+      alert(d.error || "Erro ao registrar cobranca");
+      return;
+    }
+    carregarDia();
+    setSheetApt(null);
+    setSheetPanel(null);
+  }
+
+  async function cancelarAgendamento(a: Appointment) {
+    if (!confirm("Cancelar este agendamento? O horario ficara livre.")) return;
+    await patchAgendamento(a.id, { status: "cancelado" });
   }
 
   async function salvarCliente() {
@@ -523,7 +783,7 @@ export default function AgendaGestaoPage() {
                     <button
                       key={a.id}
                       type="button"
-                      onClick={() => abrirEditApt(a)}
+                      onClick={() => abrirSheetApt(a)}
                       className={`absolute left-1 right-1 rounded-xl border px-2 py-1 text-left overflow-hidden ${st}`}
                       style={{ top, height: Math.max(h, 36) }}
                     >
@@ -536,6 +796,21 @@ export default function AgendaGestaoPage() {
                 })}
               </div>
             </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 mt-3 text-[9px] font-bold uppercase text-zinc-500">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-600/80 border border-blue-400/50" /> Confirmado
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 border border-amber-400/50" /> Pendente
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600/80 border border-emerald-400/50" /> Concluido
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-zinc-600 border border-zinc-500/50" /> Cancelado
+            </span>
           </div>
 
           <button
@@ -692,8 +967,11 @@ export default function AgendaGestaoPage() {
           {finSub === "resumo" && fin && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="rounded-2xl border border-emerald-800/40 bg-emerald-950/20 p-4">
-                <p className="text-[10px] font-black uppercase text-emerald-400">Receita</p>
+                <p className="text-[10px] font-black uppercase text-emerald-400">Receita (paga)</p>
                 <p className="text-2xl font-black text-white">{fmtMoney(fin.resumo.receita)}</p>
+                <p className="text-[9px] text-zinc-600 mt-2 leading-snug">
+                  So entra no mes pela data em que o pagamento foi recebido (nao pelo dia do corte).
+                </p>
               </div>
               <div className="rounded-2xl border border-red-800/40 bg-red-950/20 p-4">
                 <p className="text-[10px] font-black uppercase text-red-400">Despesas</p>
@@ -702,7 +980,55 @@ export default function AgendaGestaoPage() {
               <div className="rounded-2xl border border-[#C9A66B]/40 bg-[#C9A66B]/10 p-4">
                 <p className="text-[10px] font-black uppercase text-[#C9A66B]">Lucro</p>
                 <p className="text-2xl font-black text-white">{fmtMoney(fin.resumo.lucro)}</p>
-                <p className="text-[10px] text-zinc-500 mt-1">A receber: {fmtMoney(fin.resumo.a_receber)}</p>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  Cobrancas em aberto: {fmtMoney(fin.resumo.a_receber)}
+                </p>
+                {typeof fin.resumo.a_receber_carteira === "number" && fin.resumo.a_receber_carteira > 0 && (
+                  <p className="text-[10px] text-amber-400/90 mt-1 font-bold">
+                    Carteira (pagar depois): {fmtMoney(fin.resumo.a_receber_carteira)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {finSub === "resumo" && fin?.porFormaPagamento?.length > 0 && (
+            <div className="rounded-2xl border border-zinc-800 p-4">
+              <p className="text-xs font-black uppercase text-zinc-400 mb-2">Receita por forma de pagamento</p>
+              {fin.porFormaPagamento.map((row: { key: string; total: number }) => (
+                <div key={row.key} className="flex justify-between text-sm py-1 border-b border-zinc-800/50">
+                  <span className="text-zinc-300">{labelFormaPagamento(row.key)}</span>
+                  <span className="text-emerald-300 font-bold">{fmtMoney(row.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {finSub === "resumo" && fin?.carteiraPendente?.length > 0 && (
+            <div className="rounded-2xl border border-amber-900/40 bg-amber-950/10 p-4">
+              <p className="text-xs font-black uppercase text-amber-400 mb-2">Carteira — a receber</p>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {fin.carteiraPendente.map(
+                  (row: {
+                    id: string;
+                    client_name?: string;
+                    price?: number;
+                    payment_due_date?: string;
+                    appointment_date?: string;
+                    service?: string;
+                  }) => (
+                    <div key={row.id} className="flex justify-between text-xs gap-2 border-b border-zinc-800/40 pb-2">
+                      <div>
+                        <p className="text-white font-bold">{row.client_name}</p>
+                        <p className="text-zinc-500">
+                          {row.service || "—"}
+                          {row.payment_due_date ? ` · ate ${fmtDataBr(row.payment_due_date)}` : ""}
+                        </p>
+                      </div>
+                      <span className="text-amber-300 font-black shrink-0">{fmtMoney(Number(row.price || 0))}</span>
+                    </div>
+                  )
+                )}
               </div>
             </div>
           )}
@@ -911,6 +1237,355 @@ export default function AgendaGestaoPage() {
         </div>
       )}
 
+      {/* SHEET ACOES DO AGENDAMENTO */}
+      {sheetApt && (
+        <div
+          className="fixed inset-0 z-[280] flex items-end sm:items-center justify-center bg-black/75 p-0 sm:p-4"
+          onClick={() => {
+            if (aptActionBusy) return;
+            setSheetApt(null);
+            setSheetPanel(null);
+            setSheetWaOpen(false);
+          }}
+        >
+          <div
+            className="bg-zinc-950 border border-zinc-800 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[88vh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {sheetPanel === null && (
+              <>
+                <div className="p-4 border-b border-zinc-800">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <p className="text-lg font-black text-white leading-tight">{sheetApt.client_name}</p>
+                      <p className="text-xs text-zinc-500 mt-1">
+                        {(sheetApt.appointment_time || "").slice(0, 5)} · {fmtDataBr(sheetApt.appointment_date)}
+                        {sheetApt.service ? ` · ${sheetApt.service}` : ""}
+                      </p>
+                      <p className="text-[10px] font-black uppercase text-[#C9A66B] mt-2">
+                        {labelStatusAgenda(sheetApt.status)}
+                      </p>
+                      {sheetApt.paid === true && (
+                        <p className="text-[10px] text-emerald-400 font-bold mt-1">
+                          Pago · {labelFormaPagamento(String(sheetApt.payment_method || "nao_info"))}
+                          {sheetApt.paid_at
+                            ? ` em ${fmtDataBr(sheetApt.paid_at)}`
+                            : ""}
+                        </p>
+                      )}
+                      {sheetApt.status === "concluido" &&
+                        sheetApt.paid !== true &&
+                        sheetApt.payment_method === "carteira" &&
+                        sheetApt.payment_due_date && (
+                          <p className="text-[10px] text-amber-400 font-bold mt-1">
+                            Pagar ate {fmtDataBr(sheetApt.payment_due_date)} (carteira)
+                          </p>
+                        )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSheetApt(null);
+                        setSheetPanel(null);
+                      }}
+                      className="p-2 text-zinc-500"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-3 space-y-2 border-b border-zinc-800/80">
+                  <button
+                    type="button"
+                    onClick={() => setSheetWaOpen((v) => !v)}
+                    className="w-full flex items-center justify-between py-2.5 px-3 rounded-xl bg-zinc-900 border border-zinc-800 text-left"
+                  >
+                    <span className="text-xs font-black uppercase text-emerald-400 flex items-center gap-2">
+                      <MessageCircle size={16} /> WhatsApp
+                    </span>
+                    <ChevronDown size={16} className={`text-zinc-500 transition ${sheetWaOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {sheetWaOpen && (
+                    <div className="space-y-2 pl-1">
+                      {!sheetApt.client_phone?.replace(/\D/g, "") ? (
+                        <p className="text-[10px] text-zinc-500 px-2">Cadastre o telefone do cliente para usar o WhatsApp.</p>
+                      ) : (
+                        <>
+                          <a
+                            href={waLink(sheetApt.client_phone!, `Ola ${sheetApt.client_name}!`)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 text-xs font-bold text-white py-2 px-3 rounded-xl bg-emerald-950/40 border border-emerald-800/50"
+                          >
+                            <MessageCircle size={14} /> Abrir conversa
+                          </a>
+                          <a
+                            href={waLink(sheetApt.client_phone!, textoLembreteAgenda(sheetApt))}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 text-xs font-bold text-zinc-200 py-2 px-3 rounded-xl bg-zinc-900 border border-zinc-700"
+                          >
+                            <Send size={14} /> Enviar lembrete
+                          </a>
+                          <a
+                            href={waLink(
+                              sheetApt.client_phone!,
+                              `Ola ${sheetApt.client_name}! Tudo certo com seu horario? Precisa remarcar?`
+                            )}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 text-xs text-zinc-300 py-2 px-3 rounded-xl bg-zinc-900/80 border border-zinc-800"
+                          >
+                            Msg: confirmar remarcacao
+                          </a>
+                          <a
+                            href={waLink(
+                              sheetApt.client_phone!,
+                              `Ola ${sheetApt.client_name}! Obrigado pela preferencia. Volte sempre!`
+                            )}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 text-xs text-zinc-300 py-2 px-3 rounded-xl bg-zinc-900/80 border border-zinc-800"
+                          >
+                            Msg: pos-atendimento
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 grid grid-cols-1 gap-2">
+                  {sheetApt.status === "concluido" && sheetApt.paid !== true && (
+                    <button
+                      type="button"
+                      disabled={aptActionBusy}
+                      onClick={() => {
+                        setDataRecebimento(toISO(new Date()));
+                        setFormaRecebimentoFinal("pix");
+                        setSheetPanel("receber");
+                      }}
+                      className="w-full py-3 rounded-xl bg-emerald-900/40 border border-emerald-600/50 text-emerald-300 text-xs font-black uppercase"
+                    >
+                      Registrar pagamento recebido
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={aptActionBusy}
+                    onClick={() => irEditarDoSheet(sheetApt)}
+                    className="w-full py-3 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-xs font-black uppercase flex items-center justify-center gap-2"
+                  >
+                    <Pencil size={16} /> Editar
+                  </button>
+                  {sheetApt.status !== "concluido" && sheetApt.status !== "cancelado" && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={aptActionBusy}
+                        onClick={() => {
+                          setValorConcluir(
+                            sheetApt.price != null && sheetApt.price !== 0 ? String(sheetApt.price) : ""
+                          );
+                          setFormaPagamentoConcluir("pix");
+                          setDataPrevistaCarteira(addDaysISO(dia, 7));
+                          setSheetPanel("concluir");
+                        }}
+                        className="w-full py-3 rounded-xl bg-emerald-950/50 border border-emerald-700/50 text-emerald-300 text-xs font-black uppercase flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle size={16} /> Concluir e registrar valor
+                      </button>
+                      <button
+                        type="button"
+                        disabled={aptActionBusy}
+                        onClick={() => setSheetPanel("cobranca")}
+                        className="w-full py-3 rounded-xl bg-amber-950/30 border border-amber-700/40 text-amber-200 text-xs font-black uppercase flex items-center justify-center gap-2"
+                      >
+                        <Banknote size={16} /> Adicionar cobranca
+                      </button>
+                      <button
+                        type="button"
+                        disabled={aptActionBusy}
+                        onClick={() => cancelarAgendamento(sheetApt)}
+                        className="w-full py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-400 text-xs font-black uppercase flex items-center justify-center gap-2"
+                      >
+                        <Ban size={16} /> Cancelar agendamento
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    disabled={aptActionBusy}
+                    onClick={() => excluirApt(sheetApt.id)}
+                    className="w-full py-2 text-red-400 text-xs font-bold flex items-center justify-center gap-1"
+                  >
+                    <Trash2 size={14} /> Excluir definitivamente
+                  </button>
+                </div>
+              </>
+            )}
+
+            {sheetPanel === "concluir" && sheetApt && (
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-black uppercase text-sm text-white">Concluir atendimento</h3>
+                  <button
+                    type="button"
+                    onClick={() => setSheetPanel(null)}
+                    className="p-2 text-zinc-500"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <p className="text-[10px] text-zinc-500">
+                  Confirme o valor (vazio = mantem o valor ja cadastrado). Escolha como foi pago: PIX, cartoes ou
+                  carteira (pagar depois).
+                </p>
+                <input
+                  placeholder="Valor R$"
+                  type="text"
+                  inputMode="decimal"
+                  value={valorConcluir}
+                  onChange={(e) => setValorConcluir(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-3 text-sm text-white"
+                />
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Forma de pagamento</p>
+                  <select
+                    value={formaPagamentoConcluir}
+                    onChange={(e) =>
+                      setFormaPagamentoConcluir(e.target.value as (typeof FORMAS_PAGAMENTO)[number]["v"])
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                  >
+                    {FORMAS_PAGAMENTO.map((f) => (
+                      <option key={f.v} value={f.v}>
+                        {f.l}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {formaPagamentoConcluir === "carteira" && (
+                  <div>
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Previsao de pagamento</p>
+                    <input
+                      type="date"
+                      value={dataPrevistaCarteira}
+                      onChange={(e) => setDataPrevistaCarteira(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                      style={{ colorScheme: "dark" }}
+                    />
+                    <p className="text-[9px] text-zinc-600 mt-1">
+                      Nao entra na receita ate voce registrar o recebimento.
+                    </p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={aptActionBusy}
+                  onClick={() => confirmarConcluir(sheetApt)}
+                  className="w-full py-3 rounded-xl bg-[#C9A66B] text-black font-black text-xs uppercase"
+                >
+                  {aptActionBusy ? "Salvando..." : "Marcar como concluido"}
+                </button>
+              </div>
+            )}
+
+            {sheetPanel === "receber" && sheetApt && (
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-black uppercase text-sm text-white">Pagamento recebido</h3>
+                  <button
+                    type="button"
+                    onClick={() => setSheetPanel(null)}
+                    className="p-2 text-zinc-500"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-400">{sheetApt.client_name}</p>
+                <p className="text-[10px] text-zinc-500">
+                  Informe o dia em que o dinheiro entrou e a forma final (PIX ou cartao).
+                </p>
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Forma de pagamento</p>
+                  <select
+                    value={formaRecebimentoFinal}
+                    onChange={(e) =>
+                      setFormaRecebimentoFinal(e.target.value as (typeof FORMAS_RECEBIMENTO)[number]["v"])
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                  >
+                    {FORMAS_RECEBIMENTO.map((f) => (
+                      <option key={f.v} value={f.v}>
+                        {f.l}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Data do recebimento</p>
+                  <input
+                    type="date"
+                    value={dataRecebimento}
+                    onChange={(e) => setDataRecebimento(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                    style={{ colorScheme: "dark" }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={aptActionBusy}
+                  onClick={() => confirmarRecebimentoCarteira(sheetApt)}
+                  className="w-full py-3 rounded-xl bg-[#C9A66B] text-black font-black text-xs uppercase"
+                >
+                  {aptActionBusy ? "Salvando..." : "Confirmar recebimento"}
+                </button>
+              </div>
+            )}
+
+            {sheetPanel === "cobranca" && sheetApt && (
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-black uppercase text-sm text-white">Nova cobranca</h3>
+                  <button
+                    type="button"
+                    onClick={() => setSheetPanel(null)}
+                    className="p-2 text-zinc-500"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-400">{sheetApt.client_name}</p>
+                <input
+                  placeholder="Valor R$"
+                  type="text"
+                  inputMode="decimal"
+                  value={formCobApt.amount}
+                  onChange={(e) => setFormCobApt({ ...formCobApt, amount: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                />
+                <input
+                  placeholder="Descricao / servicos"
+                  value={formCobApt.description}
+                  onChange={(e) => setFormCobApt({ ...formCobApt, description: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  disabled={aptActionBusy}
+                  onClick={() => registrarCobrancaDoSheet(sheetApt)}
+                  className="w-full py-3 rounded-xl bg-[#C9A66B] text-black font-black text-xs uppercase"
+                >
+                  {aptActionBusy ? "Registrando..." : "Registrar cobranca"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* MODAL AGENDAMENTO */}
       {modalApt && (
         <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/80 p-4">
@@ -1004,6 +1679,62 @@ export default function AgendaGestaoPage() {
                 <option value="concluido">Concluido</option>
                 <option value="cancelado">Cancelado</option>
               </select>
+              {formApt.status === "concluido" && (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 space-y-3">
+                  <p className="text-[10px] font-black uppercase text-[#C9A66B]">Pagamento e financeiro</p>
+                  <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formApt.paid}
+                      onChange={(e) =>
+                        setFormApt({
+                          ...formApt,
+                          paid: e.target.checked,
+                          payment_method: e.target.checked ? formApt.payment_method || "pix" : "carteira",
+                        })
+                      }
+                      className="rounded border-zinc-600"
+                    />
+                    Pagamento ja recebido (entra na receita)
+                  </label>
+                  {formApt.paid ? (
+                    <>
+                      <select
+                        value={FORMAS_RECEBIMENTO.some((x) => x.v === formApt.payment_method) ? formApt.payment_method : "pix"}
+                        onChange={(e) => setFormApt({ ...formApt, payment_method: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                      >
+                        {FORMAS_RECEBIMENTO.map((f) => (
+                          <option key={f.v} value={f.v}>
+                            {f.l}
+                          </option>
+                        ))}
+                      </select>
+                      <div>
+                        <p className="text-[10px] text-zinc-500 uppercase mb-1">Data do recebimento</p>
+                        <input
+                          type="date"
+                          value={formApt.paid_at}
+                          onChange={(e) => setFormApt({ ...formApt, paid_at: e.target.value })}
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                          style={{ colorScheme: "dark" }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <p className="text-[10px] text-zinc-500 uppercase mb-1">Pagar ate (carteira)</p>
+                      <input
+                        type="date"
+                        value={formApt.payment_due_date}
+                        onChange={(e) => setFormApt({ ...formApt, payment_due_date: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                        style={{ colorScheme: "dark" }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
               <textarea
                 placeholder="Observacoes"
                 value={formApt.notes}

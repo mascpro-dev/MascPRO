@@ -3,9 +3,10 @@ import { getProDb, ultimoDiaMes } from "@/lib/proGestaoDb";
 
 export const dynamic = "force-dynamic";
 
-function isReceitaStatus(s: string) {
-  const x = (s || "").toLowerCase();
-  return x !== "cancelado";
+function diaReceita(a: { paid_at?: string | null; appointment_date?: string | null }) {
+  const p = a.paid_at ? String(a.paid_at).slice(0, 10) : "";
+  if (p) return p;
+  return String(a.appointment_date || "").slice(0, 10);
 }
 
 export async function GET(req: NextRequest) {
@@ -17,13 +18,23 @@ export async function GET(req: NextRequest) {
   const ini = `${mes}-01`;
   const fim = ultimoDiaMes(mes);
 
-  const [aptsRes, expRes, chRes] = await Promise.all([
+  const [pagosRes, carteiraRes, expRes, chRes] = await Promise.all([
     g.db
       .from("appointments")
-      .select("id, appointment_date, appointment_time, client_name, service, price, status")
+      .select(
+        "id, appointment_date, appointment_time, client_name, service, price, status, paid, paid_at, payment_method"
+      )
       .eq("professional_id", g.userId)
-      .gte("appointment_date", ini)
-      .lte("appointment_date", fim),
+      .eq("paid", true)
+      .gte("paid_at", ini)
+      .lte("paid_at", fim),
+    g.db
+      .from("appointments")
+      .select("id, price, payment_due_date, client_name, appointment_date, service")
+      .eq("professional_id", g.userId)
+      .eq("paid", false)
+      .eq("payment_method", "carteira")
+      .eq("status", "concluido"),
     g.db
       .from("pro_expenses")
       .select("id, expense_date, amount, category, description")
@@ -37,33 +48,61 @@ export async function GET(req: NextRequest) {
       .eq("paid", false),
   ]);
 
-  const apts = aptsRes.error?.code === "42P01" ? [] : aptsRes.data || [];
+  const colErr = (e: { code?: string; message?: string } | null | undefined) =>
+    e?.code === "42P01" ||
+    e?.code === "42703" ||
+    String(e?.message || "").toLowerCase().includes("column");
+
+  let aptsPagos = colErr(pagosRes.error) ? [] : pagosRes.data || [];
+  let carteiraPend = colErr(carteiraRes.error) ? [] : carteiraRes.data || [];
+
+  if (pagosRes.error && !colErr(pagosRes.error)) {
+    return NextResponse.json({ ok: false, error: pagosRes.error.message }, { status: 500 });
+  }
+
+  if (pagosRes.error && colErr(pagosRes.error) && pagosRes.error.code !== "42P01") {
+    const leg = await g.db
+      .from("appointments")
+      .select("id, appointment_date, appointment_time, client_name, service, price, status")
+      .eq("professional_id", g.userId)
+      .gte("appointment_date", ini)
+      .lte("appointment_date", fim);
+    if (!leg.error && leg.data) {
+      aptsPagos = leg.data
+        .filter((row: any) => String(row.status || "").toLowerCase() === "concluido")
+        .map((row: any) => ({ ...row, paid: true, paid_at: row.appointment_date, payment_method: null }));
+    } else {
+      aptsPagos = [];
+    }
+  }
+
   const expenses = expRes.error?.code === "42P01" ? [] : expRes.data || [];
   const chargesOpen = chRes.error?.code === "42P01" ? [] : chRes.data || [];
-
-  if (aptsRes.error && aptsRes.error.code !== "42P01") {
-    return NextResponse.json({ ok: false, error: aptsRes.error.message }, { status: 500 });
-  }
 
   let receita = 0;
   const byService: Record<string, { total: number; count: number }> = {};
   const byClient: Record<string, number> = {};
   const byDayRev: Record<string, number> = {};
   const byDayExp: Record<string, number> = {};
+  const byForma: Record<string, number> = {};
 
-  for (const a of apts) {
-    if (!isReceitaStatus(String(a.status))) continue;
+  for (const a of aptsPagos) {
+    if (String(a.status || "").toLowerCase() === "cancelado") continue;
     const p = Number(a.price || 0);
     receita += p;
-    const day = String(a.appointment_date);
-    byDayRev[day] = (byDayRev[day] || 0) + p;
+    const day = diaReceita(a);
+    if (day) byDayRev[day] = (byDayRev[day] || 0) + p;
     const svc = (a.service || "Servico").trim() || "Servico";
     if (!byService[svc]) byService[svc] = { total: 0, count: 0 };
     byService[svc].total += p;
     byService[svc].count += 1;
     const cn = (a.client_name || "Cliente").trim();
     byClient[cn] = (byClient[cn] || 0) + p;
+    const forma = String((a as { payment_method?: string }).payment_method || "nao_info").toLowerCase();
+    byForma[forma] = (byForma[forma] || 0) + p;
   }
+
+  const aReceberCarteira = carteiraPend.reduce((s, row: { price?: number | null }) => s + Number(row.price || 0), 0);
 
   let totalDespesas = 0;
   const byCategory: Record<string, number> = {};
@@ -97,6 +136,22 @@ export async function GET(req: NextRequest) {
 
   const aReceber = chargesOpen.reduce((s, c) => s + Number(c.amount || 0), 0);
 
+  const porFormaPagamento = Object.entries(byForma)
+    .map(([key, total]) => ({ key, total }))
+    .sort((a, b) => b.total - a.total);
+
+  const carteiraItens = carteiraPend
+    .map((row: { id: string; client_name?: string; price?: number; payment_due_date?: string; appointment_date?: string; service?: string }) => ({
+      id: row.id,
+      client_name: row.client_name,
+      price: Number(row.price || 0),
+      payment_due_date: row.payment_due_date,
+      appointment_date: row.appointment_date,
+      service: row.service,
+    }))
+    .sort((a, b) => String(a.payment_due_date || "").localeCompare(String(b.payment_due_date || "")))
+    .slice(0, 30);
+
   return NextResponse.json({
     ok: true,
     mes,
@@ -105,8 +160,11 @@ export async function GET(req: NextRequest) {
       despesas: totalDespesas,
       lucro: receita - totalDespesas,
       a_receber: aReceber,
+      a_receber_carteira: aReceberCarteira,
     },
     porCategoria: byCategory,
+    porFormaPagamento,
+    carteiraPendente: carteiraItens,
     topServicos,
     topClientes,
     fluxoDiario,

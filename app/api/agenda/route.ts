@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
     appointment_time,
     duration_min: duration_min ? Number(duration_min) : 60,
     status: status || "confirmado",
+    paid: false,
   };
   if (price !== undefined && price !== "" && price !== null) row.price = Number(price);
   if (notes) row.notes = notes;
@@ -108,13 +109,56 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, appointment: data });
 }
 
+const PATCH_KEYS = new Set([
+  "client_name",
+  "client_phone",
+  "service",
+  "appointment_date",
+  "appointment_time",
+  "duration_min",
+  "price",
+  "notes",
+  "status",
+  "paid",
+  "payment_method",
+  "payment_due_date",
+  "paid_at",
+]);
+
 export async function PATCH(req: NextRequest) {
   const g = await getProDb();
   if (!g.ok) return NextResponse.json({ ok: false, error: g.error }, { status: g.status });
 
   const body = await req.json();
-  const { id, ...campos } = body;
+  const { id, ...rest } = body;
   if (!id) return NextResponse.json({ ok: false, error: "id obrigatorio" }, { status: 400 });
+
+  const campos: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rest)) {
+    if (!PATCH_KEYS.has(k)) continue;
+    campos[k] = v;
+  }
+
+  if (campos.duration_min != null && campos.duration_min !== "")
+    campos.duration_min = Number(campos.duration_min);
+  if (campos.price === "" || campos.price === undefined) delete campos.price;
+  else if (campos.price !== null) campos.price = Number(campos.price);
+
+  if (typeof campos.paid === "string") {
+    campos.paid = campos.paid === "true" || campos.paid === "1";
+  }
+
+  if (campos.payment_method === "") campos.payment_method = null;
+  if (campos.payment_due_date === "") campos.payment_due_date = null;
+  if (campos.paid_at === "") campos.paid_at = null;
+
+  const st = String(campos.status || "").toLowerCase();
+  if (st === "cancelado") {
+    campos.paid = false;
+    campos.paid_at = null;
+    campos.payment_method = null;
+    campos.payment_due_date = null;
+  }
 
   const { error } = await g.db
     .from("appointments")
