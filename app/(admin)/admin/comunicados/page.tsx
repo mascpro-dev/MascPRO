@@ -11,7 +11,7 @@ const PUBLICOS = [
 ];
 
 const TIPOS = [
-  { value: "info", label: "Informação", cor: "bg-blue-500" },
+  { value: "info", label: "Informacao", cor: "bg-blue-500" },
   { value: "aviso", label: "Aviso", cor: "bg-yellow-500" },
   { value: "destaque", label: "Destaque", cor: "bg-[#C9A66B]" },
   { value: "urgente", label: "Urgente", cor: "bg-red-500" },
@@ -39,7 +39,7 @@ export default function AdminComunicadosPage() {
   }
 
   async function salvar() {
-    if (!form.titulo || !form.mensagem) { setErro("Título e mensagem obrigatórios."); return; }
+    if (!form.titulo || !form.mensagem) { setErro("Titulo e mensagem obrigatorios."); return; }
     setSalvando(true); setErro("");
     const res = await fetch("/api/admin/comunicados", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
@@ -47,14 +47,15 @@ export default function AdminComunicadosPage() {
     const d = await res.json().catch(() => null);
     if (!res.ok || !d?.ok) { setErro(d?.error || "Erro ao enviar."); setSalvando(false); return; }
 
-    // Dispara push notification se marcado
     if (enviarPush) {
       const pushRes = await fetch("/api/push/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: form.titulo, body: form.mensagem, url: "/", publico: form.publico }),
       });
       const pushData = await pushRes.json().catch(() => null);
-      setPushStatus(pushData?.enviados > 0 ? `🔔 Push enviado para ${pushData.enviados} dispositivo(s)` : "🔔 Push enviado (nenhum dispositivo registrado ainda)");
+      setPushStatus(pushData?.enviados > 0
+        ? `Push enviado para ${pushData.enviados} dispositivo(s)`
+        : "Push enviado (nenhum dispositivo registrado ainda)");
       setTimeout(() => setPushStatus(""), 5000);
     }
 
@@ -77,15 +78,15 @@ export default function AdminComunicadosPage() {
     await carregar();
   }
 
-    async function testarPush() {
+  async function testarPush() {
     setTestando(true);
     const res = await fetch("/api/push/send", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "?? Teste MascPRO", body: "Push funcionando! Suas notifica��es est�o ativas.", url: "/", publico: "TODOS" }),
+      body: JSON.stringify({ title: "Teste MascPRO", body: "Push funcionando! Suas notificacoes estao ativas.", url: "/", publico: "TODOS" }),
     });
     const d = await res.json().catch(() => null);
-    if (d?.ok) setPushStatus(`? Teste enviado para ${d.enviados} dispositivo(s). Verifique o celular!`);
-    else setPushStatus(`? Erro: ${d?.error || "Falha no envio. Verifique as vari�veis VAPID no Vercel."}`);
+    if (d?.ok) setPushStatus(`Teste enviado para ${d.enviados} dispositivo(s). Verifique o celular!`);
+    else setPushStatus(`Erro: ${d?.error || "Falha no envio. Verifique as variaveis VAPID no Vercel."}`);
     setTimeout(() => setPushStatus(""), 8000);
     setTestando(false);
   }
@@ -101,13 +102,19 @@ export default function AdminComunicadosPage() {
           <div className="flex items-center gap-3">
             <Bell className="text-[#C9A66B]" size={26} />
             <div>
-              <h1 className="text-2xl font-black uppercase italic">Comunicados <span className="text-[#C9A66B]">& Recados</span></h1>
+              <h1 className="text-2xl font-black uppercase italic">Comunicados <span className="text-[#C9A66B]">&amp; Recados</span></h1>
               <p className="text-zinc-500 text-xs">Mensagens segmentadas por tipo de membro</p>
             </div>
           </div>
-          <button onClick={() => { setShowForm(true); setErro(""); }} className="flex items-center gap-2 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest px-5 py-3 rounded-xl transition-all">
-            <Plus size={16} /> Novo Comunicado
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={testarPush} disabled={testando} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 text-[#C9A66B] font-black uppercase text-xs tracking-widest px-4 py-3 rounded-xl transition-all border border-zinc-700">
+              {testando ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
+              Testar Push
+            </button>
+            <button onClick={() => { setShowForm(true); setErro(""); }} className="flex items-center gap-2 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest px-5 py-3 rounded-xl transition-all">
+              <Plus size={16} /> Novo Comunicado
+            </button>
+          </div>
         </div>
 
         {pushStatus && (
@@ -161,7 +168,6 @@ export default function AdminComunicadosPage() {
           </div>
         )}
 
-        {/* MODAL */}
         {showForm && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg">
@@ -171,7 +177,7 @@ export default function AdminComunicadosPage() {
               </div>
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Público-alvo</label>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Publico-alvo</label>
                   <div className="grid grid-cols-2 gap-2">
                     {PUBLICOS.map(p => {
                       const Icon = p.icon;
@@ -196,14 +202,13 @@ export default function AdminComunicadosPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Título</label>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Titulo</label>
                   <input value={form.titulo} onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#C9A66B]" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Mensagem</label>
                   <textarea rows={4} value={form.mensagem} onChange={e => setForm(f => ({ ...f, mensagem: e.target.value }))} className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#C9A66B] resize-none" />
                 </div>
-                {/* Toggle Push */}
                 <button onClick={() => setEnviarPush(v => !v)}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${enviarPush ? "bg-[#C9A66B]/10 border-[#C9A66B]/40 text-[#C9A66B]" : "bg-zinc-900 border-zinc-800 text-zinc-500"}`}>
                   <div className="flex items-center gap-2 text-xs font-black uppercase">
@@ -227,5 +232,3 @@ export default function AdminComunicadosPage() {
     </div>
   );
 }
-
-
