@@ -4,29 +4,37 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 function sbAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
+  return createClient(url, key);
+}
+
+// Retorna o ultimo dia real do mes (evita datas invalidas como 2026-04-31)
+function ultimoDiaMes(mesISO: string): string {
+  const [y, m] = mesISO.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate(); // dia 0 do proximo mes = ultimo dia do mes atual
+  return `${mesISO}-${String(lastDay).padStart(2, "0")}`;
+}
+
+async function getSession() {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const { data: { session } } = await supabase.auth.getSession();
+    return session;
+  } catch {
+    return null;
+  }
 }
 
 // GET — lista agendamentos do profissional logado
 export async function GET(req: NextRequest) {
   try {
-    // Pega sessão do usuário
-    const supabaseUser = createRouteHandlerClient({ cookies });
-    const { data: { session }, error: sessionError } = await supabaseUser.auth.getSession();
-
-    if (sessionError) {
-      console.error("[agenda GET] Erro de sessão:", sessionError.message);
-      return NextResponse.json({ ok: false, error: "Erro de sessão: " + sessionError.message }, { status: 500 });
-    }
-    if (!session) {
-      return NextResponse.json({ ok: false, error: "Não autenticado" }, { status: 401 });
-    }
+    const session = await getSession();
+    if (!session) return NextResponse.json({ ok: false, error: "Nao autenticado" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
     const mes = searchParams.get("mes"); // YYYY-MM
 
-    // Usa admin client para busca (evita problemas de RLS no server-side)
     const sb = sbAdmin();
     let query = sb
       .from("appointments")
@@ -35,32 +43,31 @@ export async function GET(req: NextRequest) {
       .order("appointment_date", { ascending: true });
 
     if (mes) {
-      query = query
-        .gte("appointment_date", `${mes}-01`)
-        .lte("appointment_date", `${mes}-31`);
+      const inicio = `${mes}-01`;
+      const fim = ultimoDiaMes(mes); // usa o ultimo dia real do mes
+      query = query.gte("appointment_date", inicio).lte("appointment_date", fim);
     }
 
     const { data, error } = await query;
 
     if (error) {
-      console.error("[agenda GET] Erro query:", error.code, error.message);
-      // Tabela não existe — retorna vazio sem erro
+      console.error("[agenda GET]", error.code, error.message);
       if (error.code === "42P01") {
-        return NextResponse.json({ ok: true, appointments: [], aviso: "Rode o SQL no Supabase para criar a tabela appointments." });
+        return NextResponse.json({ ok: true, appointments: [], aviso: "Tabela appointments nao existe. Rode o SQL no Supabase." });
       }
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    // Ordena por horário no JS (evita problema de duplo order)
+    // Ordenacao por horario feita no JS para evitar problemas com duplo order()
     const sorted = (data || []).sort((a: any, b: any) => {
-      const dateCompare = a.appointment_date.localeCompare(b.appointment_date);
-      if (dateCompare !== 0) return dateCompare;
+      const dc = a.appointment_date.localeCompare(b.appointment_date);
+      if (dc !== 0) return dc;
       return (a.appointment_time || "").localeCompare(b.appointment_time || "");
     });
 
     return NextResponse.json({ ok: true, appointments: sorted });
   } catch (e: any) {
-    console.error("[agenda GET] Exceção:", e.message);
+    console.error("[agenda GET] excecao:", e.message);
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
@@ -68,19 +75,20 @@ export async function GET(req: NextRequest) {
 // POST — criar agendamento
 export async function POST(req: NextRequest) {
   try {
-    const supabaseUser = createRouteHandlerClient({ cookies });
-    const { data: { session } } = await supabaseUser.auth.getSession();
-    if (!session) return NextResponse.json({ ok: false, error: "Não autenticado" }, { status: 401 });
+    const session = await getSession();
+    if (!session) return NextResponse.json({ ok: false, error: "Nao autenticado" }, { status: 401 });
 
     const body = await req.json();
     const { client_name, client_phone, service, appointment_date, appointment_time, duration_min, price, notes } = body;
 
     if (!client_name || !appointment_date || !appointment_time) {
-      return NextResponse.json({ ok: false, error: "Nome, data e horário são obrigatórios" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "Nome, data e horario sao obrigatorios" }, { status: 400 });
     }
 
     const sb = sbAdmin();
-    const { data, error } = await sb.from("appointments").insert({
+
+    // Tenta inserir com todos os campos
+    const row: any = {
       professional_id: session.user.id,
       client_name,
       client_phone: client_phone || null,
@@ -88,20 +96,42 @@ export async function POST(req: NextRequest) {
       appointment_date,
       appointment_time,
       duration_min: duration_min ? Number(duration_min) : 60,
-      price: price ? Number(price) : null,
-      notes: notes || null,
       status: "confirmado",
-    }).select().single();
+    };
+
+    // Adiciona campos opcionais apenas se existirem na tabela
+    if (price !== undefined && price !== "") row.price = Number(price);
+    if (notes !== undefined && notes !== "") row.notes = notes;
+
+    let { data, error } = await sb.from("appointments").insert(row).select().single();
+
+    // Se falhar com "coluna nao existe", tenta sem os campos opcionais
+    if (error && (error.code === "42703" || error.message?.includes("column"))) {
+      console.warn("[agenda POST] coluna opcional nao existe, tentando sem price/notes:", error.message);
+      const rowMin = {
+        professional_id: session.user.id,
+        client_name,
+        client_phone: client_phone || null,
+        service: service || null,
+        appointment_date,
+        appointment_time,
+        duration_min: duration_min ? Number(duration_min) : 60,
+        status: "confirmado",
+      };
+      const result2 = await sb.from("appointments").insert(rowMin).select().single();
+      data = result2.data;
+      error = result2.error;
+    }
 
     if (error) {
-      console.error("[agenda POST] Erro:", error.code, error.message);
-      if (error.code === "42P01") return NextResponse.json({ ok: false, error: "Tabela não existe. Rode o SQL no Supabase." }, { status: 500 });
+      console.error("[agenda POST]", error.code, error.message);
+      if (error.code === "42P01") return NextResponse.json({ ok: false, error: "Tabela nao existe. Rode o SQL no Supabase." }, { status: 500 });
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, appointment: data });
   } catch (e: any) {
-    console.error("[agenda POST] Exceção:", e.message);
+    console.error("[agenda POST] excecao:", e.message);
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
@@ -109,16 +139,14 @@ export async function POST(req: NextRequest) {
 // PATCH — atualizar status ou dados
 export async function PATCH(req: NextRequest) {
   try {
-    const supabaseUser = createRouteHandlerClient({ cookies });
-    const { data: { session } } = await supabaseUser.auth.getSession();
-    if (!session) return NextResponse.json({ ok: false, error: "Não autenticado" }, { status: 401 });
+    const session = await getSession();
+    if (!session) return NextResponse.json({ ok: false, error: "Nao autenticado" }, { status: 401 });
 
     const body = await req.json();
     const { id, ...campos } = body;
-    if (!id) return NextResponse.json({ ok: false, error: "id obrigatório" }, { status: 400 });
+    if (!id) return NextResponse.json({ ok: false, error: "id obrigatorio" }, { status: 400 });
 
-    const sb = sbAdmin();
-    const { error } = await sb.from("appointments")
+    const { error } = await sbAdmin().from("appointments")
       .update(campos)
       .eq("id", id)
       .eq("professional_id", session.user.id);
@@ -133,13 +161,11 @@ export async function PATCH(req: NextRequest) {
 // DELETE
 export async function DELETE(req: NextRequest) {
   try {
-    const supabaseUser = createRouteHandlerClient({ cookies });
-    const { data: { session } } = await supabaseUser.auth.getSession();
-    if (!session) return NextResponse.json({ ok: false, error: "Não autenticado" }, { status: 401 });
+    const session = await getSession();
+    if (!session) return NextResponse.json({ ok: false, error: "Nao autenticado" }, { status: 401 });
 
     const { id } = await req.json();
-    const sb = sbAdmin();
-    const { error } = await sb.from("appointments")
+    const { error } = await sbAdmin().from("appointments")
       .delete()
       .eq("id", id)
       .eq("professional_id", session.user.id);

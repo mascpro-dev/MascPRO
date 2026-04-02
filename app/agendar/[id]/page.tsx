@@ -82,7 +82,19 @@ export default function AgendarPage() {
     const ocupados = agendados
       .filter(a => a.appointment_date === iso)
       .map(a => a.appointment_time.slice(0,5));
-    return gerarSlots(disp.start_time.slice(0,5), disp.end_time.slice(0,5), disp.slot_duration_min || 60, ocupados);
+    const todos = gerarSlots(disp.start_time.slice(0,5), disp.end_time.slice(0,5), disp.slot_duration_min || 60, ocupados);
+
+    // Se for hoje, filtra horários que já passaram (adiciona margem de 30 min)
+    const hojeISO = toISO(new Date());
+    if (iso === hojeISO) {
+      const agora = new Date();
+      const minutosAgora = agora.getHours() * 60 + agora.getMinutes() + 30; // +30 min de margem
+      return todos.filter(s => {
+        const [h, m] = s.hora.split(":").map(Number);
+        return h * 60 + m > minutosAgora;
+      });
+    }
+    return todos;
   }
 
   async function agendar() {
