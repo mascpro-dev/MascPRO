@@ -43,7 +43,7 @@ function LojaContent() {
   // Na função de mostrar o preço:
   const getDisplayPrice = (product: any) => {
     if (userLevel === 'distribuidor') return product.price_distributor;
-    if (userLevel === 'embaixador') return product.price_ambassador;
+    if (userLevel === 'embaixador' || userLevel === 'educador_tecnico') return product.price_ambassador;
     return product.price_hairdresser; // Padrão
   };
 

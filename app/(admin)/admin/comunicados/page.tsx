@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
-import { Bell, Plus, Loader2, Trash2, X, ToggleRight, ToggleLeft, Send, Users, User, Briefcase, Shield } from "lucide-react";
+import { Bell, Plus, Loader2, Trash2, X, ToggleRight, ToggleLeft, Send, Users, User, Briefcase, Shield, GraduationCap } from "lucide-react";
 
 const PUBLICOS = [
   { value: "TODOS", label: "Todos os membros", icon: Users, cor: "text-[#C9A66B] bg-[#C9A66B]/10" },
   { value: "CABELEIREIRO", label: "Cabeleireiros", icon: User, cor: "text-blue-400 bg-blue-900/20" },
   { value: "EMBAIXADOR", label: "Embaixadores", icon: Briefcase, cor: "text-purple-400 bg-purple-900/20" },
+  { value: "EDUCADOR_TECNICO", label: "Educadores técnicos", icon: GraduationCap, cor: "text-amber-400 bg-amber-900/20" },
   { value: "DISTRIBUIDOR", label: "Distribuidores", icon: Shield, cor: "text-green-400 bg-green-900/20" },
 ];
 

@@ -44,7 +44,7 @@ function ProductDetailContent() {
   const getPrice = () => {
     if (!product) return 0;
     if (userLevel === 'distribuidor') return product.price_distributor;
-    if (userLevel === 'embaixador') return product.price_ambassador;
+    if (userLevel === 'embaixador' || userLevel === 'educador_tecnico') return product.price_ambassador;
     return product.price_hairdresser; // Padrão
   };
 

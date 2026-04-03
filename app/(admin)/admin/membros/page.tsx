@@ -15,13 +15,25 @@ type Membro = {
   tem_compra?: boolean; nivel?: string | null;
 };
 
-const ROLES = ["CABELEIREIRO", "EMBAIXADOR", "DISTRIBUIDOR", "ADMIN"];
+/** value = gravado em profiles.role; label = exibicao */
+const ROLE_OPTIONS: { value: string; label: string }[] = [
+  { value: "CABELEIREIRO", label: "CABELEIREIRO" },
+  { value: "EMBAIXADOR", label: "EMBAIXADOR" },
+  { value: "EDUCADOR_TECNICO", label: "EDUCADOR TÉCNICO" },
+  { value: "DISTRIBUIDOR", label: "DISTRIBUIDOR" },
+  { value: "ADMIN", label: "ADMIN" },
+];
 
-// Quando muda o role, sincroniza o nivel automaticamente
+function labelRole(v: string) {
+  return ROLE_OPTIONS.find((r) => r.value === v)?.label ?? v;
+}
+
+// Quando muda o role, sincroniza o nivel automaticamente (tabela da loja)
 function roleParaNivel(role: string): string {
   const m: Record<string, string> = {
     CABELEIREIRO: "cabeleireiro",
     EMBAIXADOR: "embaixador",
+    EDUCADOR_TECNICO: "educador_tecnico",
     DISTRIBUIDOR: "distribuidor",
     ADMIN: "cabeleireiro",
   };
@@ -141,7 +153,7 @@ export default function AdminMembrosPage() {
             {roles.map(r => (
               <button key={r} onClick={() => setFiltroRole(r)}
                 className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl border transition-all ${filtroRole === r ? "bg-[#C9A66B] text-black border-[#C9A66B]" : "bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-600"}`}>
-                {r === "todos" ? `Todos (${membros.length})` : r}
+                {r === "todos" ? `Todos (${membros.length})` : labelRole(r)}
               </button>
             ))}
           </div>
@@ -186,7 +198,7 @@ export default function AdminMembrosPage() {
                       {m.whatsapp ? <a href={`https://wa.me/55${m.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer"><MessageCircle size={18} className="text-green-400 hover:text-green-300" /></a> : <MessageCircle size={18} className="text-zinc-700" />}
                       {m.instagram ? <a href={`https://instagram.com/${m.instagram.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer"><Instagram size={18} className="text-pink-400 hover:text-pink-300" /></a> : <Instagram size={18} className="text-zinc-700" />}
                     </div>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">{m.role}</span>
+                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">{labelRole(m.role)}</span>
                     {m.tem_compra
                       ? <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-emerald-900/30 text-emerald-400 border border-emerald-800/40 flex items-center gap-1"><ShoppingBag size={10} /> ATIVO</span>
                       : <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-zinc-900 text-zinc-600 border border-zinc-800">INATIVO</span>
@@ -231,7 +243,14 @@ export default function AdminMembrosPage() {
                 <div>
                   <label className={labelClass}>Nível / Role</label>
                   <select value={form.role} onChange={e => set("role", e.target.value)} className={inputClass}>
-                    {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                    {form.role && !ROLE_OPTIONS.some((r) => r.value === form.role) && (
+                      <option value={form.role}>{form.role}</option>
+                    )}
+                    {ROLE_OPTIONS.map(({ value, label }) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
                   </select>
                   <p className="text-[10px] text-zinc-600 mt-1">Tabela de preços aplicada automaticamente: <span className="text-zinc-400 font-bold">{roleParaNivel(form.role)}</span></p>
                 </div>
