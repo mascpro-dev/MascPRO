@@ -18,7 +18,10 @@ import {
   Ban,
   Banknote,
   Send,
+  Search,
+  Trophy,
 } from "lucide-react";
+import { normalizeName, normalizePhoneDigits } from "@/lib/proClientMatch";
 
 type Appointment = {
   id: string;
@@ -38,21 +41,27 @@ type Appointment = {
 };
 
 const FORMAS_PAGAMENTO = [
+  { v: "dinheiro", l: "Dinheiro" },
   { v: "pix", l: "PIX" },
+  { v: "transferencia", l: "Transferencia" },
   { v: "credito", l: "Cartao credito" },
   { v: "debito", l: "Cartao debito" },
   { v: "carteira", l: "Pagar depois (carteira)" },
 ] as const;
 
 const FORMAS_RECEBIMENTO = [
+  { v: "dinheiro", l: "Dinheiro" },
   { v: "pix", l: "PIX" },
+  { v: "transferencia", l: "Transferencia" },
   { v: "credito", l: "Cartao credito" },
   { v: "debito", l: "Cartao debito" },
 ] as const;
 
 function labelFormaPagamento(k: string) {
   const m: Record<string, string> = {
+    dinheiro: "Dinheiro",
     pix: "PIX",
+    transferencia: "Transferencia",
     credito: "Cartao credito",
     debito: "Cartao debito",
     carteira: "Carteira (pendente)",
@@ -67,7 +76,37 @@ function addDaysISO(d: Date, days: number) {
   return toISO(x);
 }
 
-type ProClient = { id: string; name: string; phone: string | null; birthday: string | null; notes: string | null };
+type ProClient = {
+  id: string;
+  name: string;
+  phone: string | null;
+  birthday: string | null;
+  notes: string | null;
+  stats_total_spent?: number;
+  stats_last_appointment?: string | null;
+};
+
+type HistoricoLinha = {
+  id: string;
+  appointment_date: string;
+  appointment_time: string;
+  service: string | null;
+  price: number | null;
+  status: string;
+  paid: boolean | null;
+  paid_at?: string | null;
+  payment_method?: string | null;
+  notes?: string | null;
+};
+
+function isAniversarioHoje(isoBirth: string) {
+  const parts = isoBirth.split("-");
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  if (!m || !d) return false;
+  const t = new Date();
+  return t.getMonth() + 1 === m && t.getDate() === d;
+}
 type ProService = { id: string; name: string; price: number; duration_min: number; active: boolean };
 type ProExpense = { id: string; description: string; amount: number; category: string; expense_date: string };
 type ProCharge = { id: string; client_name: string; client_phone: string | null; description: string | null; amount: number; paid: boolean; charge_date: string };
@@ -140,6 +179,23 @@ function labelStatusAgenda(s: string) {
   return s;
 }
 
+/** invert: true = queda e bom (ex.: despesas) */
+function pctBadge(pct: number | null | undefined, invert = false) {
+  if (pct == null) return <span className="text-[9px] text-zinc-600">vs mes anterior: —</span>;
+  let cor = "text-zinc-500";
+  const good = invert ? pct < 0 : pct > 0;
+  const bad = invert ? pct > 0 : pct < 0;
+  if (good) cor = "text-emerald-400";
+  if (bad) cor = "text-red-400";
+  const s = pct > 0 ? "+" : "";
+  return (
+    <span className={`text-[9px] font-bold ${cor}`}>
+      {s}
+      {pct}% vs mes anterior
+    </span>
+  );
+}
+
 const START_MIN = 7 * 60;
 const END_MIN = 21 * 60;
 const SLOT = 30;
@@ -184,6 +240,10 @@ export default function AgendaGestaoPage() {
 
   const [modalClient, setModalClient] = useState<ProClient | "new" | null>(null);
   const [formCli, setFormCli] = useState({ name: "", phone: "", birthday: "", notes: "" });
+  const [buscaCliente, setBuscaCliente] = useState("");
+  const [modalCliTab, setModalCliTab] = useState<"dados" | "historico">("dados");
+  const [historicoCliente, setHistoricoCliente] = useState<HistoricoLinha[]>([]);
+  const [loadHist, setLoadHist] = useState(false);
 
   const [modalSvc, setModalSvc] = useState<ProService | "new" | null>(null);
   const [formSvc, setFormSvc] = useState({ name: "", price: "", duration_min: "60" });
@@ -228,7 +288,7 @@ export default function AgendaGestaoPage() {
   }, [diaStr]);
 
   const carregarClientes = useCallback(async () => {
-    const r = await fetch("/api/pro/gestao/clients");
+    const r = await fetch("/api/pro/gestao/clients?enrich=1");
     const d = await r.json();
     if (d.ok) setClients(d.clients || []);
   }, []);
@@ -602,18 +662,72 @@ export default function AgendaGestaoPage() {
   const hoje = toISO(new Date());
   const aniversariantes = useMemo(() => {
     const agora = new Date();
+    agora.setHours(0, 0, 0, 0);
     const lim = new Date(agora);
     lim.setDate(lim.getDate() + 14);
     return clients.filter((c) => {
       if (!c.birthday) return false;
-      const [y, m, day] = c.birthday.split("-").map(Number);
+      const [, m, day] = c.birthday.split("-").map(Number);
+      if (!m || !day) return false;
       const bThisYear = new Date(agora.getFullYear(), m - 1, day);
       const bNext = new Date(agora.getFullYear() + 1, m - 1, day);
       let b = bThisYear;
       if (bThisYear < agora) b = bNext;
+      b.setHours(0, 0, 0, 0);
       return b >= agora && b <= lim;
     });
   }, [clients]);
+
+  const clientesFiltrados = useMemo(() => {
+    const q = buscaCliente.trim().toLowerCase();
+    const dig = q.replace(/\D/g, "");
+    if (!q && !dig) return clients;
+    return clients.filter((c) => {
+      if (q && normalizeName(c.name).includes(q)) return true;
+      if (dig.length >= 2) {
+        const p = normalizePhoneDigits(c.phone || "");
+        if (p.includes(dig)) return true;
+      }
+      return false;
+    });
+  }, [clients, buscaCliente]);
+
+  const rankingClientesReceita = useMemo(() => {
+    return [...clients]
+      .filter((c) => (c.stats_total_spent ?? 0) > 0)
+      .sort((a, b) => (b.stats_total_spent ?? 0) - (a.stats_total_spent ?? 0))
+      .slice(0, 10);
+  }, [clients]);
+
+  async function abrirClienteModal(c: ProClient) {
+    setModalCliTab("dados");
+    setFormCli({
+      name: c.name,
+      phone: c.phone || "",
+      birthday: c.birthday || "",
+      notes: c.notes || "",
+    });
+    setModalClient(c);
+    setHistoricoCliente([]);
+    setLoadHist(true);
+    try {
+      const r = await fetch(`/api/pro/gestao/clients/history?clientId=${encodeURIComponent(c.id)}`);
+      const d = await r.json();
+      if (d.ok) setHistoricoCliente(d.history || []);
+    } finally {
+      setLoadHist(false);
+    }
+  }
+
+  async function excluirServicoGestao(s: ProService) {
+    if (!confirm(`Excluir o servico "${s.name}"?`)) return;
+    await fetch("/api/pro/gestao/services", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: s.id }),
+    });
+    carregarServicos();
+  }
 
   const chargesByClient = useMemo(() => {
     const unpaid = charges.filter((c) => !c.paid);
@@ -828,21 +942,76 @@ export default function AgendaGestaoPage() {
         <div className="space-y-4">
           {aniversariantes.length > 0 && (
             <div className="rounded-2xl border border-pink-500/30 bg-pink-950/20 p-4">
-              <p className="text-xs font-black uppercase text-pink-300 flex items-center gap-2 mb-2">
-                <Cake size={14} /> Proximos aniversarios (14 dias)
+              <p className="text-xs font-black uppercase text-pink-300 flex items-center gap-2 mb-3">
+                <Cake size={14} /> Aniversarios (proximos 14 dias)
               </p>
-              <div className="flex flex-wrap gap-2">
-                {aniversariantes.map((c) => (
-                  <span key={c.id} className="text-xs bg-zinc-900 px-2 py-1 rounded-lg text-white">
-                    {c.name}
-                  </span>
-                ))}
+              <div className="flex flex-col gap-2">
+                {aniversariantes.map((c) => {
+                  const hoje = c.birthday ? isAniversarioHoje(c.birthday) : false;
+                  return (
+                    <div
+                      key={c.id}
+                      className="flex flex-wrap items-center gap-2 justify-between bg-zinc-900/80 rounded-xl px-3 py-2 border border-zinc-800"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-bold text-white truncate">{c.name}</span>
+                        {hoje && (
+                          <span className="text-[9px] font-black uppercase bg-pink-600 text-white px-2 py-0.5 rounded-full shrink-0">
+                            Hoje!
+                          </span>
+                        )}
+                      </div>
+                      {c.phone?.replace(/\D/g, "") ? (
+                        <a
+                          href={waLink(c.phone!, `Ola ${c.name}! Feliz aniversario!`)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 text-[10px] font-black uppercase text-emerald-400 shrink-0 px-2 py-1 rounded-lg bg-emerald-950/40 border border-emerald-800/50"
+                        >
+                          <MessageCircle size={12} /> WhatsApp
+                        </a>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
+
+          {rankingClientesReceita.length > 0 && (
+            <div className="rounded-2xl border border-[#C9A66B]/30 bg-[#C9A66B]/5 p-4">
+              <p className="text-xs font-black uppercase text-[#C9A66B] flex items-center gap-2 mb-3">
+                <Trophy size={14} /> Ranking por receita (historico pago)
+              </p>
+              <ol className="space-y-2">
+                {rankingClientesReceita.map((c, i) => (
+                  <li key={c.id} className="flex justify-between text-sm gap-2">
+                    <span className="text-zinc-300 truncate">
+                      {i + 1}. {c.name}
+                    </span>
+                    <span className="text-white font-black shrink-0">{fmtMoney(c.stats_total_spent ?? 0)}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+            <input
+              type="search"
+              placeholder="Buscar por nome ou telefone..."
+              value={buscaCliente}
+              onChange={(e) => setBuscaCliente(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-3 py-3 text-sm text-white placeholder:text-zinc-600"
+            />
+          </div>
+
           <button
             type="button"
             onClick={() => {
+              setModalCliTab("dados");
+              setHistoricoCliente([]);
               setFormCli({ name: "", phone: "", birthday: "", notes: "" });
               setModalClient("new");
             }}
@@ -851,23 +1020,27 @@ export default function AgendaGestaoPage() {
             + Novo cliente
           </button>
           <div className="space-y-2">
-            {clients.map((c) => (
+            {clientesFiltrados.length === 0 && (
+              <p className="text-center text-zinc-500 text-sm py-6">Nenhum cliente encontrado.</p>
+            )}
+            {clientesFiltrados.map((c) => (
               <button
                 key={c.id}
                 type="button"
-                onClick={() => {
-                  setFormCli({
-                    name: c.name,
-                    phone: c.phone || "",
-                    birthday: c.birthday || "",
-                    notes: c.notes || "",
-                  });
-                  setModalClient(c);
-                }}
-                className="w-full text-left rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 flex items-center justify-between"
+                onClick={() => void abrirClienteModal(c)}
+                className="w-full text-left rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 hover:border-zinc-600 transition-colors"
               >
-                <span className="font-bold text-white">{c.name}</span>
-                {c.phone && <span className="text-xs text-zinc-500">{c.phone}</span>}
+                <div className="flex justify-between items-start gap-2">
+                  <span className="font-bold text-white">{c.name}</span>
+                  {c.phone && <span className="text-xs text-zinc-500 shrink-0">{c.phone}</span>}
+                </div>
+                <div className="flex flex-wrap gap-3 mt-2 text-[10px] font-bold uppercase text-zinc-500">
+                  <span className="text-emerald-400/90">Total: {fmtMoney(c.stats_total_spent ?? 0)}</span>
+                  <span>
+                    Ultimo:{" "}
+                    {c.stats_last_appointment ? fmtDataBr(c.stats_last_appointment) : "—"}
+                  </span>
+                </div>
               </button>
             ))}
           </div>
@@ -878,7 +1051,7 @@ export default function AgendaGestaoPage() {
       {aba === "servicos" && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            {["Corte masc.", "Barba", "Pezinho", "Sobrancelha", "Pigmentacao"].map((chip) => (
+            {["Corte masculino", "Barba", "Degrade", "Sobrancelha", "Pezinho", "Pigmentacao"].map((chip) => (
               <button
                 key={chip}
                 type="button"
@@ -905,28 +1078,39 @@ export default function AgendaGestaoPage() {
           {services.map((s) => (
             <div
               key={s.id}
-              className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 flex justify-between items-center"
+              className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 flex justify-between items-center gap-2"
             >
-              <div>
-                <p className="font-bold text-white">{s.name}</p>
+              <div className="min-w-0">
+                <p className="font-bold text-white truncate">{s.name}</p>
                 <p className="text-xs text-zinc-500">
                   {fmtMoney(Number(s.price))} · {s.duration_min} min
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setFormSvc({
-                    name: s.name,
-                    price: String(s.price),
-                    duration_min: String(s.duration_min),
-                  });
-                  setModalSvc(s);
-                }}
-                className="p-2 text-zinc-400"
-              >
-                <Pencil size={16} />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormSvc({
+                      name: s.name,
+                      price: String(s.price),
+                      duration_min: String(s.duration_min),
+                    });
+                    setModalSvc(s);
+                  }}
+                  className="p-2 text-zinc-400 hover:text-[#C9A66B]"
+                  aria-label="Editar servico"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void excluirServicoGestao(s)}
+                  className="p-2 text-zinc-500 hover:text-red-400"
+                  aria-label="Excluir servico"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -969,6 +1153,7 @@ export default function AgendaGestaoPage() {
               <div className="rounded-2xl border border-emerald-800/40 bg-emerald-950/20 p-4">
                 <p className="text-[10px] font-black uppercase text-emerald-400">Receita (paga)</p>
                 <p className="text-2xl font-black text-white">{fmtMoney(fin.resumo.receita)}</p>
+                <div className="mt-2">{pctBadge(fin.comparativo?.receita_pct, false)}</div>
                 <p className="text-[9px] text-zinc-600 mt-2 leading-snug">
                   So entra no mes pela data em que o pagamento foi recebido (nao pelo dia do corte).
                 </p>
@@ -976,10 +1161,12 @@ export default function AgendaGestaoPage() {
               <div className="rounded-2xl border border-red-800/40 bg-red-950/20 p-4">
                 <p className="text-[10px] font-black uppercase text-red-400">Despesas</p>
                 <p className="text-2xl font-black text-white">{fmtMoney(fin.resumo.despesas)}</p>
+                <div className="mt-2">{pctBadge(fin.comparativo?.despesas_pct, true)}</div>
               </div>
               <div className="rounded-2xl border border-[#C9A66B]/40 bg-[#C9A66B]/10 p-4">
                 <p className="text-[10px] font-black uppercase text-[#C9A66B]">Lucro</p>
                 <p className="text-2xl font-black text-white">{fmtMoney(fin.resumo.lucro)}</p>
+                <div className="mt-2">{pctBadge(fin.comparativo?.lucro_pct, false)}</div>
                 <p className="text-[10px] text-zinc-500 mt-1">
                   Cobrancas em aberto: {fmtMoney(fin.resumo.a_receber)}
                 </p>
@@ -994,7 +1181,9 @@ export default function AgendaGestaoPage() {
 
           {finSub === "resumo" && fin?.porFormaPagamento?.length > 0 && (
             <div className="rounded-2xl border border-zinc-800 p-4">
-              <p className="text-xs font-black uppercase text-zinc-400 mb-2">Receita por forma de pagamento</p>
+              <p className="text-xs font-black uppercase text-zinc-400 mb-2">
+                Receita por forma (dinheiro, pix, cartoes, transferencia)
+              </p>
               {fin.porFormaPagamento.map((row: { key: string; total: number }) => (
                 <div key={row.key} className="flex justify-between text-sm py-1 border-b border-zinc-800/50">
                   <span className="text-zinc-300">{labelFormaPagamento(row.key)}</span>
@@ -1047,7 +1236,7 @@ export default function AgendaGestaoPage() {
 
           {finSub === "resumo" && fin?.topServicos?.length > 0 && (
             <div className="rounded-2xl border border-zinc-800 p-4">
-              <p className="text-xs font-black uppercase text-zinc-400 mb-2">Top servicos</p>
+              <p className="text-xs font-black uppercase text-zinc-400 mb-2">Top 5 servicos por faturamento</p>
               {fin.topServicos.map((s: any) => (
                 <div key={s.name} className="flex justify-between text-sm py-1">
                   <span className="text-white">{s.name}</span>
@@ -1084,7 +1273,11 @@ export default function AgendaGestaoPage() {
                   <span className="text-zinc-400">{row.dia.slice(8)}</span>
                   <span className="text-emerald-400">{fmtMoney(row.receita)}</span>
                   <span className="text-red-400">{fmtMoney(row.despesa)}</span>
-                  <span className={row.resultado >= 0 ? "text-emerald-300" : "text-red-300"}>
+                  <span
+                    className={
+                      row.resultado >= 0 ? "text-emerald-300 font-bold" : "text-red-400 font-black"
+                    }
+                  >
                     {fmtMoney(row.resultado)}
                   </span>
                 </div>
@@ -1222,9 +1415,9 @@ export default function AgendaGestaoPage() {
                                 carregarFin();
                               })
                             }
-                            className="text-[10px] text-emerald-400 font-bold"
+                            className="text-[10px] text-emerald-400 font-bold uppercase tracking-wide"
                           >
-                            Pago
+                            Marcar como pago
                           </button>
                         </div>
                       </div>
@@ -1779,62 +1972,139 @@ export default function AgendaGestaoPage() {
       {/* MODAL CLIENTE */}
       {modalClient && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 p-4">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md p-4 space-y-3">
-            <div className="flex justify-between">
-              <h3 className="font-black uppercase text-sm">Cliente</h3>
-              <button type="button" onClick={() => setModalClient(null)}>
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b border-zinc-800 shrink-0">
+              <h3 className="font-black uppercase text-sm">
+                {modalClient === "new" ? "Novo cliente" : formCli.name || "Cliente"}
+              </h3>
+              <button type="button" onClick={() => setModalClient(null)} aria-label="Fechar">
                 <X size={18} />
               </button>
             </div>
-            <input
-              placeholder="Nome"
-              value={formCli.name}
-              onChange={(e) => setFormCli({ ...formCli, name: e.target.value })}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
-            />
-            <input
-              placeholder="Telefone"
-              value={formCli.phone}
-              onChange={(e) => setFormCli({ ...formCli, phone: e.target.value })}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
-            />
-            <input
-              type="date"
-              value={formCli.birthday}
-              onChange={(e) => setFormCli({ ...formCli, birthday: e.target.value })}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
-              style={{ colorScheme: "dark" }}
-            />
-            <textarea
-              placeholder="Anotacoes / anamnese"
-              value={formCli.notes}
-              onChange={(e) => setFormCli({ ...formCli, notes: e.target.value })}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm min-h-[80px]"
-            />
-            <button
-              type="button"
-              onClick={salvarCliente}
-              className="w-full py-3 bg-[#C9A66B] text-black font-black text-xs uppercase rounded-xl"
-            >
-              Salvar
-            </button>
+
             {modalClient !== "new" && (
-              <button
-                type="button"
-                onClick={async () => {
-                  await fetch("/api/pro/gestao/clients", {
-                    method: "DELETE",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ id: (modalClient as ProClient).id }),
-                  });
-                  setModalClient(null);
-                  carregarClientes();
-                }}
-                className="w-full py-2 text-red-400 text-xs"
-              >
-                Excluir cliente
-              </button>
+              <div className="flex gap-1 p-2 border-b border-zinc-800 bg-zinc-900/50 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setModalCliTab("dados")}
+                  className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase ${
+                    modalCliTab === "dados" ? "bg-[#C9A66B] text-black" : "text-zinc-400"
+                  }`}
+                >
+                  Dados
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalCliTab("historico")}
+                  className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase ${
+                    modalCliTab === "historico" ? "bg-[#C9A66B] text-black" : "text-zinc-400"
+                  }`}
+                >
+                  Historico
+                </button>
+              </div>
             )}
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-3">
+              {(modalClient === "new" || modalCliTab === "dados") && (
+                <>
+                  <input
+                    placeholder="Nome"
+                    value={formCli.name}
+                    onChange={(e) => setFormCli({ ...formCli, name: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                  <input
+                    placeholder="Telefone"
+                    value={formCli.phone}
+                    onChange={(e) => setFormCli({ ...formCli, phone: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="date"
+                    value={formCli.birthday}
+                    onChange={(e) => setFormCli({ ...formCli, birthday: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                    style={{ colorScheme: "dark" }}
+                  />
+                  <textarea
+                    placeholder="Anotacoes / anamnese"
+                    value={formCli.notes}
+                    onChange={(e) => setFormCli({ ...formCli, notes: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm min-h-[80px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={salvarCliente}
+                    className="w-full py-3 bg-[#C9A66B] text-black font-black text-xs uppercase rounded-xl"
+                  >
+                    Salvar
+                  </button>
+                  {modalClient !== "new" && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await fetch("/api/pro/gestao/clients", {
+                          method: "DELETE",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ id: (modalClient as ProClient).id }),
+                        });
+                        setModalClient(null);
+                        carregarClientes();
+                      }}
+                      className="w-full py-2 text-red-400 text-xs font-bold"
+                    >
+                      Excluir cliente
+                    </button>
+                  )}
+                </>
+              )}
+
+              {modalClient !== "new" && modalCliTab === "historico" && (
+                <div className="space-y-2">
+                  {loadHist ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="animate-spin text-[#C9A66B]" />
+                    </div>
+                  ) : historicoCliente.length === 0 ? (
+                    <p className="text-zinc-500 text-sm text-center py-6">Nenhum atendimento vinculado a este cadastro.</p>
+                  ) : (
+                    <div className="rounded-xl border border-zinc-800 overflow-hidden">
+                      <div className="grid grid-cols-[1fr_auto_auto] gap-1 text-[9px] font-black uppercase text-zinc-500 p-2 bg-zinc-900 border-b border-zinc-800">
+                        <span>Data / servico</span>
+                        <span className="text-right">Valor</span>
+                        <span className="text-right">Status</span>
+                      </div>
+                      <ul className="max-h-[50vh] overflow-y-auto divide-y divide-zinc-800/80">
+                        {historicoCliente.map((h) => (
+                          <li key={h.id} className="grid grid-cols-[1fr_auto_auto] gap-1 p-2 text-xs items-start">
+                            <div className="min-w-0">
+                              <p className="text-white font-bold">
+                                {fmtDataBr(h.appointment_date)} {String(h.appointment_time || "").slice(0, 5)}
+                              </p>
+                              <p className="text-[10px] text-zinc-500 truncate">{h.service || "—"}</p>
+                              {h.paid ? (
+                                <p className="text-[9px] text-emerald-500/90">
+                                  Pago · {labelFormaPagamento(String(h.payment_method || "nao_info"))}
+                                </p>
+                              ) : (
+                                <p className="text-[9px] text-amber-500/80">Nao pago / pendente</p>
+                              )}
+                            </div>
+                            <span className="text-[#C9A66B] font-black whitespace-nowrap">
+                              {h.price != null ? fmtMoney(Number(h.price)) : "—"}
+                            </span>
+                            <span className="text-[10px] text-zinc-400 text-right whitespace-nowrap">
+                              {labelStatusAgenda(h.status)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

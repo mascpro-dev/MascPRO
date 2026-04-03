@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProDb, ultimoDiaMes } from "@/lib/proGestaoDb";
+import { getProDb, ultimoDiaMes, mesAnteriorISO } from "@/lib/proGestaoDb";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,79 @@ function diaReceita(a: { paid_at?: string | null; appointment_date?: string | nu
   const p = a.paid_at ? String(a.paid_at).slice(0, 10) : "";
   if (p) return p;
   return String(a.appointment_date || "").slice(0, 10);
+}
+
+const colErr = (e: { code?: string; message?: string } | null | undefined) =>
+  e?.code === "42P01" ||
+  e?.code === "42703" ||
+  String(e?.message || "").toLowerCase().includes("column");
+
+/** Receita (pagamentos recebidos no mes) e despesas — para comparativo mês a mês */
+async function mesReceitaDespesasLucro(db: SupabaseClient, userId: string, mes: string) {
+  const ini = `${mes}-01`;
+  const fim = ultimoDiaMes(mes);
+  const [pagosRes, expRes] = await Promise.all([
+    db
+      .from("appointments")
+      .select("id, appointment_date, service, price, status, paid, paid_at, payment_method")
+      .eq("professional_id", userId)
+      .eq("paid", true)
+      .gte("paid_at", ini)
+      .lte("paid_at", fim),
+    db
+      .from("pro_expenses")
+      .select("amount, expense_date")
+      .eq("professional_id", userId)
+      .gte("expense_date", ini)
+      .lte("expense_date", fim),
+  ]);
+
+  let aptsPagos = colErr(pagosRes.error) ? [] : pagosRes.data || [];
+
+  if (pagosRes.error && !colErr(pagosRes.error)) {
+    return { receita: 0, despesas: 0, lucro: 0, erro: pagosRes.error.message };
+  }
+
+  if (pagosRes.error && colErr(pagosRes.error) && pagosRes.error.code !== "42P01") {
+    const leg = await db
+      .from("appointments")
+      .select("id, appointment_date, service, price, status")
+      .eq("professional_id", userId)
+      .gte("appointment_date", ini)
+      .lte("appointment_date", fim);
+    if (!leg.error && leg.data) {
+      aptsPagos = leg.data
+        .filter((row: { status?: string }) => String(row.status || "").toLowerCase() === "concluido")
+        .map((row: Record<string, unknown>) => ({
+          ...row,
+          paid: true,
+          paid_at: row.appointment_date,
+          payment_method: null,
+        }));
+    } else {
+      aptsPagos = [];
+    }
+  }
+
+  let receita = 0;
+  for (const a of aptsPagos) {
+    if (String((a as { status?: string }).status || "").toLowerCase() === "cancelado") continue;
+    receita += Number((a as { price?: number }).price || 0);
+  }
+
+  const expenses = expRes.error?.code === "42P01" ? [] : expRes.data || [];
+  let totalDespesas = 0;
+  for (const e of expenses) {
+    totalDespesas += Number((e as { amount?: number }).amount || 0);
+  }
+
+  return { receita, despesas: totalDespesas, lucro: receita - totalDespesas, erro: null as string | null };
+}
+
+function pctVsAnterior(atual: number, anterior: number): number | null {
+  if (anterior === 0 && atual === 0) return null;
+  if (anterior === 0) return null;
+  return Math.round(((atual - anterior) / anterior) * 1000) / 10;
 }
 
 export async function GET(req: NextRequest) {
@@ -47,11 +121,6 @@ export async function GET(req: NextRequest) {
       .eq("professional_id", g.userId)
       .eq("paid", false),
   ]);
-
-  const colErr = (e: { code?: string; message?: string } | null | undefined) =>
-    e?.code === "42P01" ||
-    e?.code === "42703" ||
-    String(e?.message || "").toLowerCase().includes("column");
 
   let aptsPagos = colErr(pagosRes.error) ? [] : pagosRes.data || [];
   let carteiraPend = colErr(carteiraRes.error) ? [] : carteiraRes.data || [];
@@ -127,7 +196,7 @@ export async function GET(req: NextRequest) {
   const topServicos = Object.entries(byService)
     .map(([name, v]) => ({ name, total: v.total, count: v.count }))
     .sort((a, b) => b.total - a.total)
-    .slice(0, 8);
+    .slice(0, 5);
 
   const topClientes = Object.entries(byClient)
     .map(([name, total]) => ({ name, total }))
@@ -152,6 +221,9 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => String(a.payment_due_date || "").localeCompare(String(b.payment_due_date || "")))
     .slice(0, 30);
 
+  const mesAnt = mesAnteriorISO(mes);
+  const ant = await mesReceitaDespesasLucro(g.db, g.userId, mesAnt);
+
   return NextResponse.json({
     ok: true,
     mes,
@@ -162,6 +234,14 @@ export async function GET(req: NextRequest) {
       a_receber: aReceber,
       a_receber_carteira: aReceberCarteira,
     },
+    comparativo: ant.erro
+      ? null
+      : {
+          mes_anterior: mesAnt,
+          receita_pct: pctVsAnterior(receita, ant.receita),
+          despesas_pct: pctVsAnterior(totalDespesas, ant.despesas),
+          lucro_pct: pctVsAnterior(receita - totalDespesas, ant.lucro),
+        },
     porCategoria: byCategory,
     porFormaPagamento,
     carteiraPendente: carteiraItens,

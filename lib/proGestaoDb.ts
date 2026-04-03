@@ -25,3 +25,10 @@ export function ultimoDiaMes(mesISO: string): string {
   const lastDay = new Date(y, m, 0).getDate();
   return `${mesISO}-${String(lastDay).padStart(2, "0")}`;
 }
+
+/** Mes anterior no formato yyyy-mm */
+export function mesAnteriorISO(mes: string): string {
+  const [y, m] = mes.split("-").map(Number);
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
