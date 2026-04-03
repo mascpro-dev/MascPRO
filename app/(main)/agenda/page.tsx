@@ -290,6 +290,7 @@ export default function AgendaGestaoPage() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [linkOk, setLinkOk] = useState(false);
+  const [bookingSlug, setBookingSlug] = useState("");
 
   const [modalClient, setModalClient] = useState<ProClient | "new" | null>(null);
   const [formCli, setFormCli] = useState({ name: "", phone: "", birthday: "", notes: "" });
@@ -327,8 +328,19 @@ export default function AgendaGestaoPage() {
   const labelsDow = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) setUserId(session.user.id);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user) return;
+      setUserId(session.user.id);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("booking_slug")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      if (!error && data?.booking_slug && String(data.booking_slug).trim()) {
+        setBookingSlug(String(data.booking_slug).trim());
+      } else {
+        setBookingSlug("");
+      }
     });
   }, [supabase]);
 
@@ -905,7 +917,8 @@ export default function AgendaGestaoPage() {
 
   async function copiarLink() {
     if (!userId || typeof window === "undefined") return;
-    const u = `${window.location.origin}/agendar/${userId}`;
+    const seg = bookingSlug.trim() || userId;
+    const u = `${window.location.origin}/agendar/${seg}`;
     await navigator.clipboard.writeText(u);
     setLinkOk(true);
     setTimeout(() => setLinkOk(false), 2500);
@@ -923,14 +936,22 @@ export default function AgendaGestaoPage() {
           </p>
         </div>
         {userId && (
-          <button
-            type="button"
-            onClick={copiarLink}
-            className="flex items-center gap-2 text-xs font-black uppercase bg-zinc-900 border border-zinc-700 text-[#C9A66B] px-4 py-2 rounded-xl"
-          >
-            {linkOk ? <CheckCircle size={14} /> : <Copy size={14} />}
-            {linkOk ? "Copiado!" : "Link publico agendar"}
-          </button>
+          <div className="flex flex-col items-stretch sm:items-end gap-1 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={copiarLink}
+              className="flex items-center justify-center gap-2 text-xs font-black uppercase bg-zinc-900 border border-zinc-700 text-[#C9A66B] px-4 py-2 rounded-xl"
+            >
+              {linkOk ? <CheckCircle size={14} /> : <Copy size={14} />}
+              {linkOk ? "Copiado!" : "Link publico agendar"}
+            </button>
+            <p
+              className="text-[10px] text-zinc-500 font-mono truncate text-center sm:text-right max-w-full"
+              title={`${typeof window !== "undefined" ? window.location.origin : ""}/agendar/${bookingSlug.trim() || userId}`}
+            >
+              /agendar/{bookingSlug.trim() || userId}
+            </p>
+          </div>
         )}
       </div>
 

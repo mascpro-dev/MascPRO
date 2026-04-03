@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { validateBookingSlugInput } from "@/lib/bookingSlug";
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,6 +26,13 @@ export async function POST(req: NextRequest) {
     // Campos opcionais (podem não existir no banco ainda — ignorar erro de coluna)
     if (body.bio !== undefined) campos.bio = body.bio;
     if (body.barber_shop !== undefined) campos.barber_shop = body.barber_shop;
+    if (body.booking_slug !== undefined) {
+      const v = validateBookingSlugInput(String(body.booking_slug ?? ""));
+      if (!v.ok) {
+        return NextResponse.json({ ok: false, error: v.error }, { status: 400 });
+      }
+      campos.booking_slug = v.slug ? v.slug : null;
+    }
     if (body.username !== undefined) campos.username = body.username;
     if (body.avatar_url !== undefined && typeof body.avatar_url === "string") {
       campos.avatar_url = body.avatar_url.trim() || null;
@@ -39,6 +47,12 @@ export async function POST(req: NextRequest) {
       .eq("id", session.user.id);
 
     if (error) {
+      if (error.code === "23505" && String(error.message || "").toLowerCase().includes("booking_slug")) {
+        return NextResponse.json(
+          { ok: false, error: "Este final de link já está em uso. Escolha outro." },
+          { status: 409 }
+        );
+      }
       // Se erro por coluna inexistente, tenta sem os opcionais
       if (error.message.includes("column") || error.code === "PGRST204") {
         const camposBase: Record<string, unknown> = {

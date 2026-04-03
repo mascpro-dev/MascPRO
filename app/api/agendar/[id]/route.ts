@@ -1,10 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { appointmentMatchesClient } from "@/lib/proClientMatch";
+import { looksLikeUuid, slugifyForBooking } from "@/lib/bookingSlug";
 
 function sb() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
+}
+
+/** Aceita UUID do profissional ou booking_slug (ex.: salao-joana). */
+async function resolveProfessionalId(client: SupabaseClient, raw: string): Promise<string | null> {
+  const param = decodeURIComponent(String(raw || "").trim());
+  if (!param) return null;
+
+  if (looksLikeUuid(param)) {
+    const { data } = await client.from("profiles").select("id").eq("id", param).maybeSingle();
+    return data?.id ?? null;
+  }
+
+  const slug = slugifyForBooking(param);
+  if (slug.length < 3) return null;
+
+  const { data, error } = await client.from("profiles").select("id").eq("booking_slug", slug).maybeSingle();
+  if (error?.code === "42703" || String(error?.message || "").toLowerCase().includes("column")) {
+    return null;
+  }
+  return data?.id ?? null;
 }
 
 function timeToMin(t: string): number {
@@ -20,16 +41,18 @@ function intervalsOverlap(a0: number, a1: number, b0: number, b1: number) {
 // GET — disponibilidade pública + serviços (sem preço: só nome e duração)
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = params;
+    const client = sb();
+    const id = await resolveProfessionalId(client, params.id);
+    if (!id) return NextResponse.json({ ok: false, error: "Profissional não encontrado" }, { status: 404 });
 
     const [{ data: perfil }, { data: disponibilidade }, { data: agendados }, svcRes] = await Promise.all([
-      sb().from("profiles").select("id, full_name, city, state, barber_shop, instagram").eq("id", id).single(),
-      sb().from("availability").select("*").eq("professional_id", id).eq("active", true).order("day_of_week"),
-      sb().from("appointments").select("appointment_date, appointment_time, duration_min")
+      client.from("profiles").select("id, full_name, city, state, barber_shop, instagram").eq("id", id).single(),
+      client.from("availability").select("*").eq("professional_id", id).eq("active", true).order("day_of_week"),
+      client.from("appointments").select("appointment_date, appointment_time, duration_min")
         .eq("professional_id", id)
         .in("status", ["confirmado", "pendente"])
         .gte("appointment_date", new Date().toISOString().split("T")[0]),
-      sb()
+      client
         .from("pro_services")
         .select("id, name, duration_min")
         .eq("professional_id", id)
@@ -60,7 +83,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 // POST — agenda com duração do procedimento e validação de sobreposição
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = params;
+    const client = sb();
+    const id = await resolveProfessionalId(client, params.id);
+    if (!id) return NextResponse.json({ ok: false, error: "Profissional não encontrado" }, { status: 404 });
+
     const body = await req.json();
     const { client_name, client_phone, service, appointment_date, appointment_time, service_id } = body;
 
@@ -68,7 +94,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ ok: false, error: "Nome, data e horário obrigatórios" }, { status: 400 });
     }
 
-    const { data: umServico } = await sb()
+    const { data: umServico } = await client
       .from("pro_services")
       .select("id")
       .eq("professional_id", id)
@@ -87,7 +113,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           { status: 400 }
         );
       }
-      const { data: svc, error: se } = await sb()
+      const { data: svc, error: se } = await client
         .from("pro_services")
         .select("name, duration_min")
         .eq("id", service_id)
@@ -109,7 +135,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     }
 
-    const { data: dayApts, error: dayErr } = await sb()
+    const { data: dayApts, error: dayErr } = await client
       .from("appointments")
       .select("appointment_time, duration_min")
       .eq("professional_id", id)
@@ -137,7 +163,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const telRaw = client_phone || null;
 
     let clientId: string | null = null;
-    const clRes = await sb().from("pro_clients").select("id, name, phone").eq("professional_id", id).limit(4000);
+    const clRes = await client.from("pro_clients").select("id, name, phone").eq("professional_id", id).limit(4000);
 
     if (!clRes.error && clRes.data?.length) {
       for (const c of clRes.data) {
@@ -149,7 +175,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     if (!clientId && clRes.error?.code !== "42P01") {
-      const ins = await sb()
+      const ins = await client
         .from("pro_clients")
         .insert({
           professional_id: id,
@@ -173,11 +199,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     };
     if (clientId) row.client_id = clientId;
 
-    let { data, error } = await sb().from("appointments").insert(row).select().single();
+    let { data, error } = await client.from("appointments").insert(row).select().single();
 
     if (error?.code === "42703" && clientId) {
       delete row.client_id;
-      const r2 = await sb().from("appointments").insert(row).select().single();
+      const r2 = await client.from("appointments").insert(row).select().single();
       data = r2.data;
       error = r2.error;
     }

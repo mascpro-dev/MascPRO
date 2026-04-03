@@ -4,8 +4,9 @@ import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
   ShieldCheck, LayoutDashboard, User, Camera, Save,
-  Instagram, Phone, MapPin, Briefcase, Clock, Loader2, CheckCircle, AlertCircle,
+  Instagram, Phone, MapPin, Briefcase, Clock, Loader2, CheckCircle, AlertCircle, Link2,
 } from "lucide-react";
+import { slugifyForBooking } from "@/lib/bookingSlug";
 
 type Form = {
   full_name: string;
@@ -15,6 +16,7 @@ type Form = {
   city: string;
   state: string;
   barber_shop: string;
+  booking_slug: string;
   work_type: string;
   experience: string;
 };
@@ -31,7 +33,7 @@ export default function PerfilPage() {
   const [profile, setProfile] = useState<any>(null);
   const [form, setForm] = useState<Form>({
     full_name: "", whatsapp: "", instagram: "", bio: "",
-    city: "", state: "", barber_shop: "", work_type: "", experience: "",
+    city: "", state: "", barber_shop: "", booking_slug: "", work_type: "", experience: "",
   });
   const [salvando, setSalvando] = useState(false);
   const [alterandoFoto, setAlterandoFoto] = useState(false);
@@ -58,6 +60,7 @@ export default function PerfilPage() {
           city: data.city || "",
           state: data.state || "",
           barber_shop: data.barber_shop || "",
+          booking_slug: data.booking_slug || "",
           work_type: data.work_type || "",
           experience: data.experience || "",
         });
@@ -273,6 +276,38 @@ export default function PerfilPage() {
                 />
                 <p className="text-[10px] text-zinc-600 leading-relaxed">
                   É o título que o cliente vê ao abrir seu link de agendamento. Se ficar em branco, usamos seu nome completo.
+                </p>
+              </div>
+
+              {/* Link curto da agenda */}
+              <div className="space-y-1 md:col-span-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1">
+                  <Link2 size={11} /> Final do link de agendamento
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex-1 flex items-center rounded-xl border border-white/10 bg-black/40 overflow-hidden min-w-0">
+                    <span className="pl-3 text-[10px] text-zinc-500 shrink-0 hidden sm:inline">…/agendar/</span>
+                    <input
+                      type="text"
+                      placeholder="ex: salao-joana"
+                      value={form.booking_slug}
+                      onChange={(e) => set("booking_slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                      className="flex-1 min-w-0 bg-transparent border-0 py-3 px-3 sm:pl-1 text-sm text-white outline-none focus:ring-0"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const base = form.barber_shop.trim() || form.full_name.trim();
+                      if (base) set("booking_slug", slugifyForBooking(base));
+                    }}
+                    className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B] border border-[#C9A66B]/40 rounded-xl px-4 py-2 hover:bg-[#C9A66B]/10 transition-colors whitespace-nowrap"
+                  >
+                    Sugerir do salão / nome
+                  </button>
+                </div>
+                <p className="text-[10px] text-zinc-600 leading-relaxed">
+                  Só letras minúsculas, números e hífen (acentos viram letras simples). Deixe em branco para usar só o ID longo no link.
                 </p>
               </div>
 
