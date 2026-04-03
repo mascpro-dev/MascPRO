@@ -168,44 +168,162 @@ export default function AdminMembrosPage() {
         ) : filtrado.length === 0 ? (
           <p className="text-zinc-500 text-center mt-20">Nenhum membro encontrado.</p>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            <div className="hidden lg:grid lg:grid-cols-[2rem_2.75rem_minmax(12rem,1fr)_4.75rem_6.25rem_4rem_9.5rem_2.75rem] lg:items-center lg:gap-x-4 lg:px-4 lg:pb-2 lg:pt-1 text-[9px] font-black uppercase tracking-widest text-zinc-600 border-b border-zinc-800/80">
+              <span className="text-right tabular-nums">#</span>
+              <span aria-hidden className="block min-w-[2.75rem]" />
+              <span>Membro</span>
+              <span className="text-right">PRO</span>
+              <span className="text-right">Compras rede</span>
+              <span className="text-center">Redes</span>
+              <span className="text-center">Função / status</span>
+              <span className="sr-only">Editar</span>
+            </div>
+
             {filtrado.map((m, idx) => {
               const proTotal = (m.moedas_pro_acumuladas || 0) + (m.network_coins || 0);
+              const redeFmt = `R$ ${Number(m.total_compras_rede || 0).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`;
+
+              const blocoMembro = (
+                <div className="min-w-0 space-y-1">
+                  <p className="truncate text-sm font-bold leading-snug text-white">{m.full_name}</p>
+                  <p className="truncate text-[11px] leading-relaxed text-zinc-500">{m.email}</p>
+                  {m.indicador ? (
+                    <p className="text-[10px] leading-relaxed text-zinc-600">
+                      Indicado por <span className="font-semibold text-zinc-400">{m.indicador.full_name}</span>
+                    </p>
+                  ) : null}
+                  {(m.city || m.state) ? (
+                    <p className="text-[10px] leading-relaxed text-zinc-600">
+                      {[m.city, m.state].filter(Boolean).join(" · ")}
+                    </p>
+                  ) : null}
+                </div>
+              );
+
+              const icones = (
+                <div className="flex items-center justify-center gap-1">
+                  {m.whatsapp ? (
+                    <a
+                      href={`https://wa.me/55${m.whatsapp.replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg p-1.5 text-green-400 transition-colors hover:bg-green-500/10 hover:text-green-300"
+                      aria-label="WhatsApp"
+                    >
+                      <MessageCircle size={18} />
+                    </a>
+                  ) : (
+                    <span className="rounded-lg p-1.5 text-zinc-700">
+                      <MessageCircle size={18} />
+                    </span>
+                  )}
+                  {m.instagram ? (
+                    <a
+                      href={`https://instagram.com/${m.instagram.replace(/^@/, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg p-1.5 text-pink-400 transition-colors hover:bg-pink-500/10 hover:text-pink-300"
+                      aria-label="Instagram"
+                    >
+                      <Instagram size={18} />
+                    </a>
+                  ) : (
+                    <span className="rounded-lg p-1.5 text-zinc-700">
+                      <Instagram size={18} />
+                    </span>
+                  )}
+                </div>
+              );
+
+              const pills = (
+                <div className="flex flex-col gap-1.5">
+                  <span className="inline-flex min-h-[1.75rem] items-center justify-center rounded-lg bg-zinc-800 px-2 py-1 text-center text-[9px] font-black uppercase leading-tight tracking-wide text-zinc-300">
+                    {labelRole(m.role)}
+                  </span>
+                  {m.tem_compra ? (
+                    <span className="inline-flex min-h-[1.75rem] items-center justify-center gap-1 rounded-lg border border-emerald-800/40 bg-emerald-950/35 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-emerald-400">
+                      <ShoppingBag size={10} className="shrink-0" /> ATIVO
+                    </span>
+                  ) : (
+                    <span className="inline-flex min-h-[1.75rem] items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950/80 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-zinc-500">
+                      INATIVO
+                    </span>
+                  )}
+                </div>
+              );
+
               return (
-                <div key={m.id} className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  <div className="flex items-center gap-4">
-                    <div className="w-8 text-right shrink-0">
-                      <span className="text-[11px] font-black text-zinc-600 italic">#{idx + 1}</span>
+                <div
+                  key={m.id}
+                  className="rounded-2xl border border-zinc-800 bg-zinc-900/60 transition-colors hover:border-zinc-700/70"
+                >
+                  {/* Mobile / tablet */}
+                  <div className="flex flex-col gap-4 p-4 lg:hidden">
+                    <div className="flex items-start gap-3">
+                      <span className="w-6 shrink-0 text-right text-[11px] font-black tabular-nums text-zinc-500">
+                        {idx + 1}
+                      </span>
+                      <AdminMemberAvatar avatarUrl={m.avatar_url} name={m.full_name} />
+                      <div className="min-w-0 flex-1">{blocoMembro}</div>
                     </div>
-                    <AdminMemberAvatar avatarUrl={m.avatar_url} name={m.full_name} />
-                    <div>
-                      <p className="font-bold text-sm leading-tight">{m.full_name}</p>
-                      <p className="text-[10px] text-zinc-500">{m.email}</p>
-                      {m.indicador && <p className="text-[10px] text-zinc-600">Indicado por: <span className="text-zinc-400 font-bold">{m.indicador.full_name}</span></p>}
-                      {(m.city || m.state) && <p className="text-[10px] text-zinc-600">{[m.city, m.state].filter(Boolean).join(" · ")}</p>}
+                    <div className="grid grid-cols-2 gap-3 border-t border-zinc-800/80 pt-4 sm:grid-cols-4">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">PRO</span>
+                        <span className="text-sm font-black tabular-nums text-[#C9A66B]">
+                          {proTotal.toLocaleString("pt-BR")}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+                          Compras rede
+                        </span>
+                        <span className="text-sm font-black tabular-nums text-emerald-400">{redeFmt}</span>
+                      </div>
+                      <div className="flex items-center justify-center">{icones}</div>
+                      <div className="flex flex-col justify-center gap-2">{pills}</div>
+                    </div>
+                    <div className="flex justify-end border-t border-zinc-800/80 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => abrirEditar(m)}
+                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 transition-all hover:bg-zinc-700 hover:text-[#C9A66B]"
+                        title="Editar membro"
+                      >
+                        <Pencil size={14} />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <div className="text-center">
-                      <p className="text-[9px] text-zinc-600 uppercase tracking-widest">PRO</p>
-                      <p className="text-sm font-black text-[#C9A66B]">{proTotal.toLocaleString("pt-BR")}</p>
+
+                  {/* Desktop — colunas alinhadas */}
+                  <div className="hidden min-h-[4.25rem] lg:grid lg:grid-cols-[2rem_2.75rem_minmax(12rem,1fr)_4.75rem_6.25rem_4rem_9.5rem_2.75rem] lg:items-center lg:gap-x-4 lg:px-4 lg:py-3">
+                    <span className="text-right text-[11px] font-black tabular-nums text-zinc-500">{idx + 1}</span>
+                    <div className="flex justify-center">
+                      <AdminMemberAvatar avatarUrl={m.avatar_url} name={m.full_name} />
                     </div>
-                    <div className="text-center">
-                      <p className="text-[9px] text-zinc-600 uppercase tracking-widest">Compras Rede</p>
-                      <p className="text-sm font-black text-emerald-400">R$ {Number(m.total_compras_rede || 0).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}</p>
+                    <div className="min-w-0 pr-1">{blocoMembro}</div>
+                    <div className="flex flex-col items-end justify-center gap-0.5 text-right">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">PRO</span>
+                      <span className="text-sm font-black tabular-nums text-[#C9A66B]">
+                        {proTotal.toLocaleString("pt-BR")}
+                      </span>
                     </div>
-                    <div className="flex gap-2">
-                      {m.whatsapp ? <a href={`https://wa.me/55${m.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer"><MessageCircle size={18} className="text-green-400 hover:text-green-300" /></a> : <MessageCircle size={18} className="text-zinc-700" />}
-                      {m.instagram ? <a href={`https://instagram.com/${m.instagram.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer"><Instagram size={18} className="text-pink-400 hover:text-pink-300" /></a> : <Instagram size={18} className="text-zinc-700" />}
+                    <div className="flex flex-col items-end justify-center gap-0.5 text-right">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Rede</span>
+                      <span className="text-sm font-black tabular-nums leading-tight text-emerald-400">{redeFmt}</span>
                     </div>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">{labelRole(m.role)}</span>
-                    {m.tem_compra
-                      ? <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-emerald-900/30 text-emerald-400 border border-emerald-800/40 flex items-center gap-1"><ShoppingBag size={10} /> ATIVO</span>
-                      : <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-zinc-900 text-zinc-600 border border-zinc-800">INATIVO</span>
-                    }
-                    <button onClick={() => abrirEditar(m)} className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-[#C9A66B] transition-all" title="Editar membro">
-                      <Pencil size={14} />
-                    </button>
+                    {icones}
+                    <div className="flex min-w-0 justify-center">{pills}</div>
+                    <div className="flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => abrirEditar(m)}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 transition-all hover:bg-zinc-700 hover:text-[#C9A66B]"
+                        title="Editar membro"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

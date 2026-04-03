@@ -127,6 +127,11 @@ export default function AgendarPage() {
   const temCatalogo = servicos.length > 0;
   const podeEscolherAgenda = !temCatalogo || servicoSel != null;
 
+  const nomeSalao = String(perfil?.barber_shop || "").trim();
+  const nomePessoa = String(perfil?.full_name || "").trim();
+  const tituloAgenda = nomeSalao || nomePessoa;
+  const mostrarProfissionalNoTopo = Boolean(nomeSalao && nomePessoa);
+
   function getDisp(d: Date) {
     return disponibilidade.find((di) => di.day_of_week === d.getDay());
   }
@@ -248,8 +253,10 @@ export default function AgendarPage() {
         <div className="w-16 h-16 rounded-2xl bg-[#C9A66B]/20 border border-[#C9A66B]/30 flex items-center justify-center mx-auto mb-4">
           <Scissors size={28} className="text-[#C9A66B]" />
         </div>
-        <h1 className="text-2xl font-black uppercase">{perfil?.full_name}</h1>
-        {perfil?.barber_shop && <p className="text-[#C9A66B] font-bold text-sm mt-0.5">{perfil.barber_shop}</p>}
+        <h1 className="text-2xl font-black uppercase">{tituloAgenda}</h1>
+        {mostrarProfissionalNoTopo && (
+          <p className="text-zinc-400 font-semibold text-sm mt-1">Atendimento: {nomePessoa}</p>
+        )}
         {(perfil?.city || perfil?.state) && (
           <p className="text-zinc-500 text-xs mt-1 flex items-center justify-center gap-1">
             <MapPin size={11} /> {[perfil.city, perfil.state].filter(Boolean).join(", ")}

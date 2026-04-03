@@ -261,10 +261,19 @@ export default function PerfilPage() {
                 <input type="text" value={form.full_name} onChange={e => set("full_name", e.target.value)} className={inputClass} />
               </div>
 
-              {/* Bio */}
+              {/* Nome do salão (link público de agendamento) */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Apelido / Especialidade</label>
-                <input type="text" placeholder="Ex: Especialista em Degradê" value={form.barber_shop} onChange={e => set("barber_shop", e.target.value)} className={inputClass} />
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Nome do salão ou espaço</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Studio Cortes & Cia"
+                  value={form.barber_shop}
+                  onChange={e => set("barber_shop", e.target.value)}
+                  className={inputClass}
+                />
+                <p className="text-[10px] text-zinc-600 leading-relaxed">
+                  É o título que o cliente vê ao abrir seu link de agendamento. Se ficar em branco, usamos seu nome completo.
+                </p>
               </div>
 
               {/* Bio textarea */}
