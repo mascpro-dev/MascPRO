@@ -21,6 +21,7 @@ import {
   Search,
   Trophy,
   Package,
+  History,
 } from "lucide-react";
 import { normalizeName, normalizePhoneDigits } from "@/lib/proClientMatch";
 
@@ -139,6 +140,16 @@ function labelInvCat(v: string) {
   return INV_CATS.find((c) => c.v === v)?.l ?? v;
 }
 
+type ProInventoryMovimento = {
+  id: string;
+  order_id: string | null;
+  order_ref: string | null;
+  product_title: string;
+  item_name: string;
+  quantity_delta: number;
+  created_at: string;
+};
+
 const EXP_CATS = [
   { v: "produtos", l: "Produtos" },
   { v: "acessorios", l: "Acessorios" },
@@ -248,6 +259,7 @@ export default function AgendaGestaoPage() {
   const [fin, setFin] = useState<any>(null);
 
   const [inventory, setInventory] = useState<ProInventoryItem[]>([]);
+  const [inventoryMovs, setInventoryMovs] = useState<ProInventoryMovimento[]>([]);
   const [loadInv, setLoadInv] = useState(false);
   const [modalInv, setModalInv] = useState<ProInventoryItem | "new" | null>(null);
   const [formInv, setFormInv] = useState({
@@ -362,7 +374,10 @@ export default function AgendaGestaoPage() {
     setLoadInv(true);
     const r = await fetch("/api/pro/gestao/inventory");
     const d = await r.json();
-    if (d.ok) setInventory(d.items || []);
+    if (d.ok) {
+      setInventory(d.items || []);
+      setInventoryMovs(d.movements || []);
+    }
     setLoadInv(false);
   }, []);
 
@@ -1574,9 +1589,49 @@ export default function AgendaGestaoPage() {
               <Package size={14} /> Estoque do espaco
             </p>
             <p className="text-[11px] text-zinc-500 leading-snug">
-              Controle produtos quimicos, descartaveis, pinceis e materiais de barbearia. Defina um minimo para destacar o que precisa repor.
+              Controle produtos quimicos, descartaveis, pinceis e materiais de barbearia. Defina um minimo para destacar o que precisa repor. Ao confirmar recebimento de pedidos da loja MascPRO, as quantidades entram aqui e aparecem no historico abaixo.
             </p>
           </div>
+
+          {!loadInv && (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+              <p className="text-xs font-black uppercase text-cyan-500/90 flex items-center gap-2 mb-2">
+                <History size={14} /> Origem — entradas pela loja
+              </p>
+              <p className="text-[10px] text-zinc-600 mb-3 leading-snug">
+                Registro somente leitura: cada linha mostra o pedido que creditou itens no seu estoque quando voce marcou o pedido como entregue. Passe o mouse em &quot;Pedido&quot; para ver o ID completo.
+              </p>
+              {inventoryMovs.length === 0 ? (
+                <p className="text-zinc-500 text-xs">
+                  Ainda nao ha entradas automaticas pela loja. Quando houver, elas aparecem aqui (e no admin, Gestao PRO Master).
+                </p>
+              ) : (
+                <div className="max-h-52 overflow-y-auto space-y-2">
+                  {inventoryMovs.map((row) => (
+                    <div
+                      key={row.id}
+                      className="rounded-xl border border-zinc-800/90 bg-black/25 px-3 py-2 text-[11px]"
+                    >
+                      <p className="font-bold text-white">
+                        +{row.quantity_delta}{" "}
+                        <span className="text-zinc-500 font-normal">·</span>{" "}
+                        <span className="text-zinc-300">{row.product_title}</span>
+                      </p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">No estoque: {row.item_name}</p>
+                      {row.order_id ? (
+                        <p className="text-[10px] text-cyan-600/90 mt-1 font-mono" title={row.order_id}>
+                          Pedido {row.order_ref}
+                        </p>
+                      ) : null}
+                      <p className="text-[9px] text-zinc-600 mt-1">
+                        {new Date(row.created_at).toLocaleString("pt-BR")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {inventarioBaixo.length > 0 && (
             <div className="rounded-2xl border border-amber-700/40 bg-amber-950/20 p-4">
