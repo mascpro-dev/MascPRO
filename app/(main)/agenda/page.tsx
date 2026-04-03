@@ -25,6 +25,7 @@ import { normalizeName, normalizePhoneDigits } from "@/lib/proClientMatch";
 
 type Appointment = {
   id: string;
+  client_id?: string | null;
   client_name: string;
   client_phone: string | null;
   service: string | null;
@@ -221,6 +222,7 @@ export default function AgendaGestaoPage() {
 
   const [modalApt, setModalApt] = useState<Appointment | "new" | null>(null);
   const [formApt, setFormApt] = useState({
+    client_id: "",
     client_name: "",
     client_phone: "",
     service: "",
@@ -345,6 +347,7 @@ export default function AgendaGestaoPage() {
     setErr("");
     const hoje = toISO(new Date());
     setFormApt({
+      client_id: "",
       client_name: "",
       client_phone: "",
       service: "",
@@ -366,6 +369,7 @@ export default function AgendaGestaoPage() {
     const hoje = toISO(new Date());
     const pago = a.paid === true;
     setFormApt({
+      client_id: a.client_id || "",
       client_name: a.client_name,
       client_phone: a.client_phone || "",
       service: a.service || "",
@@ -399,11 +403,13 @@ export default function AgendaGestaoPage() {
         notes: formApt.notes || null,
         status: formApt.status,
       };
+      if (formApt.client_id.trim()) body.client_id = formApt.client_id.trim();
       if (formApt.price.trim() !== "") body.price = Number(formApt.price.replace(",", "."));
     } else {
       const id = (modalApt as Appointment).id;
       body = {
         id,
+        client_id: formApt.client_id.trim() ? formApt.client_id.trim() : null,
         client_name: formApt.client_name,
         client_phone: formApt.client_phone || null,
         service: formApt.service || null,
@@ -742,9 +748,36 @@ export default function AgendaGestaoPage() {
   function aplicarCliente(c: ProClient) {
     setFormApt((f) => ({
       ...f,
+      client_id: c.id,
       client_name: c.name,
       client_phone: c.phone || "",
     }));
+  }
+
+  function desvincularClienteApt() {
+    setFormApt((f) => ({ ...f, client_id: "" }));
+  }
+
+  function aoMudarNomeClienteApt(value: string) {
+    setFormApt((f) => {
+      const next = { ...f, client_name: value };
+      if (!f.client_id) return next;
+      const c = clients.find((x) => x.id === f.client_id);
+      if (!c) return { ...next, client_id: "" };
+      if (normalizeName(c.name) !== normalizeName(value)) return { ...next, client_id: "" };
+      return next;
+    });
+  }
+
+  function aoMudarTelefoneClienteApt(value: string) {
+    setFormApt((f) => {
+      const next = { ...f, client_phone: value };
+      if (!f.client_id) return next;
+      const c = clients.find((x) => x.id === f.client_id);
+      if (!c) return { ...next, client_id: "" };
+      if (normalizePhoneDigits(c.phone || "") !== normalizePhoneDigits(value)) return { ...next, client_id: "" };
+      return next;
+    });
   }
 
   function aplicarServico(s: ProService) {
@@ -901,7 +934,10 @@ export default function AgendaGestaoPage() {
                       className={`absolute left-1 right-1 rounded-xl border px-2 py-1 text-left overflow-hidden ${st}`}
                       style={{ top, height: Math.max(h, 36) }}
                     >
-                      <p className="text-[10px] font-black text-white truncate">
+                      <p className="text-[10px] font-black text-white truncate flex items-center gap-1">
+                        {a.client_id ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Cliente vinculado" />
+                        ) : null}
                         {a.appointment_time.slice(0, 5)} · {a.client_name}
                       </p>
                       <p className="text-[9px] text-zinc-400 truncate">{a.service || "Servico"}</p>
@@ -1450,7 +1486,14 @@ export default function AgendaGestaoPage() {
                 <div className="p-4 border-b border-zinc-800">
                   <div className="flex justify-between items-start gap-2">
                     <div>
-                      <p className="text-lg font-black text-white leading-tight">{sheetApt.client_name}</p>
+                      <p className="text-lg font-black text-white leading-tight flex items-center gap-2 flex-wrap">
+                        {sheetApt.client_name}
+                        {sheetApt.client_id ? (
+                          <span className="text-[9px] font-black uppercase text-emerald-500 border border-emerald-700/50 rounded-full px-2 py-0.5">
+                            Cadastro PRO
+                          </span>
+                        ) : null}
+                      </p>
                       <p className="text-xs text-zinc-500 mt-1">
                         {(sheetApt.appointment_time || "").slice(0, 5)} · {fmtDataBr(sheetApt.appointment_date)}
                         {sheetApt.service ? ` · ${sheetApt.service}` : ""}
@@ -1792,16 +1835,36 @@ export default function AgendaGestaoPage() {
               </button>
             </div>
             <div className="p-4 space-y-3">
+              {formApt.client_id ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-800/40 bg-emerald-950/20 px-3 py-2">
+                  <p className="text-[10px] font-black uppercase text-emerald-400">
+                    Vinculado ao cadastro PRO
+                  </p>
+                  <button
+                    type="button"
+                    onClick={desvincularClienteApt}
+                    className="text-[9px] font-bold uppercase text-zinc-400 hover:text-white"
+                  >
+                    Desvincular
+                  </button>
+                </div>
+              ) : null}
               {clients.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Cliente cadastrado</p>
-                  <div className="flex flex-wrap gap-1">
-                    {clients.slice(0, 8).map((c) => (
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">
+                    Escolher cliente (preenche e amarra ao cadastro)
+                  </p>
+                  <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto pr-1">
+                    {clients.map((c) => (
                       <button
                         key={c.id}
                         type="button"
                         onClick={() => aplicarCliente(c)}
-                        className="text-[10px] px-2 py-1 rounded-lg bg-zinc-800 text-[#C9A66B]"
+                        className={`text-[10px] px-2 py-1 rounded-lg border ${
+                          formApt.client_id === c.id
+                            ? "bg-[#C9A66B]/20 border-[#C9A66B] text-[#C9A66B]"
+                            : "bg-zinc-800 border-zinc-700 text-[#C9A66B]"
+                        }`}
                       >
                         {c.name}
                       </button>
@@ -1812,13 +1875,13 @@ export default function AgendaGestaoPage() {
               <input
                 placeholder="Nome do cliente"
                 value={formApt.client_name}
-                onChange={(e) => setFormApt({ ...formApt, client_name: e.target.value })}
+                onChange={(e) => aoMudarNomeClienteApt(e.target.value)}
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
               />
               <input
                 placeholder="WhatsApp"
                 value={formApt.client_phone}
-                onChange={(e) => setFormApt({ ...formApt, client_phone: e.target.value })}
+                onChange={(e) => aoMudarTelefoneClienteApt(e.target.value)}
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
               />
               {services.length > 0 && (

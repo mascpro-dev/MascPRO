@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { appointmentMatchesClient } from "@/lib/proClientMatch";
 
 function sb() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -132,18 +133,54 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     }
 
+    const nomeLimpo = String(client_name).trim();
+    const telRaw = client_phone || null;
+
+    let clientId: string | null = null;
+    const clRes = await sb().from("pro_clients").select("id, name, phone").eq("professional_id", id).limit(4000);
+
+    if (!clRes.error && clRes.data?.length) {
+      for (const c of clRes.data) {
+        if (appointmentMatchesClient({ client_name: nomeLimpo, client_phone: telRaw }, c)) {
+          clientId = c.id;
+          break;
+        }
+      }
+    }
+
+    if (!clientId && clRes.error?.code !== "42P01") {
+      const ins = await sb()
+        .from("pro_clients")
+        .insert({
+          professional_id: id,
+          name: nomeLimpo,
+          phone: telRaw,
+        })
+        .select("id")
+        .single();
+      if (!ins.error && ins.data?.id) clientId = ins.data.id as string;
+    }
+
     const row: Record<string, unknown> = {
       professional_id: id,
-      client_name: String(client_name).trim(),
-      client_phone: client_phone || null,
+      client_name: nomeLimpo,
+      client_phone: telRaw,
       service: serviceName,
       appointment_date,
       appointment_time: appointment_time.slice(0, 5),
       duration_min: durationMin,
       status: "pendente",
     };
+    if (clientId) row.client_id = clientId;
 
-    const { data, error } = await sb().from("appointments").insert(row).select().single();
+    let { data, error } = await sb().from("appointments").insert(row).select().single();
+
+    if (error?.code === "42703" && clientId) {
+      delete row.client_id;
+      const r2 = await sb().from("appointments").insert(row).select().single();
+      data = r2.data;
+      error = r2.error;
+    }
 
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, appointment: data });

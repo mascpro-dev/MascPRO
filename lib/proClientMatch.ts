@@ -24,3 +24,17 @@ export function appointmentMatchesClient(
   }
   return false;
 }
+
+/** Prioriza vínculo por client_id; senão usa nome/telefone (registros antigos). */
+export function appointmentBelongsToClient(
+  apt: {
+    client_id?: string | null;
+    client_name?: string | null;
+    client_phone?: string | null;
+  },
+  client: { id: string; name: string; phone?: string | null }
+): boolean {
+  const cid = apt.client_id;
+  if (cid && client.id) return String(cid) === String(client.id);
+  return appointmentMatchesClient(apt, client);
+}

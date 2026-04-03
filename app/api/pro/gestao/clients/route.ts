@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProDb } from "@/lib/proGestaoDb";
-import { appointmentMatchesClient } from "@/lib/proClientMatch";
+import { appointmentBelongsToClient } from "@/lib/proClientMatch";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   const { data: apts, error: e2 } = await g.db
     .from("appointments")
     .select(
-      "client_name, client_phone, appointment_date, appointment_time, service, price, status, paid"
+      "client_id, client_name, client_phone, appointment_date, appointment_time, service, price, status, paid"
     )
     .eq("professional_id", g.userId)
     .order("appointment_date", { ascending: false })
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     let totalSpent = 0;
     let lastAppointment: string | null = null;
     for (const apt of apts || []) {
-      if (!appointmentMatchesClient(apt, c as { name: string; phone?: string | null })) continue;
+      if (!appointmentBelongsToClient(apt, c as { id: string; name: string; phone?: string | null })) continue;
       const st = String(apt.status || "").toLowerCase();
       if (st === "cancelado") continue;
       const d = String(apt.appointment_date || "");
@@ -99,6 +99,21 @@ export async function PATCH(req: NextRequest) {
     .eq("professional_id", g.userId);
 
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+
+  if (campos.name !== undefined || campos.phone !== undefined) {
+    const { data: row } = await g.db.from("pro_clients").select("name, phone").eq("id", id).maybeSingle();
+    if (row) {
+      const up = await g.db
+        .from("appointments")
+        .update({ client_name: row.name, client_phone: row.phone })
+        .eq("client_id", id)
+        .eq("professional_id", g.userId);
+      if (up.error?.code === "42703" || String(up.error?.message || "").toLowerCase().includes("client_id")) {
+        /* coluna client_id ainda nao existe no banco */
+      }
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }
 

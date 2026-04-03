@@ -4,6 +4,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
+/** Linha de agendamento pago usada nos agregados financeiros (inclui fallback legado sem colunas de pagamento). */
+type RowFinancePago = {
+  id?: string;
+  appointment_date?: string | null;
+  appointment_time?: string | null;
+  client_name?: string | null;
+  service?: string | null;
+  price?: number | null;
+  status?: string | null;
+  paid?: boolean | null;
+  paid_at?: string | null;
+  payment_method?: string | null;
+};
+
 function diaReceita(a: { paid_at?: string | null; appointment_date?: string | null }) {
   const p = a.paid_at ? String(a.paid_at).slice(0, 10) : "";
   if (p) return p;
@@ -35,7 +49,9 @@ async function mesReceitaDespesasLucro(db: SupabaseClient, userId: string, mes: 
       .lte("expense_date", fim),
   ]);
 
-  let aptsPagos = colErr(pagosRes.error) ? [] : pagosRes.data || [];
+  let aptsPagos: RowFinancePago[] = colErr(pagosRes.error)
+    ? []
+    : ((pagosRes.data || []) as RowFinancePago[]);
 
   if (pagosRes.error && !colErr(pagosRes.error)) {
     return { receita: 0, despesas: 0, lucro: 0, erro: pagosRes.error.message };
@@ -51,12 +67,24 @@ async function mesReceitaDespesasLucro(db: SupabaseClient, userId: string, mes: 
     if (!leg.error && leg.data) {
       aptsPagos = leg.data
         .filter((row: { status?: string }) => String(row.status || "").toLowerCase() === "concluido")
-        .map((row: Record<string, unknown>) => ({
-          ...row,
-          paid: true,
-          paid_at: row.appointment_date,
-          payment_method: null,
-        }));
+        .map(
+          (row: {
+            id?: string;
+            appointment_date?: string | null;
+            service?: string | null;
+            price?: number | null;
+            status?: string | null;
+          }): RowFinancePago => ({
+            id: row.id,
+            appointment_date: row.appointment_date,
+            service: row.service,
+            price: row.price,
+            status: row.status,
+            paid: true,
+            paid_at: row.appointment_date != null ? String(row.appointment_date) : null,
+            payment_method: null,
+          })
+        );
     } else {
       aptsPagos = [];
     }
@@ -64,8 +92,8 @@ async function mesReceitaDespesasLucro(db: SupabaseClient, userId: string, mes: 
 
   let receita = 0;
   for (const a of aptsPagos) {
-    if (String((a as { status?: string }).status || "").toLowerCase() === "cancelado") continue;
-    receita += Number((a as { price?: number }).price || 0);
+    if (String(a.status || "").toLowerCase() === "cancelado") continue;
+    receita += Number(a.price || 0);
   }
 
   const expenses = expRes.error?.code === "42P01" ? [] : expRes.data || [];
@@ -122,7 +150,9 @@ export async function GET(req: NextRequest) {
       .eq("paid", false),
   ]);
 
-  let aptsPagos = colErr(pagosRes.error) ? [] : pagosRes.data || [];
+  let aptsPagos: RowFinancePago[] = colErr(pagosRes.error)
+    ? []
+    : ((pagosRes.data || []) as RowFinancePago[]);
   let carteiraPend = colErr(carteiraRes.error) ? [] : carteiraRes.data || [];
 
   if (pagosRes.error && !colErr(pagosRes.error)) {
@@ -138,8 +168,29 @@ export async function GET(req: NextRequest) {
       .lte("appointment_date", fim);
     if (!leg.error && leg.data) {
       aptsPagos = leg.data
-        .filter((row: any) => String(row.status || "").toLowerCase() === "concluido")
-        .map((row: any) => ({ ...row, paid: true, paid_at: row.appointment_date, payment_method: null }));
+        .filter((row: { status?: string }) => String(row.status || "").toLowerCase() === "concluido")
+        .map(
+          (row: {
+            id?: string;
+            appointment_date?: string | null;
+            appointment_time?: string | null;
+            client_name?: string | null;
+            service?: string | null;
+            price?: number | null;
+            status?: string | null;
+          }): RowFinancePago => ({
+            id: row.id,
+            appointment_date: row.appointment_date,
+            appointment_time: row.appointment_time,
+            client_name: row.client_name,
+            service: row.service,
+            price: row.price,
+            status: row.status,
+            paid: true,
+            paid_at: row.appointment_date != null ? String(row.appointment_date) : null,
+            payment_method: null,
+          })
+        );
     } else {
       aptsPagos = [];
     }
@@ -167,7 +218,7 @@ export async function GET(req: NextRequest) {
     byService[svc].count += 1;
     const cn = (a.client_name || "Cliente").trim();
     byClient[cn] = (byClient[cn] || 0) + p;
-    const forma = String((a as { payment_method?: string }).payment_method || "nao_info").toLowerCase();
+    const forma = String(a.payment_method || "nao_info").toLowerCase();
     byForma[forma] = (byForma[forma] || 0) + p;
   }
 

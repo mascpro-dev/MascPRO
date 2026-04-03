@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProDb, ultimoDiaMes } from "@/lib/proGestaoDb";
+import { fetchProClientIfValid } from "@/lib/proBoundClient";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const {
+    client_id: bodyClientId,
     client_name,
     client_phone,
     service,
@@ -71,10 +73,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const bound = await fetchProClientIfValid(g.db, g.userId, bodyClientId);
+  if (bodyClientId && !bound) {
+    return NextResponse.json(
+      { ok: false, error: "Cliente nao encontrado ou nao pertence a sua conta." },
+      { status: 400 }
+    );
+  }
+
   const row: Record<string, unknown> = {
     professional_id: g.userId,
-    client_name,
-    client_phone: client_phone || null,
+    client_name: bound ? bound.name : String(client_name).trim(),
+    client_phone: bound ? bound.phone ?? (client_phone || null) : client_phone || null,
     service: service || null,
     appointment_date,
     appointment_time,
@@ -82,16 +92,17 @@ export async function POST(req: NextRequest) {
     status: status || "confirmado",
     paid: false,
   };
+  if (bound) row.client_id = bound.id;
   if (price !== undefined && price !== "" && price !== null) row.price = Number(price);
   if (notes) row.notes = notes;
 
   let { data, error } = await g.db.from("appointments").insert(row).select().single();
 
   if (error && (error.code === "42703" || error.message?.includes("column"))) {
-    const rowMin = {
+    const rowMin: Record<string, unknown> = {
       professional_id: g.userId,
-      client_name,
-      client_phone: client_phone || null,
+      client_name: row.client_name,
+      client_phone: row.client_phone,
       service: service || null,
       appointment_date,
       appointment_time,
@@ -110,6 +121,7 @@ export async function POST(req: NextRequest) {
 }
 
 const PATCH_KEYS = new Set([
+  "client_id",
   "client_name",
   "client_phone",
   "service",
@@ -130,13 +142,30 @@ export async function PATCH(req: NextRequest) {
   if (!g.ok) return NextResponse.json({ ok: false, error: g.error }, { status: g.status });
 
   const body = await req.json();
-  const { id, ...rest } = body;
+  const { id, client_id: patchClientId, ...rest } = body;
   if (!id) return NextResponse.json({ ok: false, error: "id obrigatorio" }, { status: 400 });
 
   const campos: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(rest)) {
     if (!PATCH_KEYS.has(k)) continue;
     campos[k] = v;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "client_id")) {
+    if (patchClientId === null || patchClientId === "") {
+      campos.client_id = null;
+    } else if (typeof patchClientId === "string") {
+      const bound = await fetchProClientIfValid(g.db, g.userId, patchClientId);
+      if (!bound) {
+        return NextResponse.json(
+          { ok: false, error: "Cliente nao encontrado ou nao pertence a sua conta." },
+          { status: 400 }
+        );
+      }
+      campos.client_id = bound.id;
+      campos.client_name = bound.name;
+      campos.client_phone = bound.phone;
+    }
   }
 
   if (campos.duration_min != null && campos.duration_min !== "")
