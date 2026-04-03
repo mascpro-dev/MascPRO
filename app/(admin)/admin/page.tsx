@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
+import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import Link from "next/link";
 import {
   Users, Activity, ShoppingBag, DollarSign,
   ArrowDownToLine, AlertTriangle, PackageCheck,
   UserPlus, TrendingUp, Truck, PackageOpen, Clock,
-  BadgeDollarSign, Loader2,
+  BadgeDollarSign, Loader2, Eye,
 } from "lucide-react";
 
 type Resumo = {
@@ -81,9 +82,9 @@ export default function AdminDashboard() {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-4 md:p-8 overflow-auto">
+      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-8">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl font-black italic uppercase">
             Painel <span className="text-[#C9A66B]">Admin</span>
@@ -148,6 +149,19 @@ export default function AdminDashboard() {
                 </Link>
               )}
             </div>
+
+            <Link href="/admin/gestao-rede" className="block mb-8">
+              <div className="w-full bg-cyan-950/20 border border-cyan-800/35 rounded-2xl px-6 py-4 flex items-center justify-between group hover:border-cyan-500/50 transition-all">
+                <div className="flex items-center gap-3">
+                  <Eye size={20} className="text-cyan-400" />
+                  <div>
+                    <p className="text-cyan-200 font-bold text-sm">Gestão PRO (Master)</p>
+                    <p className="text-[10px] text-zinc-500">Agenda do dia, clientes, pedidos na loja, estoque global e financeiro por membro</p>
+                  </div>
+                </div>
+                <span className="text-cyan-600 text-xs font-bold uppercase tracking-widest group-hover:text-cyan-400">Abrir →</span>
+              </div>
+            </Link>
 
             {/* LINHA 1 — MEMBROS */}
             <p className="text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-3">Membros</p>
@@ -276,9 +290,12 @@ export default function AdminDashboard() {
                   {(resumo.ultimosMembros || []).map((m: any) => (
                     <div key={m.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
                       <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-[#C9A66B]/10 flex items-center justify-center text-[10px] font-black text-[#C9A66B]">
-                          {m.full_name?.charAt(0) || "?"}
-                        </div>
+                        <AdminMemberAvatar
+                          size="sm"
+                          avatarUrl={m.avatar_url}
+                          name={m.full_name}
+                          className="w-7 h-7 rounded-lg text-[10px]"
+                        />
                         <div>
                           <p className="text-xs font-bold leading-tight">{m.full_name || "—"}</p>
                           <p className="text-[10px] text-zinc-600">{m.email}</p>

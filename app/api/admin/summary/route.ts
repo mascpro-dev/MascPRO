@@ -55,7 +55,7 @@ export async function GET() {
         .gte("created_at", inicioMes.toISOString()),
       supabase.from("withdrawal_requests").select("valor_liquido, status").eq("status", "aguardando"),
       supabase.from("profiles")
-        .select("id, full_name, email, created_at, role")
+        .select("id, full_name, email, created_at, role, avatar_url")
         .order("created_at", { ascending: false })
         .limit(6),
       supabase.from("orders")

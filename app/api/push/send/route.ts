@@ -54,7 +54,12 @@ export async function POST(req: NextRequest) {
         try {
           await webpush.sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            payload
+            payload,
+            {
+              // Mantém a mensagem na fila do push service por mais tempo (ex.: aparelho desligado / offline)
+              TTL: 60 * 60 * 24 * 7,
+              urgency: "high",
+            }
           );
           enviados++;
         } catch (err: any) {

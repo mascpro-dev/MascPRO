@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
+import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import {
   Search, Users, Instagram, MessageCircle, Loader2,
   ShoppingBag, Pencil, X, Save, AlertCircle, CheckCircle, KeyRound, Link2, Copy,
@@ -8,6 +9,7 @@ import {
 
 type Membro = {
   id: string; full_name: string; email: string; whatsapp: string | null;
+  avatar_url?: string | null;
   instagram: string | null; role: string; city: string | null; state: string | null;
   created_at: string; indicado_por: string | null; moedas_pro_acumuladas: number;
   network_coins: number; total_compras_rede: number;
@@ -131,9 +133,9 @@ export default function AdminMembrosPage() {
   const labelClass = "block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1";
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-4 md:p-8 overflow-auto">
+      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-8">
         <div className="flex items-center gap-3 mb-6">
           <Users className="text-[#C9A66B]" size={26} />
           <div>
@@ -175,9 +177,7 @@ export default function AdminMembrosPage() {
                     <div className="w-8 text-right shrink-0">
                       <span className="text-[11px] font-black text-zinc-600 italic">#{idx + 1}</span>
                     </div>
-                    <div className="w-10 h-10 rounded-xl bg-[#C9A66B]/10 flex items-center justify-center font-black text-[#C9A66B] text-sm shrink-0">
-                      {m.full_name?.charAt(0) || "?"}
-                    </div>
+                    <AdminMemberAvatar avatarUrl={m.avatar_url} name={m.full_name} />
                     <div>
                       <p className="font-bold text-sm leading-tight">{m.full_name}</p>
                       <p className="text-[10px] text-zinc-500">{m.email}</p>

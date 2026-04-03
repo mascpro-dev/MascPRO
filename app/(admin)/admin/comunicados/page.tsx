@@ -96,9 +96,9 @@ export default function AdminComunicadosPage() {
   const tipoInfo = (t: string) => TIPOS.find(x => x.value === t) || TIPOS[0];
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Bell className="text-[#C9A66B]" size={26} />
@@ -108,6 +108,9 @@ export default function AdminComunicadosPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <p className="hidden lg:block text-[10px] text-zinc-600 max-w-xs leading-snug">
+              Push usa TTL de 7 dias no servidor. Celular totalmente desligado não recebe até ligar; depois, a entrega depende do Chrome/Safari.
+            </p>
             <button onClick={testarPush} disabled={testando} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 text-[#C9A66B] font-black uppercase text-xs tracking-widest px-4 py-3 rounded-xl transition-all border border-zinc-700">
               {testando ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
               Testar Push

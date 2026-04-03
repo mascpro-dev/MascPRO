@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { applyOrderToProInventory } from "@/lib/applyOrderToProInventory";
 
 function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -67,6 +68,19 @@ export async function POST(req: NextRequest) {
         await processarComissao(supabase, orderId);
       } catch (e: any) {
         console.error("[admin/orders/status] erro comissão:", e.message);
+      }
+    }
+
+    if (novoStatus === "entregue") {
+      try {
+        const inv = await applyOrderToProInventory(supabase, orderId);
+        if (!inv.ok) {
+          console.error("[admin/orders/status] estoque:", inv.error);
+          return NextResponse.json({ ok: true, estoqueErro: inv.error });
+        }
+        return NextResponse.json({ ok: true, estoque: inv });
+      } catch (e: any) {
+        console.error("[admin/orders/status] estoque exceção:", e.message);
       }
     }
 

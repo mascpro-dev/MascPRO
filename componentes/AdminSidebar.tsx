@@ -7,6 +7,7 @@ import {
   Users, UserPlus, GitMerge, Zap, Clock, LayoutDashboard,
   ShieldCheck, ArrowDownToLine, ShoppingBag, UsersRound,
   Calendar, BookOpen, Bell, Package, Menu, X, ChevronRight,
+  Eye,
 } from "lucide-react";
 
 const menuItems = [
@@ -14,6 +15,13 @@ const menuItems = [
     title: "VISÃO GERAL",
     items: [
       { name: "Painel Admin", icon: LayoutDashboard, href: "/admin" },
+      {
+        name: "Gestão PRO (Master)",
+        desc: "Agenda, clientes, loja e financeiro por membro",
+        icon: Eye,
+        href: "/admin/gestao-rede",
+        color: "text-cyan-400",
+      },
     ],
   },
   {
@@ -58,10 +66,13 @@ export default function AdminSidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  const currentPage = menuItems.flatMap(s => s.items).find(i => i.href === pathname)?.name || "Admin";
+  const currentPage =
+    (menuItems as { items: { name: string; href: string }[] }[])
+      .flatMap((s) => s.items)
+      .find((i) => i.href === pathname)?.name || "Admin";
 
   const NavContent = () => (
-    <nav className="flex flex-col gap-6 flex-1 overflow-y-auto">
+    <nav className="flex flex-col gap-6">
       {menuItems.map((section, idx) => (
         <div key={idx}>
           <p className="text-[9px] font-black text-zinc-700 tracking-[0.25em] uppercase mb-2 px-2">
@@ -171,24 +182,25 @@ export default function AdminSidebar() {
       </div>
 
       {/* ─── SIDEBAR DESKTOP (oculto no mobile) ─── */}
-      <aside className="hidden md:flex w-60 min-h-screen bg-black border-r border-white/5 flex-col gap-6 p-5">
-        {/* Header */}
-        <div className="flex items-center gap-3 px-1">
-          <div className="bg-[#C9A66B] p-2 rounded-lg">
-            <ShieldCheck className="text-black w-5 h-5" />
+      <aside className="hidden md:flex w-60 shrink-0 h-full min-h-0 flex-col border-r border-white/5 bg-black">
+        <div className="flex h-full min-h-0 flex-col gap-6 p-5">
+          <div className="flex items-center gap-3 px-1 shrink-0">
+            <div className="bg-[#C9A66B] p-2 rounded-lg">
+              <ShieldCheck className="text-black w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-white font-black text-sm tracking-tighter uppercase italic">MascPRO</h2>
+              <p className="text-[#C9A66B] text-[9px] font-bold uppercase tracking-widest">Admin Radar</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-white font-black text-sm tracking-tighter uppercase italic">MascPRO</h2>
-            <p className="text-[#C9A66B] text-[9px] font-bold uppercase tracking-widest">Admin Radar</p>
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden -mx-1 px-1">
+            <NavContent />
           </div>
-        </div>
-        {/* Nav */}
-        <NavContent />
-        {/* Footer */}
-        <div className="pt-4 border-t border-white/5 shrink-0">
-          <Link href="/" className="text-[9px] text-[#C9A66B] font-bold uppercase tracking-widest hover:underline">
-            ← Sair do Admin
-          </Link>
+          <div className="shrink-0 border-t border-white/5 pt-4">
+            <Link href="/" className="text-[9px] text-[#C9A66B] font-bold uppercase tracking-widest hover:underline">
+              ← Sair do Admin
+            </Link>
+          </div>
         </div>
       </aside>
     </>

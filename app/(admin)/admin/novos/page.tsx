@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
+import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 
 export default function NovosMembrosPage() {
   const [membros, setMembros] = useState<any[]>([]);
@@ -25,9 +26,9 @@ export default function NovosMembrosPage() {
   }, [prazo]);
 
   return (
-    <div className="flex min-h-screen bg-black">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-8 text-white">
+      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl font-black italic uppercase">Radar: <span className="text-[#C9A66B]">Novos Membros</span></h1>
           <select 
@@ -56,9 +57,7 @@ export default function NovosMembrosPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {membros.map(m => (
               <div key={m.id} className="bg-zinc-900/30 p-4 rounded-2xl border border-white/5 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-zinc-800 border border-white/10 overflow-hidden">
-                  {m.avatar_url && <img src={m.avatar_url} className="w-full h-full object-cover" />}
-                </div>
+                <AdminMemberAvatar avatarUrl={m.avatar_url} name={m.full_name} className="rounded-full border-white/10" />
                 <div>
                   <p className="font-bold text-sm uppercase">{m.full_name}</p>
                   <p className="text-[10px] text-zinc-500 italic">Entrou em: {new Date(m.created_at).toLocaleDateString('pt-BR')}</p>

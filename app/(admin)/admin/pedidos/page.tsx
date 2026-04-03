@@ -2,9 +2,10 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import AdminSidebar from "@/componentes/AdminSidebar";
+import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import {
   ShoppingBag, CheckCircle, XCircle, Clock,
-  Loader2, RefreshCw, PackageCheck, Truck, Trash2,
+  Loader2, RefreshCw, PackageCheck, PackageOpen, Truck, Trash2,
 } from "lucide-react";
 
 type Pedido = {
@@ -15,7 +16,7 @@ type Pedido = {
   payment_method: string;
   mp_payment_id: string | null;
   created_at: string;
-  profiles: { full_name: string; nivel: string } | null;
+  profiles: { full_name: string; nivel: string; avatar_url?: string | null } | null;
   order_items: { quantidade: number; preco_unitario: number; products: { title: string } | null }[];
 };
 
@@ -27,10 +28,11 @@ const STATUS: Record<string, StatusInfo> = {
   paid:       { label: "Pago — aguardando separação", style: "bg-blue-900/30 text-blue-400 border-blue-800/40", icon: <CheckCircle size={10} className="inline mr-1" /> },
   separacao:  { label: "Em separação",         style: "bg-yellow-900/30 text-yellow-400 border-yellow-800/40", icon: <PackageCheck size={10} className="inline mr-1" /> },
   despachado: { label: "Despachado",           style: "bg-green-900/30 text-green-400 border-green-800/40",  icon: <Truck size={10} className="inline mr-1" /> },
+  entregue:   { label: "Entregue",             style: "bg-emerald-900/40 text-emerald-300 border-emerald-700/50", icon: <PackageOpen size={10} className="inline mr-1" /> },
   cancelled:  { label: "Cancelado",            style: "bg-red-900/30 text-red-400 border-red-800/40",         icon: <XCircle size={10} className="inline mr-1" /> },
 };
 
-type Filtro = "todos" | "pending" | "paid" | "separacao" | "despachado" | "cancelled";
+type Filtro = "todos" | "pending" | "paid" | "separacao" | "despachado" | "entregue" | "cancelled";
 
 export default function AdminPedidosPage() {
   const supabase = createClientComponentClient();
@@ -50,7 +52,7 @@ export default function AdminPedidosPage() {
       .from("orders")
       .select(`
         *,
-        profiles!orders_profile_id_fkey(full_name, nivel),
+        profiles!orders_profile_id_fkey(full_name, nivel, avatar_url),
         order_items(quantidade, preco_unitario, products(title))
       `)
       .order("created_at", { ascending: false });
@@ -154,6 +156,15 @@ export default function AdminPedidosPage() {
         alert(data?.error || "Erro ao atualizar status. Verifique os logs do Vercel.");
         return;
       }
+      if (novoStatus === "entregue") {
+        if (data?.estoqueErro) {
+          alert(`Pedido marcado como entregue, mas o estoque automático do membro falhou:\n${data.estoqueErro}`);
+        } else if (data?.estoque?.appliedLines > 0) {
+          alert(
+            `Estoque do salão do membro atualizado automaticamente (${data.estoque.appliedLines} produto(s) / linhas no estoque PRO).`
+          );
+        }
+      }
     } catch (e: any) {
       alert("Erro de conexão: " + e.message);
       return;
@@ -170,6 +181,7 @@ export default function AdminPedidosPage() {
     { key: "paid",       label: "Pagos" },
     { key: "separacao",  label: "Em Separação" },
     { key: "despachado", label: "Despachados" },
+    { key: "entregue",   label: "Entregues" },
     { key: "cancelled",  label: "Cancelados" },
     { key: "todos",      label: "Todos" },
   ];
@@ -183,9 +195,9 @@ export default function AdminPedidosPage() {
   }, [filtro]);
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-8">
 
         {/* Cabeçalho */}
         <div className="flex items-center justify-between mb-8">
@@ -289,9 +301,11 @@ export default function AdminPedidosPage() {
 
                     {/* Info do comprador */}
                     <div className="flex items-start gap-4 flex-1">
-                      <div className="w-10 h-10 rounded-lg bg-[#C9A66B]/20 text-[#C9A66B] flex items-center justify-center font-black text-lg shrink-0">
-                        {pedido.profiles?.full_name?.charAt(0) || "?"}
-                      </div>
+                      <AdminMemberAvatar
+                        avatarUrl={pedido.profiles?.avatar_url}
+                        name={pedido.profiles?.full_name}
+                        className="rounded-lg border-[#C9A66B]/25 bg-[#C9A66B]/15 text-[#C9A66B]"
+                      />
                       <div>
                         <p className="font-bold text-white">{pedido.profiles?.full_name || "—"}</p>
                         <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
@@ -405,11 +419,21 @@ export default function AdminPedidosPage() {
                       </>
                     )}
 
-                    {/* DESPACHADO — estado final positivo */}
                     {pedido.status === "despachado" && (
-                      <span className="flex items-center gap-1 text-green-500 text-xs font-bold uppercase tracking-widest">
-                        <CheckCircle size={14} /> Pedido concluído
-                      </span>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => atualizarStatus(pedido.id, "entregue")}
+                          disabled={isProcessando}
+                          className="flex items-center gap-1 bg-emerald-900/40 hover:bg-emerald-800/50 text-emerald-300 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all disabled:opacity-50 border border-emerald-800/40"
+                        >
+                          {isProcessando ? <Loader2 size={14} className="animate-spin" /> : <PackageOpen size={14} />}
+                          ENTREGUE (+ estoque)
+                        </button>
+                        <span className="text-[10px] text-zinc-500 max-w-[200px] leading-tight">
+                          Ou o membro confirma em Meus pedidos — nos dois casos o estoque do salão é creditado uma vez.
+                        </span>
+                      </>
                     )}
 
                   </div>

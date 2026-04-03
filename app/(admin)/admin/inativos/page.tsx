@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import AdminSidebar from "@/componentes/AdminSidebar";
+import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import { Clock, Loader2 } from "lucide-react";
 
 export default function AdminInativosPage() {
@@ -38,9 +39,9 @@ export default function AdminInativosPage() {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-8">
         <div className="flex items-center gap-3 mb-8">
           <Clock className="text-red-500" size={28} />
           <div>
@@ -59,9 +60,11 @@ export default function AdminInativosPage() {
             {membros.map((m) => (
               <div key={m.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center font-black text-red-400">
-                    {m.full_name?.charAt(0) || "?"}
-                  </div>
+                  <AdminMemberAvatar
+                    avatarUrl={m.avatar_url}
+                    name={m.full_name}
+                    className="rounded-lg border-red-500/20 bg-red-500/10 text-red-400"
+                  />
                   <div>
                     <p className="font-bold text-sm">{m.full_name}</p>
                     <p className="text-xs text-zinc-500">{m.email} · {m.whatsapp}</p>

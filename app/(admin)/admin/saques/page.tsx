@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
+import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import { ArrowDownToLine, CheckCircle, XCircle, Clock, Loader2, RefreshCw } from "lucide-react";
 
 type Saque = {
@@ -14,7 +15,7 @@ type Saque = {
   status: string;
   created_at: string;
   processado_em: string | null;
-  profiles: { full_name: string; nivel: string } | null;
+  profiles: { full_name: string; nivel: string; avatar_url?: string | null } | null;
 };
 
 const STATUS_STYLE: Record<string, string> = {
@@ -68,9 +69,9 @@ export default function AdminSaquesPage() {
     .reduce((acc, s) => acc + Number(s.valor_liquido), 0);
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-8">
 
         {/* Cabeçalho */}
         <div className="flex items-center justify-between mb-8">
@@ -129,9 +130,11 @@ export default function AdminSaquesPage() {
               >
                 {/* Info do embaixador */}
                 <div className="flex items-start gap-4 flex-1">
-                  <div className="w-10 h-10 rounded-lg bg-[#C9A66B]/20 text-[#C9A66B] flex items-center justify-center font-black text-lg shrink-0">
-                    {saque.profiles?.full_name?.charAt(0) || "?"}
-                  </div>
+                  <AdminMemberAvatar
+                    avatarUrl={saque.profiles?.avatar_url}
+                    name={saque.profiles?.full_name}
+                    className="rounded-lg border-[#C9A66B]/25 bg-[#C9A66B]/15 text-[#C9A66B]"
+                  />
                   <div>
                     <p className="font-bold text-white">{saque.profiles?.full_name || "—"}</p>
                     <p className="text-[10px] text-zinc-500 uppercase tracking-widest">

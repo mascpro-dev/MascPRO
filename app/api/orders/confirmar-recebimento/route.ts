@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { applyOrderToProInventory } from "@/lib/applyOrderToProInventory";
 
 function getServiceSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -50,7 +51,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    const inv = await applyOrderToProInventory(supabase, orderId);
+    if (!inv.ok) {
+      console.error("[confirmar-recebimento] estoque:", inv.error);
+      return NextResponse.json({
+        ok: true,
+        estoqueErro: inv.error,
+        aviso: "Recebimento confirmado, mas o estoque do salão não foi atualizado automaticamente. Verifique o SQL (product_id / estoque_recebimento_aplicado) ou atualize na Gestão PRO.",
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      estoque: { linhas: inv.appliedLines, observacao: inv.skipped },
+    });
   } catch (err: any) {
     console.error("[confirmar-recebimento] erro geral:", err.message);
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });

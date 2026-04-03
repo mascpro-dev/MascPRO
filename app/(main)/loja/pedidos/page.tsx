@@ -130,6 +130,15 @@ export default function MeusPedidosPage() {
         alert(data?.error || "Não foi possível confirmar o recebimento.");
         return;
       }
+      if (data?.estoque?.linhas > 0) {
+        setSyncMsg(
+          `Recebimento confirmado. Seu estoque do salão (Gestão PRO) foi atualizado com ${data.estoque.linhas} produto(s).`
+        );
+        setTimeout(() => setSyncMsg(""), 8000);
+      } else if (data?.aviso) {
+        setSyncMsg(String(data.aviso));
+        setTimeout(() => setSyncMsg(""), 10000);
+      }
       await carregarPedidos();
     } finally {
       setConfirmandoId(null);

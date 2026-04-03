@@ -78,7 +78,10 @@ export default function PushNotificationManager() {
       }
 
       if (!silencioso) {
-        setStatusMsg({ tipo: "ok", msg: "✅ Notificações ativas! Você receberá alertas mesmo com a tela bloqueada." });
+        setStatusMsg({
+          tipo: "ok",
+          msg: "✅ Notificações ativas! Com tela bloqueada costuma funcionar. Aparelho totalmente desligado não recebe até ligar; depois a entrega depende do navegador (mensagens ficam na fila até ~7 dias no servidor).",
+        });
         setTimeout(() => setStatusMsg(null), 5000);
       }
       setMostrarReativar(false);

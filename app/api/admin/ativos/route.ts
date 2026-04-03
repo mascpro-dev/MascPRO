@@ -30,7 +30,7 @@ export async function GET() {
 
     const { data: profiles, error: errProfiles } = await supabase
       .from("profiles")
-      .select("id, full_name, email, whatsapp, role, created_at, moedas_pro_acumuladas")
+      .select("id, full_name, email, whatsapp, role, created_at, moedas_pro_acumuladas, avatar_url")
       .in("id", idsAtivos)
       .order("full_name");
 

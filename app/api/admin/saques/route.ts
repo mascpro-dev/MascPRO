@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     const filtro = new URL(req.url).searchParams.get("status") || "aguardando";
     let query = supabase
       .from("withdrawal_requests")
-      .select("*, profiles!withdrawal_requests_embaixador_id_fkey(full_name, nivel)")
+      .select("*, profiles!withdrawal_requests_embaixador_id_fkey(full_name, nivel, avatar_url)")
       .order("created_at", { ascending: false });
 
     if (filtro !== "todos") query = query.eq("status", filtro);

@@ -68,9 +68,9 @@ export default function AdminCursosPage() {
   const setA = (k: string, v: string) => setFormAula(f => ({ ...f, [k]: v }));
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-4 md:p-6 overflow-auto">
+      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <BookOpen className="text-[#C9A66B]" size={26} />

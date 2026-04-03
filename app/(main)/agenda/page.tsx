@@ -20,6 +20,7 @@ import {
   Send,
   Search,
   Trophy,
+  Package,
 } from "lucide-react";
 import { normalizeName, normalizePhoneDigits } from "@/lib/proClientMatch";
 
@@ -111,6 +112,32 @@ function isAniversarioHoje(isoBirth: string) {
 type ProService = { id: string; name: string; price: number; duration_min: number; active: boolean };
 type ProExpense = { id: string; description: string; amount: number; category: string; expense_date: string };
 type ProCharge = { id: string; client_name: string; client_phone: string | null; description: string | null; amount: number; paid: boolean; charge_date: string };
+
+type ProInventoryItem = {
+  id: string;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  min_quantity: number | null;
+  notes: string | null;
+  updated_at?: string;
+};
+
+const INV_CATS = [
+  { v: "quimica", l: "Quimica / descoloracao" },
+  { v: "coloracao", l: "Coloracao" },
+  { v: "tratamento", l: "Tratamento / care" },
+  { v: "styling", l: "Finalizacao / styling" },
+  { v: "descartavel", l: "Descartaveis" },
+  { v: "utensilio", l: "Utensilios / pinceis" },
+  { v: "barbearia", l: "Barbearia (lamina, aparas)" },
+  { v: "outros", l: "Outros" },
+];
+
+function labelInvCat(v: string) {
+  return INV_CATS.find((c) => c.v === v)?.l ?? v;
+}
 
 const EXP_CATS = [
   { v: "produtos", l: "Produtos" },
@@ -205,7 +232,7 @@ const PX = 44;
 export default function AgendaGestaoPage() {
   const supabase = createClientComponentClient();
   const [userId, setUserId] = useState("");
-  const [aba, setAba] = useState<"agenda" | "clientes" | "servicos" | "financeiro">("agenda");
+  const [aba, setAba] = useState<"agenda" | "clientes" | "servicos" | "financeiro" | "estoque">("agenda");
   const [finSub, setFinSub] = useState<"resumo" | "fluxo" | "despesas" | "cobrancas">("resumo");
   const [mesFin, setMesFin] = useState(() => new Date().toISOString().slice(0, 7));
 
@@ -219,6 +246,18 @@ export default function AgendaGestaoPage() {
   const [expenses, setExpenses] = useState<ProExpense[]>([]);
   const [charges, setCharges] = useState<ProCharge[]>([]);
   const [fin, setFin] = useState<any>(null);
+
+  const [inventory, setInventory] = useState<ProInventoryItem[]>([]);
+  const [loadInv, setLoadInv] = useState(false);
+  const [modalInv, setModalInv] = useState<ProInventoryItem | "new" | null>(null);
+  const [formInv, setFormInv] = useState({
+    name: "",
+    category: "outros",
+    quantity: "",
+    unit: "un",
+    min_quantity: "",
+    notes: "",
+  });
 
   const [modalApt, setModalApt] = useState<Appointment | "new" | null>(null);
   const [formApt, setFormApt] = useState({
@@ -319,6 +358,14 @@ export default function AgendaGestaoPage() {
     if (d.ok) setFin(d);
   }, [mesFin]);
 
+  const carregarInventario = useCallback(async () => {
+    setLoadInv(true);
+    const r = await fetch("/api/pro/gestao/inventory");
+    const d = await r.json();
+    if (d.ok) setInventory(d.items || []);
+    setLoadInv(false);
+  }, []);
+
   useEffect(() => {
     if (aba === "agenda") {
       carregarDia();
@@ -342,6 +389,10 @@ export default function AgendaGestaoPage() {
       carregarCobrancas();
     }
   }, [aba, mesFin, carregarFin, carregarDespesas, carregarCobrancas]);
+
+  useEffect(() => {
+    if (aba === "estoque") void carregarInventario();
+  }, [aba, carregarInventario]);
 
   function abrirNovoApt() {
     setErr("");
@@ -636,6 +687,45 @@ export default function AgendaGestaoPage() {
     setSaving(false);
   }
 
+  async function salvarItemEstoque() {
+    if (!formInv.name.trim()) return;
+    setSaving(true);
+    const body = {
+      name: formInv.name.trim(),
+      category: formInv.category,
+      quantity: formInv.quantity === "" ? 0 : Number(formInv.quantity),
+      unit: formInv.unit.trim() || "un",
+      min_quantity: formInv.min_quantity === "" ? null : Number(formInv.min_quantity),
+      notes: formInv.notes.trim() || null,
+    };
+    if (modalInv === "new") {
+      await fetch("/api/pro/gestao/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } else if (modalInv) {
+      await fetch("/api/pro/gestao/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: (modalInv as ProInventoryItem).id, ...body }),
+      });
+    }
+    setModalInv(null);
+    await carregarInventario();
+    setSaving(false);
+  }
+
+  async function excluirItemEstoque(id: string) {
+    if (!confirm("Excluir este item do estoque?")) return;
+    await fetch("/api/pro/gestao/inventory", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    await carregarInventario();
+  }
+
   async function salvarDespesa() {
     if (!formExp.description || !formExp.amount) return;
     await fetch("/api/pro/gestao/expenses", {
@@ -704,6 +794,15 @@ export default function AgendaGestaoPage() {
       .sort((a, b) => (b.stats_total_spent ?? 0) - (a.stats_total_spent ?? 0))
       .slice(0, 10);
   }, [clients]);
+
+  const inventarioBaixo = useMemo(
+    () =>
+      inventory.filter(
+        (it) =>
+          it.min_quantity != null && Number(it.quantity) <= Number(it.min_quantity)
+      ),
+    [inventory]
+  );
 
   async function abrirClienteModal(c: ProClient) {
     setModalCliTab("dados");
@@ -805,7 +904,7 @@ export default function AgendaGestaoPage() {
             Gestao <span className="text-[#C9A66B]">PRO</span>
           </h1>
           <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mt-1">
-            Agenda, clientes, servicos e financeiro
+            Agenda, clientes, servicos, financeiro e estoque do salao
           </p>
         </div>
         {userId && (
@@ -827,6 +926,7 @@ export default function AgendaGestaoPage() {
             ["clientes", "Clientes"],
             ["servicos", "Servicos"],
             ["financeiro", "Financeiro"],
+            ["estoque", "Estoque"],
           ] as const
         ).map(([k, l]) => (
           <button
@@ -1458,6 +1558,121 @@ export default function AgendaGestaoPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ESTOQUE (salao — produtos e materiais) */}
+      {aba === "estoque" && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-[#C9A66B]/30 bg-[#C9A66B]/5 p-4">
+            <p className="text-xs font-black uppercase text-[#C9A66B] flex items-center gap-2 mb-1">
+              <Package size={14} /> Estoque do espaco
+            </p>
+            <p className="text-[11px] text-zinc-500 leading-snug">
+              Controle produtos quimicos, descartaveis, pinceis e materiais de barbearia. Defina um minimo para destacar o que precisa repor.
+            </p>
+          </div>
+
+          {inventarioBaixo.length > 0 && (
+            <div className="rounded-2xl border border-amber-700/40 bg-amber-950/20 p-4">
+              <p className="text-[10px] font-black uppercase text-amber-400 mb-2">Abaixo do minimo — repor</p>
+              <ul className="space-y-1 text-sm text-zinc-200">
+                {inventarioBaixo.map((it) => (
+                  <li key={it.id} className="flex justify-between gap-2">
+                    <span className="font-bold truncate">{it.name}</span>
+                    <span className="text-amber-300 shrink-0 font-black">
+                      {Number(it.quantity)} / min {Number(it.min_quantity)} {it.unit}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setFormInv({
+                name: "",
+                category: "outros",
+                quantity: "",
+                unit: "un",
+                min_quantity: "",
+                notes: "",
+              });
+              setModalInv("new");
+            }}
+            className="w-full py-3 rounded-xl bg-[#C9A66B] text-black font-black uppercase text-xs"
+          >
+            + Novo item
+          </button>
+
+          {loadInv ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="animate-spin text-[#C9A66B]" />
+            </div>
+          ) : inventory.length === 0 ? (
+            <p className="text-center text-zinc-500 text-sm py-8">
+              Nenhum item cadastrado. Adicione tintas, neutralizantes, luvas, toalhas, laminas, etc.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {inventory.map((it) => {
+                const alerta =
+                  it.min_quantity != null && Number(it.quantity) <= Number(it.min_quantity);
+                return (
+                  <div
+                    key={it.id}
+                    className={`rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      alerta ? "border-amber-600/50 bg-amber-950/15" : "border-zinc-800 bg-zinc-900/50"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-white truncate">{it.name}</p>
+                      <p className="text-[10px] text-zinc-500 uppercase mt-0.5">{labelInvCat(it.category)}</p>
+                      {it.notes ? <p className="text-[10px] text-zinc-600 mt-1 line-clamp-2">{it.notes}</p> : null}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <p className={`text-lg font-black ${alerta ? "text-amber-400" : "text-emerald-400"}`}>
+                          {Number(it.quantity)} <span className="text-xs text-zinc-500 font-bold">{it.unit}</span>
+                        </p>
+                        {it.min_quantity != null && (
+                          <p className="text-[9px] text-zinc-600">Min: {Number(it.min_quantity)}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormInv({
+                            name: it.name,
+                            category: it.category || "outros",
+                            quantity: String(it.quantity),
+                            unit: it.unit || "un",
+                            min_quantity: it.min_quantity != null ? String(it.min_quantity) : "",
+                            notes: it.notes || "",
+                          });
+                          setModalInv(it);
+                        }}
+                        className="p-2 text-zinc-400 hover:text-[#C9A66B]"
+                        aria-label="Editar item"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void excluirItemEstoque(it.id)}
+                        className="p-2 text-zinc-500 hover:text-red-400"
+                        aria-label="Excluir item"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -2168,6 +2383,77 @@ export default function AgendaGestaoPage() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ESTOQUE */}
+      {modalInv && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md p-4 space-y-3 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start gap-2">
+              <h3 className="font-black uppercase text-sm">Item de estoque</h3>
+              <button type="button" onClick={() => setModalInv(null)} aria-label="Fechar">
+                <X size={18} />
+              </button>
+            </div>
+            <input
+              placeholder="Nome (ex.: Shampoo neutro 1L)"
+              value={formInv.name}
+              onChange={(e) => setFormInv({ ...formInv, name: e.target.value })}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+            />
+            <div>
+              <p className="text-[9px] font-bold text-zinc-500 uppercase mb-1">Categoria</p>
+              <select
+                value={formInv.category}
+                onChange={(e) => setFormInv({ ...formInv, category: e.target.value })}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+              >
+                {INV_CATS.map((c) => (
+                  <option key={c.v} value={c.v}>
+                    {c.l}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                placeholder="Quantidade"
+                type="number"
+                value={formInv.quantity}
+                onChange={(e) => setFormInv({ ...formInv, quantity: e.target.value })}
+                className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+              />
+              <input
+                placeholder="Unidade (un, cx, L...)"
+                value={formInv.unit}
+                onChange={(e) => setFormInv({ ...formInv, unit: e.target.value })}
+                className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+              />
+            </div>
+            <input
+              placeholder="Quantidade minima (alerta de reposicao — opcional)"
+              type="number"
+              value={formInv.min_quantity}
+              onChange={(e) => setFormInv({ ...formInv, min_quantity: e.target.value })}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+            />
+            <textarea
+              placeholder="Observacoes (opcional)"
+              value={formInv.notes}
+              onChange={(e) => setFormInv({ ...formInv, notes: e.target.value })}
+              rows={2}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm resize-none"
+            />
+            <button
+              type="button"
+              onClick={() => void salvarItemEstoque()}
+              disabled={saving || !formInv.name.trim()}
+              className="w-full py-3 bg-[#C9A66B] text-black font-black text-xs uppercase rounded-xl disabled:opacity-50"
+            >
+              Salvar
+            </button>
           </div>
         </div>
       )}
