@@ -22,6 +22,7 @@ import {
   Trophy,
   Package,
   History,
+  Users,
 } from "lucide-react";
 import { normalizeName, normalizePhoneDigits } from "@/lib/proClientMatch";
 
@@ -41,6 +42,16 @@ type Appointment = {
   payment_method?: string | null;
   payment_due_date?: string | null;
   paid_at?: string | null;
+  staff_id?: string | null;
+  appointment_kind?: string | null;
+};
+
+type ProStaff = {
+  id: string;
+  name: string;
+  role_label: string | null;
+  active: boolean;
+  sort_order?: number;
 };
 
 const FORMAS_PAGAMENTO = [
@@ -166,6 +177,7 @@ const STATUS_STYLE: Record<string, string> = {
   confirmado: "border-blue-500/50 bg-blue-950/30",
   concluido: "border-emerald-500/50 bg-emerald-950/30",
   cancelado: "border-zinc-600 bg-zinc-900/50 opacity-60",
+  bloqueio_pessoal: "border-purple-500/50 bg-purple-950/35",
 };
 
 function toISO(d: Date) {
@@ -207,6 +219,10 @@ function textoLembreteAgenda(a: Appointment) {
   const hora = (a.appointment_time || "").slice(0, 5);
   const svc = a.service?.trim() || "seu atendimento";
   return `Ola ${a.client_name}! Passando para lembrar do horario ${fmtDataBr(a.appointment_date)} as ${hora} — ${svc}. Nos vemos la!`;
+}
+
+function isBloqueioPessoal(a: Appointment) {
+  return String(a.appointment_kind || "").toLowerCase() === "bloqueio_pessoal";
 }
 
 function labelStatusAgenda(s: string) {
@@ -286,11 +302,18 @@ export default function AgendaGestaoPage() {
     payment_method: "pix",
     payment_due_date: "",
     paid_at: "",
+    staff_id: "",
+    appointment_kind: "servico" as "servico" | "bloqueio_pessoal",
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [linkOk, setLinkOk] = useState(false);
   const [bookingSlug, setBookingSlug] = useState("");
+  const [agendaStaffFilter, setAgendaStaffFilter] = useState<"all" | "owner" | string>("all");
+  const [staffList, setStaffList] = useState<ProStaff[]>([]);
+  const [modalEquipe, setModalEquipe] = useState(false);
+  const [novoStaff, setNovoStaff] = useState({ name: "", role_label: "" });
+  const [salvandoStaff, setSalvandoStaff] = useState(false);
 
   const [modalClient, setModalClient] = useState<ProClient | "new" | null>(null);
   const [formCli, setFormCli] = useState({ name: "", phone: "", birthday: "", notes: "" });
@@ -346,11 +369,53 @@ export default function AgendaGestaoPage() {
 
   const carregarDia = useCallback(async () => {
     setLoadA(true);
-    const r = await fetch(`/api/agenda?dia=${diaStr}`);
+    const staffQ =
+      agendaStaffFilter === "all" ? "" : `&staff=${encodeURIComponent(agendaStaffFilter)}`;
+    const r = await fetch(`/api/agenda?dia=${diaStr}${staffQ}`);
     const d = await r.json();
     setApts(d.appointments || []);
     setLoadA(false);
-  }, [diaStr]);
+  }, [diaStr, agendaStaffFilter]);
+
+  const carregarEquipe = useCallback(async () => {
+    const r = await fetch("/api/pro/gestao/staff");
+    const d = await r.json();
+    if (d.ok) setStaffList(d.staff || []);
+  }, []);
+
+  async function adicionarStaff() {
+    const n = novoStaff.name.trim();
+    if (n.length < 2) return;
+    setSalvandoStaff(true);
+    const r = await fetch("/api/pro/gestao/staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: n,
+        role_label: novoStaff.role_label.trim() || null,
+      }),
+    });
+    const d = await r.json();
+    setSalvandoStaff(false);
+    if (!d.ok) {
+      alert(d.error || "Erro ao adicionar");
+      return;
+    }
+    setNovoStaff({ name: "", role_label: "" });
+    await carregarEquipe();
+  }
+
+  async function desativarStaffMember(idM: string) {
+    if (!confirm("Desativar este profissional na agenda?")) return;
+    const r = await fetch("/api/pro/gestao/staff", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: idM, active: false }),
+    });
+    const d = await r.json();
+    if (!d.ok) alert(d.error || "Erro");
+    await carregarEquipe();
+  }
 
   const carregarClientes = useCallback(async () => {
     const r = await fetch("/api/pro/gestao/clients?enrich=1");
@@ -395,11 +460,15 @@ export default function AgendaGestaoPage() {
 
   useEffect(() => {
     if (aba === "agenda") {
-      carregarDia();
       carregarClientes();
       carregarServicos();
+      carregarEquipe();
     }
-  }, [aba, carregarDia, carregarClientes, carregarServicos]);
+  }, [aba, carregarClientes, carregarServicos, carregarEquipe]);
+
+  useEffect(() => {
+    if (aba === "agenda") carregarDia();
+  }, [agendaStaffFilter, aba, carregarDia, diaStr]);
 
   useEffect(() => {
     if (aba === "clientes") carregarClientes();
@@ -424,6 +493,10 @@ export default function AgendaGestaoPage() {
   function abrirNovoApt() {
     setErr("");
     const hoje = toISO(new Date());
+    let sid = "";
+    if (agendaStaffFilter !== "all") {
+      sid = agendaStaffFilter === "owner" ? "" : agendaStaffFilter;
+    }
     setFormApt({
       client_id: "",
       client_name: "",
@@ -438,6 +511,8 @@ export default function AgendaGestaoPage() {
       payment_method: "pix",
       payment_due_date: "",
       paid_at: hoje,
+      staff_id: sid,
+      appointment_kind: "servico",
     });
     setModalApt("new");
   }
@@ -446,6 +521,8 @@ export default function AgendaGestaoPage() {
     setErr("");
     const hoje = toISO(new Date());
     const pago = a.paid === true;
+    const kind =
+      String(a.appointment_kind || "").toLowerCase() === "bloqueio_pessoal" ? "bloqueio_pessoal" : "servico";
     setFormApt({
       client_id: a.client_id || "",
       client_name: a.client_name,
@@ -460,6 +537,8 @@ export default function AgendaGestaoPage() {
       payment_method: (a.payment_method as string) || "pix",
       payment_due_date: (a.payment_due_date || "").slice(0, 10),
       paid_at: (a.paid_at || hoje).slice(0, 10),
+      staff_id: a.staff_id || "",
+      appointment_kind: kind,
     });
     setModalApt(a);
   }
@@ -470,32 +549,58 @@ export default function AgendaGestaoPage() {
     const hoje = toISO(new Date());
     let body: Record<string, unknown>;
 
+    const staffPayload = formApt.staff_id.trim() || null;
+    const kindPayload = formApt.appointment_kind;
+
     if (modalApt === "new") {
       body = {
-        client_name: formApt.client_name,
+        client_name:
+          kindPayload === "bloqueio_pessoal"
+            ? formApt.client_name.trim() || "Compromisso pessoal"
+            : formApt.client_name,
         client_phone: formApt.client_phone || null,
-        service: formApt.service || null,
+        service:
+          kindPayload === "bloqueio_pessoal"
+            ? formApt.service.trim() || "Indisponivel"
+            : formApt.service || null,
         appointment_date: diaStr,
         appointment_time: formApt.appointment_time,
         duration_min: Number(formApt.duration_min) || 60,
         notes: formApt.notes || null,
         status: formApt.status,
+        staff_id: staffPayload,
+        appointment_kind: kindPayload,
       };
-      if (formApt.client_id.trim()) body.client_id = formApt.client_id.trim();
+      if (kindPayload !== "bloqueio_pessoal" && formApt.client_id.trim()) {
+        body.client_id = formApt.client_id.trim();
+      }
       if (formApt.price.trim() !== "") body.price = Number(formApt.price.replace(",", "."));
     } else {
       const id = (modalApt as Appointment).id;
       body = {
         id,
-        client_id: formApt.client_id.trim() ? formApt.client_id.trim() : null,
-        client_name: formApt.client_name,
+        client_id:
+          kindPayload === "bloqueio_pessoal"
+            ? null
+            : formApt.client_id.trim()
+              ? formApt.client_id.trim()
+              : null,
+        client_name:
+          kindPayload === "bloqueio_pessoal"
+            ? formApt.client_name.trim() || "Compromisso pessoal"
+            : formApt.client_name,
         client_phone: formApt.client_phone || null,
-        service: formApt.service || null,
+        service:
+          kindPayload === "bloqueio_pessoal"
+            ? formApt.service.trim() || "Indisponivel"
+            : formApt.service || null,
         appointment_date: diaStr,
         appointment_time: formApt.appointment_time,
         duration_min: Number(formApt.duration_min) || 60,
         notes: formApt.notes || null,
         status: formApt.status,
+        staff_id: staffPayload,
+        appointment_kind: kindPayload,
       };
       if (formApt.price.trim() !== "") body.price = Number(formApt.price.replace(",", "."));
       else body.price = null;
@@ -1036,6 +1141,56 @@ export default function AgendaGestaoPage() {
             })}
           </div>
 
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="text-[9px] font-black uppercase text-zinc-500 shrink-0">Visao</span>
+            <button
+              type="button"
+              onClick={() => setAgendaStaffFilter("all")}
+              className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg border ${
+                agendaStaffFilter === "all"
+                  ? "bg-[#C9A66B]/20 border-[#C9A66B] text-[#C9A66B]"
+                  : "bg-zinc-900 border-zinc-800 text-zinc-400"
+              }`}
+            >
+              Salao (todos)
+            </button>
+            <button
+              type="button"
+              onClick={() => setAgendaStaffFilter("owner")}
+              className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg border ${
+                agendaStaffFilter === "owner"
+                  ? "bg-[#C9A66B]/20 border-[#C9A66B] text-[#C9A66B]"
+                  : "bg-zinc-900 border-zinc-800 text-zinc-400"
+              }`}
+            >
+              Responsavel
+            </button>
+            {staffList
+              .filter((s) => s.active)
+              .map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setAgendaStaffFilter(s.id)}
+                  className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg border max-w-[140px] truncate ${
+                    agendaStaffFilter === s.id
+                      ? "bg-[#C9A66B]/20 border-[#C9A66B] text-[#C9A66B]"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-400"
+                  }`}
+                  title={s.role_label || s.name}
+                >
+                  {s.name}
+                </button>
+              ))}
+            <button
+              type="button"
+              onClick={() => setModalEquipe(true)}
+              className="text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 flex items-center gap-1 sm:ml-auto"
+            >
+              <Users size={12} /> Equipe
+            </button>
+          </div>
+
           <div className="relative rounded-2xl border border-zinc-800 bg-zinc-950/80 overflow-hidden min-h-[480px]">
             {loadA && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10">
@@ -1061,7 +1216,9 @@ export default function AgendaGestaoPage() {
                   if (start + dur <= START_MIN || start >= END_MIN) return null;
                   const top = ((Math.max(start, START_MIN) - START_MIN) / SLOT) * PX;
                   const h = (Math.min(start + dur, END_MIN) - Math.max(start, START_MIN)) / SLOT * PX;
-                  const st = STATUS_STYLE[a.status] || STATUS_STYLE.confirmado;
+                  const bloqueio = isBloqueioPessoal(a);
+                  const st = bloqueio ? STATUS_STYLE.bloqueio_pessoal : STATUS_STYLE[a.status] || STATUS_STYLE.confirmado;
+                  const staffNm = a.staff_id ? staffList.find((x) => x.id === a.staff_id)?.name : null;
                   return (
                     <button
                       key={a.id}
@@ -1071,12 +1228,15 @@ export default function AgendaGestaoPage() {
                       style={{ top, height: Math.max(h, 36) }}
                     >
                       <p className="text-[10px] font-black text-white truncate flex items-center gap-1">
-                        {a.client_id ? (
+                        {a.client_id && !bloqueio ? (
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Cliente vinculado" />
                         ) : null}
-                        {a.appointment_time.slice(0, 5)} · {a.client_name}
+                        {a.appointment_time.slice(0, 5)} · {bloqueio ? "Pessoal" : a.client_name}
                       </p>
-                      <p className="text-[9px] text-zinc-400 truncate">{a.service || "Servico"}</p>
+                      <p className="text-[9px] text-zinc-400 truncate">
+                        {bloqueio ? "Bloqueio na agenda" : a.service || "Servico"}
+                        {staffNm ? ` · ${staffNm}` : ""}
+                      </p>
                     </button>
                   );
                 })}
@@ -1096,6 +1256,9 @@ export default function AgendaGestaoPage() {
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-zinc-600 border border-zinc-500/50" /> Cancelado
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-600/80 border border-purple-400/50" /> Bloqueio pessoal
             </span>
           </div>
 
@@ -1778,13 +1941,24 @@ export default function AgendaGestaoPage() {
                   <div className="flex justify-between items-start gap-2">
                     <div>
                       <p className="text-lg font-black text-white leading-tight flex items-center gap-2 flex-wrap">
-                        {sheetApt.client_name}
-                        {sheetApt.client_id ? (
+                        {isBloqueioPessoal(sheetApt) ? (
+                          <span className="text-purple-200">Bloqueio pessoal</span>
+                        ) : (
+                          sheetApt.client_name
+                        )}
+                        {!isBloqueioPessoal(sheetApt) && sheetApt.client_id ? (
                           <span className="text-[9px] font-black uppercase text-emerald-500 border border-emerald-700/50 rounded-full px-2 py-0.5">
                             Cadastro PRO
                           </span>
                         ) : null}
                       </p>
+                      {sheetApt.staff_id ? (
+                        <p className="text-[10px] text-[#C9A66B]/90 font-bold mt-1">
+                          Profissional: {staffList.find((x) => x.id === sheetApt.staff_id)?.name || "—"}
+                        </p>
+                      ) : staffList.length > 0 ? (
+                        <p className="text-[10px] text-zinc-500 mt-1">Responsavel (dono)</p>
+                      ) : null}
                       <p className="text-xs text-zinc-500 mt-1">
                         {(sheetApt.appointment_time || "").slice(0, 5)} · {fmtDataBr(sheetApt.appointment_date)}
                         {sheetApt.service ? ` · ${sheetApt.service}` : ""}
@@ -1823,22 +1997,26 @@ export default function AgendaGestaoPage() {
                 </div>
 
                 <div className="p-3 space-y-2 border-b border-zinc-800/80">
-                  <button
-                    type="button"
-                    onClick={() => setSheetWaOpen((v) => !v)}
-                    className="w-full flex items-center justify-between py-2.5 px-3 rounded-xl bg-zinc-900 border border-zinc-800 text-left"
-                  >
-                    <span className="text-xs font-black uppercase text-emerald-400 flex items-center gap-2">
-                      <MessageCircle size={16} /> WhatsApp
-                    </span>
-                    <ChevronDown size={16} className={`text-zinc-500 transition ${sheetWaOpen ? "rotate-180" : ""}`} />
-                  </button>
-                  {sheetWaOpen && (
-                    <div className="space-y-2 pl-1">
-                      {!sheetApt.client_phone?.replace(/\D/g, "") ? (
-                        <p className="text-[10px] text-zinc-500 px-2">Cadastre o telefone do cliente para usar o WhatsApp.</p>
-                      ) : (
-                        <>
+                  {!isBloqueioPessoal(sheetApt) && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setSheetWaOpen((v) => !v)}
+                        className="w-full flex items-center justify-between py-2.5 px-3 rounded-xl bg-zinc-900 border border-zinc-800 text-left"
+                      >
+                        <span className="text-xs font-black uppercase text-emerald-400 flex items-center gap-2">
+                          <MessageCircle size={16} /> WhatsApp
+                        </span>
+                        <ChevronDown size={16} className={`text-zinc-500 transition ${sheetWaOpen ? "rotate-180" : ""}`} />
+                      </button>
+                      {sheetWaOpen && (
+                        <div className="space-y-2 pl-1">
+                          {!sheetApt.client_phone?.replace(/\D/g, "") ? (
+                            <p className="text-[10px] text-zinc-500 px-2">
+                              Cadastre o telefone do cliente para usar o WhatsApp.
+                            </p>
+                          ) : (
+                            <>
                           <a
                             href={waLink(sheetApt.client_phone!, `Ola ${sheetApt.client_name}!`)}
                             target="_blank"
@@ -1881,6 +2059,8 @@ export default function AgendaGestaoPage() {
                       )}
                     </div>
                   )}
+                    </>
+                  )}
                 </div>
 
                 <div className="p-3 grid grid-cols-1 gap-2">
@@ -1906,7 +2086,9 @@ export default function AgendaGestaoPage() {
                   >
                     <Pencil size={16} /> Editar
                   </button>
-                  {sheetApt.status !== "concluido" && sheetApt.status !== "cancelado" && (
+                  {sheetApt.status !== "concluido" &&
+                    sheetApt.status !== "cancelado" &&
+                    !isBloqueioPessoal(sheetApt) && (
                     <>
                       <button
                         type="button"
@@ -1941,6 +2123,18 @@ export default function AgendaGestaoPage() {
                       </button>
                     </>
                   )}
+                  {sheetApt.status !== "concluido" &&
+                    sheetApt.status !== "cancelado" &&
+                    isBloqueioPessoal(sheetApt) && (
+                      <button
+                        type="button"
+                        disabled={aptActionBusy}
+                        onClick={() => cancelarAgendamento(sheetApt)}
+                        className="w-full py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-400 text-xs font-black uppercase flex items-center justify-center gap-2"
+                      >
+                        <Ban size={16} /> Cancelar bloqueio
+                      </button>
+                    )}
                   <button
                     type="button"
                     disabled={aptActionBusy}
@@ -2126,7 +2320,46 @@ export default function AgendaGestaoPage() {
               </button>
             </div>
             <div className="p-4 space-y-3">
-              {formApt.client_id ? (
+              {staffList.filter((s) => s.active).length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Profissional</p>
+                  <select
+                    value={formApt.staff_id}
+                    onChange={(e) => setFormApt({ ...formApt, staff_id: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                    style={{ colorScheme: "dark" }}
+                  >
+                    <option value="">Responsavel (dono)</option>
+                    {staffList
+                      .filter((s) => s.active)
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                          {s.role_label ? ` — ${s.role_label}` : ""}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+              <label className="flex items-start gap-2 text-[11px] text-zinc-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formApt.appointment_kind === "bloqueio_pessoal"}
+                  onChange={(e) =>
+                    setFormApt({
+                      ...formApt,
+                      appointment_kind: e.target.checked ? "bloqueio_pessoal" : "servico",
+                      service: e.target.checked
+                        ? formApt.service.trim() || "Indisponivel"
+                        : formApt.service,
+                      status: e.target.checked ? "confirmado" : formApt.status,
+                    })
+                  }
+                  className="rounded border-zinc-600 mt-0.5"
+                />
+                <span>Bloqueio pessoal — fecha o horario no link publico para este profissional</span>
+              </label>
+              {formApt.client_id && formApt.appointment_kind !== "bloqueio_pessoal" ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-800/40 bg-emerald-950/20 px-3 py-2">
                   <p className="text-[10px] font-black uppercase text-emerald-400">
                     Vinculado ao cadastro PRO
@@ -2140,7 +2373,7 @@ export default function AgendaGestaoPage() {
                   </button>
                 </div>
               ) : null}
-              {clients.length > 0 && (
+              {formApt.appointment_kind !== "bloqueio_pessoal" && clients.length > 0 && (
                 <div>
                   <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">
                     Escolher cliente (preenche e amarra ao cadastro)
@@ -2164,18 +2397,24 @@ export default function AgendaGestaoPage() {
                 </div>
               )}
               <input
-                placeholder="Nome do cliente"
+                placeholder={
+                  formApt.appointment_kind === "bloqueio_pessoal"
+                    ? "Titulo (ex.: Almoco, Terapia)"
+                    : "Nome do cliente"
+                }
                 value={formApt.client_name}
                 onChange={(e) => aoMudarNomeClienteApt(e.target.value)}
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
               />
-              <input
-                placeholder="WhatsApp"
-                value={formApt.client_phone}
-                onChange={(e) => aoMudarTelefoneClienteApt(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
-              />
-              {services.length > 0 && (
+              {formApt.appointment_kind !== "bloqueio_pessoal" && (
+                <input
+                  placeholder="WhatsApp"
+                  value={formApt.client_phone}
+                  onChange={(e) => aoMudarTelefoneClienteApt(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                />
+              )}
+              {formApt.appointment_kind !== "bloqueio_pessoal" && services.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {services.map((s) => (
                     <button
@@ -2318,6 +2557,84 @@ export default function AgendaGestaoPage() {
                   <Trash2 size={14} /> Excluir
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EQUIPE */}
+      {modalEquipe && (
+        <div className="fixed inset-0 z-[310] flex items-end sm:items-center justify-center bg-black/80 p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-4 border-b border-zinc-800">
+              <h3 className="font-black uppercase text-sm flex items-center gap-2">
+                <Users size={16} className="text-[#C9A66B]" /> Equipe do salao
+              </h3>
+              <button type="button" onClick={() => setModalEquipe(false)}>
+                <X size={20} className="text-zinc-500" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                Cabeleireiros, manicures, esteticistas, etc. Cada um tem horarios no mesmo calendario; o cliente escolhe
+                com quem agendar no link publico. O responsavel (dono) continua nos horarios sem profissional
+                associado.
+              </p>
+              <div className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+                <p className="text-[10px] font-black uppercase text-zinc-500">Novo profissional</p>
+                <input
+                  placeholder="Nome"
+                  value={novoStaff.name}
+                  onChange={(e) => setNovoStaff((x) => ({ ...x, name: e.target.value }))}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                />
+                <input
+                  placeholder="Funcao (ex.: Manicure)"
+                  value={novoStaff.role_label}
+                  onChange={(e) => setNovoStaff((x) => ({ ...x, role_label: e.target.value }))}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  disabled={salvandoStaff}
+                  onClick={() => void adicionarStaff()}
+                  className="w-full py-2.5 rounded-xl bg-[#C9A66B] text-black font-black text-xs uppercase"
+                >
+                  {salvandoStaff ? "Salvando..." : "Adicionar"}
+                </button>
+              </div>
+              <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase text-zinc-500">Cadastrados</p>
+                {staffList.length === 0 ? (
+                  <p className="text-xs text-zinc-600">Nenhum alem do responsavel.</p>
+                ) : (
+                  staffList.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-white truncate">{s.name}</p>
+                        {s.role_label ? (
+                          <p className="text-[10px] text-zinc-500 truncate">{s.role_label}</p>
+                        ) : null}
+                        {!s.active ? (
+                          <p className="text-[9px] font-bold uppercase text-red-400">Inativo</p>
+                        ) : null}
+                      </div>
+                      {s.active ? (
+                        <button
+                          type="button"
+                          onClick={() => void desativarStaffMember(s.id)}
+                          className="text-[9px] font-black uppercase text-red-400 shrink-0 px-2 py-1 rounded-lg border border-red-900/50"
+                        >
+                          Desativar
+                        </button>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { appointmentMatchesClient } from "@/lib/proClientMatch";
 import { looksLikeUuid, slugifyForBooking } from "@/lib/bookingSlug";
+import { assertStaffOwnedBy } from "@/lib/proStaffBound";
+import { hasOverlapWithExisting, loadDayAppointmentsForOverlap } from "@/lib/agendaConflict";
 
 function sb() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -28,16 +30,6 @@ async function resolveProfessionalId(client: SupabaseClient, raw: string): Promi
   return data?.id ?? null;
 }
 
-function timeToMin(t: string): number {
-  const p = (t || "09:00").slice(0, 5);
-  const [h, m] = p.split(":").map(Number);
-  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
-}
-
-function intervalsOverlap(a0: number, a1: number, b0: number, b1: number) {
-  return a0 < b1 && a1 > b0;
-}
-
 // GET — disponibilidade pública + serviços (sem preço: só nome e duração)
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -45,10 +37,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const id = await resolveProfessionalId(client, params.id);
     if (!id) return NextResponse.json({ ok: false, error: "Profissional não encontrado" }, { status: 404 });
 
-    const [{ data: perfil }, { data: disponibilidade }, { data: agendados }, svcRes] = await Promise.all([
+    const [{ data: perfil }, { data: disponibilidade }, agRes, svcRes, staffRes] = await Promise.all([
       client.from("profiles").select("id, full_name, city, state, barber_shop, instagram").eq("id", id).single(),
       client.from("availability").select("*").eq("professional_id", id).eq("active", true).order("day_of_week"),
-      client.from("appointments").select("appointment_date, appointment_time, duration_min")
+      client
+        .from("appointments")
+        .select("appointment_date, appointment_time, duration_min, staff_id, appointment_kind")
         .eq("professional_id", id)
         .in("status", ["confirmado", "pendente"])
         .gte("appointment_date", new Date().toISOString().split("T")[0]),
@@ -58,9 +52,32 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         .eq("professional_id", id)
         .eq("active", true)
         .order("name"),
+      client
+        .from("pro_staff")
+        .select("id, name, role_label")
+        .eq("owner_id", id)
+        .eq("active", true)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
     ]);
 
     if (!perfil) return NextResponse.json({ ok: false, error: "Profissional não encontrado" }, { status: 404 });
+
+    let agendados: Record<string, unknown>[] = (agRes.data || []) as Record<string, unknown>[];
+    if (
+      agRes.error?.code === "42703" ||
+      String(agRes.error?.message || "").toLowerCase().includes("column")
+    ) {
+      const r2 = await client
+        .from("appointments")
+        .select("appointment_date, appointment_time, duration_min")
+        .eq("professional_id", id)
+        .in("status", ["confirmado", "pendente"])
+        .gte("appointment_date", new Date().toISOString().split("T")[0]);
+      if (!r2.error) agendados = r2.data || [];
+    } else if (agRes.error) {
+      return NextResponse.json({ ok: false, error: agRes.error.message }, { status: 500 });
+    }
 
     const e = svcRes.error;
     const servicos =
@@ -68,12 +85,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         ? []
         : svcRes.data || [];
 
+    let equipe: { id: string; name: string; role_label: string | null }[] = [];
+    if (!staffRes.error) equipe = (staffRes.data || []) as typeof equipe;
+    else if (staffRes.error.code !== "42P01") {
+      return NextResponse.json({ ok: false, error: staffRes.error.message }, { status: 500 });
+    }
+
     return NextResponse.json({
       ok: true,
       perfil,
       disponibilidade: disponibilidade || [],
-      agendados: agendados || [],
+      agendados,
       servicos,
+      equipe,
+      equipe_obrigatoria: equipe.length > 0,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
@@ -92,6 +117,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (!client_name || !appointment_date || !appointment_time) {
       return NextResponse.json({ ok: false, error: "Nome, data e horário obrigatórios" }, { status: 400 });
+    }
+
+    const { data: equipeCheck } = await client
+      .from("pro_staff")
+      .select("id")
+      .eq("owner_id", id)
+      .eq("active", true)
+      .limit(1);
+    const temEquipe = (equipeCheck?.length || 0) > 0;
+
+    let staffTarget: string | null = null;
+    if (temEquipe) {
+      if (!Object.prototype.hasOwnProperty.call(body, "staff_id")) {
+        return NextResponse.json(
+          { ok: false, error: "Selecione com quem deseja agendar (profissional)." },
+          { status: 400 }
+        );
+      }
+      const raw = body.staff_id;
+      if (raw === null || raw === "") staffTarget = null;
+      else if (typeof raw === "string") staffTarget = raw;
+      else {
+        return NextResponse.json({ ok: false, error: "Profissional inválido." }, { status: 400 });
+      }
+      const sc = await assertStaffOwnedBy(client, id, staffTarget);
+      if (!sc.ok) return NextResponse.json({ ok: false, error: sc.error }, { status: 400 });
+      staffTarget = sc.staffId;
     }
 
     const { data: umServico } = await client
@@ -135,28 +187,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     }
 
-    const { data: dayApts, error: dayErr } = await client
-      .from("appointments")
-      .select("appointment_time, duration_min")
-      .eq("professional_id", id)
-      .eq("appointment_date", appointment_date)
-      .in("status", ["confirmado", "pendente"]);
+    const { rows: dayRows, error: dayErr } = await loadDayAppointmentsForOverlap(
+      client,
+      id,
+      appointment_date
+    );
+    if (dayErr) return NextResponse.json({ ok: false, error: dayErr }, { status: 500 });
 
-    if (dayErr) return NextResponse.json({ ok: false, error: dayErr.message }, { status: 500 });
-
-    const newStart = timeToMin(appointment_time);
-    const newEnd = newStart + durationMin;
-
-    for (const apt of dayApts || []) {
-      const s = timeToMin(String(apt.appointment_time || "00:00"));
-      const d = Math.max(5, Number(apt.duration_min) || 60);
-      const e = s + d;
-      if (intervalsOverlap(newStart, newEnd, s, e)) {
-        return NextResponse.json(
-          { ok: false, error: "Este horário conflita com outro agendamento (duração do procedimento)." },
-          { status: 409 }
-        );
-      }
+    if (
+      hasOverlapWithExisting(dayRows, {
+        appointment_time,
+        duration_min: durationMin,
+        staff_id: staffTarget,
+      })
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "Este horário conflita com outro agendamento (duração do procedimento)." },
+        { status: 409 }
+      );
     }
 
     const nomeLimpo = String(client_name).trim();
@@ -196,13 +244,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       appointment_time: appointment_time.slice(0, 5),
       duration_min: durationMin,
       status: "pendente",
+      staff_id: staffTarget,
+      appointment_kind: "servico",
     };
     if (clientId) row.client_id = clientId;
 
     let { data, error } = await client.from("appointments").insert(row).select().single();
 
-    if (error?.code === "42703" && clientId) {
+    if (error?.code === "42703") {
       delete row.client_id;
+      delete row.staff_id;
+      delete row.appointment_kind;
       const r2 = await client.from("appointments").insert(row).select().single();
       data = r2.data;
       error = r2.error;

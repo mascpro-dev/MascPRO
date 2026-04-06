@@ -93,6 +93,12 @@ export default function AgendarPage() {
   const [horaSel, setHoraSel] = useState<string>("");
   const [servicoSel, setServicoSel] = useState<PublicServico | null>(null);
 
+  type EquipePub = { id: string; name: string; role_label: string | null };
+  const [equipe, setEquipe] = useState<EquipePub[]>([]);
+  const [equipeObrig, setEquipeObrig] = useState(false);
+  /** undefined = ainda nao escolheu (quando ha equipe); null = responsavel/dono */
+  const [staffPublicKey, setStaffPublicKey] = useState<string | null | undefined>(null);
+
   const [form, setForm] = useState({ client_name: "", client_phone: "", service: "" });
   const [enviando, setEnviando] = useState(false);
   const [sucesso, setSucesso] = useState(false);
@@ -111,8 +117,14 @@ export default function AgendarPage() {
         setAgendados(d.agendados);
         const list: PublicServico[] = d.servicos || [];
         setServicos(list);
+        setEquipe(d.equipe || []);
+        const obr = d.equipe_obrigatoria === true;
+        setEquipeObrig(obr);
+        setStaffPublicKey(obr ? undefined : null);
         if (list.length === 0) {
           setServicoSel({ id: "", name: "", duration_min: 60 });
+        } else {
+          setServicoSel(null);
         }
       })
       .catch(() => setErro("Erro ao carregar"))
@@ -175,8 +187,23 @@ export default function AgendarPage() {
     setHoraSel("");
   }
 
+  function selecionarProfissionalPub(staffId: string | null) {
+    setStaffPublicKey(staffId);
+    setDataSel(null);
+    setHoraSel("");
+    if (servicos.length > 0) {
+      setServicoSel(null);
+    } else {
+      setServicoSel({ id: "", name: "", duration_min: 60 });
+    }
+  }
+
   async function agendar() {
     if (!id || !dataSel || !horaSel || !form.client_name) return;
+    if (equipeObrig && staffPublicKey === undefined) {
+      alert("Selecione o profissional.");
+      return;
+    }
     if (temCatalogo && !servicoSel?.id) return;
     if (!temCatalogo && !form.service.trim()) {
       alert("Descreva o serviço desejado.");
@@ -194,6 +221,7 @@ export default function AgendarPage() {
         appointment_date: toISO(dataSel),
         appointment_time: horaSel,
         ...(temCatalogo ? {} : { duration_min: 60 }),
+        ...(equipeObrig ? { staff_id: staffPublicKey ?? null } : {}),
       }),
     });
     const d = await res.json();
@@ -272,6 +300,46 @@ export default function AgendarPage() {
           </div>
         ) : (
           <>
+            {equipeObrig && (
+              <div className="mb-8">
+                <h2 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-2">Profissional</h2>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => selecionarProfissionalPub(null)}
+                    className={`w-full text-left rounded-2xl border px-4 py-3 transition-all ${
+                      staffPublicKey === null
+                        ? "bg-[#C9A66B]/15 border-[#C9A66B] ring-1 ring-[#C9A66B]/40"
+                        : "border-zinc-800 bg-zinc-900/60 hover:border-zinc-600"
+                    }`}
+                  >
+                    <p className="font-black text-sm text-white">{nomePessoa || "Responsável pelo salão"}</p>
+                    <p className="text-[10px] text-zinc-500 mt-1">Agenda do dono / responsável</p>
+                  </button>
+                  {equipe.map((m) => {
+                    const sel = staffPublicKey === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => selecionarProfissionalPub(m.id)}
+                        className={`w-full text-left rounded-2xl border px-4 py-3 transition-all ${
+                          sel
+                            ? "bg-[#C9A66B]/15 border-[#C9A66B] ring-1 ring-[#C9A66B]/40"
+                            : "border-zinc-800 bg-zinc-900/60 hover:border-zinc-600"
+                        }`}
+                      >
+                        <p className="font-black text-sm text-white">{m.name}</p>
+                        {m.role_label ? (
+                          <p className="text-[10px] text-zinc-500 mt-1">{m.role_label}</p>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {temCatalogo && (
               <div className="mb-8">
                 <h2 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-1">Procedimento</h2>
