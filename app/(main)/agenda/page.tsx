@@ -124,6 +124,13 @@ function isAniversarioHoje(isoBirth: string) {
 type ProService = { id: string; name: string; price: number; duration_min: number; active: boolean };
 type ProExpense = { id: string; description: string; amount: number; category: string; expense_date: string };
 type ProCharge = { id: string; client_name: string; client_phone: string | null; description: string | null; amount: number; paid: boolean; charge_date: string };
+type AvailabilityDay = {
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  slot_duration_min: number;
+  active: boolean;
+};
 
 type ProInventoryItem = {
   id: string;
@@ -255,6 +262,7 @@ const START_MIN = 7 * 60;
 const END_MIN = 21 * 60;
 const SLOT = 30;
 const PX = 44;
+const WEEK_DAYS_FULL = ["Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado"] as const;
 
 export default function AgendaGestaoPage() {
   const supabase = createClientComponentClient();
@@ -312,8 +320,20 @@ export default function AgendaGestaoPage() {
   const [agendaStaffFilter, setAgendaStaffFilter] = useState<"all" | "owner" | string>("all");
   const [staffList, setStaffList] = useState<ProStaff[]>([]);
   const [modalEquipe, setModalEquipe] = useState(false);
+  const [modalDisponibilidade, setModalDisponibilidade] = useState(false);
   const [novoStaff, setNovoStaff] = useState({ name: "", role_label: "" });
   const [salvandoStaff, setSalvandoStaff] = useState(false);
+  const [salvandoDisp, setSalvandoDisp] = useState(false);
+  const [availabilityDraft, setAvailabilityDraft] = useState<AvailabilityDay[]>(
+    () =>
+      WEEK_DAYS_FULL.map((_, i) => ({
+        day_of_week: i,
+        start_time: "09:00",
+        end_time: "18:00",
+        slot_duration_min: 30,
+        active: i >= 1 && i <= 5,
+      }))
+  );
 
   const [modalClient, setModalClient] = useState<ProClient | "new" | null>(null);
   const [formCli, setFormCli] = useState({ name: "", phone: "", birthday: "", notes: "" });
@@ -383,6 +403,36 @@ export default function AgendaGestaoPage() {
     if (d.ok) setStaffList(d.staff || []);
   }, []);
 
+  const carregarDisponibilidade = useCallback(async () => {
+    const r = await fetch("/api/agenda/disponibilidade");
+    const d = await r.json();
+    if (!d.ok) return;
+    const map = new Map<number, AvailabilityDay>();
+    for (const x of (d.disponibilidade || []) as any[]) {
+      map.set(Number(x.day_of_week), {
+        day_of_week: Number(x.day_of_week),
+        start_time: String(x.start_time || "09:00").slice(0, 5),
+        end_time: String(x.end_time || "18:00").slice(0, 5),
+        slot_duration_min: Number(x.slot_duration_min) || 30,
+        active: Boolean(x.active),
+      });
+    }
+    setAvailabilityDraft(
+      WEEK_DAYS_FULL.map((_, i) => {
+        const found = map.get(i);
+        return (
+          found || {
+            day_of_week: i,
+            start_time: "09:00",
+            end_time: "18:00",
+            slot_duration_min: 30,
+            active: i >= 1 && i <= 5,
+          }
+        );
+      })
+    );
+  }, []);
+
   async function adicionarStaff() {
     const n = novoStaff.name.trim();
     if (n.length < 2) return;
@@ -415,6 +465,44 @@ export default function AgendaGestaoPage() {
     const d = await r.json();
     if (!d.ok) alert(d.error || "Erro");
     await carregarEquipe();
+  }
+
+  function setDisponibilidadeCampo(day: number, patch: Partial<AvailabilityDay>) {
+    setAvailabilityDraft((prev) =>
+      prev.map((d) => (d.day_of_week === day ? { ...d, ...patch } : d))
+    );
+  }
+
+  async function salvarDisponibilidade() {
+    const diasAtivos = availabilityDraft
+      .filter((d) => d.active)
+      .map((d) => ({
+        day_of_week: d.day_of_week,
+        start_time: d.start_time,
+        end_time: d.end_time,
+        slot_duration_min: Math.max(5, Math.min(120, Number(d.slot_duration_min) || 30)),
+        active: true,
+      }));
+    for (const d of diasAtivos) {
+      if (!d.start_time || !d.end_time || d.start_time >= d.end_time) {
+        alert(`Horario invalido em ${WEEK_DAYS_FULL[d.day_of_week]}.`);
+        return;
+      }
+    }
+    setSalvandoDisp(true);
+    const r = await fetch("/api/agenda/disponibilidade", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dias: diasAtivos }),
+    });
+    const data = await r.json();
+    setSalvandoDisp(false);
+    if (!data.ok) {
+      alert(data.error || "Erro ao salvar disponibilidade");
+      return;
+    }
+    setModalDisponibilidade(false);
+    await carregarDisponibilidade();
   }
 
   const carregarClientes = useCallback(async () => {
@@ -463,8 +551,9 @@ export default function AgendaGestaoPage() {
       carregarClientes();
       carregarServicos();
       carregarEquipe();
+      carregarDisponibilidade();
     }
-  }, [aba, carregarClientes, carregarServicos, carregarEquipe]);
+  }, [aba, carregarClientes, carregarServicos, carregarEquipe, carregarDisponibilidade]);
 
   useEffect(() => {
     if (aba === "agenda") carregarDia();
@@ -1184,12 +1273,27 @@ export default function AgendaGestaoPage() {
               ))}
             <button
               type="button"
+              onClick={() => setModalDisponibilidade(true)}
+              className="text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400"
+            >
+              Horarios
+            </button>
+            <button
+              type="button"
               onClick={() => setModalEquipe(true)}
               className="text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 flex items-center gap-1 sm:ml-auto"
             >
               <Users size={12} /> Equipe
             </button>
           </div>
+
+          {availabilityDraft.every((d) => !d.active) && (
+            <div className="mb-3 rounded-xl border border-amber-700/40 bg-amber-950/20 p-3">
+              <p className="text-[11px] text-amber-300 font-bold">
+                Sua agenda publica esta sem horarios. Clique em <span className="uppercase">Horarios</span> para cadastrar dias e atendimento.
+              </p>
+            </div>
+          )}
 
           <div className="relative rounded-2xl border border-zinc-800 bg-zinc-950/80 overflow-hidden min-h-[480px]">
             {loadA && (
@@ -2557,6 +2661,80 @@ export default function AgendaGestaoPage() {
                   <Trash2 size={14} /> Excluir
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL HORARIOS DE ATENDIMENTO */}
+      {modalDisponibilidade && (
+        <div className="fixed inset-0 z-[310] flex items-end sm:items-center justify-center bg-black/80 p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-4 border-b border-zinc-800">
+              <h3 className="font-black uppercase text-sm">Dias e horarios de atendimento</h3>
+              <button type="button" onClick={() => setModalDisponibilidade(false)}>
+                <X size={20} className="text-zinc-500" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                Estes horarios aparecem no seu link publico de agendamento. Marque os dias ativos e defina inicio, fim e intervalo.
+              </p>
+              {availabilityDraft.map((d) => (
+                <div key={d.day_of_week} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="flex items-center gap-2 text-sm font-bold text-white cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={d.active}
+                        onChange={(e) => setDisponibilidadeCampo(d.day_of_week, { active: e.target.checked })}
+                        className="rounded border-zinc-600"
+                      />
+                      {WEEK_DAYS_FULL[d.day_of_week]}
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <input
+                      type="time"
+                      value={d.start_time}
+                      disabled={!d.active}
+                      onChange={(e) => setDisponibilidadeCampo(d.day_of_week, { start_time: e.target.value })}
+                      className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm disabled:opacity-40"
+                      style={{ colorScheme: "dark" }}
+                    />
+                    <input
+                      type="time"
+                      value={d.end_time}
+                      disabled={!d.active}
+                      onChange={(e) => setDisponibilidadeCampo(d.day_of_week, { end_time: e.target.value })}
+                      className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm disabled:opacity-40"
+                      style={{ colorScheme: "dark" }}
+                    />
+                    <input
+                      type="number"
+                      min={5}
+                      max={120}
+                      step={5}
+                      value={d.slot_duration_min}
+                      disabled={!d.active}
+                      onChange={(e) =>
+                        setDisponibilidadeCampo(d.day_of_week, { slot_duration_min: Number(e.target.value) || 30 })
+                      }
+                      className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm disabled:opacity-40"
+                      placeholder="Slot min"
+                    />
+                  </div>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                disabled={salvandoDisp}
+                onClick={() => void salvarDisponibilidade()}
+                className="w-full py-3 rounded-xl bg-[#C9A66B] text-black font-black uppercase text-xs"
+              >
+                {salvandoDisp ? "Salvando..." : "Salvar horarios"}
+              </button>
             </div>
           </div>
         </div>

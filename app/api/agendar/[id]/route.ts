@@ -38,7 +38,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     if (!id) return NextResponse.json({ ok: false, error: "Profissional não encontrado" }, { status: 404 });
 
     const [{ data: perfil }, { data: disponibilidade }, agRes, svcRes, staffRes] = await Promise.all([
-      client.from("profiles").select("id, full_name, city, state, barber_shop, instagram").eq("id", id).single(),
+      client.from("profiles").select("id, full_name, city, state, barber_shop, instagram, whatsapp").eq("id", id).single(),
       client.from("availability").select("*").eq("professional_id", id).eq("active", true).order("day_of_week"),
       client
         .from("appointments")

@@ -11,6 +11,7 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  MessageCircle,
 } from "lucide-react";
 
 const TEXTO_VALOR_PROCEDIMENTO_CLIENTE =
@@ -73,6 +74,13 @@ function addDias(d: Date, n: number) {
 
 function toISO(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function waHref(phone: string, text: string) {
+  const tel = String(phone || "").replace(/\D/g, "");
+  if (!tel) return "";
+  const finalTel = tel.startsWith("55") ? tel : `55${tel}`;
+  return `https://wa.me/${finalTel}?text=${encodeURIComponent(text)}`;
 }
 
 const inputClass =
@@ -143,6 +151,8 @@ export default function AgendarPage() {
   const nomePessoa = String(perfil?.full_name || "").trim();
   const tituloAgenda = nomeSalao || nomePessoa;
   const mostrarProfissionalNoTopo = Boolean(nomeSalao && nomePessoa);
+  const whatsappContato = String(perfil?.whatsapp || "").trim();
+  const msgSemAgenda = `Ola! Vim pelo link de agendamento de ${tituloAgenda || nomePessoa || "vocês"} e gostaria de verificar horarios.`;
 
   function getDisp(d: Date) {
     return disponibilidade.find((di) => di.day_of_week === d.getDay());
@@ -294,9 +304,22 @@ export default function AgendarPage() {
 
       <div className="px-4 pb-16 max-w-lg mx-auto">
         {disponibilidade.length === 0 ? (
-          <div className="text-center mt-16 text-zinc-600">
+          <div className="text-center mt-16 text-zinc-600 max-w-sm mx-auto">
             <Calendar size={48} className="mx-auto mb-4 opacity-20" />
-            <p className="font-bold text-sm">Agenda não configurada</p>
+            <p className="font-bold text-sm">Agenda ainda não foi aberta</p>
+            <p className="text-xs mt-2 leading-relaxed">
+              Este salão ainda não configurou horários online. Você pode falar direto com o profissional para combinar seu atendimento.
+            </p>
+            {whatsappContato && (
+              <a
+                href={waHref(whatsappContato, msgSemAgenda)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-xl border border-emerald-700/60 bg-emerald-950/30 text-emerald-300 text-xs font-black uppercase tracking-wider"
+              >
+                <MessageCircle size={14} /> Chamar no WhatsApp
+              </a>
+            )}
           </div>
         ) : (
           <>
