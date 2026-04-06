@@ -10,6 +10,21 @@ function sb() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
 }
 
+/**
+ * Coluna ausente no Postgres (42703) ou PostgREST com cache desatualizado / PGRST204 —
+ * ex.: "could not find the client_id column of appointments in the schema cache"
+ */
+function isMissingDbColumnError(err: { code?: string; message?: string } | null | undefined): boolean {
+  if (!err) return false;
+  const msg = String(err.message || "").toLowerCase();
+  const code = String(err.code || "");
+  if (code === "42703" || code === "PGRST204") return true;
+  if (msg.includes("schema cache") && (msg.includes("column") || msg.includes("client_id"))) return true;
+  if (msg.includes("could not find") && msg.includes("column")) return true;
+  if (msg.includes("column") && (msg.includes("does not exist") || msg.includes("unknown column"))) return true;
+  return false;
+}
+
 /** Aceita UUID do profissional ou booking_slug (ex.: salao-joana). */
 async function resolveProfessionalId(client: SupabaseClient, raw: string): Promise<string | null> {
   const param = decodeURIComponent(String(raw || "").trim());
@@ -251,13 +266,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     let { data, error } = await client.from("appointments").insert(row).select().single();
 
-    if (error?.code === "42703") {
+    if (isMissingDbColumnError(error) && row.client_id != null) {
       delete row.client_id;
-      delete row.staff_id;
-      delete row.appointment_kind;
       const r2 = await client.from("appointments").insert(row).select().single();
       data = r2.data;
       error = r2.error;
+    }
+
+    if (isMissingDbColumnError(error)) {
+      delete row.client_id;
+      delete row.staff_id;
+      delete row.appointment_kind;
+      const r3 = await client.from("appointments").insert(row).select().single();
+      data = r3.data;
+      error = r3.error;
     }
 
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

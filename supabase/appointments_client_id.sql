@@ -1,5 +1,7 @@
 -- Vincula agendamentos ao cadastro profissional (pro_clients).
 -- Rode no SQL Editor do Supabase após existir a tabela pro_clients.
+-- Depois de rodar: no Supabase, Settings → API → "Reload schema" (ou aguarde o cache do PostgREST)
+-- se aparecer erro do tipo "could not find the client_id column ... schema cache".
 
 ALTER TABLE appointments
   ADD COLUMN IF NOT EXISTS client_id uuid REFERENCES pro_clients (id) ON DELETE SET NULL;
