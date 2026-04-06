@@ -35,29 +35,50 @@ export default function LoginPage() {
     }
   };
 
-  // 2. Lógica de Redirecionamento pelo Link
+  // 2. Colar link: prioriza agendamento público (/agendar/...); cadastro só para convite PRO explícito
   const handleInviteRedirect = () => {
-    const link = inviteLink.trim();
-    if (!link) return alert("Por favor, cole o link primeiro.");
+    const raw = inviteLink.trim();
+    if (!raw) return alert("Por favor, cole o link primeiro.");
+
+    const UUID_RE =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const looksLikeBookingSlug = (s: string) =>
+      /^[a-z0-9]+(-[a-z0-9]+)*$/i.test(s) && s.length >= 3 && s.length <= 48;
+
+    let urlCandidate = raw;
+    if (!/^https?:\/\//i.test(raw) && /[\w.-]+\.[a-z]{2,}/i.test(raw)) {
+      urlCandidate = `https://${raw}`;
+    }
 
     try {
-      if (link.includes("http")) {
-        // Link completo — extrai o parâmetro ref para garantir formato correto
-        const url = new URL(link);
+      if (/^https?:\/\//i.test(urlCandidate)) {
+        const url = new URL(urlCandidate);
+        if (url.pathname.includes("/agendar/")) {
+          window.location.href = url.toString();
+          return;
+        }
         const ref = url.searchParams.get("ref") || url.searchParams.get("invite");
         if (ref) {
-          router.push(`/cadastro?ref=${ref}`);
-        } else {
-          // Link sem ref — redireciona direto (pode ser outro tipo de link)
-          window.location.href = link;
+          router.push(`/cadastro?ref=${encodeURIComponent(ref)}`);
+          return;
         }
-      } else {
-        // Só o código/UUID — usa como ref diretamente
-        router.push(`/cadastro?ref=${link}`);
+        window.location.href = url.toString();
+        return;
       }
-    } catch (e) {
-      alert("Link inválido. Cole o link completo recebido pelo embaixador.");
+    } catch {
+      // segue heurísticas para texto sem URL válida
     }
+
+    if (looksLikeBookingSlug(raw)) {
+      router.push(`/agendar/${encodeURIComponent(raw)}`);
+      return;
+    }
+    if (UUID_RE.test(raw)) {
+      router.push(`/agendar/${raw}`);
+      return;
+    }
+
+    router.push(`/cadastro?ref=${encodeURIComponent(raw)}`);
   };
 
   return (
@@ -139,7 +160,7 @@ export default function LoginPage() {
           <div className="animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="bg-[#1a1a1a] p-4 rounded-lg border border-[#333] mb-6">
               <label className="block text-xs font-bold text-[#C9A66B] uppercase mb-2">
-                Cole o link recebido aqui:
+                Cole o link recebido (convite PRO ou agendamento do salão):
               </label>
               <div className="flex gap-2">
                 <input
@@ -147,7 +168,7 @@ export default function LoginPage() {
                   value={inviteLink}
                   onChange={(e) => setInviteLink(e.target.value)}
                   className="w-full bg-black border border-[#333] rounded p-3 text-sm text-white focus:border-[#C9A66B] outline-none"
-                  placeholder="Ex: mascpro.com/cadastro?invite=..."
+                  placeholder="Ex: .../agendar/meu-salao ou .../cadastro?ref=..."
                   autoFocus
                 />
               </div>
@@ -155,7 +176,7 @@ export default function LoginPage() {
                 onClick={handleInviteRedirect}
                 className="w-full mt-3 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-bold py-3 rounded transition-all flex items-center justify-center gap-2"
               >
-                ACESSAR CADASTRO <ArrowRight size={16} />
+                ABRIR LINK <ArrowRight size={16} />
               </button>
             </div>
 
