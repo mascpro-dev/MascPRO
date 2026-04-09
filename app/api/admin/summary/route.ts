@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getAdminServiceClient } from "@/lib/adminServer";
 
-function getSupabase() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
-}
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET() {
   try {
-    const supabase = getSupabase();
+    const { supabase, error: authErr, status } = await getAdminServiceClient();
+    if (!supabase) {
+      return NextResponse.json({ ok: false, error: authErr || "Não autorizado." }, { status });
+    }
 
     const agora = new Date();
     const hoje = agora.toISOString().split("T")[0];
@@ -65,6 +66,15 @@ export async function GET() {
       supabase.from("commissions").select("valor_comissao"),
     ]);
 
+    // Se alguma consulta crítica falhar, não devolve números zerados silenciosamente.
+    const criticos = [todosPedidos, pedidosDoMes, ultimosMembros, ultimosPedidos, comissoes, saques];
+    if (criticos.some((x) => x === null)) {
+      return NextResponse.json(
+        { ok: false, error: "Falha ao carregar métricas administrativas." },
+        { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
+      );
+    }
+
     // Cálculos históricos
     const pedidosPagos = (todosPedidos || []).filter((p: any) => statusConfirmados.includes(p.status));
     const totalVendas = pedidosPagos.reduce((acc: number, p: any) => acc + Number(p.total), 0);
@@ -83,29 +93,35 @@ export async function GET() {
     const valorSaquesAbertos = (saques || []).reduce((acc: number, s: any) => acc + Number(s.valor_liquido), 0);
     const comissoesTotais = (comissoes || []).reduce((acc: number, c: any) => acc + Number(c.valor_comissao), 0);
 
-    return NextResponse.json({
-      ok: true,
-      resumo: {
-        membros: membros || 0,
-        acessosHoje: acessosHoje || 0,
-        cadastrosHoje: cadastrosHoje || 0,
-        cadastrosSemana: cadastrosSemana || 0,
-        ativosNoMes,
-        totalVendas,
-        vendasMes,
-        pedidosPagos: pedidosPagos.length,
-        pedidosPendentes,
-        pedidosDespachados,
-        pedidosEntregues,
-        pedidosAguardando,
-        saquesAbertos,
-        valorSaquesAbertos,
-        comissoesTotais,
-        ultimosMembros: ultimosMembros || [],
-        ultimosPedidos: ultimosPedidos || [],
+    return NextResponse.json(
+      {
+        ok: true,
+        resumo: {
+          membros: membros || 0,
+          acessosHoje: acessosHoje || 0,
+          cadastrosHoje: cadastrosHoje || 0,
+          cadastrosSemana: cadastrosSemana || 0,
+          ativosNoMes,
+          totalVendas,
+          vendasMes,
+          pedidosPagos: pedidosPagos.length,
+          pedidosPendentes,
+          pedidosDespachados,
+          pedidosEntregues,
+          pedidosAguardando,
+          saquesAbertos,
+          valorSaquesAbertos,
+          comissoesTotais,
+          ultimosMembros: ultimosMembros || [],
+          ultimosPedidos: ultimosPedidos || [],
+        },
       },
-    });
+      { headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Erro interno." }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Erro interno." },
+      { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
   }
 }

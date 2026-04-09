@@ -66,19 +66,30 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let ativo = true;
+
     async function carregar() {
       setErro("");
-      const res = await fetch("/api/admin/summary", { cache: "no-store" });
+      const res = await fetch(`/api/admin/summary?ts=${Date.now()}`, { cache: "no-store" });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok || !data?.resumo) {
+        if (!ativo) return;
         setErro(data?.error || "Falha ao carregar métricas.");
         setLoading(false);
         return;
       }
+      if (!ativo) return;
       setResumo(data.resumo);
       setLoading(false);
     }
+
     carregar();
+    const timer = setInterval(carregar, 60_000);
+
+    return () => {
+      ativo = false;
+      clearInterval(timer);
+    };
   }, []);
 
   return (
