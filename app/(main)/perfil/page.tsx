@@ -5,6 +5,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
   ShieldCheck, LayoutDashboard, User, Camera, Save,
   Instagram, Phone, MapPin, Briefcase, Clock, Loader2, CheckCircle, AlertCircle, Link2,
+  Smartphone, Download,
 } from "lucide-react";
 import { slugifyForBooking } from "@/lib/bookingSlug";
 
@@ -27,6 +28,39 @@ const EXPERIENCE_OPTIONS = [
   { value: "1 a 5 anos", label: "1 a 5 anos" },
   { value: "mais de 5 anos", label: "Mais de 5 anos" },
 ];
+
+const APP_DOWNLOAD_UNIVERSAL = process.env.NEXT_PUBLIC_MASCPRO_APP_DOWNLOAD_URL?.trim() || "";
+const APP_IOS_URL = process.env.NEXT_PUBLIC_MASCPRO_APP_IOS_URL?.trim() || "";
+const APP_ANDROID_URL = process.env.NEXT_PUBLIC_MASCPRO_APP_ANDROID_URL?.trim() || "";
+const APP_SITE_FALLBACK = "https://mascpro.com.br";
+
+function abrirDownloadAppMascPro() {
+  if (typeof window === "undefined") return;
+  if (APP_DOWNLOAD_UNIVERSAL) {
+    window.open(APP_DOWNLOAD_UNIVERSAL, "_blank", "noopener,noreferrer");
+    return;
+  }
+  const ua = window.navigator.userAgent || "";
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  if (isIOS && APP_IOS_URL) {
+    window.open(APP_IOS_URL, "_blank", "noopener,noreferrer");
+    return;
+  }
+  if (isAndroid && APP_ANDROID_URL) {
+    window.open(APP_ANDROID_URL, "_blank", "noopener,noreferrer");
+    return;
+  }
+  if (APP_ANDROID_URL) {
+    window.open(APP_ANDROID_URL, "_blank", "noopener,noreferrer");
+    return;
+  }
+  if (APP_IOS_URL) {
+    window.open(APP_IOS_URL, "_blank", "noopener,noreferrer");
+    return;
+  }
+  window.open(APP_SITE_FALLBACK, "_blank", "noopener,noreferrer");
+}
 
 export default function PerfilPage() {
   const supabase = createClientComponentClient();
@@ -191,6 +225,45 @@ export default function PerfilPage() {
             <p className="text-[11px] text-zinc-400 leading-relaxed">
               Mantenha seu perfil atualizado. Isso ajuda no networking e na visibilidade dentro da comunidade.
             </p>
+          </div>
+
+          <div className="bg-zinc-900/50 p-5 rounded-3xl border border-white/5">
+            <div className="flex items-center gap-2 mb-2">
+              <Smartphone className="text-[#C9A66B] w-4 h-4" />
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">App Masc PRO</p>
+            </div>
+            <p className="text-[11px] text-zinc-400 leading-relaxed mb-4">
+              Acesse a comunidade, agenda e loja com um toque. Use o botão abaixo para ir direto à loja de apps do seu celular.
+            </p>
+            <button
+              type="button"
+              onClick={abrirDownloadAppMascPro}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl border border-[#C9A66B]/40 bg-[#C9A66B]/10 py-3.5 text-xs font-black uppercase tracking-widest text-[#C9A66B] hover:bg-[#C9A66B]/20 transition-colors"
+            >
+              <Download size={16} />
+              Baixar o app Masc PRO
+            </button>
+            {APP_IOS_URL && APP_ANDROID_URL && !APP_DOWNLOAD_UNIVERSAL && (
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-wider">
+                <a
+                  href={APP_ANDROID_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-zinc-500 hover:text-[#C9A66B] transition-colors"
+                >
+                  Google Play
+                </a>
+                <span className="text-zinc-700">·</span>
+                <a
+                  href={APP_IOS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-zinc-500 hover:text-[#C9A66B] transition-colors"
+                >
+                  App Store
+                </a>
+              </div>
+            )}
           </div>
 
           {/* Moedas acumuladas */}
