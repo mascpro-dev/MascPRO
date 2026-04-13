@@ -12,6 +12,7 @@ const RESERVED = new Set(
     "login",
     "cadastro",
     "perfil",
+    "instalar-app",
     "dashboard",
     "checkout",
     "role-select",

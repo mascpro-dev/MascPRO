@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
   ShieldCheck, LayoutDashboard, User, Camera, Save,
@@ -29,40 +30,8 @@ const EXPERIENCE_OPTIONS = [
   { value: "mais de 5 anos", label: "Mais de 5 anos" },
 ];
 
-const APP_DOWNLOAD_UNIVERSAL = process.env.NEXT_PUBLIC_MASCPRO_APP_DOWNLOAD_URL?.trim() || "";
-const APP_IOS_URL = process.env.NEXT_PUBLIC_MASCPRO_APP_IOS_URL?.trim() || "";
-const APP_ANDROID_URL = process.env.NEXT_PUBLIC_MASCPRO_APP_ANDROID_URL?.trim() || "";
-const APP_SITE_FALLBACK = "https://mascpro.com.br";
-
-function abrirDownloadAppMascPro() {
-  if (typeof window === "undefined") return;
-  if (APP_DOWNLOAD_UNIVERSAL) {
-    window.open(APP_DOWNLOAD_UNIVERSAL, "_blank", "noopener,noreferrer");
-    return;
-  }
-  const ua = window.navigator.userAgent || "";
-  const isIOS = /iPhone|iPad|iPod/i.test(ua);
-  const isAndroid = /Android/i.test(ua);
-  if (isIOS && APP_IOS_URL) {
-    window.open(APP_IOS_URL, "_blank", "noopener,noreferrer");
-    return;
-  }
-  if (isAndroid && APP_ANDROID_URL) {
-    window.open(APP_ANDROID_URL, "_blank", "noopener,noreferrer");
-    return;
-  }
-  if (APP_ANDROID_URL) {
-    window.open(APP_ANDROID_URL, "_blank", "noopener,noreferrer");
-    return;
-  }
-  if (APP_IOS_URL) {
-    window.open(APP_IOS_URL, "_blank", "noopener,noreferrer");
-    return;
-  }
-  window.open(APP_SITE_FALLBACK, "_blank", "noopener,noreferrer");
-}
-
 export default function PerfilPage() {
+  const router = useRouter();
   const supabase = createClientComponentClient();
   const [profile, setProfile] = useState<any>(null);
   const [form, setForm] = useState<Form>({
@@ -233,37 +202,16 @@ export default function PerfilPage() {
               <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">App Masc PRO</p>
             </div>
             <p className="text-[11px] text-zinc-400 leading-relaxed mb-4">
-              Acesse a comunidade, agenda e loja com um toque. Use o botão abaixo para ir direto à loja de apps do seu celular.
+              Instale o Masc PRO como aplicativo (PWA): fica na tela inicial do celular ou fixado no PC, com o mesmo login e recursos do site.
             </p>
             <button
               type="button"
-              onClick={abrirDownloadAppMascPro}
+              onClick={() => router.push("/instalar-app")}
               className="w-full flex items-center justify-center gap-2 rounded-2xl border border-[#C9A66B]/40 bg-[#C9A66B]/10 py-3.5 text-xs font-black uppercase tracking-widest text-[#C9A66B] hover:bg-[#C9A66B]/20 transition-colors"
             >
               <Download size={16} />
-              Baixar o app Masc PRO
+              Como instalar o app
             </button>
-            {APP_IOS_URL && APP_ANDROID_URL && !APP_DOWNLOAD_UNIVERSAL && (
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-wider">
-                <a
-                  href={APP_ANDROID_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-zinc-500 hover:text-[#C9A66B] transition-colors"
-                >
-                  Google Play
-                </a>
-                <span className="text-zinc-700">·</span>
-                <a
-                  href={APP_IOS_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-zinc-500 hover:text-[#C9A66B] transition-colors"
-                >
-                  App Store
-                </a>
-              </div>
-            )}
           </div>
 
           {/* Moedas acumuladas */}
