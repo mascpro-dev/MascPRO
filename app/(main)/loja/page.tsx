@@ -1,10 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { ShoppingBag, Loader2, ChevronRight, ShoppingCart } from "lucide-react";
+import { ShoppingBag, Loader2, ChevronRight, ShoppingCart, Search } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "./CartContext";
+
+/** Texto para busca: minúsculas e sem acento (ex.: "shampoo" encontra "Shampoo"). */
+function normalizarBusca(s: string) {
+  return String(s || "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .trim();
+}
 
 function LojaContent() {
   const supabase = createClientComponentClient();
@@ -12,6 +21,7 @@ function LojaContent() {
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<any[]>([]);
   const [userLevel, setUserLevel] = useState('cabeleireiro');
+  const [busca, setBusca] = useState("");
 
   // Cálculo da bolinha de notificação
   const cartCount = cart?.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0) || 0;
@@ -33,8 +43,14 @@ function LojaContent() {
           const userNivel = profile?.nivel?.toLowerCase().trim() || 'cabeleireiro';
           setUserLevel(userNivel);
         }
-        const { data: productsData } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-        setProducts(productsData || []);
+        const { data: productsData } = await supabase.from("products").select("*");
+        const sorted = [...(productsData || [])].sort((a, b) =>
+          String(a.title ?? "").localeCompare(String(b.title ?? ""), "pt-BR", {
+            numeric: true,
+            sensitivity: "base",
+          })
+        );
+        setProducts(sorted);
       } catch (e) { console.error(e); } finally { setLoading(false); }
     }
     loadStore();
@@ -51,6 +67,12 @@ function LojaContent() {
     // Salva o preço correto para o nível do usuário como 'displayPrice'
     addToCart({ ...product, quantity: 1, displayPrice: getDisplayPrice(product) });
   };
+
+  const produtosFiltrados = useMemo(() => {
+    const q = normalizarBusca(busca);
+    if (!q) return products;
+    return products.filter((p) => normalizarBusca(String(p.title ?? "")).includes(q));
+  }, [products, busca]);
 
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
 
@@ -78,8 +100,57 @@ function LojaContent() {
           </button>
         </div>
 
+        <div className="mb-8">
+          <label className="sr-only" htmlFor="loja-busca-produto">
+            Buscar produto na loja
+          </label>
+          <div className="relative max-w-xl">
+            <Search
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
+              size={18}
+              aria-hidden
+            />
+            <input
+              id="loja-busca-produto"
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar produto pelo nome…"
+              autoComplete="off"
+              className="w-full rounded-xl border border-white/10 bg-zinc-900/80 py-3.5 pl-12 pr-4 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-[#C9A66B]/60 transition-colors"
+            />
+          </div>
+          {busca.trim() && (
+            <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600">
+              {produtosFiltrados.length} resultado{produtosFiltrados.length === 1 ? "" : "s"} na loja
+            </p>
+          )}
+        </div>
+
+        {produtosFiltrados.length === 0 ? (
+          <div className="rounded-2xl border border-white/10 bg-zinc-900/40 px-6 py-16 text-center">
+            <p className="text-sm text-zinc-400">
+              {products.length === 0
+                ? "Nenhum produto disponível na loja no momento."
+                : busca.trim()
+                  ? (
+                    <>
+                      Nenhum produto encontrado com esse nome.{" "}
+                      <button
+                        type="button"
+                        onClick={() => setBusca("")}
+                        className="text-[#C9A66B] font-bold hover:underline"
+                      >
+                        Limpar busca
+                      </button>
+                    </>
+                  )
+                : "Nenhum produto disponível na loja no momento."}
+            </p>
+          </div>
+        ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {products.map((product) => (
+          {produtosFiltrados.map((product) => (
             <div key={product.id} className="group flex flex-col bg-zinc-900/80 border border-white/10 rounded-xl overflow-hidden hover:border-[#C9A66B]/50 transition-all duration-300">
               <div className="aspect-square relative overflow-hidden bg-[#F5F5F7] p-2">
                 <img src={product.image_url} alt={product.title} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" />
@@ -109,6 +180,7 @@ function LojaContent() {
             </div>
           ))}
         </div>
+        )}
       </div>
     </div>
   );
