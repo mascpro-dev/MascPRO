@@ -21,7 +21,11 @@ type Form = {
   booking_slug: string;
   work_type: string;
   experience: string;
+  studio_address: string;
+  reminder_template: string;
+  reminder_enabled: boolean;
 };
+type StringFormKey = Exclude<keyof Form, "reminder_enabled">;
 
 const WORK_TYPES = ["Salão Próprio", "Alugo Cadeira", "Comissionado"];
 const EXPERIENCE_OPTIONS = [
@@ -37,6 +41,7 @@ export default function PerfilPage() {
   const [form, setForm] = useState<Form>({
     full_name: "", whatsapp: "", instagram: "", bio: "",
     city: "", state: "", barber_shop: "", booking_slug: "", work_type: "", experience: "",
+    studio_address: "", reminder_template: "", reminder_enabled: true,
   });
   const [salvando, setSalvando] = useState(false);
   const [alterandoFoto, setAlterandoFoto] = useState(false);
@@ -66,13 +71,18 @@ export default function PerfilPage() {
           booking_slug: data.booking_slug || "",
           work_type: data.work_type || "",
           experience: data.experience || "",
+          studio_address: data.studio_address || "",
+          reminder_template: data.reminder_template || "",
+          reminder_enabled: data.reminder_enabled !== false,
         });
       }
     }
     load();
   }, []);
 
-  const set = (field: keyof Form, val: string) =>
+  const set = (field: StringFormKey, val: string) =>
+    setForm(f => ({ ...f, [field]: val }));
+  const setBool = (field: "reminder_enabled", val: boolean) =>
     setForm(f => ({ ...f, [field]: val }));
 
   async function uploadAvatar(file: File) {
@@ -412,6 +422,60 @@ export default function PerfilPage() {
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Lembrete automatico WhatsApp */}
+              <div className="md:col-span-2 space-y-3 rounded-2xl border border-white/10 bg-black/30 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                      Lembrete automatico dos agendamentos
+                    </p>
+                    <p className="text-[11px] text-zinc-500">
+                      Envia mensagem na manha do dia para clientes com telefone no agendamento.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBool("reminder_enabled", !form.reminder_enabled)}
+                    className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-colors ${
+                      form.reminder_enabled
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                        : "bg-zinc-900 border-zinc-700 text-zinc-500"
+                    }`}
+                  >
+                    {form.reminder_enabled ? "Ativo" : "Desativado"}
+                  </button>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                    Endereco do studio (entra no lembrete)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={form.studio_address}
+                    onChange={e => set("studio_address", e.target.value)}
+                    placeholder="Ex: Rua Rui Barbosa 1086, Centro..."
+                    className={`${inputClass} resize-none`}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                    Modelo da mensagem de lembrete
+                  </label>
+                  <textarea
+                    rows={7}
+                    value={form.reminder_template}
+                    onChange={e => set("reminder_template", e.target.value)}
+                    placeholder={"*{{salon_name}}*\n\nOla {{client_name}}, tudo bem?\nSeu horario hoje as {{appointment_time}} para {{service}}."}
+                    className={`${inputClass} resize-y`}
+                  />
+                  <p className="text-[10px] text-zinc-600 leading-relaxed">
+                    Use: {"{{salon_name}}"} {"{{client_name}}"} {"{{appointment_date}}"} {"{{appointment_time}}"} {"{{service}}"} {"{{professional_name}}"} {"{{address}}"} {"{{address_block}}"}.
+                  </p>
+                </div>
               </div>
             </div>
 

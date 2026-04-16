@@ -37,6 +37,11 @@ export async function POST(req: NextRequest) {
     if (body.avatar_url !== undefined && typeof body.avatar_url === "string") {
       campos.avatar_url = body.avatar_url.trim() || null;
     }
+    if (body.studio_address !== undefined) campos.studio_address = String(body.studio_address || "").trim() || null;
+    if (body.reminder_template !== undefined) {
+      campos.reminder_template = String(body.reminder_template || "").trim() || null;
+    }
+    if (body.reminder_enabled !== undefined) campos.reminder_enabled = Boolean(body.reminder_enabled);
 
     // Remove campos undefined
     Object.keys(campos).forEach(k => campos[k] === undefined && delete campos[k]);
