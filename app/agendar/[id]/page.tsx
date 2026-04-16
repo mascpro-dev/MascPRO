@@ -62,6 +62,10 @@ function gerarSlots(
   return slots;
 }
 
+function apenasDisponiveis(slots: Slot[]) {
+  return slots.filter((s) => !s.ocupado);
+}
+
 function formatarData(d: Date) {
   return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
 }
@@ -179,7 +183,7 @@ export default function AgendarPage() {
   }
 
   function getSlotsFiltradoHoje(d: Date): Slot[] {
-    const todos = getSlots(d);
+    const todos = apenasDisponiveis(getSlots(d));
     const iso = toISO(d);
     const hojeISO = toISO(new Date());
     if (iso !== hojeISO) return todos;
@@ -428,7 +432,7 @@ export default function AgendarPage() {
                     {dias.map((d) => {
                       const disp = getDisp(d);
                       const slots = getSlotsFiltradoHoje(d);
-                      const temLivre = slots.some((s) => !s.ocupado);
+                      const temLivre = slots.length > 0;
                       const sel = dataSel && toISO(dataSel) === toISO(d);
                       return (
                         <button
@@ -470,20 +474,22 @@ export default function AgendarPage() {
                       {getSlotsFiltradoHoje(dataSel).map((s) => (
                         <button
                           key={s.hora}
-                          disabled={s.ocupado}
                           onClick={() => setHoraSel(s.hora)}
                           className={`py-2.5 rounded-xl text-sm font-black border transition-all ${
-                            s.ocupado
-                              ? "border-zinc-900 text-zinc-700 bg-zinc-950 cursor-not-allowed line-through"
-                              : horaSel === s.hora
-                                ? "bg-[#C9A66B] border-[#C9A66B] text-black"
-                                : "border-zinc-800 bg-zinc-900 text-white hover:border-zinc-600"
+                            horaSel === s.hora
+                              ? "bg-[#C9A66B] border-[#C9A66B] text-black"
+                              : "border-zinc-800 bg-zinc-900 text-white hover:border-zinc-600"
                           }`}
                         >
                           {s.hora}
                         </button>
                       ))}
                     </div>
+                    {getSlotsFiltradoHoje(dataSel).length === 0 && (
+                      <p className="text-[11px] text-zinc-500">
+                        Nao ha horarios disponiveis para este dia.
+                      </p>
+                    )}
                   </div>
                 )}
 

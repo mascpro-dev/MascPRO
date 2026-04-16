@@ -275,6 +275,7 @@ export default function AgendaGestaoPage() {
   const diaStr = toISO(dia);
 
   const [apts, setApts] = useState<Appointment[]>([]);
+  const [contagemSemana, setContagemSemana] = useState<Record<string, number>>({});
   const [loadA, setLoadA] = useState(false);
   const [clients, setClients] = useState<ProClient[]>([]);
   const [services, setServices] = useState<ProService[]>([]);
@@ -396,6 +397,26 @@ export default function AgendaGestaoPage() {
     setApts(d.appointments || []);
     setLoadA(false);
   }, [diaStr, agendaStaffFilter]);
+
+  const carregarContagemSemana = useCallback(async () => {
+    const staffQ =
+      agendaStaffFilter === "all" ? "" : `&staff=${encodeURIComponent(agendaStaffFilter)}`;
+    const diasIso = weekDays.map((d) => toISO(d));
+    const respostas = await Promise.all(
+      diasIso.map(async (ds) => {
+        const r = await fetch(`/api/agenda?dia=${ds}${staffQ}`);
+        const j = await r.json().catch(() => ({ appointments: [] }));
+        const lista = (j.appointments || []) as Appointment[];
+        const qtd = lista.filter(
+          (a) =>
+            String(a.status || "").toLowerCase() !== "cancelado" &&
+            !isBloqueioPessoal(a)
+        ).length;
+        return [ds, qtd] as const;
+      })
+    );
+    setContagemSemana(Object.fromEntries(respostas));
+  }, [agendaStaffFilter, weekDays]);
 
   const carregarEquipe = useCallback(async () => {
     const r = await fetch("/api/pro/gestao/staff");
@@ -556,8 +577,11 @@ export default function AgendaGestaoPage() {
   }, [aba, carregarClientes, carregarServicos, carregarEquipe, carregarDisponibilidade]);
 
   useEffect(() => {
-    if (aba === "agenda") carregarDia();
-  }, [agendaStaffFilter, aba, carregarDia, diaStr]);
+    if (aba === "agenda") {
+      carregarDia();
+      carregarContagemSemana();
+    }
+  }, [agendaStaffFilter, aba, carregarDia, carregarContagemSemana, diaStr]);
 
   useEffect(() => {
     if (aba === "clientes") carregarClientes();
@@ -725,6 +749,7 @@ export default function AgendaGestaoPage() {
     else {
       setModalApt(null);
       carregarDia();
+      carregarContagemSemana();
     }
     setSaving(false);
   }
@@ -737,6 +762,7 @@ export default function AgendaGestaoPage() {
       body: JSON.stringify({ id }),
     });
     carregarDia();
+    carregarContagemSemana();
     setModalApt(null);
     setSheetApt(null);
     setSheetPanel(null);
@@ -771,6 +797,7 @@ export default function AgendaGestaoPage() {
       return;
     }
     carregarDia();
+    carregarContagemSemana();
     setSheetApt(null);
     setSheetPanel(null);
     setSheetWaOpen(false);
@@ -854,6 +881,7 @@ export default function AgendaGestaoPage() {
       return;
     }
     carregarDia();
+    carregarContagemSemana();
     setSheetApt(null);
     setSheetPanel(null);
   }
@@ -1189,8 +1217,11 @@ export default function AgendaGestaoPage() {
             >
               <ChevronLeft size={18} />
             </button>
-            <p className="text-sm font-bold text-[#C9A66B] capitalize">
+            <p className="text-sm font-bold text-[#C9A66B] capitalize text-center">
               {dia.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+              <span className="block text-[10px] font-black uppercase tracking-widest text-zinc-500 mt-0.5">
+                {String(contagemSemana[diaStr] ?? 0).padStart(2, "0")} agendamentos
+              </span>
             </p>
             <button
               type="button"
@@ -1225,6 +1256,13 @@ export default function AgendaGestaoPage() {
                 >
                   <span className="text-[9px] font-bold opacity-80">{labelsDow[i]}</span>
                   <span className="text-lg font-black">{d.getDate()}</span>
+                  <span
+                    className={`text-[9px] font-black ${
+                      sel ? "text-black/80" : "text-zinc-500"
+                    }`}
+                  >
+                    {String(contagemSemana[ds] ?? 0).padStart(2, "0")}
+                  </span>
                 </button>
               );
             })}
@@ -2547,18 +2585,23 @@ export default function AgendaGestaoPage() {
                   style={{ colorScheme: "dark" }}
                 />
                 <input
-                  placeholder="Duracao min"
+                  placeholder="Tempo do procedimento (min)"
                   value={formApt.duration_min}
                   onChange={(e) => setFormApt({ ...formApt, duration_min: e.target.value })}
                   className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
+                  inputMode="numeric"
                 />
               </div>
-              <input
-                placeholder="Preco R$"
-                value={formApt.price}
-                onChange={(e) => setFormApt({ ...formApt, price: e.target.value })}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm"
-              />
+              <div className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 flex items-center gap-2">
+                <span className="text-sm font-black text-[#C9A66B]">R$</span>
+                <input
+                  placeholder="0,00"
+                  value={formApt.price}
+                  onChange={(e) => setFormApt({ ...formApt, price: e.target.value })}
+                  className="flex-1 bg-transparent border-0 outline-none text-sm text-white placeholder:text-zinc-500"
+                  inputMode="decimal"
+                />
+              </div>
               <select
                 value={formApt.status}
                 onChange={(e) => setFormApt({ ...formApt, status: e.target.value })}
