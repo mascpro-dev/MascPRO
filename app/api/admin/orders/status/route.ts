@@ -7,6 +7,20 @@ function getSupabase() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
 }
 
+function normalizeOrderStatus(raw: unknown): string {
+  return String(raw || "").trim().toLowerCase();
+}
+
+const ALLOWED_STATUS = new Set([
+  "novo",
+  "pending",
+  "paid",
+  "separacao",
+  "despachado",
+  "entregue",
+  "cancelled",
+]);
+
 async function processarComissao(supabase: any, orderId: string) {
   const { data: existente } = await supabase
     .from("commissions").select("id").eq("order_id", orderId).maybeSingle();
@@ -50,12 +64,16 @@ export async function POST(req: NextRequest) {
     if (!orderId || !novoStatus) {
       return NextResponse.json({ ok: false, error: "orderId e novoStatus obrigatórios" }, { status: 400 });
     }
+    const statusNormalizado = normalizeOrderStatus(novoStatus);
+    if (!ALLOWED_STATUS.has(statusNormalizado)) {
+      return NextResponse.json({ ok: false, error: "Status invalido." }, { status: 400 });
+    }
 
     const supabase = getSupabase();
 
     const { error } = await supabase
       .from("orders")
-      .update({ status: novoStatus })
+      .update({ status: statusNormalizado })
       .eq("id", orderId);
 
     if (error) {
@@ -63,7 +81,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    if (novoStatus === "paid") {
+    if (statusNormalizado === "paid") {
       try {
         await processarComissao(supabase, orderId);
       } catch (e: any) {
@@ -71,7 +89,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (novoStatus === "entregue") {
+    if (statusNormalizado === "entregue") {
       try {
         const inv = await applyOrderToProInventory(supabase, orderId);
         if (!inv.ok) {

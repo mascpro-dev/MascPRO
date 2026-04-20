@@ -84,7 +84,7 @@ export default function AdminDashboard() {
     }
 
     carregar();
-    const timer = setInterval(carregar, 60_000);
+    const timer = setInterval(carregar, 15_000);
 
     return () => {
       ativo = false;

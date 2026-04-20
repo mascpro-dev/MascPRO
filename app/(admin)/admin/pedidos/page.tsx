@@ -15,6 +15,9 @@ type Pedido = {
   status: string;
   payment_method: string;
   mp_payment_id: string | null;
+  shipping_cost?: number | null;
+  shipping_cep?: string | null;
+  shipping_address?: string | null;
   created_at: string;
   profiles: { full_name: string; nivel: string; avatar_url?: string | null } | null;
   order_items: { quantidade: number; preco_unitario: number; products: { title: string } | null }[];
@@ -45,6 +48,76 @@ export default function AdminPedidosPage() {
   const [syncingMp, setSyncingMp] = useState(false);
 
   useEffect(() => { carregarPedidos(); }, [filtro]);
+
+  function pagamentoLabel(metodo: string) {
+    const m = String(metodo || "").toLowerCase();
+    if (m === "mercadopago") return "Mercado Pago";
+    if (m === "pix") return "PIX";
+    if (m === "credito") return "Cartao credito";
+    if (m === "debito") return "Cartao debito";
+    if (m === "boleto") return "Boleto";
+    if (m === "pendente") return "Pendente";
+    return metodo || "Nao informado";
+  }
+
+  function imprimirLogisticaPdf(pedido: Pedido) {
+    const itens = (pedido.order_items || [])
+      .map((item) => {
+        const nome = item.products?.title || "Produto";
+        const qtd = Number(item.quantidade || 0);
+        const unit = Number(item.preco_unitario || 0);
+        const subtotal = unit * qtd;
+        return `<tr>
+          <td style="padding:8px;border:1px solid #ddd">${nome}</td>
+          <td style="padding:8px;border:1px solid #ddd;text-align:center">${qtd}</td>
+          <td style="padding:8px;border:1px solid #ddd;text-align:right">R$ ${unit.toFixed(2)}</td>
+          <td style="padding:8px;border:1px solid #ddd;text-align:right">R$ ${subtotal.toFixed(2)}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Pedido ${pedido.id}</title>
+  </head>
+  <body style="font-family:Arial,sans-serif;color:#111;padding:18px">
+    <h2 style="margin:0 0 8px 0">MascPRO - Ficha de Separacao/Expedicao</h2>
+    <p style="margin:2px 0"><strong>Pedido:</strong> ${pedido.id}</p>
+    <p style="margin:2px 0"><strong>Data:</strong> ${new Date(pedido.created_at).toLocaleString("pt-BR")}</p>
+    <p style="margin:2px 0"><strong>Cliente:</strong> ${pedido.profiles?.full_name || "-"}</p>
+    <p style="margin:2px 0"><strong>Pagamento:</strong> ${pagamentoLabel(pedido.payment_method)}</p>
+    <p style="margin:2px 0"><strong>Status:</strong> ${STATUS[pedido.status]?.label || pedido.status}</p>
+    <p style="margin:2px 0"><strong>Frete:</strong> R$ ${Number(pedido.shipping_cost || 0).toFixed(2)}</p>
+    <p style="margin:2px 0"><strong>CEP:</strong> ${pedido.shipping_cep || "-"}</p>
+    <p style="margin:6px 0 10px 0"><strong>Endereco:</strong> ${pedido.shipping_address || "-"}</p>
+    <table style="width:100%;border-collapse:collapse;margin-top:8px">
+      <thead>
+        <tr>
+          <th style="padding:8px;border:1px solid #ddd;text-align:left">Produto</th>
+          <th style="padding:8px;border:1px solid #ddd;text-align:center">Qtd</th>
+          <th style="padding:8px;border:1px solid #ddd;text-align:right">Unit.</th>
+          <th style="padding:8px;border:1px solid #ddd;text-align:right">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>${itens}</tbody>
+    </table>
+    <p style="margin-top:10px"><strong>Total pedido:</strong> R$ ${Number(pedido.total || 0).toFixed(2)}</p>
+    <p style="margin-top:26px">Separacao: ____________________</p>
+    <p style="margin-top:18px">Conferencia: ____________________</p>
+    <script>window.print()</script>
+  </body>
+</html>`;
+    const w = window.open("", "_blank", "width=980,height=720");
+    if (!w) {
+      alert("Nao foi possivel abrir a janela de impressao.");
+      return;
+    }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  }
 
   async function carregarPedidos() {
     setLoading(true);
@@ -314,6 +387,18 @@ export default function AdminPedidosPage() {
                         {pedido.mp_payment_id && (
                           <p className="text-[10px] text-zinc-600 font-mono mt-1">MP #{pedido.mp_payment_id}</p>
                         )}
+                        <p className="text-[10px] text-zinc-600 mt-1">
+                          Pagamento: <span className="text-zinc-400">{pagamentoLabel(pedido.payment_method)}</span>
+                        </p>
+                        <p className="text-[10px] text-zinc-600 mt-1">
+                          Frete: <span className="text-zinc-400">R$ {Number(pedido.shipping_cost || 0).toFixed(2)}</span>
+                          {pedido.shipping_cep ? ` · CEP ${pedido.shipping_cep}` : ""}
+                        </p>
+                        {pedido.shipping_address && (
+                          <p className="text-[10px] text-zinc-500 mt-1 max-w-2xl leading-relaxed">
+                            Envio: {pedido.shipping_address}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -354,6 +439,14 @@ export default function AdminPedidosPage() {
                     >
                       {isProcessando ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                       Apagar pedido
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => imprimirLogisticaPdf(pedido)}
+                      className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all border border-zinc-700"
+                    >
+                      Imprimir PDF logistica
                     </button>
 
                     {/* PENDENTE / NOVO → confirmar pagamento ou cancelar */}

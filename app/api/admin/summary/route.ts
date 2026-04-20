@@ -4,6 +4,10 @@ import { getAdminServiceClient } from "@/lib/adminServer";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function normStatus(raw: unknown) {
+  return String(raw || "").trim().toLowerCase();
+}
+
 export async function GET() {
   try {
     const { supabase, error: authErr, status } = await getAdminServiceClient();
@@ -76,7 +80,9 @@ export async function GET() {
     }
 
     // Cálculos históricos
-    const pedidosPagos = (todosPedidos || []).filter((p: any) => statusConfirmados.includes(p.status));
+    const pedidosPagos = (todosPedidos || []).filter((p: any) =>
+      statusConfirmados.includes(normStatus(p.status))
+    );
     const totalVendas = pedidosPagos.reduce((acc: number, p: any) => acc + Number(p.total), 0);
 
     // Vendas e ativos do MÊS ATUAL
@@ -84,10 +90,18 @@ export async function GET() {
     const ativosNoMes = new Set((pedidosDoMes || []).map((p: any) => p.profile_id).filter(Boolean)).size;
 
     // Por status (todos os tempos)
-    const pedidosPendentes = (todosPedidos || []).filter((p: any) => ["paid", "separacao"].includes(p.status)).length;
-    const pedidosDespachados = (todosPedidos || []).filter((p: any) => p.status === "despachado").length;
-    const pedidosEntregues = (todosPedidos || []).filter((p: any) => p.status === "entregue").length;
-    const pedidosAguardando = (todosPedidos || []).filter((p: any) => ["pending", "novo"].includes(p.status)).length;
+    const pedidosPendentes = (todosPedidos || []).filter((p: any) =>
+      ["paid", "separacao"].includes(normStatus(p.status))
+    ).length;
+    const pedidosDespachados = (todosPedidos || []).filter(
+      (p: any) => normStatus(p.status) === "despachado"
+    ).length;
+    const pedidosEntregues = (todosPedidos || []).filter(
+      (p: any) => normStatus(p.status) === "entregue"
+    ).length;
+    const pedidosAguardando = (todosPedidos || []).filter((p: any) =>
+      ["pending", "novo"].includes(normStatus(p.status))
+    ).length;
 
     const saquesAbertos = (saques || []).length;
     const valorSaquesAbertos = (saques || []).reduce((acc: number, s: any) => acc + Number(s.valor_liquido), 0);
