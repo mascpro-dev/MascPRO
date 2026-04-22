@@ -6,13 +6,15 @@ import { ShoppingBag, Plus, Loader2, Pencil, Trash2, ToggleLeft, ToggleRight, X,
 type Produto = {
   id: string; title: string; description: string | null; how_to_use: string | null;
   image_url: string | null; video_url: string | null; volume: string | null;
+  peso_gramas?: number | null;
   price_hairdresser: number; price_ambassador: number; price_distributor: number;
   stock: number; ativo: boolean;
 };
 
 const EMPTY = {
   title: "", description: "", how_to_use: "", image_url: "", video_url: "",
-  volume: "", price_hairdresser: "", price_ambassador: "", price_distributor: "",
+  volume: "", peso_gramas: "500",
+  price_hairdresser: "", price_ambassador: "", price_distributor: "",
   stock: "0", ativo: true,
 };
 
@@ -45,6 +47,7 @@ export default function AdminProdutosPage() {
     setForm({
       title: p.title, description: p.description || "", how_to_use: p.how_to_use || "",
       image_url: p.image_url || "", video_url: p.video_url || "", volume: p.volume || "",
+      peso_gramas: String(p.peso_gramas && p.peso_gramas > 0 ? p.peso_gramas : 500),
       price_hairdresser: String(p.price_hairdresser), price_ambassador: String(p.price_ambassador),
       price_distributor: String(p.price_distributor), stock: String(p.stock), ativo: p.ativo,
     });
@@ -125,6 +128,7 @@ export default function AdminProdutosPage() {
                   <th className="text-right pb-3 pr-4">Cabeleireiro</th>
                   <th className="text-right pb-3 pr-4">Embaixador</th>
                   <th className="text-right pb-3 pr-4">Distribuidor</th>
+                  <th className="text-right pb-3 pr-4">Peso (g)</th>
                   <th className="text-center pb-3 pr-4">Estoque</th>
                   <th className="text-center pb-3 pr-4">Status</th>
                   <th className="text-center pb-3">Ações</th>
@@ -152,6 +156,9 @@ export default function AdminProdutosPage() {
                     <td className="py-3 pr-4 text-right font-bold text-[#C9A66B]">{moeda(p.price_hairdresser)}</td>
                     <td className="py-3 pr-4 text-right text-zinc-300">{moeda(p.price_ambassador)}</td>
                     <td className="py-3 pr-4 text-right text-zinc-300">{moeda(p.price_distributor)}</td>
+                    <td className="py-3 pr-4 text-right text-zinc-500 text-xs">
+                      {p.peso_gramas && p.peso_gramas > 0 ? p.peso_gramas : "—"}
+                    </td>
                     <td className="py-3 pr-4 text-center">
                       <span className={`text-xs font-bold px-2 py-0.5 rounded ${p.stock <= 0 ? "bg-red-900/30 text-red-400" : p.stock <= 5 ? "bg-yellow-900/30 text-yellow-400" : "bg-green-900/20 text-green-400"}`}>
                         {p.stock}
@@ -217,6 +224,19 @@ export default function AdminProdutosPage() {
                     <label className="label">Estoque (unidades)</label>
                     <input type="number" min="0" value={form.stock} onChange={e => set("stock", e.target.value)} className="input" />
                   </div>
+                </div>
+
+                <div>
+                  <label className="label">Peso para frete (gramas) — Correios</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={form.peso_gramas}
+                    onChange={e => set("peso_gramas", e.target.value)}
+                    className="input"
+                  />
+                  <p className="text-[9px] text-zinc-600 mt-1">Soma no carrinho + embalagem padrão (env). Padrão 500 g se vazio após salvar no banco.</p>
                 </div>
 
                 <div>

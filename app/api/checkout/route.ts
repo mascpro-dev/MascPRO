@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
+import {
+  calcularFretePAC,
+  getDimensoesPadraoEm,
+  getPesoDefaultProdutoGramas,
+  getPesoEmbalagemGramas,
+  pesoTotalGramasItens,
+} from "@/lib/correiosFrete";
+
+const FRETE_GRATIS_ACIMA = 1500;
 
 function getAppUrl(req: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -16,7 +25,7 @@ function getAppUrl(req: NextRequest): string {
 export async function POST(req: NextRequest) {
   try {
     const APP_URL = getAppUrl(req);
-    const { items, userId, userEmail, userName, accessToken, shippingCost, shippingCep, shippingAddress } = await req.json();
+    const { items, userId, userEmail, userName, accessToken, shippingCep, shippingAddress } = await req.json();
 
     if (!items?.length || !userId) {
       return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
@@ -44,7 +53,58 @@ export async function POST(req: NextRequest) {
       (acc: number, i: any) => acc + Number(i.displayPrice || i.price || 0) * Number(i.quantity || 1),
       0
     );
-    const frete = Number(shippingCost || 0);
+
+    const freteGratis = subtotal >= FRETE_GRATIS_ACIMA;
+    const cepDestino = String(shippingCep || "").replace(/\D/g, "");
+    let frete = 0;
+
+    if (!freteGratis) {
+      if (cepDestino.length !== 8) {
+        return NextResponse.json({ error: "CEP de entrega inválido ou ausente." }, { status: 400 });
+      }
+      const cepOrigem = String(process.env.CORREIOS_CEP_ORIGEM || "").replace(/\D/g, "");
+      if (cepOrigem.length !== 8) {
+        return NextResponse.json(
+          { error: "Loja sem CEP de postagem: configure CORREIOS_CEP_ORIGEM no servidor (8 dígitos)." },
+          { status: 500 }
+        );
+      }
+      const cartIds = items.map((i: { id: string }) => i.id);
+      const { data: productRows, error: perr } = await supabase
+        .from("products")
+        .select("id, peso_gramas")
+        .in("id", cartIds);
+      if (perr || !productRows?.length) {
+        return NextResponse.json(
+          { error: "Não foi possível validar o peso dos produtos. Tente novamente." },
+          { status: 500 }
+        );
+      }
+      const cartIt = items.map((i: { id: string; quantity?: number }) => ({
+        id: i.id,
+        quantity: Number(i.quantity || 1),
+      }));
+      const pesoBase = pesoTotalGramasItens(
+        productRows,
+        cartIt,
+        getPesoDefaultProdutoGramas()
+      );
+      const pesoGramas = pesoBase + getPesoEmbalagemGramas();
+      const r = await calcularFretePAC({
+        cepOrigem,
+        cepDestino,
+        pesoGramas,
+        dim: getDimensoesPadraoEm(),
+      });
+      if (!r.ok) {
+        return NextResponse.json(
+          { error: `Não foi possível calcular o frete: ${r.mensagem}` },
+          { status: 502 }
+        );
+      }
+      frete = Number(r.valor.toFixed(2));
+    }
+
     const total = subtotal + frete;
 
     const { data: order, error: orderError } = await supabase

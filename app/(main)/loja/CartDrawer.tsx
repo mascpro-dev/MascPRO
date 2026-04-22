@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useCart } from "./CartContext";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
@@ -8,39 +8,8 @@ import {
   MapPin, CheckCircle2, Truck, ChevronDown, ChevronUp,
 } from "lucide-react";
 
-// Frete grátis acima deste valor (produtos sem frete)
+// Frete grátis acima deste valor (alinhado com app/api/checkout e app/api/frete)
 const FRETE_GRATIS_ACIMA = 1500;
-
-// Tabela de frete por prefixo de CEP (estado)
-function calcularFrete(cep: string): number {
-  const prefix = parseInt(cep.replace(/\D/g, "").substring(0, 2));
-  if (isNaN(prefix)) return 35;
-  if (prefix >= 1  && prefix <= 9)  return 12; // SP capital
-  if (prefix >= 10 && prefix <= 19) return 15; // SP interior
-  if (prefix >= 20 && prefix <= 28) return 18; // RJ
-  if (prefix >= 29 && prefix <= 29) return 22; // ES
-  if (prefix >= 30 && prefix <= 39) return 20; // MG
-  if (prefix >= 40 && prefix <= 48) return 28; // BA
-  if (prefix >= 49 && prefix <= 49) return 28; // SE
-  if (prefix >= 50 && prefix <= 56) return 28; // PE
-  if (prefix >= 57 && prefix <= 57) return 28; // AL
-  if (prefix >= 58 && prefix <= 58) return 30; // PB
-  if (prefix >= 59 && prefix <= 59) return 30; // RN
-  if (prefix >= 60 && prefix <= 63) return 30; // CE
-  if (prefix >= 64 && prefix <= 64) return 32; // PI
-  if (prefix >= 65 && prefix <= 65) return 32; // MA
-  if (prefix >= 66 && prefix <= 68) return 38; // PA
-  if (prefix >= 69 && prefix <= 69) return 45; // AM
-  if (prefix >= 70 && prefix <= 73) return 25; // DF/GO
-  if (prefix >= 74 && prefix <= 76) return 25; // GO
-  if (prefix >= 77 && prefix <= 77) return 35; // TO
-  if (prefix >= 78 && prefix <= 78) return 35; // MT
-  if (prefix >= 79 && prefix <= 79) return 28; // MS
-  if (prefix >= 80 && prefix <= 87) return 22; // PR
-  if (prefix >= 88 && prefix <= 89) return 22; // SC
-  if (prefix >= 90 && prefix <= 99) return 25; // RS
-  return 35;
-}
 
 type Endereco = {
   cep: string;
@@ -68,6 +37,8 @@ export default function CartDrawer() {
   const [enderecoSalvo, setEnderecoSalvo] = useState(false);
   const [frete, setFrete] = useState<number | null>(null);
   const [freteInfo, setFreteInfo] = useState("");
+  const [loadingFrete, setLoadingFrete] = useState(false);
+  const [freteErro, setFreteErro] = useState("");
 
   const subtotal = cart.reduce(
     (acc: number, i: any) => acc + (Number(i.displayPrice || i.price || 0) * (i.quantity || 1)),
@@ -76,6 +47,68 @@ export default function CartDrawer() {
   const freteGratis = subtotal >= FRETE_GRATIS_ACIMA;
   const freteValor = freteGratis ? 0 : (frete ?? 0);
   const total = subtotal + freteValor;
+
+  const recalcularFrete = useCallback(async () => {
+    const cepLimpo = endereco.cep.replace(/\D/g, "");
+    if (cepLimpo.length !== 8 || cart.length === 0) {
+      setFrete(null);
+      setFreteInfo("");
+      setFreteErro("");
+      return;
+    }
+    if (freteGratis) {
+      setFrete(0);
+      setFreteInfo("Pedido acima do mínimo — frete grátis");
+      setFreteErro("");
+      return;
+    }
+    setLoadingFrete(true);
+    setFreteErro("");
+    try {
+      const res = await fetch("/api/frete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cep: cepLimpo,
+          items: cart.map((i: { id: string; quantity?: number }) => ({
+            id: i.id,
+            quantity: Number(i.quantity || 1),
+          })),
+          subtotal,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setFrete(null);
+        setFreteInfo("");
+        setFreteErro(String(data?.error || "Não foi possível calcular o frete."));
+        return;
+      }
+      setFrete(typeof data.frete === "number" ? data.frete : null);
+      if (data.freteGratis) {
+        setFreteInfo("Frete grátis");
+        return;
+      }
+      const pr = data.prazoEntrega;
+      const pg = data.pesoGramas;
+      setFreteInfo(
+        `PAC Correios${pr != null ? ` · entrega em ~${pr} dia(s) úteis` : ""}${
+          pg != null ? ` · ${Number(pg).toLocaleString("pt-BR")} g` : ""
+        }`
+      );
+    } catch {
+      setFrete(null);
+      setFreteInfo("");
+      setFreteErro("Falha de conexão ao consultar o frete.");
+    } finally {
+      setLoadingFrete(false);
+    }
+  }, [endereco.cep, cart, subtotal, freteGratis]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { void recalcularFrete(); }, 350);
+    return () => clearTimeout(t);
+  }, [recalcularFrete]);
 
   // Carrega endereço salvo no perfil
   useEffect(() => {
@@ -100,13 +133,10 @@ export default function CartDrawer() {
         };
         setEndereco(end);
         setEnderecoSalvo(true);
-        const f = calcularFrete(profile.cep);
-        setFrete(f);
-        setFreteInfo(freteGratis ? "Frete grátis" : `R$ ${f.toFixed(2)} — PAC Correios`);
       }
     }
-    carregarEndereco();
-  }, [isCartOpen, supabase, freteGratis]);
+    void carregarEndereco();
+  }, [isCartOpen, supabase]);
 
   async function buscarCep(cep: string) {
     const clean = cep.replace(/\D/g, "");
@@ -124,9 +154,6 @@ export default function CartDrawer() {
           cidade: data.localidade || "",
           estado: data.uf || "",
         }));
-        const f = calcularFrete(clean);
-        setFrete(f);
-        setFreteInfo(subtotal >= FRETE_GRATIS_ACIMA ? "Frete grátis!" : `R$ ${f.toFixed(2)} — PAC Correios`);
       }
     } finally {
       setLoadingCep(false);
@@ -155,6 +182,20 @@ export default function CartDrawer() {
       alert("Informe o endereço de entrega antes de pagar.");
       setShowEnderecoForm(true);
       return;
+    }
+    if (!freteGratis) {
+      if (loadingFrete) {
+        alert("Aguarde o cálculo do frete (Correios).");
+        return;
+      }
+      if (freteErro) {
+        alert(freteErro);
+        return;
+      }
+      if (frete === null) {
+        alert("Não foi possível obter o frete. Verifique o CEP e tente de novo.");
+        return;
+      }
     }
     setLoading(true);
     try {
@@ -355,15 +396,28 @@ export default function CartDrawer() {
           <div className="p-5 border-t border-white/5 bg-zinc-900/20 shrink-0 space-y-2">
 
             {/* Frete */}
-            {frete !== null && (
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-1 text-zinc-400 text-xs font-bold uppercase tracking-widest">
-                  <Truck size={13} /> Frete
+            {(frete !== null || freteGratis || loadingFrete || freteErro) && (
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-1 text-zinc-400 text-xs font-bold uppercase tracking-widest">
+                    <Truck size={13} /> Frete
+                    {loadingFrete && <Loader2 size={12} className="animate-spin text-zinc-500" />}
+                  </div>
+                  {freteGratis ? (
+                    <span className="text-emerald-400 text-xs font-black uppercase">Grátis!</span>
+                  ) : loadingFrete ? (
+                    <span className="text-zinc-500 text-[10px]">Calculando…</span>
+                  ) : frete === null ? (
+                    <span className="text-zinc-500 text-[10px]">—</span>
+                  ) : (
+                    <span className="text-white text-xs font-black">R$ {freteValor.toFixed(2)}</span>
+                  )}
                 </div>
-                {freteGratis ? (
-                  <span className="text-emerald-400 text-xs font-black uppercase">Grátis!</span>
-                ) : (
-                  <span className="text-white text-xs font-black">R$ {freteValor.toFixed(2)}</span>
+                {freteInfo && !freteGratis && (
+                  <p className="text-[9px] text-zinc-500 text-right leading-tight">{freteInfo}</p>
+                )}
+                {freteErro && (
+                  <p className="text-[9px] text-amber-500/90 text-right leading-tight">{freteErro}</p>
                 )}
               </div>
             )}
@@ -394,7 +448,10 @@ export default function CartDrawer() {
 
             <button
               onClick={handlePagar}
-              disabled={loading}
+              disabled={
+                loading ||
+                (!freteGratis && (loadingFrete || frete === null || !!freteErro))
+              }
               className="w-full bg-[#009EE3] text-white h-13 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-[#007EC3] transition-all flex items-center justify-center gap-3 disabled:opacity-60"
             >
               {loading ? (
