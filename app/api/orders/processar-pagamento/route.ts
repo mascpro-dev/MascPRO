@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 
 function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -73,7 +74,12 @@ export async function POST(req: NextRequest) {
         .eq("id", comprador.indicado_por);
     }
 
-    return NextResponse.json({ ok: true, valorComissao, proBonus });
+    const baixa = await applyOrderCatalogStock(supabase, orderId);
+    if (!baixa.ok) {
+      return NextResponse.json({ ok: true, valorComissao, proBonus, estoqueCatalogoErro: baixa.error });
+    }
+
+    return NextResponse.json({ ok: true, valorComissao, proBonus, estoqueCatalogo: baixa });
   } catch (err: any) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }

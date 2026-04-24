@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
+import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 
 function getSupabase() {
   const key =
@@ -150,13 +151,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Processa comissão apenas se aprovado
-    if (novoStatus === "paid") {
+    // Processa comissão e baixa de estoque catálogo para estados já pagos
+    if (["paid", "separacao", "despachado", "entregue"].includes(novoStatus)) {
       try {
         await garantirComissao(supabase, orderId);
       } catch (comErr: any) {
         console.error("[confirm] Erro ao processar comissão:", comErr.message);
         // Não bloqueia — status já foi atualizado
+      }
+      try {
+        const baixa = await applyOrderCatalogStock(supabase, orderId);
+        if (!baixa.ok) {
+          console.error("[confirm] Erro na baixa de estoque catálogo:", baixa.error);
+        }
+      } catch (stErr: any) {
+        console.error("[confirm] Exceção na baixa de estoque catálogo:", stErr.message);
       }
     }
 

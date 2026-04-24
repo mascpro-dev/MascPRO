@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
+import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 
 function getSupabase() {
   // Usa service_role se disponível (bypassa RLS), senão anon key com grants manuais
@@ -129,6 +130,10 @@ export async function POST(req: NextRequest) {
 
     if (newStatus === "paid") {
       await garantirComissao(supabase, String(orderId));
+      const baixa = await applyOrderCatalogStock(supabase, String(orderId));
+      if (!baixa.ok) {
+        console.error("[mp-webhook] baixa estoque catálogo:", baixa.error);
+      }
     }
 
     console.log(`Pedido ${orderId} atualizado para ${newStatus}`);

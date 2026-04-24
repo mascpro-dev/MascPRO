@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyOrderToProInventory } from "@/lib/applyOrderToProInventory";
+import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 
 function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -38,7 +39,7 @@ async function processarComissao(supabase: any, orderId: string) {
   const valorComissao = Number((valorPedido * 0.15).toFixed(2));
   if (valorComissao <= 0) return;
 
-  await supabase.from("commissions").insert({
+  const { error: eIns } = await supabase.from("commissions").insert({
     embaixador_id: comprador.indicado_por,
     cabeleireiro_id: comprador.id,
     order_id: order.id,
@@ -47,14 +48,16 @@ async function processarComissao(supabase: any, orderId: string) {
     valor_comissao: valorComissao,
     status: "disponivel",
   });
+  if (eIns) throw new Error(eIns.message);
 
   const proBonus = Math.round(valorPedido);
   if (proBonus > 0) {
     const { data: emb } = await supabase
       .from("profiles").select("total_compras_rede").eq("id", comprador.indicado_por).single();
-    await supabase.from("profiles")
+    const { error: eUp } = await supabase.from("profiles")
       .update({ total_compras_rede: (emb?.total_compras_rede || 0) + proBonus })
       .eq("id", comprador.indicado_por);
+    if (eUp) throw new Error(eUp.message);
   }
 }
 
@@ -81,11 +84,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    if (statusNormalizado === "paid") {
+    if (["paid", "separacao", "despachado", "entregue"].includes(statusNormalizado)) {
       try {
         await processarComissao(supabase, orderId);
       } catch (e: any) {
         console.error("[admin/orders/status] erro comissão:", e.message);
+      }
+    }
+
+    if (["paid", "separacao", "despachado", "entregue"].includes(statusNormalizado)) {
+      try {
+        const baixa = await applyOrderCatalogStock(supabase, orderId);
+        if (!baixa.ok) {
+          console.error("[admin/orders/status] estoque catálogo:", baixa.error);
+          return NextResponse.json({ ok: true, estoqueCatalogoErro: baixa.error });
+        }
+      } catch (e: any) {
+        console.error("[admin/orders/status] estoque catálogo exceção:", e.message);
       }
     }
 

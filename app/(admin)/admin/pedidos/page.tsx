@@ -229,6 +229,9 @@ export default function AdminPedidosPage() {
         alert(data?.error || "Erro ao atualizar status. Verifique os logs do Vercel.");
         return;
       }
+      if (data?.estoqueCatalogoErro) {
+        alert(`Status atualizado, mas a baixa do estoque do catálogo falhou:\n${data.estoqueCatalogoErro}`);
+      }
       if (novoStatus === "entregue") {
         if (data?.estoqueErro) {
           alert(`Pedido marcado como entregue, mas o estoque automático do membro falhou:\n${data.estoqueErro}`);
