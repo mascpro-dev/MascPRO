@@ -7,6 +7,7 @@ import {
   getPesoEmbalagemGramas,
   pesoTotalGramasItens,
 } from "@/lib/correiosFrete";
+import { isCepMariliaSp } from "@/lib/freteMarilia";
 
 const FRETE_GRATIS_ACIMA = 1500;
 
@@ -97,6 +98,7 @@ export async function POST(req: NextRequest) {
       prazoEntrega: r.prazoEntrega,
       servico: r.servico,
       pesoGramas,
+      motivo: "correios",
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado.";

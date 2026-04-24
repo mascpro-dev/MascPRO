@@ -7,6 +7,7 @@ import {
   X, Plus, Minus, Trash2, CreditCard, Loader2,
   MapPin, CheckCircle2, Truck, ChevronDown, ChevronUp,
 } from "lucide-react";
+import { isCepMariliaSp } from "@/lib/freteMarilia";
 
 // Frete grátis acima deste valor (alinhado com app/api/checkout e app/api/frete)
 const FRETE_GRATIS_ACIMA = 1500;
@@ -44,21 +45,30 @@ export default function CartDrawer() {
     (acc: number, i: any) => acc + (Number(i.displayPrice || i.price || 0) * (i.quantity || 1)),
     0
   );
-  const freteGratis = subtotal >= FRETE_GRATIS_ACIMA;
+  const cepLimpo = endereco.cep.replace(/\D/g, "");
+  const isentoSubtotal = subtotal >= FRETE_GRATIS_ACIMA;
+  const isentoMarilia = cepLimpo.length === 8 && isCepMariliaSp(cepLimpo);
+  const freteGratis = isentoSubtotal || isentoMarilia;
   const freteValor = freteGratis ? 0 : (frete ?? 0);
   const total = subtotal + freteValor;
 
   const recalcularFrete = useCallback(async () => {
-    const cepLimpo = endereco.cep.replace(/\D/g, "");
-    if (cepLimpo.length !== 8 || cart.length === 0) {
+    const c = endereco.cep.replace(/\D/g, "");
+    if (c.length !== 8 || cart.length === 0) {
       setFrete(null);
       setFreteInfo("");
       setFreteErro("");
       return;
     }
-    if (freteGratis) {
+    if (isentoSubtotal) {
       setFrete(0);
       setFreteInfo("Pedido acima do mínimo — frete grátis");
+      setFreteErro("");
+      return;
+    }
+    if (isCepMariliaSp(c)) {
+      setFrete(0);
+      setFreteInfo("Marília/SP — entrega com frete isento (CEP 17500–17519).");
       setFreteErro("");
       return;
     }
@@ -69,7 +79,7 @@ export default function CartDrawer() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cep: cepLimpo,
+          cep: c,
           items: cart.map((i: { id: string; quantity?: number }) => ({
             id: i.id,
             quantity: Number(i.quantity || 1),
@@ -86,7 +96,11 @@ export default function CartDrawer() {
       }
       setFrete(typeof data.frete === "number" ? data.frete : null);
       if (data.freteGratis) {
-        setFreteInfo("Frete grátis");
+        if (data.motivo === "marilia") {
+          setFreteInfo(String(data.mensagem || "Marília/SP — frete isento."));
+        } else {
+          setFreteInfo("Frete grátis");
+        }
         return;
       }
       const pr = data.prazoEntrega;
@@ -103,7 +117,7 @@ export default function CartDrawer() {
     } finally {
       setLoadingFrete(false);
     }
-  }, [endereco.cep, cart, subtotal, freteGratis]);
+  }, [endereco.cep, cart, subtotal, isentoSubtotal]);
 
   useEffect(() => {
     const t = setTimeout(() => { void recalcularFrete(); }, 350);
@@ -413,7 +427,7 @@ export default function CartDrawer() {
                     <span className="text-white text-xs font-black">R$ {freteValor.toFixed(2)}</span>
                   )}
                 </div>
-                {freteInfo && !freteGratis && (
+                {freteInfo && (
                   <p className="text-[9px] text-zinc-500 text-right leading-tight">{freteInfo}</p>
                 )}
                 {freteErro && (
@@ -423,14 +437,14 @@ export default function CartDrawer() {
             )}
 
             {/* Frete grátis info */}
-            {!freteGratis && subtotal > 0 && (
+            {!isentoSubtotal && !isentoMarilia && subtotal > 0 && (
               <p className="text-[10px] text-zinc-500 text-center">
                 🎁 Frete grátis em compras acima de{" "}
                 <span className="text-[#C9A66B] font-bold">R$ {FRETE_GRATIS_ACIMA.toLocaleString("pt-BR")}</span>
                 {subtotal > 0 && ` — faltam R$ ${(FRETE_GRATIS_ACIMA - subtotal).toFixed(2)}`}
               </p>
             )}
-            {freteGratis && (
+            {isentoSubtotal && (
               <p className="text-[10px] text-emerald-400 text-center font-bold">
                 🎉 Você ganhou frete grátis!
               </p>
