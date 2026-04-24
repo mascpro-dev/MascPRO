@@ -85,3 +85,23 @@ export async function assertAdmin(
   }
   return { ok: true };
 }
+
+/** Só a service_role ignora RLS; necessária em tabelas como `products` (só SELECT liberado no anon). */
+export function createServiceRoleClient(): SupabaseClient | null {
+  const k = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!k || k.trim() === "") return null;
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, k);
+}
+
+export async function getSessionUserId(): Promise<
+  { ok: true; userId: string } | { ok: false; error: string; status: number }
+> {
+  const supabaseAuth = createRouteHandlerClient({ cookies });
+  const {
+    data: { session },
+  } = await supabaseAuth.auth.getSession();
+  if (!session?.user) {
+    return { ok: false, error: "Não autenticado.", status: 401 };
+  }
+  return { ok: true, userId: session.user.id };
+}
