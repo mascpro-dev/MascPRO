@@ -15,6 +15,17 @@ function normalizarBusca(s: string) {
     .trim();
 }
 
+function normalizarNivelParaPreco(nivel: string | null | undefined): "cabeleireiro" | "embaixador" | "distribuidor" {
+  const v = String(nivel || "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .trim();
+  if (v === "distribuidor") return "distribuidor";
+  if (v === "embaixador" || v === "educador_tecnico" || v === "educador tecnico") return "embaixador";
+  return "cabeleireiro";
+}
+
 function LojaContent() {
   const supabase = createClientComponentClient();
   const { cart, addToCart, setIsCartOpen } = useCart(); // Pegando o 'cart' do contexto
@@ -40,7 +51,7 @@ function LojaContent() {
             .single();
           
           // O "pulo do gato": Normalizar o texto para comparar
-          const userNivel = profile?.nivel?.toLowerCase().trim() || 'cabeleireiro';
+          const userNivel = normalizarNivelParaPreco(profile?.nivel);
           setUserLevel(userNivel);
         }
         const { data: productsData } = await supabase.from("products").select("*");

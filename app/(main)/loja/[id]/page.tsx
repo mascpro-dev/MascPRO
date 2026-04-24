@@ -7,6 +7,17 @@ import { ArrowLeft, Loader2, ShoppingCart, Info, Plus, Minus } from "lucide-reac
 import Link from "next/link";
 import { useCart } from "../CartContext";
 
+function normalizarNivelParaPreco(nivel: string | null | undefined): "cabeleireiro" | "embaixador" | "distribuidor" {
+  const v = String(nivel || "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .trim();
+  if (v === "distribuidor") return "distribuidor";
+  if (v === "embaixador" || v === "educador_tecnico" || v === "educador tecnico") return "embaixador";
+  return "cabeleireiro";
+}
+
 function ProductDetailContent() {
   const { id } = useParams();
   const router = useRouter();
@@ -30,7 +41,7 @@ function ProductDetailContent() {
           .single();
         
         // O "pulo do gato": Normalizar o texto para comparar
-        const userNivel = profile?.nivel?.toLowerCase().trim() || 'cabeleireiro';
+        const userNivel = normalizarNivelParaPreco(profile?.nivel);
         setUserLevel(userNivel);
       }
       const { data: productData } = await supabase.from('products').select('*').eq('id', id).single();

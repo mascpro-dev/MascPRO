@@ -35,7 +35,8 @@ function roleParaNivel(role: string): string {
   const m: Record<string, string> = {
     CABELEIREIRO: "cabeleireiro",
     EMBAIXADOR: "embaixador",
-    EDUCADOR_TECNICO: "educador_tecnico",
+    // Regra de negócio: educador técnico usa a mesma tabela de preço de embaixador.
+    EDUCADOR_TECNICO: "embaixador",
     DISTRIBUIDOR: "distribuidor",
     ADMIN: "cabeleireiro",
   };
