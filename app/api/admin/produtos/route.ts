@@ -1,35 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getSessionUserId,
-  createServiceRoleClient,
-  assertAdmin,
-} from "@/lib/adminServer";
+import { getAdminContext, assertAdmin } from "@/lib/adminServer";
 
-const MSG_SERVICE_ROLE = `Salvar produtos exige a variável SUPABASE_SERVICE_ROLE_KEY no servidor (Vercel → Settings → Environment Variables, ou .env.local no dev). Coloque a chave "service_role" do Supabase (Settings → API). Sem ela, o PostgreSQL retorna "permission denied" na tabela products por causa do RLS.`;
+/** Erro de configuração no Supabase: rode supabase/fix_products_admin_completo.sql (GRANTs + RLS) ou adicione SUPABASE_SERVICE_ROLE_KEY no Vercel. */
+const MSG_DICA_DB = "Se o erro for permission denied, execute no Supabase o script fix_products_admin_completo.sql (pasta supabase) e adicione SUPABASE_SERVICE_ROLE_KEY no ambiente (API → service_role).";
 
 export async function GET() {
   try {
-    const s = await getSessionUserId();
-    if (!s.ok) {
-      return NextResponse.json({ ok: false, error: s.error }, { status: s.status });
+    const { supabase, userId, error, status } = await getAdminContext();
+    if (!supabase || !userId) {
+      return NextResponse.json({ ok: false, error: error || "Falha de autenticação." }, { status: status || 401 });
     }
-    const service = createServiceRoleClient();
-    if (!service) {
-      return NextResponse.json(
-        { ok: false, error: MSG_SERVICE_ROLE },
-        { status: 503 }
-      );
-    }
-    const admin = await assertAdmin(service, s.userId);
+    const admin = await assertAdmin(supabase, userId);
     if (!admin.ok) {
       return NextResponse.json({ ok: false, error: admin.error }, { status: 403 });
     }
 
-    const { data, error: qerr } = await service
+    const { data, error: qerr } = await supabase
       .from("products")
       .select("*")
       .order("created_at", { ascending: false });
-    if (qerr) return NextResponse.json({ ok: false, error: qerr.message }, { status: 500 });
+    if (qerr) {
+      return NextResponse.json(
+        { ok: false, error: `${qerr.message}. ${MSG_DICA_DB}` },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ ok: true, products: data || [] });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno.";
@@ -39,18 +34,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const s = await getSessionUserId();
-    if (!s.ok) {
-      return NextResponse.json({ ok: false, error: s.error }, { status: s.status });
+    const { supabase, userId, error, status } = await getAdminContext();
+    if (!supabase || !userId) {
+      return NextResponse.json({ ok: false, error: error || "Falha de autenticação." }, { status: status || 401 });
     }
-    const service = createServiceRoleClient();
-    if (!service) {
-      return NextResponse.json(
-        { ok: false, error: MSG_SERVICE_ROLE },
-        { status: 503 }
-      );
-    }
-    const admin = await assertAdmin(service, s.userId);
+    const admin = await assertAdmin(supabase, userId);
     if (!admin.ok) {
       return NextResponse.json({ ok: false, error: admin.error }, { status: 403 });
     }
@@ -60,7 +48,7 @@ export async function POST(req: NextRequest) {
       price_hairdresser, price_ambassador, price_distributor, stock, ativo } = body;
     if (!title) return NextResponse.json({ ok: false, error: "Título obrigatório" }, { status: 400 });
     const pg = Math.round(Number(peso_gramas));
-    const { data, error: ierr } = await service
+    const { data, error: ierr } = await supabase
       .from("products")
       .insert({
         title, description, how_to_use, image_url, video_url, volume,
@@ -73,7 +61,12 @@ export async function POST(req: NextRequest) {
       })
       .select()
       .single();
-    if (ierr) return NextResponse.json({ ok: false, error: ierr.message }, { status: 500 });
+    if (ierr) {
+      return NextResponse.json(
+        { ok: false, error: `${ierr.message} ${MSG_DICA_DB}` },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ ok: true, product: data });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno.";
@@ -83,18 +76,11 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const s = await getSessionUserId();
-    if (!s.ok) {
-      return NextResponse.json({ ok: false, error: s.error }, { status: s.status });
+    const { supabase, userId, error, status } = await getAdminContext();
+    if (!supabase || !userId) {
+      return NextResponse.json({ ok: false, error: error || "Falha de autenticação." }, { status: status || 401 });
     }
-    const service = createServiceRoleClient();
-    if (!service) {
-      return NextResponse.json(
-        { ok: false, error: MSG_SERVICE_ROLE },
-        { status: 503 }
-      );
-    }
-    const admin = await assertAdmin(service, s.userId);
+    const admin = await assertAdmin(supabase, userId);
     if (!admin.ok) {
       return NextResponse.json({ ok: false, error: admin.error }, { status: 403 });
     }
@@ -110,8 +96,13 @@ export async function PATCH(req: NextRequest) {
       const pg = Math.round(Number(patch.peso_gramas));
       patch.peso_gramas = Number.isFinite(pg) && pg > 0 ? pg : 500;
     }
-    const { error: uerr } = await service.from("products").update(patch).eq("id", id);
-    if (uerr) return NextResponse.json({ ok: false, error: uerr.message }, { status: 500 });
+    const { error: uerr } = await supabase.from("products").update(patch).eq("id", id);
+    if (uerr) {
+      return NextResponse.json(
+        { ok: false, error: `${uerr.message} ${MSG_DICA_DB}` },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno.";
@@ -121,26 +112,24 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const s = await getSessionUserId();
-    if (!s.ok) {
-      return NextResponse.json({ ok: false, error: s.error }, { status: s.status });
+    const { supabase, userId, error, status } = await getAdminContext();
+    if (!supabase || !userId) {
+      return NextResponse.json({ ok: false, error: error || "Falha de autenticação." }, { status: status || 401 });
     }
-    const service = createServiceRoleClient();
-    if (!service) {
-      return NextResponse.json(
-        { ok: false, error: MSG_SERVICE_ROLE },
-        { status: 503 }
-      );
-    }
-    const admin = await assertAdmin(service, s.userId);
+    const admin = await assertAdmin(supabase, userId);
     if (!admin.ok) {
       return NextResponse.json({ ok: false, error: admin.error }, { status: 403 });
     }
 
     const { id } = await req.json();
     if (!id) return NextResponse.json({ ok: false, error: "id obrigatório" }, { status: 400 });
-    const { error: derr } = await service.from("products").delete().eq("id", id);
-    if (derr) return NextResponse.json({ ok: false, error: derr.message }, { status: 500 });
+    const { error: derr } = await supabase.from("products").delete().eq("id", id);
+    if (derr) {
+      return NextResponse.json(
+        { ok: false, error: `${derr.message} ${MSG_DICA_DB}` },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno.";

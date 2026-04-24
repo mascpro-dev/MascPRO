@@ -80,7 +80,8 @@ export async function assertAdmin(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data, error } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
   if (error) return { ok: false, error: error.message };
-  if (String(data?.role || "").toUpperCase() !== "ADMIN") {
+  // Aceita ADMIN com qualquer variação de maiúsculas
+  if (String(data?.role || "").trim().toUpperCase() !== "ADMIN") {
     return { ok: false, error: "Acesso restrito a administradores." };
   }
   return { ok: true };

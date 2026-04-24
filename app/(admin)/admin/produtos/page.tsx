@@ -32,7 +32,7 @@ export default function AdminProdutosPage() {
 
   async function carregar() {
     setLoading(true);
-    const res = await fetch("/api/admin/produtos");
+    const res = await fetch("/api/admin/produtos", { credentials: "include" });
     const d = await res.json().catch(() => null);
     setProdutos(d?.products || []);
     setLoading(false);
@@ -60,7 +60,10 @@ export default function AdminProdutosPage() {
     const method = editando ? "PATCH" : "POST";
     const body = editando ? { id: editando.id, ...form } : form;
     const res = await fetch("/api/admin/produtos", {
-      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      method,
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
     const d = await res.json().catch(() => null);
     if (!res.ok || !d?.ok) { setErro(d?.error || "Erro ao salvar."); setSalvando(false); return; }
@@ -69,7 +72,9 @@ export default function AdminProdutosPage() {
 
   async function toggleAtivo(p: Produto) {
     await fetch("/api/admin/produtos", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: p.id, ativo: !p.ativo }),
     });
     await carregar();
@@ -78,7 +83,10 @@ export default function AdminProdutosPage() {
   async function excluir(id: string) {
     if (!confirm("Excluir este produto permanentemente?")) return;
     await fetch("/api/admin/produtos", {
-      method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }),
+      method: "DELETE",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
     });
     await carregar();
   }
