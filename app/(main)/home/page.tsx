@@ -6,6 +6,7 @@ import { Loader2, Lock, ShieldCheck, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import ComunicadosBanner from "@/componentes/ComunicadosBanner";
 import PushNotificationManager from "@/componentes/PushNotificationManager";
+import { getProBreakdown } from "@/lib/proScore";
 
 type PedidoResumo = {
   id: string;
@@ -47,12 +48,6 @@ export default function DashboardPage() {
   const nivelTecnico = nivelAtual.nome;
   const META_CERTIFIED = nivelAtual.meta ?? 500000;
 
-  const getTotalProfissional = (profile: any) => {
-    const totalBase = Number(profile?.moedas_pro_acumuladas || 0);
-    const moedasTecnicas = Number(profile?.personal_coins || 0);
-    return totalBase + moedasTecnicas;
-  };
-
   useEffect(() => {
     async function carregarDados() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -60,15 +55,16 @@ export default function DashboardPage() {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name, moedas_pro_acumuladas, network_coins, personal_coins")
+          .select("full_name, network_coins, personal_coins, total_compras_proprias, total_compras_rede, pro_total")
           .eq("id", user.id)
           .single();
 
         if (profile) {
+          const pro = getProBreakdown(profile);
           setNome(profile.full_name || "Membro");
-          setScoreTotal(getTotalProfissional(profile));
-          setScoreRede(profile.network_coins || 0);
-          setScorePessoal(profile.personal_coins || 0);
+          setScoreTotal(pro.total);
+          setScoreRede(pro.redeIndicacao + pro.comprasIndicados);
+          setScorePessoal(pro.pessoal + pro.comprasProprias);
         }
 
         const { data: pedidos } = await supabase

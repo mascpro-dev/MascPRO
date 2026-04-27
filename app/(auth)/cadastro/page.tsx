@@ -143,9 +143,10 @@ function CadastroContent() {
               
               // Sistema
               indicado_por: refId || null,
-              moedas_pro_acumuladas: 0,
+              personal_coins: 0,
               network_coins: 0,
-              passive_pro: 0,
+              total_compras_proprias: 0,
+              total_compras_rede: 0,
               role: "CABELEIREIRO",
               updated_at: new Date().toISOString(),
             },

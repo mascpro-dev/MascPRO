@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getProBreakdown } from "@/lib/proScore";
 
 function sb() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -34,7 +35,7 @@ export async function GET() {
     ] = await Promise.all([
       // Novos membros (últimos 30 dias)
       supabase.from("profiles")
-        .select("id, full_name, city, state, created_at, role, moedas_pro_acumuladas, personal_coins")
+        .select("id, full_name, city, state, created_at, role, personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total")
         .gte("created_at", limite.toISOString())
         .order("created_at", { ascending: false })
         .limit(20),
@@ -59,7 +60,7 @@ export async function GET() {
     const eventos: any[] = [];
 
     (novos || []).forEach(p => {
-      const score = (p.moedas_pro_acumuladas || 0) + (p.personal_coins || 0);
+      const score = getProBreakdown(p).total;
       const nivel = calcularNivel(score);
       eventos.push({
         id: `novo-${p.id}`,

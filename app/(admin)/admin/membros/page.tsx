@@ -6,13 +6,14 @@ import {
   Search, Users, Instagram, MessageCircle, Loader2,
   ShoppingBag, Pencil, X, Save, AlertCircle, CheckCircle, KeyRound, Link2, Copy,
 } from "lucide-react";
+import { getProBreakdown } from "@/lib/proScore";
 
 type Membro = {
   id: string; full_name: string; email: string; whatsapp: string | null;
   avatar_url?: string | null;
   instagram: string | null; role: string; city: string | null; state: string | null;
-  created_at: string; indicado_por: string | null; moedas_pro_acumuladas: number;
-  personal_coins: number; network_coins: number; total_compras_rede: number;
+  created_at: string; indicado_por: string | null;
+  personal_coins: number; network_coins: number; total_compras_proprias: number; total_compras_rede: number; pro_total: number;
   indicador?: { full_name: string } | null;
   tem_compra?: boolean; nivel?: string | null;
 };
@@ -68,18 +69,7 @@ export default function AdminMembrosPage() {
     const data = await res.json().catch(() => null);
     if (data?.ok) {
       const sorted = (data.membros || []).sort((a: Membro, b: Membro) =>
-        (
-          (b.moedas_pro_acumuladas || 0) +
-          (b.personal_coins || 0) +
-          (b.network_coins || 0) +
-          (b.total_compras_rede || 0)
-        ) -
-        (
-          (a.moedas_pro_acumuladas || 0) +
-          (a.personal_coins || 0) +
-          (a.network_coins || 0) +
-          (a.total_compras_rede || 0)
-        )
+        getProBreakdown(b).total - getProBreakdown(a).total
       );
       setMembros(sorted);
       setFiltrado(sorted);
@@ -192,11 +182,7 @@ export default function AdminMembrosPage() {
             </div>
 
             {filtrado.map((m, idx) => {
-              const proTotal =
-                (m.moedas_pro_acumuladas || 0) +
-                (m.personal_coins || 0) +
-                (m.network_coins || 0) +
-                (m.total_compras_rede || 0);
+              const proTotal = getProBreakdown(m).total;
               const redeFmt = `${Number(m.total_compras_rede || 0).toLocaleString("pt-BR", { minimumFractionDigits: 0 })} PRO`;
 
               const blocoMembro = (

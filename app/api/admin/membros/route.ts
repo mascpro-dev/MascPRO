@@ -9,8 +9,8 @@ export async function GET() {
     const [{ data: profiles }, { data: pedidos }] = await Promise.all([
       supabase
         .from("profiles")
-        .select("id, full_name, email, whatsapp, instagram, role, nivel, city, state, created_at, indicado_por, moedas_pro_acumuladas, personal_coins, network_coins, total_compras_rede, avatar_url")
-        .order("moedas_pro_acumuladas", { ascending: false }),
+        .select("id, full_name, email, whatsapp, instagram, role, nivel, city, state, created_at, indicado_por, personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total, avatar_url")
+        .order("pro_total", { ascending: false }),
       supabase
         .from("orders")
         .select("profile_id")

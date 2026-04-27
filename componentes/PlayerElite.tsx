@@ -46,15 +46,15 @@ export default function PlayerElite({ aula, currentUser }) {
 
       const { data: perfil } = await supabase
         .from('profiles')
-        .select('moedas_pro_acumuladas')
+        .select('personal_coins')
         .eq('id', currentUser.id)
         .single();
 
-      const novoSaldo = (perfil?.moedas_pro_acumuladas || 0) + 50;
+      const novoSaldo = (perfil?.personal_coins || 0) + 50;
       
       await supabase
         .from('profiles')
-        .update({ moedas_pro_acumuladas: novoSaldo })
+        .update({ personal_coins: novoSaldo })
         .eq('id', currentUser.id);
 
     } catch (err) {

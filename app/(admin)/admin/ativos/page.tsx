@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import { Zap, Loader2 } from "lucide-react";
+import { getProBreakdown } from "@/lib/proScore";
 
 export default function AdminAtivosPage() {
   const [membros, setMembros] = useState<any[]>([]);
@@ -65,8 +66,8 @@ export default function AdminAtivosPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {m.moedas_pro_acumuladas > 0 && (
-                    <span className="text-[10px] text-[#C9A66B] font-bold">{m.moedas_pro_acumuladas} PRO</span>
+                  {getProBreakdown(m).total > 0 && (
+                    <span className="text-[10px] text-[#C9A66B] font-bold">{getProBreakdown(m).total} PRO</span>
                   )}
                   <span className="text-[10px] font-black uppercase text-yellow-500 bg-yellow-500/10 border border-yellow-500/20 px-3 py-1 rounded">
                     ATIVO

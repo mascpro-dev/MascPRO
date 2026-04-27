@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Trophy, Medal, Crown } from "lucide-react";
+import { Trophy } from "lucide-react";
+import { getProBreakdown } from "@/lib/proScore";
 
 export default function RankingComunidade() {
   const supabase = createClientComponentClient();
@@ -10,11 +11,7 @@ export default function RankingComunidade() {
   const [loading, setLoading] = useState(true);
 
   const getTotalProfissional = (profile: any) => {
-    const totalBase = Number(profile?.moedas_pro_acumuladas || 0);
-    const moedasTecnicas = Number(profile?.personal_coins || 0);
-    const bonusRede = Number(profile?.network_coins || 0);
-    const comprasRede = Number(profile?.total_compras_rede || 0);
-    return totalBase + moedasTecnicas + bonusRede + comprasRede;
+    return getProBreakdown(profile || {}).total;
   };
 
   useEffect(() => {
@@ -22,7 +19,7 @@ export default function RankingComunidade() {
       setLoading(true);
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, moedas_pro_acumuladas, personal_coins, network_coins, total_compras_rede")
+        .select("id, full_name, personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total")
         .limit(50);
 
       if (!error && data) {
@@ -39,17 +36,6 @@ export default function RankingComunidade() {
     }
     fetchRanking();
   }, []);
-
-  // Cores oficiais da sua hierarquia
-  const getBadgeStyle = (status: string) => {
-    switch (status) {
-      case 'EDUCADOR': return "bg-red-500/10 text-red-500 border-red-500/20";
-      case 'MASTER TECH': return "bg-purple-500/10 text-purple-500 border-purple-500/20";
-      case 'EXPERT': return "bg-blue-500/10 text-blue-500 border-blue-500/20";
-      case 'CERTIFIED': return "bg-green-500/10 text-green-500 border-green-500/20";
-      default: return "bg-zinc-500/10 text-zinc-500 border-zinc-500/20";
-    }
-  };
 
   if (loading) return <div className="p-8 text-zinc-500 animate-pulse font-black uppercase italic">Sincronizando Ranking Elite...</div>;
 
@@ -74,24 +60,6 @@ export default function RankingComunidade() {
                 {user.pontos_totais?.toLocaleString()} PRO
               </p>
             </div>
-            
-            {/* BARRA DE DIVISÃO: MERITOCRACIA vs RESIDUAL - BLOCO REMOVIDO A PEDIDO */}
-            {/*
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-black/40 p-2 rounded-lg border border-white/5">
-                <p className="text-[8px] text-zinc-500 uppercase font-black">Meritocracia</p>
-                <p className="text-[10px] font-bold text-white">
-                  {user.moedas_pro_acumuladas?.toLocaleString()} PRO
-                </p>
-              </div>
-              <div className="bg-black/40 p-2 rounded-lg border border-white/5">
-                <p className="text-[8px] text-zinc-500 uppercase font-black">Residual Rede</p>
-                <p className="text-[10px] font-bold text-green-500">
-                  {user.residual_rede_total?.toLocaleString()} PRO
-                </p>
-              </div>
-            </div>
-            */}
           </div>
         ))}
       </div>

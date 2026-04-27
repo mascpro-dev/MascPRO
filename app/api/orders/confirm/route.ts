@@ -25,13 +25,13 @@ async function creditarCompraPropria(supabase: any, orderId: string) {
 
   const { data: comprador } = await supabase
     .from("profiles")
-    .select("store_coins")
+    .select("total_compras_proprias")
     .eq("id", order.profile_id)
     .single();
 
   await supabase
     .from("profiles")
-    .update({ store_coins: Number(comprador?.store_coins || 0) + proBonus })
+    .update({ total_compras_proprias: Number(comprador?.total_compras_proprias || 0) + proBonus })
     .eq("id", order.profile_id);
 }
 

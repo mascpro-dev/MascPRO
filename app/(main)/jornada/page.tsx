@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Trophy, Users, Loader2 } from "lucide-react";
+import { getProBreakdown } from "@/lib/proScore";
 
 // Mapeamento de cores por nível (fonte única de verdade)
 const TECH_LEVELS = [
@@ -35,12 +36,6 @@ export default function JornadaPage() {
   const [currentTech, setCurrentTech] = useState(TECH_LEVELS[0]);
   const [currentAmbassador, setCurrentAmbassador] = useState(AMBASSADOR_LEVELS[0]);
 
-  const getTotalProfissional = (profile: any) => {
-    const totalBase = Number(profile?.moedas_pro_acumuladas || 0);
-    const moedasTecnicas = Number(profile?.personal_coins || 0);
-    return totalBase + moedasTecnicas;
-  };
-
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
@@ -51,7 +46,7 @@ export default function JornadaPage() {
       // Busca PRO acumulado + níveis calculados pelo banco (via triggers)
       const { data: profile } = await supabase
         .from("profiles")
-        .select("moedas_pro_acumuladas, personal_coins, nivel_tecnico, nivel_embaixador")
+        .select("personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total, nivel_tecnico, nivel_embaixador")
         .eq("id", user.id)
         .single();
 
@@ -61,7 +56,7 @@ export default function JornadaPage() {
         .select("id", { count: "exact", head: true })
         .eq("indicado_por", user.id);
 
-      const totalCoins  = getTotalProfissional(profile);
+      const totalCoins  = getProBreakdown(profile || {}).total;
       const totalPeople = totalIndicados || 0;
 
       setStats({ total: totalCoins, referralCount: totalPeople });

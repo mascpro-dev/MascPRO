@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Trophy, TrendingUp, Users, ShoppingBag, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { getProBreakdown } from "@/lib/proScore";
 
 export default function DashboardPage() {
   const supabase = createClientComponentClient();
@@ -43,10 +44,11 @@ export default function DashboardPage() {
         }, (payload: any) => {
             console.log("💰 Saldo atualizado!", payload.new);
             const p = payload.new;
-            setTotalCoins(p.moedas_pro_acumuladas || 0);
-            setPersonalScore(p.personal_coins || 0);
-            setNetworkScore(p.network_coins || 0);
-            setStoreScore(p.store_coins || 0);
+            const pro = getProBreakdown(p);
+            setTotalCoins(pro.total);
+            setPersonalScore(pro.pessoal);
+            setNetworkScore(pro.redeIndicacao + pro.comprasIndicados);
+            setStoreScore(pro.comprasProprias);
         })
         .subscribe();
 
@@ -62,11 +64,12 @@ export default function DashboardPage() {
             .single();
 
         if (profile) {
+            const pro = getProBreakdown(profile);
             setUserName(profile.full_name || "Membro Elite");
-            setTotalCoins(profile.moedas_pro_acumuladas || 0);
-            setPersonalScore(profile.personal_coins || 0);
-            setNetworkScore(profile.network_coins || 0);
-            setStoreScore(profile.store_coins || 0);
+            setTotalCoins(pro.total);
+            setPersonalScore(pro.pessoal);
+            setNetworkScore(pro.redeIndicacao + pro.comprasIndicados);
+            setStoreScore(pro.comprasProprias);
         }
       } catch (error) {
         console.error("Erro:", error);

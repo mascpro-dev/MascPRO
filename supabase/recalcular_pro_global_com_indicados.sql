@@ -1,21 +1,17 @@
 -- =============================================================================
 -- RECÁLCULO GLOBAL DE PRO (todos os perfis)
 --
--- Este script recalcula, de forma idempotente:
--- 1) store_coins          = soma das compras próprias (pedidos pagos)
--- 2) total_compras_rede   = soma das compras dos indicados diretos (pedidos pagos)
--- 3) moedas_pro_acumuladas= total consolidado para ranking
+-- Este script ACRESCENTA (modo aditivo):
+-- 1) store_coins          += soma das compras próprias (pedidos pagos)
+-- 2) total_compras_rede   += soma das compras dos indicados diretos (pedidos pagos)
+-- 3) moedas_pro_acumuladas+= (compras próprias + compras da rede)
 --
 -- Regras usadas (status válidos de pedido):
 --   paid, separacao, despachado, entregue
 --
--- Fórmula final:
---   moedas_pro_acumuladas =
---     personal_coins + network_coins + store_coins + total_compras_rede
---
--- Observação:
+-- Observação importante:
 -- - Usa ROUND(total) para manter a regra já aplicada no backend.
--- - Pode ser executado múltiplas vezes sem duplicar crédito.
+-- - Este script é ADITIVO e NÃO é idempotente (rodar duas vezes soma duas vezes).
 -- =============================================================================
 
 BEGIN;
@@ -26,7 +22,6 @@ ALTER TABLE public.profiles
 
 WITH pedidos_validos AS (
   SELECT
-    o.id,
     o.profile_id,
     ROUND(COALESCE(o.total, 0))::numeric AS valor_pro
   FROM public.orders o
@@ -39,6 +34,23 @@ compras_proprias AS (
     COALESCE(SUM(pv.valor_pro), 0)::numeric AS total_store_coins
   FROM pedidos_validos pv
   GROUP BY pv.profile_id
+)
+-- 1) Acrescenta compras próprias no comprador
+UPDATE public.profiles p
+SET
+  store_coins = COALESCE(p.store_coins, 0) + COALESCE(cp.total_store_coins, 0),
+  moedas_pro_acumuladas = COALESCE(p.moedas_pro_acumuladas, 0) + COALESCE(cp.total_store_coins, 0)
+FROM compras_proprias cp
+WHERE p.id = cp.profile_id;
+
+-- 2) Acrescenta compras da rede no indicador direto
+WITH pedidos_validos AS (
+  SELECT
+    o.profile_id,
+    ROUND(COALESCE(o.total, 0))::numeric AS valor_pro
+  FROM public.orders o
+  WHERE o.profile_id IS NOT NULL
+    AND LOWER(COALESCE(o.status, '')) IN ('paid', 'separacao', 'despachado', 'entregue')
 ),
 compras_indicados AS (
   SELECT
@@ -53,39 +65,10 @@ compras_indicados AS (
 )
 UPDATE public.profiles p
 SET
-  store_coins = COALESCE(cp.total_store_coins, 0),
-  total_compras_rede = COALESCE(ci.total_rede, 0),
-  moedas_pro_acumuladas =
-    COALESCE(p.personal_coins, 0) +
-    COALESCE(p.network_coins, 0) +
-    COALESCE(cp.total_store_coins, 0) +
-    COALESCE(ci.total_rede, 0)
-FROM compras_proprias cp
-FULL OUTER JOIN compras_indicados ci
-  ON ci.indicador_id = cp.profile_id
-WHERE p.id = COALESCE(cp.profile_id, ci.indicador_id);
-
--- Perfis que não entraram no UPDATE acima também precisam ficar consistentes
-UPDATE public.profiles p
-SET
-  store_coins = COALESCE(p.store_coins, 0),
-  total_compras_rede = COALESCE(p.total_compras_rede, 0),
-  moedas_pro_acumuladas =
-    COALESCE(p.personal_coins, 0) +
-    COALESCE(p.network_coins, 0) +
-    COALESCE(p.store_coins, 0) +
-    COALESCE(p.total_compras_rede, 0)
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM public.orders o
-  WHERE o.profile_id = p.id
-    AND LOWER(COALESCE(o.status, '')) IN ('paid', 'separacao', 'despachado', 'entregue')
-)
-AND NOT EXISTS (
-  SELECT 1
-  FROM public.profiles f
-  WHERE f.indicado_por = p.id
-);
+  total_compras_rede = COALESCE(p.total_compras_rede, 0) + COALESCE(ci.total_rede, 0),
+  moedas_pro_acumuladas = COALESCE(p.moedas_pro_acumuladas, 0) + COALESCE(ci.total_rede, 0)
+FROM compras_indicados ci
+WHERE p.id = ci.indicador_id;
 
 COMMIT;
 

@@ -13,10 +13,16 @@ export default function EvolucaoDash() {
       if (session) {
         const { data } = await supabase
           .from('profiles')
-          .select('moedas_pro_acumuladas')
+          .select('personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total')
           .eq('id', session.user.id)
           .single();
-        setPontos(Number(data?.moedas_pro_acumuladas || 0));
+        const comprasProprias = Number(data?.total_compras_proprias || 0);
+        const total =
+          Number(data?.personal_coins || 0) +
+          Number(data?.network_coins || 0) +
+          comprasProprias +
+          Number(data?.total_compras_rede || 0);
+        setPontos(total);
       }
     }
     loadStats();

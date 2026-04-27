@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Trophy, TrendingUp, Users, ShoppingBag, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { getProBreakdown } from "@/lib/proScore";
 
 export default function HomePage() {
   const supabase = createClientComponentClient();
@@ -49,22 +50,16 @@ export default function HomePage() {
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
 
-  // Função Inteligente: Calcula o Mérito Pessoal (Total - Rede)
+  // Fonte única de verdade dos PRO na UI
   function atualizarMatematica(profile: any) {
       if (!profile) return;
-
-      const total = profile.moedas_pro_acumuladas || 0;
-      const rede = profile.network_coins || 0;     
-      const loja = profile.store_coins || 0;       
-      
-      // A MÁGICA: O Mérito Pessoal é a diferença
-      const pessoal = total - rede - loja; 
+      const pro = getProBreakdown(profile);
 
       setUserName(profile.full_name || "Membro Elite");
-      setTotalCoins(total);
-      setNetworkScore(rede);
-      setStoreScore(loja);
-      setPersonalScore(pessoal > 0 ? pessoal : 0);
+      setTotalCoins(pro.total);
+      setNetworkScore(pro.redeIndicacao + pro.comprasIndicados);
+      setStoreScore(pro.comprasProprias);
+      setPersonalScore(pro.pessoal);
   }
 
   async function fetchData(uid: string) {

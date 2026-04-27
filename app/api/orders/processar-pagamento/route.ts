@@ -41,10 +41,24 @@ export async function POST(req: NextRequest) {
       .eq("id", order.profile_id)
       .single();
 
-    if (!comprador?.indicado_por) return NextResponse.json({ ok: true, msg: "sem embaixador indicador" });
-
     const valorPedido = Number(order.total || 0);
     const valorComissao = Number((valorPedido * 0.15).toFixed(2));
+    const proBonus = Math.round(valorPedido);
+
+    // Compra própria: comprador sempre ganha PRO da loja
+    if (proBonus > 0) {
+      const { data: compradorProfile } = await supabase
+        .from("profiles")
+        .select("total_compras_proprias")
+        .eq("id", order.profile_id)
+        .single();
+      await supabase
+        .from("profiles")
+        .update({ total_compras_proprias: Number(compradorProfile?.total_compras_proprias || 0) + proBonus })
+        .eq("id", order.profile_id);
+    }
+
+    if (!comprador?.indicado_por) return NextResponse.json({ ok: true, msg: "sem embaixador indicador", proBonus });
 
     // Cria comissão em R$
     if (valorComissao > 0) {
@@ -59,8 +73,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Incrementa total_compras_rede (PRO = valor do pedido)
-    const proBonus = Math.round(valorPedido);
+    // Incrementa total_compras_rede para o indicador direto
     if (proBonus > 0) {
       const { data: embaixador } = await supabase
         .from("profiles")

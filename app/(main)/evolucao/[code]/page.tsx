@@ -355,7 +355,7 @@ export default function PlayerPage() {
       // 2. Lê as moedas do usuário
       const { data: perfil, error: erroBusca } = await supabase
         .from('profiles')
-        .select('moedas_pro_acumuladas')
+        .select('personal_coins')
         .eq('id', currentUser.id)
         .single();
 
@@ -365,10 +365,10 @@ export default function PlayerPage() {
       }
 
       // 3. Adiciona 50 moedas
-      const novoSaldo = (perfil?.moedas_pro_acumuladas || 0) + 50;
+      const novoSaldo = (perfil?.personal_coins || 0) + 50;
       const { error: erroUpdate } = await supabase
         .from('profiles')
-        .update({ moedas_pro_acumuladas: novoSaldo })
+        .update({ personal_coins: novoSaldo })
         .eq('id', currentUser.id);
 
       if (erroUpdate) {

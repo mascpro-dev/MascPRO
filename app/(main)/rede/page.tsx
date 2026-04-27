@@ -17,7 +17,6 @@ export default function RedePage() {
 
   // PRO Financeiro
   const [bonusDireto, setBonusDireto] = useState(0);  
-  const [ganhoPassivo, setGanhoPassivo] = useState(0); 
   const [saldoTotal, setSaldoTotal] = useState(0);     
 
   // Comissões de vendas (R$)
@@ -52,18 +51,16 @@ export default function RedePage() {
         // 2. Financeiro (Seu Perfil)
         const { data: profile } = await supabase
           .from("profiles")
-          .select("network_coins, passive_pro, total_compras_rede") 
+          .select("network_coins, total_compras_rede") 
           .eq("id", user.id)
           .single();
 
         if (profile) {
             const direto = profile.network_coins || 0;
-            const passivo = profile.passive_pro || 0;
             const comprasRede = profile.total_compras_rede || 0;
             
             setBonusDireto(direto);
-            setGanhoPassivo(passivo);
-            setSaldoTotal(direto + passivo + comprasRede);
+            setSaldoTotal(direto + comprasRede);
         }
 
         // 3. Equipe (Busca TODOS que você indicou)
@@ -240,7 +237,7 @@ export default function RedePage() {
                 {saldoTotal} <span className="text-2xl text-white">PRO</span>
             </h2>
             <p className="text-gray-500 text-xs italic opacity-60">
-                * Bônus direto ({bonusDireto}) + Passivo ({ganhoPassivo}) + Compras da rede ({saldoTotal - bonusDireto - ganhoPassivo}) PRO
+                * Bônus direto ({bonusDireto}) + Compras da rede ({saldoTotal - bonusDireto}) PRO
             </p>
          </div>
       </div>
