@@ -48,11 +48,14 @@ export async function POST(req: NextRequest) {
       price_hairdresser, price_ambassador, price_distributor, stock, ativo } = body;
     if (!title) return NextResponse.json({ ok: false, error: "Título obrigatório" }, { status: 400 });
     const pg = Math.round(Number(peso_gramas));
+    const hairdresserPrice = Number(price_hairdresser) || 0;
     const { data, error: ierr } = await supabase
       .from("products")
       .insert({
         title, description, how_to_use, image_url, video_url, volume,
-        price_hairdresser: Number(price_hairdresser) || 0,
+        // Compatibilidade com schema legado que ainda exige products.price NOT NULL.
+        price: hairdresserPrice,
+        price_hairdresser: hairdresserPrice,
         price_ambassador: Number(price_ambassador) || 0,
         price_distributor: Number(price_distributor) || 0,
         stock: Number(stock) || 0,
@@ -92,6 +95,10 @@ export async function PATCH(req: NextRequest) {
     ["price_hairdresser", "price_ambassador", "price_distributor", "stock"].forEach((k) => {
       if (patch[k] !== undefined) patch[k] = Number(patch[k]) || 0;
     });
+    if (patch.price_hairdresser !== undefined && patch.price === undefined) {
+      // Mantém products.price sincronizado para evitar erro em ambientes legados.
+      patch.price = patch.price_hairdresser;
+    }
     if (patch.peso_gramas !== undefined) {
       const pg = Math.round(Number(patch.peso_gramas));
       patch.peso_gramas = Number.isFinite(pg) && pg > 0 ? pg : 500;
