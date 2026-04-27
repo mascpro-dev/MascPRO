@@ -38,7 +38,9 @@ export default function ComunidadePage() {
   const getTotalProfissional = (profile: any) => {
     const totalBase = Number(profile?.moedas_pro_acumuladas || 0);
     const moedasTecnicas = Number(profile?.personal_coins || 0);
-    return totalBase + moedasTecnicas;
+    const bonusRede = Number(profile?.network_coins || 0);
+    const comprasRede = Number(profile?.total_compras_rede || 0);
+    return totalBase + moedasTecnicas + bonusRede + comprasRede;
   };
 
   // Corretor de Segurança (toLocaleString)
@@ -93,7 +95,7 @@ export default function ComunidadePage() {
 
       const { data: rankingData } = await supabase
         .from("profiles")
-        .select("id, full_name, moedas_pro_acumuladas, personal_coins");
+        .select("id, full_name, moedas_pro_acumuladas, personal_coins, network_coins, total_compras_rede");
 
       if (rankingData) {
         const rankingNormalizado = rankingData

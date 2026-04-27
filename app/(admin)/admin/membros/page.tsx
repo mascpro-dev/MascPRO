@@ -12,7 +12,7 @@ type Membro = {
   avatar_url?: string | null;
   instagram: string | null; role: string; city: string | null; state: string | null;
   created_at: string; indicado_por: string | null; moedas_pro_acumuladas: number;
-  network_coins: number; total_compras_rede: number;
+  personal_coins: number; network_coins: number; total_compras_rede: number;
   indicador?: { full_name: string } | null;
   tem_compra?: boolean; nivel?: string | null;
 };
@@ -68,8 +68,18 @@ export default function AdminMembrosPage() {
     const data = await res.json().catch(() => null);
     if (data?.ok) {
       const sorted = (data.membros || []).sort((a: Membro, b: Membro) =>
-        ((b.moedas_pro_acumuladas || 0) + (b.network_coins || 0)) -
-        ((a.moedas_pro_acumuladas || 0) + (a.network_coins || 0))
+        (
+          (b.moedas_pro_acumuladas || 0) +
+          (b.personal_coins || 0) +
+          (b.network_coins || 0) +
+          (b.total_compras_rede || 0)
+        ) -
+        (
+          (a.moedas_pro_acumuladas || 0) +
+          (a.personal_coins || 0) +
+          (a.network_coins || 0) +
+          (a.total_compras_rede || 0)
+        )
       );
       setMembros(sorted);
       setFiltrado(sorted);
@@ -182,7 +192,11 @@ export default function AdminMembrosPage() {
             </div>
 
             {filtrado.map((m, idx) => {
-              const proTotal = (m.moedas_pro_acumuladas || 0) + (m.network_coins || 0);
+              const proTotal =
+                (m.moedas_pro_acumuladas || 0) +
+                (m.personal_coins || 0) +
+                (m.network_coins || 0) +
+                (m.total_compras_rede || 0);
               const redeFmt = `R$ ${Number(m.total_compras_rede || 0).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`;
 
               const blocoMembro = (
