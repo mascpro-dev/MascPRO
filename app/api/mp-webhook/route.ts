@@ -11,6 +11,31 @@ function getSupabase() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
 }
 
+const STATUS_PAGO = new Set(["paid", "separacao", "despachado", "entregue"]);
+
+async function creditarCompraPropria(supabase: any, orderId: string) {
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, profile_id, total")
+    .eq("id", orderId)
+    .single();
+  if (!order?.profile_id) return;
+
+  const proBonus = Math.round(Number(order.total || 0));
+  if (proBonus <= 0) return;
+
+  const { data: comprador } = await supabase
+    .from("profiles")
+    .select("store_coins")
+    .eq("id", order.profile_id)
+    .single();
+
+  await supabase
+    .from("profiles")
+    .update({ store_coins: Number(comprador?.store_coins || 0) + proBonus })
+    .eq("id", order.profile_id);
+}
+
 async function garantirComissao(supabase: any, orderId: string) {
   const { data: existente } = await supabase
     .from("commissions")
@@ -114,6 +139,12 @@ export async function POST(req: NextRequest) {
     const newStatus = statusMap[payment.status || ""] || "pending";
 
     const supabase = getSupabase();
+    const { data: orderAtual } = await supabase
+      .from("orders")
+      .select("status")
+      .eq("id", orderId)
+      .single();
+    const jaEstavaPago = STATUS_PAGO.has(String(orderAtual?.status || "").toLowerCase());
 
     const { error } = await supabase
       .from("orders")
@@ -126,6 +157,10 @@ export async function POST(req: NextRequest) {
     if (error) {
       console.error("Supabase update error:", error);
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    if (STATUS_PAGO.has(newStatus) && !jaEstavaPago) {
+      await creditarCompraPropria(supabase, String(orderId));
     }
 
     if (newStatus === "paid") {

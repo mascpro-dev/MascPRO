@@ -22,6 +22,31 @@ const ALLOWED_STATUS = new Set([
   "cancelled",
 ]);
 
+const STATUS_PAGO = new Set(["paid", "separacao", "despachado", "entregue"]);
+
+async function creditarCompraPropria(supabase: any, orderId: string) {
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, profile_id, total")
+    .eq("id", orderId)
+    .single();
+  if (!order?.profile_id) return;
+
+  const proBonus = Math.round(Number(order.total || 0));
+  if (proBonus <= 0) return;
+
+  const { data: comprador } = await supabase
+    .from("profiles")
+    .select("store_coins")
+    .eq("id", order.profile_id)
+    .single();
+
+  await supabase
+    .from("profiles")
+    .update({ store_coins: Number(comprador?.store_coins || 0) + proBonus })
+    .eq("id", order.profile_id);
+}
+
 async function processarComissao(supabase: any, orderId: string) {
   const { data: existente } = await supabase
     .from("commissions").select("id").eq("order_id", orderId).maybeSingle();
@@ -73,6 +98,12 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabase();
+    const { data: orderAtual } = await supabase
+      .from("orders")
+      .select("status")
+      .eq("id", orderId)
+      .single();
+    const jaEstavaPago = STATUS_PAGO.has(normalizeOrderStatus(orderAtual?.status));
 
     const { error } = await supabase
       .from("orders")
@@ -84,7 +115,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    if (["paid", "separacao", "despachado", "entregue"].includes(statusNormalizado)) {
+    if (STATUS_PAGO.has(statusNormalizado) && !jaEstavaPago) {
+      try {
+        await creditarCompraPropria(supabase, orderId);
+      } catch (e: any) {
+        console.error("[admin/orders/status] erro compra própria:", e.message);
+      }
+    }
+
+    if (STATUS_PAGO.has(statusNormalizado)) {
       try {
         await processarComissao(supabase, orderId);
       } catch (e: any) {
@@ -92,7 +131,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (["paid", "separacao", "despachado", "entregue"].includes(statusNormalizado)) {
+    if (STATUS_PAGO.has(statusNormalizado)) {
       try {
         const baixa = await applyOrderCatalogStock(supabase, orderId);
         if (!baixa.ok) {

@@ -10,6 +10,31 @@ function getSupabase() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
 }
 
+const STATUS_PAGO = new Set(["paid", "separacao", "despachado", "entregue"]);
+
+async function creditarCompraPropria(supabase: any, orderId: string) {
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, profile_id, total")
+    .eq("id", orderId)
+    .single();
+  if (!order?.profile_id) return;
+
+  const proBonus = Math.round(Number(order.total || 0));
+  if (proBonus <= 0) return;
+
+  const { data: comprador } = await supabase
+    .from("profiles")
+    .select("store_coins")
+    .eq("id", order.profile_id)
+    .single();
+
+  await supabase
+    .from("profiles")
+    .update({ store_coins: Number(comprador?.store_coins || 0) + proBonus })
+    .eq("id", order.profile_id);
+}
+
 async function garantirComissao(supabase: any, orderId: string) {
   const { data: existente } = await supabase
     .from("commissions")
@@ -152,7 +177,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Processa comissão e baixa de estoque catálogo para estados já pagos
-    if (["paid", "separacao", "despachado", "entregue"].includes(novoStatus)) {
+    if (STATUS_PAGO.has(novoStatus)) {
+      try {
+        await creditarCompraPropria(supabase, orderId);
+      } catch (ownErr: any) {
+        console.error("[confirm] Erro ao creditar compra própria:", ownErr.message);
+      }
+    }
+
+    if (STATUS_PAGO.has(novoStatus)) {
       try {
         await garantirComissao(supabase, orderId);
       } catch (comErr: any) {

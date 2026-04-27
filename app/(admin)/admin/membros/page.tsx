@@ -185,7 +185,7 @@ export default function AdminMembrosPage() {
               <span aria-hidden className="block min-w-[2.75rem]" />
               <span>Membro</span>
               <span className="text-right">PRO</span>
-              <span className="text-right">Compras rede</span>
+              <span className="text-right">Compras rede (PRO)</span>
               <span className="text-center">Redes</span>
               <span className="text-center">Função / status</span>
               <span className="sr-only">Editar</span>
@@ -197,7 +197,7 @@ export default function AdminMembrosPage() {
                 (m.personal_coins || 0) +
                 (m.network_coins || 0) +
                 (m.total_compras_rede || 0);
-              const redeFmt = `R$ ${Number(m.total_compras_rede || 0).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`;
+              const redeFmt = `${Number(m.total_compras_rede || 0).toLocaleString("pt-BR", { minimumFractionDigits: 0 })} PRO`;
 
               const blocoMembro = (
                 <div className="min-w-0 space-y-1">
