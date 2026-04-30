@@ -132,18 +132,18 @@ export default function CartDrawer() {
       if (!authData.session) return;
       const { data: profile } = await supabase
         .from("profiles")
-        .select("cep, endereco, numero, complemento, bairro, cidade, estado")
+        .select("cep, address, number, complement, neighborhood, city, state")
         .eq("id", authData.session.user.id)
         .single();
       if (profile?.cep) {
         const end: Endereco = {
-          cep: profile.cep || "",
-          endereco: profile.endereco || "",
-          numero: profile.numero || "",
-          complemento: profile.complemento || "",
-          bairro: profile.bairro || "",
-          cidade: profile.cidade || "",
-          estado: profile.estado || "",
+          cep:         profile.cep          || "",
+          endereco:    profile.address       || "",
+          numero:      profile.number        || "",
+          complemento: profile.complement    || "",
+          bairro:      profile.neighborhood  || "",
+          cidade:      profile.city          || "",
+          estado:      profile.state         || "",
         };
         setEndereco(end);
         setEnderecoSalvo(true);
@@ -178,13 +178,13 @@ export default function CartDrawer() {
     const { data: authData } = await supabase.auth.getSession();
     if (!authData.session) return;
     await supabase.from("profiles").update({
-      cep: endereco.cep,
-      endereco: endereco.endereco,
-      numero: endereco.numero,
-      complemento: endereco.complemento,
-      bairro: endereco.bairro,
-      cidade: endereco.cidade,
-      estado: endereco.estado,
+      cep:          endereco.cep,
+      address:      endereco.endereco,
+      number:       endereco.numero,
+      complement:   endereco.complemento,
+      neighborhood: endereco.bairro,
+      city:         endereco.cidade,
+      state:        endereco.estado,
     }).eq("id", authData.session.user.id);
     setEnderecoSalvo(true);
     setShowEnderecoForm(false);
