@@ -110,24 +110,17 @@ export default function Sidebar() {
                            userProfile?.role === "Embaixador" || 
                            userProfile?.role === "embaixador";
 
-  // Função para obter o cargo do usuário baseado em work_type
+  // Retorna o label do cargo direto da coluna `role`
   const getUserRole = () => {
-    if (!userProfile || !userProfile.work_type) return "";
-    
-    const workType = userProfile.work_type;
-    
-    // Se for Distribuidor
-    if (isDistribuidor) {
-      return "DISTRIBUIDOR AUTORIZADO";
-    }
-    
-    // Se for Embaixador
-    if (isEmbaixadorRole) {
-      return "EMBAIXADOR MASC";
-    }
-    
-    // Para outros casos, exibe o work_type em maiúsculo
-    return workType.toUpperCase();
+    const role = String(userProfile?.role || "").trim().toUpperCase();
+    const labels: Record<string, string> = {
+      CABELEIREIRO:     "CABELEIREIRO",
+      EMBAIXADOR:       "EMBAIXADOR MASC",
+      EDUCADOR_TECNICO: "EDUCADOR TÉCNICO",
+      DISTRIBUIDOR:     "DISTRIBUIDOR AUTORIZADO",
+      ADMIN:            "ADMINISTRADOR",
+    };
+    return labels[role] || role || "";
   };
 
   const handleLogout = async (e?: React.MouseEvent) => {

@@ -18,6 +18,10 @@ type Pedido = {
   shipping_cost?: number | null;
   shipping_cep?: string | null;
   shipping_address?: string | null;
+  codigo_rastreio?: string | null;
+  transportadora?: string | null;
+  data_previsao?: string | null;
+  parcelas?: number | null;
   created_at: string;
   profiles: { full_name: string; nivel: string; avatar_url?: string | null } | null;
   order_items: { quantidade: number; preco_unitario: number; products: { title: string } | null }[];
@@ -47,7 +51,25 @@ export default function AdminPedidosPage() {
   const [limpando, setLimpando] = useState(false);
   const [syncingMp, setSyncingMp] = useState(false);
 
+  // Modal de tracking
+  const [modalTracking, setModalTracking] = useState<Pedido | null>(null);
+  const [tracking, setTracking] = useState({ codigo: "", transportadora: "", previsao: "" });
+  const [salvandoTracking, setSalvandoTracking] = useState(false);
+
   useEffect(() => { carregarPedidos(); }, [filtro]);
+
+  async function salvarTracking(pedidoId: string) {
+    setSalvandoTracking(true);
+    await supabase.from("orders").update({
+      codigo_rastreio: tracking.codigo || null,
+      transportadora:  tracking.transportadora || null,
+      data_previsao:   tracking.previsao || null,
+      status:          "despachado",
+    }).eq("id", pedidoId);
+    await carregarPedidos();
+    setModalTracking(null);
+    setSalvandoTracking(false);
+  }
 
   function pagamentoLabel(metodo: string) {
     const m = String(metodo || "").toLowerCase();
@@ -498,12 +520,14 @@ export default function AdminPedidosPage() {
                     {pedido.status === "separacao" && (
                       <>
                         <button
-                          onClick={() => atualizarStatus(pedido.id, "despachado")}
+                          onClick={() => {
+                            setModalTracking(pedido);
+                            setTracking({ codigo: pedido.codigo_rastreio || "", transportadora: pedido.transportadora || "", previsao: pedido.data_previsao || "" });
+                          }}
                           disabled={isProcessando}
                           className="flex items-center gap-1 bg-green-900/40 hover:bg-green-800/60 text-green-400 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all disabled:opacity-50"
                         >
-                          {isProcessando ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
-                          DESPACHADO
+                          <Truck size={14} /> DESPACHAR
                         </button>
                         <button
                           onClick={() => atualizarStatus(pedido.id, "paid")}
@@ -539,6 +563,58 @@ export default function AdminPedidosPage() {
           </div>
         )}
       </main>
+
+      {/* ─── Modal Tracking ─── */}
+      {modalTracking && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+              <div>
+                <h2 className="font-black uppercase text-sm tracking-widest text-white">Despachar Pedido</h2>
+                <p className="text-[10px] text-zinc-500 mt-0.5">{modalTracking.profiles?.full_name}</p>
+              </div>
+              <button onClick={() => setModalTracking(null)}><XCircle size={20} className="text-zinc-500 hover:text-white" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Transportadora</label>
+                <input
+                  value={tracking.transportadora}
+                  onChange={e => setTracking(t => ({ ...t, transportadora: e.target.value }))}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-[#C9A66B]"
+                  placeholder="Correios, Jadlog, Total Express..."
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Código de Rastreio</label>
+                <input
+                  value={tracking.codigo}
+                  onChange={e => setTracking(t => ({ ...t, codigo: e.target.value }))}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-[#C9A66B] font-mono"
+                  placeholder="AA000000000BR"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Previsão de Entrega</label>
+                <input
+                  type="date"
+                  value={tracking.previsao}
+                  onChange={e => setTracking(t => ({ ...t, previsao: e.target.value }))}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-[#C9A66B]"
+                />
+              </div>
+              <button
+                onClick={() => salvarTracking(modalTracking.id)}
+                disabled={salvandoTracking}
+                className="w-full bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2"
+              >
+                {salvandoTracking ? <Loader2 size={16} className="animate-spin" /> : <Truck size={16} />}
+                Confirmar Despacho
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

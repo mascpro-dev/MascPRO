@@ -14,12 +14,13 @@ function getSupabase() {
 const STATUS_PAGO = new Set(["paid", "separacao", "despachado", "entregue"]);
 
 async function creditarCompraPropria(supabase: any, orderId: string) {
+  // Verifica flag de idempotência — evita dupla contagem
   const { data: order } = await supabase
     .from("orders")
-    .select("id, profile_id, total")
+    .select("id, profile_id, total, pro_aplicado")
     .eq("id", orderId)
     .single();
-  if (!order?.profile_id) return;
+  if (!order?.profile_id || order?.pro_aplicado) return;
 
   const proBonus = Math.round(Number(order.total || 0));
   if (proBonus <= 0) return;
@@ -34,22 +35,34 @@ async function creditarCompraPropria(supabase: any, orderId: string) {
     .from("profiles")
     .update({ total_compras_proprias: Number(comprador?.total_compras_proprias || 0) + proBonus })
     .eq("id", order.profile_id);
+
+  // Marca como aplicado para evitar duplicação em chamadas futuras
+  await supabase
+    .from("orders")
+    .update({ pro_aplicado: true })
+    .eq("id", orderId);
 }
 
 async function garantirComissao(supabase: any, orderId: string) {
+  // Dupla proteção: flag no pedido + unicidade na tabela commissions
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, profile_id, total, comissao_aplicada")
+    .eq("id", orderId)
+    .single();
+  if (!order?.profile_id || order?.comissao_aplicada) return;
+
+  // Verifica também se já existe comissão para este pedido
   const { data: existente } = await supabase
     .from("commissions")
     .select("id")
     .eq("order_id", orderId)
     .maybeSingle();
-  if (existente) return;
-
-  const { data: order } = await supabase
-    .from("orders")
-    .select("id, profile_id, total")
-    .eq("id", orderId)
-    .single();
-  if (!order?.profile_id) return;
+  if (existente) {
+    // Sincroniza a flag se já havia registro
+    await supabase.from("orders").update({ comissao_aplicada: true }).eq("id", orderId);
+    return;
+  }
 
   const { data: comprador } = await supabase
     .from("profiles")
@@ -58,18 +71,26 @@ async function garantirComissao(supabase: any, orderId: string) {
     .single();
   if (!comprador?.indicado_por) return;
 
+  // Busca percentual configurável
+  const { data: cfg } = await supabase
+    .from("system_config")
+    .select("valor")
+    .eq("chave", "percentual_comissao")
+    .maybeSingle();
+  const percentual = Number(cfg?.valor || 15);
+
   const valorPedido = Number(order.total || 0);
-  const valorComissao = Number((valorPedido * 0.15).toFixed(2));
+  const valorComissao = Number((valorPedido * (percentual / 100)).toFixed(2));
   if (valorComissao <= 0) return;
 
   await supabase.from("commissions").insert({
-    embaixador_id: comprador.indicado_por,
-    cabeleireiro_id: comprador.id,
-    order_id: order.id,
-    valor_pedido: valorPedido,
-    percentual: 15,
-    valor_comissao: valorComissao,
-    status: "disponivel",
+    embaixador_id:    comprador.indicado_por,
+    cabeleireiro_id:  comprador.id,
+    order_id:         order.id,
+    valor_pedido:     valorPedido,
+    percentual,
+    valor_comissao:   valorComissao,
+    status:           "disponivel",
   });
 
   // Credita PRO coins (total_compras_rede) ao embaixador
@@ -85,6 +106,9 @@ async function garantirComissao(supabase: any, orderId: string) {
       .update({ total_compras_rede: (emb?.total_compras_rede || 0) + proBonus })
       .eq("id", comprador.indicado_por);
   }
+
+  // Marca pedido com flag de comissão aplicada
+  await supabase.from("orders").update({ comissao_aplicada: true }).eq("id", orderId);
 }
 
 // Suporta GET para validação inicial do MP

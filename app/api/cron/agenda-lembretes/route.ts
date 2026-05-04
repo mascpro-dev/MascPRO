@@ -189,12 +189,67 @@ async function run(req: NextRequest) {
     }
   }
 
+  // ─── ALERTA DE ESTOQUE MÍNIMO ────────────────────────────
+  let alertasEstoque = 0;
+  try {
+    const { data: cfgEstoque } = await db
+      .from("system_config")
+      .select("valor")
+      .eq("chave", "estoque_alerta_min")
+      .maybeSingle();
+    const limiteEstoque = Number(cfgEstoque?.valor || 5);
+
+    const { data: produtosBaixos } = await db
+      .from("products")
+      .select("id, title, stock")
+      .eq("ativo", true)
+      .lte("stock", limiteEstoque)
+      .order("stock", { ascending: true });
+
+    if (produtosBaixos && produtosBaixos.length > 0) {
+      // Busca admins e distribuidores para notificar
+      const { data: admins } = await db
+        .from("profiles")
+        .select("id")
+        .in("role", ["ADMIN", "DISTRIBUIDOR"]);
+
+      const { data: pushSubs } = await db
+        .from("push_subscriptions")
+        .select("subscription")
+        .in("user_id", (admins || []).map((a: any) => a.id));
+
+      const criticos = produtosBaixos.filter((p: any) => p.stock === 0);
+      const baixos   = produtosBaixos.filter((p: any) => p.stock > 0);
+      const msg = criticos.length > 0
+        ? `🚨 ${criticos.length} produto(s) com estoque ZERO: ${criticos.map((p: any) => p.title).slice(0, 3).join(", ")}`
+        : `⚠️ ${baixos.length} produto(s) com estoque baixo (≤${limiteEstoque} un.)`;
+
+      for (const sub of (pushSubs || [])) {
+        try {
+          await fetch(`${process.env.NEXTAUTH_URL || "https://mascpro.com.br"}/api/push/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              subscription: sub.subscription,
+              title: "Alerta de Estoque — MascPRO",
+              body: msg,
+            }),
+          });
+          alertasEstoque++;
+        } catch { /* continua */ }
+      }
+    }
+  } catch (e: any) {
+    errors.push(`estoque-alerta: ${e.message}`);
+  }
+
   return NextResponse.json({
     ok: true,
     date,
     sent,
     skippedNoPhone,
     skippedAlreadySent,
+    alertasEstoque,
     errors,
   });
 }

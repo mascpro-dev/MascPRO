@@ -71,6 +71,12 @@ CREATE TABLE IF NOT EXISTS crm_atividades (
   status_novo     TEXT
 );
 
+-- Permissões de acesso para roles do Supabase
+GRANT ALL ON TABLE crm_leads      TO authenticated;
+GRANT ALL ON TABLE crm_leads      TO service_role;
+GRANT ALL ON TABLE crm_atividades TO authenticated;
+GRANT ALL ON TABLE crm_atividades TO service_role;
+
 -- Índices de performance
 CREATE INDEX IF NOT EXISTS crm_leads_status_idx         ON crm_leads(status);
 CREATE INDEX IF NOT EXISTS crm_leads_responsavel_idx    ON crm_leads(responsavel_id);

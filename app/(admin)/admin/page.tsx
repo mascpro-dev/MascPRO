@@ -7,7 +7,7 @@ import {
   Users, Activity, ShoppingBag, DollarSign,
   ArrowDownToLine, AlertTriangle, PackageCheck,
   UserPlus, TrendingUp, Truck, PackageOpen, Clock,
-  BadgeDollarSign, Loader2, Eye,
+  BadgeDollarSign, Loader2, Eye, Kanban, HeartPulse,
 } from "lucide-react";
 
 type Resumo = {
@@ -159,6 +159,34 @@ export default function AdminDashboard() {
                   </div>
                 </Link>
               )}
+            </div>
+
+            {/* CRM / ERP */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+              <Link href="/admin/crm/dashboard" className="block">
+                <div className="w-full bg-emerald-950/20 border border-emerald-800/35 rounded-2xl px-6 py-4 flex items-center justify-between group hover:border-emerald-500/50 transition-all">
+                  <div className="flex items-center gap-3">
+                    <Kanban size={20} className="text-emerald-400" />
+                    <div>
+                      <p className="text-emerald-200 font-bold text-sm">CRM / ERP — Dashboard</p>
+                      <p className="text-[10px] text-zinc-500">Pipeline de leads, financeiro e rede</p>
+                    </div>
+                  </div>
+                  <span className="text-emerald-600 text-xs font-bold uppercase tracking-widest group-hover:text-emerald-400">Abrir →</span>
+                </div>
+              </Link>
+              <Link href="/admin/crm/saude" className="block">
+                <div className="w-full bg-pink-950/20 border border-pink-800/35 rounded-2xl px-6 py-4 flex items-center justify-between group hover:border-pink-500/50 transition-all">
+                  <div className="flex items-center gap-3">
+                    <HeartPulse size={20} className="text-pink-400" />
+                    <div>
+                      <p className="text-pink-200 font-bold text-sm">Saúde do Negócio</p>
+                      <p className="text-[10px] text-zinc-500">Estoque, Curva ABC, margens e clientes</p>
+                    </div>
+                  </div>
+                  <span className="text-pink-600 text-xs font-bold uppercase tracking-widest group-hover:text-pink-400">Abrir →</span>
+                </div>
+              </Link>
             </div>
 
             <Link href="/admin/gestao-rede" className="block mb-8">

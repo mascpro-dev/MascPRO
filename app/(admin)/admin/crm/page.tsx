@@ -4,8 +4,8 @@ import Link from "next/link";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import {
   Kanban, Plus, Loader2, Search, X, ChevronRight,
-  Phone, Mail, Building2, Calendar, User, DollarSign,
-  MessageCircle, Instagram, AlertCircle,
+  Mail, Building2, Calendar, User, DollarSign,
+  MessageCircle, Instagram, AlertCircle, Filter,
 } from "lucide-react";
 
 // ─── Tipos ────────────────────────────────────────────────
@@ -24,6 +24,12 @@ type Lead = {
   responsavel_id: string | null;
   responsavel: { id: string; full_name: string; avatar_url?: string } | null;
   updated_at: string;
+};
+
+type Distribuidor = {
+  id: string;
+  full_name: string;
+  avatar_url?: string;
 };
 
 type NovoLeadForm = {
@@ -76,10 +82,12 @@ function LeadCard({
   lead,
   onMover,
   colunaAtual,
+  mostrarDistribuidor = false,
 }: {
   lead: Lead;
   onMover: (id: string, novoStatus: string) => void;
   colunaAtual: (typeof COLUNAS)[0];
+  mostrarDistribuidor?: boolean;
 }) {
   const [movendo, setMovendo] = useState(false);
   const atrasado = followupAtrasado(lead.data_followup);
@@ -165,7 +173,7 @@ function LeadCard({
           </span>
         )}
         {lead.responsavel && (
-          <span className="flex items-center gap-1 text-[10px] text-zinc-600">
+          <span className={`flex items-center gap-1 text-[10px] font-bold ${mostrarDistribuidor ? "text-[#C9A66B] bg-[#C9A66B]/10 px-1.5 py-0.5 rounded-lg" : "text-zinc-600"}`}>
             <User size={10} /> {lead.responsavel.full_name.split(" ")[0]}
           </span>
         )}
@@ -329,10 +337,25 @@ export default function CrmKanbanPage() {
   const [busca, setBusca] = useState("");
   const [modalNovo, setModalNovo] = useState(false);
 
+  // Filtro por distribuidor (só visível para ADMIN)
+  const [distribuidores, setDistribuidores] = useState<Distribuidor[]>([]);
+  const [distribuidorSelecionado, setDistribuidorSelecionado] = useState("");
+
+  // Carrega lista de distribuidores (só retorna dados se o user for ADMIN)
+  useEffect(() => {
+    fetch("/api/admin/crm/distribuidores", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => { if (d?.ok) setDistribuidores(d.distribuidores || []); })
+      .catch(() => {});
+  }, []);
+
   const carregar = useCallback(async () => {
     setErro("");
-    const params = busca.trim() ? `?q=${encodeURIComponent(busca.trim())}` : "";
-    const res = await fetch(`/api/admin/crm/leads${params}`, { cache: "no-store" });
+    const params = new URLSearchParams();
+    if (busca.trim()) params.set("q", busca.trim());
+    if (distribuidorSelecionado) params.set("distribuidor_id", distribuidorSelecionado);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`/api/admin/crm/leads${qs}`, { cache: "no-store" });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.ok) {
       setErro(data?.error || "Falha ao carregar leads.");
@@ -341,7 +364,7 @@ export default function CrmKanbanPage() {
     }
     setLeads(data.leads || []);
     setLoading(false);
-  }, [busca]);
+  }, [busca, distribuidorSelecionado]);
 
   useEffect(() => {
     setLoading(true);
@@ -398,7 +421,23 @@ export default function CrmKanbanPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap justify-end">
+              {/* Dropdown de distribuidor — só aparece para ADMIN (lista não vazia) */}
+              {distribuidores.length > 0 && (
+                <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2">
+                  <Filter size={13} className="text-zinc-500 shrink-0" />
+                  <select
+                    value={distribuidorSelecionado}
+                    onChange={(e) => setDistribuidorSelecionado(e.target.value)}
+                    className="bg-transparent text-sm text-white outline-none cursor-pointer"
+                  >
+                    <option value="">Todos os distribuidores</option>
+                    {distribuidores.map((d) => (
+                      <option key={d.id} value={d.id}>{d.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={14} />
                 <input
@@ -466,6 +505,7 @@ export default function CrmKanbanPage() {
                               lead={lead}
                               onMover={moverLead}
                               colunaAtual={col}
+                              mostrarDistribuidor={distribuidores.length > 0}
                             />
                           </div>
                         ))

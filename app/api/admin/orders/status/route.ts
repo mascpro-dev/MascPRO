@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyOrderToProInventory } from "@/lib/applyOrderToProInventory";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
+import { registrarAudit } from "@/lib/auditLog";
+import { getAdminContext } from "@/lib/adminServer";
 
 function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -27,10 +29,10 @@ const STATUS_PAGO = new Set(["paid", "separacao", "despachado", "entregue"]);
 async function creditarCompraPropria(supabase: any, orderId: string) {
   const { data: order } = await supabase
     .from("orders")
-    .select("id, profile_id, total")
+    .select("id, profile_id, total, pro_aplicado")
     .eq("id", orderId)
     .single();
-  if (!order?.profile_id) return;
+  if (!order?.profile_id || order?.pro_aplicado) return;
 
   const proBonus = Math.round(Number(order.total || 0));
   if (proBonus <= 0) return;
@@ -45,33 +47,42 @@ async function creditarCompraPropria(supabase: any, orderId: string) {
     .from("profiles")
     .update({ total_compras_proprias: Number(comprador?.total_compras_proprias || 0) + proBonus })
     .eq("id", order.profile_id);
+
+  await supabase.from("orders").update({ pro_aplicado: true }).eq("id", orderId);
 }
 
 async function processarComissao(supabase: any, orderId: string) {
+  const { data: order } = await supabase
+    .from("orders").select("id, profile_id, total, comissao_aplicada").eq("id", orderId).single();
+  if (!order?.profile_id || order?.comissao_aplicada) return;
+
   const { data: existente } = await supabase
     .from("commissions").select("id").eq("order_id", orderId).maybeSingle();
-  if (existente) return;
-
-  const { data: order } = await supabase
-    .from("orders").select("id, profile_id, total").eq("id", orderId).single();
-  if (!order?.profile_id) return;
+  if (existente) {
+    await supabase.from("orders").update({ comissao_aplicada: true }).eq("id", orderId);
+    return;
+  }
 
   const { data: comprador } = await supabase
     .from("profiles").select("id, indicado_por").eq("id", order.profile_id).single();
   if (!comprador?.indicado_por) return;
 
+  const { data: cfg } = await supabase
+    .from("system_config").select("valor").eq("chave", "percentual_comissao").maybeSingle();
+  const percentual = Number(cfg?.valor || 15);
+
   const valorPedido = Number(order.total || 0);
-  const valorComissao = Number((valorPedido * 0.15).toFixed(2));
+  const valorComissao = Number((valorPedido * (percentual / 100)).toFixed(2));
   if (valorComissao <= 0) return;
 
   const { error: eIns } = await supabase.from("commissions").insert({
-    embaixador_id: comprador.indicado_por,
+    embaixador_id:   comprador.indicado_por,
     cabeleireiro_id: comprador.id,
-    order_id: order.id,
-    valor_pedido: valorPedido,
-    percentual: 15,
-    valor_comissao: valorComissao,
-    status: "disponivel",
+    order_id:        order.id,
+    valor_pedido:    valorPedido,
+    percentual,
+    valor_comissao:  valorComissao,
+    status:          "disponivel",
   });
   if (eIns) throw new Error(eIns.message);
 
@@ -79,11 +90,12 @@ async function processarComissao(supabase: any, orderId: string) {
   if (proBonus > 0) {
     const { data: emb } = await supabase
       .from("profiles").select("total_compras_rede").eq("id", comprador.indicado_por).single();
-    const { error: eUp } = await supabase.from("profiles")
+    await supabase.from("profiles")
       .update({ total_compras_rede: (emb?.total_compras_rede || 0) + proBonus })
       .eq("id", comprador.indicado_por);
-    if (eUp) throw new Error(eUp.message);
   }
+
+  await supabase.from("orders").update({ comissao_aplicada: true }).eq("id", orderId);
 }
 
 export async function POST(req: NextRequest) {
@@ -100,7 +112,7 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabase();
     const { data: orderAtual } = await supabase
       .from("orders")
-      .select("status")
+      .select("status, total, profile_id")
       .eq("id", orderId)
       .single();
     const jaEstavaPago = STATUS_PAGO.has(normalizeOrderStatus(orderAtual?.status));
@@ -109,6 +121,17 @@ export async function POST(req: NextRequest) {
       .from("orders")
       .update({ status: statusNormalizado })
       .eq("id", orderId);
+
+    // Audit log
+    const { userId } = await getAdminContext();
+    await registrarAudit(supabase, {
+      usuarioId:  userId || null,
+      acao:       "CHANGE_ORDER_STATUS",
+      entidade:   "orders",
+      entidadeId: orderId,
+      dadosAntes: { status: orderAtual?.status },
+      dadosApos:  { status: statusNormalizado },
+    });
 
     if (error) {
       console.error("[admin/orders/status] erro update:", error.message);

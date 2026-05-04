@@ -40,8 +40,9 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const filterStatus = searchParams.get("status");
-  const busca = searchParams.get("q");
+  const filterStatus    = searchParams.get("status");
+  const busca           = searchParams.get("q");
+  const distribuidorId  = searchParams.get("distribuidor_id"); // filtro exclusivo do ADMIN
 
   let query = supabase
     .from("crm_leads")
@@ -54,8 +55,18 @@ export async function GET(req: NextRequest) {
     `)
     .order("updated_at", { ascending: false });
 
-  // DISTRIBUIDOR: filtro por próprios leads + rede direta
-  if (access.role !== "ADMIN") {
+  if (access.role === "ADMIN") {
+    // ADMIN com filtro de distribuidor específico
+    if (distribuidorId) {
+      const redeIds = await getRedeIds(supabase, distribuidorId);
+      const todosIds = [distribuidorId, ...redeIds];
+      query = query.or(
+        todosIds.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
+      );
+    }
+    // ADMIN sem filtro → vê tudo (nenhum filtro adicional)
+  } else {
+    // DISTRIBUIDOR: sempre filtrado pela própria rede
     const redeIds = await getRedeIds(supabase, userId);
     const todosIds = [userId, ...redeIds];
     query = query.or(

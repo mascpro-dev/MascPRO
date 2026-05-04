@@ -7,7 +7,7 @@ import {
   Users, UserPlus, GitMerge, Zap, Clock, LayoutDashboard,
   ShieldCheck, ArrowDownToLine, ShoppingBag, UsersRound,
   Calendar, BookOpen, Bell, Package, Menu, X, ChevronRight,
-  Eye, Kanban,
+  Eye, Kanban, TrendingUp, FileText, Target, Download, RotateCcw, Settings,
 } from "lucide-react";
 
 const menuItems = [
@@ -55,21 +55,32 @@ const menuItems = [
     ],
   },
   {
-    title: "CRM",
+    title: "CRM / ERP",
     items: [
-      {
-        name: "Pipeline de Leads",
-        desc: "Funil de vendas e follow-ups",
-        icon: Kanban,
-        href: "/admin/crm",
-        color: "text-[#C9A66B]",
-      },
+      { name: "Dashboard",        desc: "Financeiro e visão geral",         icon: LayoutDashboard, href: "/admin/crm/dashboard",   color: "text-emerald-400" },
+      { name: "Pipeline de Leads",desc: "Funil de vendas e follow-ups",     icon: Kanban,          href: "/admin/crm",             color: "text-[#C9A66B]"  },
+      { name: "Saúde do Negócio", desc: "Estoque · Margem · Curva ABC",     icon: TrendingUp,      href: "/admin/crm/saude",       color: "text-pink-400"   },
+      { name: "DRE",              desc: "Demonstração de resultado",         icon: FileText,        href: "/admin/crm/dre",         color: "text-blue-400"   },
+      { name: "Metas & Targets",  desc: "Progresso por período",            icon: Target,          href: "/admin/crm/metas",       color: "text-yellow-400" },
+      { name: "Relatórios",       desc: "Exportação CSV",                   icon: Download,        href: "/admin/crm/relatorios",  color: "text-zinc-400"   },
+    ],
+  },
+  {
+    title: "PÓS-VENDA",
+    items: [
+      { name: "Devoluções",       desc: "Trocas e reembolsos",              icon: RotateCcw,       href: "/admin/returns",         color: "text-red-400"    },
     ],
   },
   {
     title: "FINANCEIRO",
     items: [
       { name: "Saques", desc: "Comissões", icon: ArrowDownToLine, href: "/admin/saques", color: "text-green-400" },
+    ],
+  },
+  {
+    title: "SISTEMA",
+    items: [
+      { name: "Configurações", desc: "Frete, comissão, taxas", icon: Settings, href: "/admin/config", color: "text-zinc-400" },
     ],
   },
 ];

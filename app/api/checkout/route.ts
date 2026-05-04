@@ -9,8 +9,7 @@ import {
   pesoTotalGramasItens,
 } from "@/lib/correiosFrete";
 import { isCepMariliaSp } from "@/lib/freteMarilia";
-
-const FRETE_GRATIS_ACIMA = 1500;
+import { getConfigNum } from "@/lib/systemConfig";
 
 function getAppUrl(req: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -56,7 +55,8 @@ export async function POST(req: NextRequest) {
     );
 
     const cepDestino = String(shippingCep || "").replace(/\D/g, "");
-    const isentoSubtotal = subtotal >= FRETE_GRATIS_ACIMA;
+    const freteGratisAcima = await getConfigNum("frete_gratis_acima");
+    const isentoSubtotal = freteGratisAcima > 0 && subtotal >= freteGratisAcima;
     const isentoMarilia = cepDestino.length === 8 && isCepMariliaSp(cepDestino);
     const freteGratis = isentoSubtotal || isentoMarilia;
     let frete = 0;

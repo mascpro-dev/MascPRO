@@ -7,13 +7,14 @@ type Produto = {
   id: string; title: string; description: string | null; how_to_use: string | null;
   image_url: string | null; video_url: string | null; volume: string | null;
   peso_gramas?: number | null;
+  custo_unitario?: number | null;
   price_hairdresser: number; price_ambassador: number; price_distributor: number;
   stock: number; ativo: boolean;
 };
 
 const EMPTY = {
   title: "", description: "", how_to_use: "", image_url: "", video_url: "",
-  volume: "", peso_gramas: "500",
+  volume: "", peso_gramas: "500", custo_unitario: "",
   price_hairdresser: "", price_ambassador: "", price_distributor: "",
   stock: "0", ativo: true,
 };
@@ -48,6 +49,7 @@ export default function AdminProdutosPage() {
       title: p.title, description: p.description || "", how_to_use: p.how_to_use || "",
       image_url: p.image_url || "", video_url: p.video_url || "", volume: p.volume || "",
       peso_gramas: String(p.peso_gramas && p.peso_gramas > 0 ? p.peso_gramas : 500),
+      custo_unitario: p.custo_unitario != null ? String(p.custo_unitario) : "",
       price_hairdresser: String(p.price_hairdresser), price_ambassador: String(p.price_ambassador),
       price_distributor: String(p.price_distributor), stock: String(p.stock), ativo: p.ativo,
     });
@@ -258,7 +260,16 @@ export default function AdminProdutosPage() {
 
                 {/* TABELAS DE PREÇO */}
                 <div className="bg-zinc-900 rounded-xl p-4">
-                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">Tabelas de Preço</p>
+                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">Custo e Tabelas de Preço</p>
+                  <div className="mb-3">
+                    <label className="label text-red-400">Custo Unitário (empresa paga ao fornecedor)</label>
+                    <input type="number" step="0.01" min="0" value={form.custo_unitario} onChange={e => set("custo_unitario", e.target.value)} className="input" placeholder="0,00" />
+                    {form.custo_unitario && form.price_hairdresser && Number(form.price_hairdresser) > 0 && (
+                      <p className="text-[10px] text-emerald-400 mt-1">
+                        Margem bruta (Cab.): {Math.round(((Number(form.price_hairdresser) - Number(form.custo_unitario)) / Number(form.price_hairdresser)) * 100)}%
+                      </p>
+                    )}
+                  </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="label text-[#C9A66B]">Cabeleireiro</label>

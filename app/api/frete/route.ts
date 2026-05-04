@@ -8,8 +8,7 @@ import {
   pesoTotalGramasItens,
 } from "@/lib/correiosFrete";
 import { isCepMariliaSp } from "@/lib/freteMarilia";
-
-const FRETE_GRATIS_ACIMA = 1500;
+import { getConfigNum } from "@/lib/systemConfig";
 
 function supabaseAnon() {
   return createClient(
@@ -32,14 +31,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Carrinho vazio." }, { status: 400 });
     }
 
-    if (Number.isFinite(subtotal) && subtotal >= FRETE_GRATIS_ACIMA) {
+    const freteGratisAcima = await getConfigNum("frete_gratis_acima");
+
+    if (Number.isFinite(subtotal) && freteGratisAcima > 0 && subtotal >= freteGratisAcima) {
       return NextResponse.json({
         ok: true,
         frete: 0,
         freteGratis: true,
         prazoEntrega: null,
         pesoGramas: null,
-        mensagem: "Frete grátis (pedido acima do mínimo).",
+        mensagem: `Frete grátis para pedidos acima de R$ ${freteGratisAcima.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`,
       });
     }
 

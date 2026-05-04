@@ -6,8 +6,10 @@ import AdminSidebar from "@/componentes/AdminSidebar";
 import {
   ArrowLeft, Loader2, Pencil, Save, X, AlertCircle,
   CheckCircle, MessageCircle, Instagram, Mail, Building2,
-  Calendar, User, DollarSign, MapPin, FileText, Phone,
+  Calendar, User, DollarSign, MapPin, FileText,
   Tag, Trash2, MessageSquare, PhoneCall, Clock,
+  Link2, ShoppingBag, Users, TrendingUp, AlertTriangle,
+  Package, Star, Search,
 } from "lucide-react";
 
 // ─── Tipos ────────────────────────────────────────────────
@@ -20,6 +22,23 @@ type Atividade = {
   status_novo?: string;
   autor: { id: string; full_name: string; avatar_url?: string } | null;
 };
+
+type Cliente360 = {
+  perfil: any;
+  pedidos: any[];
+  agendamentos: any[];
+  rede: any[];
+  resumo: {
+    total_pedidos: number;
+    total_comprado: number;
+    ultima_compra: string | null;
+    dias_sem_comprar: number | null;
+    total_indicados: number;
+    pro_total: number;
+  };
+};
+
+type PerfilBusca = { id: string; full_name: string; email: string; whatsapp: string | null; role: string };
 
 type Lead = {
   id: string;
@@ -39,6 +58,8 @@ type Lead = {
   notas: string | null;
   responsavel: { id: string; full_name: string } | null;
   criador: { id: string; full_name: string } | null;
+  profile_id: string | null;
+  convertido_em: string | null;
 };
 
 // ─── Constantes ───────────────────────────────────────────
@@ -101,6 +122,18 @@ export default function LeadDetalhePage() {
   // Confirmar exclusão
   const [excluindo, setExcluindo] = useState(false);
 
+  // Jornada 360
+  const [cliente360, setCliente360] = useState<Cliente360 | null>(null);
+  const [loading360, setLoading360] = useState(false);
+  const [tab, setTab] = useState<"crm" | "360">("crm");
+
+  // Modal converter lead
+  const [modalConverter, setModalConverter] = useState(false);
+  const [buscaPerfil, setBuscaPerfil] = useState("");
+  const [perfisEncontrados, setPerfisEncontrados] = useState<PerfilBusca[]>([]);
+  const [buscandoPerfil, setBuscandoPerfil] = useState(false);
+  const [convertendo, setConvertendo] = useState(false);
+
   const carregar = useCallback(async () => {
     const res = await fetch(`/api/admin/crm/leads/${id}`, { cache: "no-store" });
     const data = await res.json().catch(() => null);
@@ -115,6 +148,46 @@ export default function LeadDetalhePage() {
   }, [id]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Carrega 360 quando aba é ativada e lead tem profile_id
+  useEffect(() => {
+    if (tab !== "360" || !lead?.profile_id || cliente360) return;
+    setLoading360(true);
+    fetch(`/api/admin/crm/leads/${id}/cliente360`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => { if (d?.ok) setCliente360(d); })
+      .finally(() => setLoading360(false));
+  }, [tab, lead?.profile_id, cliente360, id]);
+
+  // Busca perfis para converter
+  useEffect(() => {
+    if (!buscaPerfil.trim()) { setPerfisEncontrados([]); return; }
+    const timer = setTimeout(async () => {
+      setBuscandoPerfil(true);
+      const res = await fetch(`/api/admin/crm/leads/${id}/converter?q=${encodeURIComponent(buscaPerfil)}`, { cache: "no-store" });
+      const d = await res.json().catch(() => null);
+      if (d?.ok) setPerfisEncontrados(d.perfis || []);
+      setBuscandoPerfil(false);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [buscaPerfil, id]);
+
+  async function converterLead(profileId: string) {
+    setConvertendo(true);
+    const res = await fetch(`/api/admin/crm/leads/${id}/converter`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile_id: profileId }),
+    });
+    const d = await res.json().catch(() => null);
+    if (res.ok && d?.ok) {
+      await carregar();
+      setModalConverter(false);
+      setCliente360(null);
+      setTab("360");
+    }
+    setConvertendo(false);
+  }
 
   function abrirEditar() {
     if (!lead) return;
@@ -344,9 +417,140 @@ export default function LeadDetalhePage() {
             </button>
           </div>
 
-          {/* ─── COLUNA DIREITA — Atividades ─── */}
+          {/* ─── COLUNA DIREITA — Abas CRM / 360 ─── */}
           <div className="lg:col-span-2 flex flex-col gap-5">
-            {/* Adicionar atividade */}
+
+            {/* Tabs */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setTab("crm")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tab === "crm" ? "bg-[#C9A66B] text-black" : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-zinc-700"}`}
+              >
+                <MessageSquare size={13} /> Jornada CRM
+              </button>
+              <button
+                onClick={() => setTab("360")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${tab === "360" ? "bg-[#C9A66B] text-black" : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-zinc-700"}`}
+              >
+                <TrendingUp size={13} /> Pós-Venda 360°
+                {lead?.profile_id && <span className="w-1.5 h-1.5 rounded-full bg-green-400" />}
+              </button>
+            </div>
+
+            {tab === "360" && (
+              <div className="flex flex-col gap-5">
+                {!lead?.profile_id ? (
+                  /* ─ Não vinculado ─ */
+                  <div className="bg-zinc-900/50 border border-dashed border-zinc-700 rounded-2xl p-8 text-center">
+                    <Link2 size={32} className="text-zinc-600 mx-auto mb-3" />
+                    <p className="text-zinc-400 font-bold mb-1">Lead ainda não convertido</p>
+                    <p className="text-zinc-600 text-xs mb-5">Vincule este lead a um perfil do MascPRO para acompanhar a jornada pós-venda.</p>
+                    <button
+                      onClick={() => setModalConverter(true)}
+                      className="inline-flex items-center gap-2 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest px-5 py-2.5 rounded-xl"
+                    >
+                      <Link2 size={14} /> Converter Lead
+                    </button>
+                  </div>
+                ) : loading360 ? (
+                  <div className="flex justify-center py-12"><Loader2 className="animate-spin text-[#C9A66B]" size={28} /></div>
+                ) : cliente360 ? (
+                  <>
+                    {/* Resumo 360 */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {[
+                        { label: "Total Comprado", value: cliente360.resumo.total_comprado.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), cor: "text-[#C9A66B]" },
+                        { label: "Pedidos", value: cliente360.resumo.total_pedidos, cor: "text-white" },
+                        { label: "PRO Score", value: (cliente360.resumo.pro_total || 0).toLocaleString("pt-BR"), cor: "text-yellow-400" },
+                        { label: "Indicados", value: cliente360.resumo.total_indicados, cor: "text-blue-400" },
+                        {
+                          label: "Última Compra",
+                          value: cliente360.resumo.ultima_compra
+                            ? `${cliente360.resumo.dias_sem_comprar}d atrás`
+                            : "Nenhuma",
+                          cor: (cliente360.resumo.dias_sem_comprar || 0) > 30 ? "text-red-400" : "text-green-400",
+                        },
+                        { label: "Membro desde", value: cliente360.perfil ? new Date(cliente360.perfil.created_at).toLocaleDateString("pt-BR") : "—", cor: "text-zinc-400" },
+                      ].map((card) => (
+                        <div key={card.label} className="bg-zinc-900/50 border border-white/5 rounded-xl p-4">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-1">{card.label}</p>
+                          <p className={`text-lg font-black leading-tight ${card.cor}`}>{card.value}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Alerta de risco */}
+                    {(cliente360.resumo.dias_sem_comprar || 0) > 30 && (
+                      <div className="flex items-center gap-3 bg-red-950/30 border border-red-800/40 rounded-2xl px-5 py-3">
+                        <AlertTriangle size={16} className="text-red-400 shrink-0" />
+                        <p className="text-red-300 text-sm font-bold">
+                          Cliente sem comprar há {cliente360.resumo.dias_sem_comprar} dias — considere um follow-up de retenção.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Últimos pedidos */}
+                    {cliente360.pedidos.length > 0 && (
+                      <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5">
+                        <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">Pedidos na Loja</p>
+                        <div className="flex flex-col gap-2">
+                          {cliente360.pedidos.map((p: any) => {
+                            const STATUS_COR: Record<string, string> = {
+                              paid: "text-blue-400", separacao: "text-yellow-400",
+                              despachado: "text-emerald-400", entregue: "text-green-300",
+                              pending: "text-zinc-500", cancelled: "text-red-400",
+                            };
+                            return (
+                              <div key={p.id} className="flex items-center justify-between py-2 border-b border-zinc-800 last:border-0">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-blue-900/20 flex items-center justify-center shrink-0">
+                                    <ShoppingBag size={13} className="text-blue-400" />
+                                  </div>
+                                  <div>
+                                    <p className={`text-[10px] font-black uppercase ${STATUS_COR[p.status] || "text-zinc-400"}`}>{p.status}</p>
+                                    <p className="text-[10px] text-zinc-600">{new Date(p.created_at).toLocaleDateString("pt-BR")}</p>
+                                    {p.itens?.length > 0 && (
+                                      <p className="text-[10px] text-zinc-500">{p.itens.map((i: any) => i.titulo).join(", ")}</p>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="text-sm font-black text-white">
+                                  {Number(p.total).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rede do cliente */}
+                    {cliente360.rede.length > 0 && (
+                      <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5">
+                        <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">
+                          Rede Indicada ({cliente360.rede.length})
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          {cliente360.rede.map((m: any) => (
+                            <div key={m.id} className="flex items-center justify-between py-1.5 border-b border-zinc-800 last:border-0">
+                              <div>
+                                <p className="text-xs font-bold text-white">{m.full_name}</p>
+                                <p className="text-[10px] text-zinc-500">{m.email}</p>
+                              </div>
+                              <span className="text-[9px] font-black uppercase text-zinc-600 bg-zinc-800 px-2 py-1 rounded-lg">{m.role}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
+            )}
+
+            {tab === "crm" && (
+              <>
+                {/* Adicionar atividade */}
             <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5">
               <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-3">Registrar Atividade</p>
 
@@ -440,9 +644,72 @@ export default function LeadDetalhePage() {
                 </div>
               )}
             </div>
+              </>
+            )}
+
           </div>
         </div>
       </main>
+
+      {/* ─── Modal Converter Lead ─── */}
+      {modalConverter && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-950 z-10">
+              <div>
+                <h2 className="font-black uppercase text-sm tracking-widest">Converter Lead</h2>
+                <p className="text-[10px] text-zinc-500 mt-0.5">Vincule a um membro do MascPRO</p>
+              </div>
+              <button onClick={() => setModalConverter(false)}><X size={20} className="text-zinc-500 hover:text-white" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={14} />
+                <input
+                  type="text"
+                  value={buscaPerfil}
+                  onChange={(e) => setBuscaPerfil(e.target.value)}
+                  placeholder="Buscar por nome, e-mail ou WhatsApp..."
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-9 pr-4 text-sm text-white outline-none focus:border-[#C9A66B]/50"
+                  autoFocus
+                />
+              </div>
+
+              {buscandoPerfil && (
+                <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-[#C9A66B]" /></div>
+              )}
+
+              {!buscandoPerfil && perfisEncontrados.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {perfisEncontrados.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => converterLead(p.id)}
+                      disabled={convertendo}
+                      className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-[#C9A66B]/50 transition-all text-left disabled:opacity-50"
+                    >
+                      <div>
+                        <p className="text-sm font-bold text-white">{p.full_name}</p>
+                        <p className="text-[10px] text-zinc-500">{p.email}</p>
+                        {p.whatsapp && <p className="text-[10px] text-zinc-600">{p.whatsapp}</p>}
+                      </div>
+                      <span className="text-[9px] font-black uppercase text-zinc-600 bg-zinc-800 px-2 py-1 rounded-lg shrink-0 ml-2">{p.role}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {!buscandoPerfil && buscaPerfil.trim() && perfisEncontrados.length === 0 && (
+                <p className="text-zinc-600 text-sm text-center py-4">Nenhum membro encontrado.</p>
+              )}
+
+              {!buscaPerfil.trim() && (
+                <p className="text-zinc-600 text-xs text-center py-4">Digite o nome ou contato do membro para buscar.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Modal de Edição ─── */}
       {editando && (
