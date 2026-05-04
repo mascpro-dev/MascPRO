@@ -68,6 +68,7 @@ const menuItems = [
   {
     title: "PÓS-VENDA",
     items: [
+      { name: "Notas Fiscais",    desc: "NF-e emitidas via Bling",          icon: FileText,        href: "/admin/nfe",             color: "text-blue-300"   },
       { name: "Devoluções",       desc: "Trocas e reembolsos",              icon: RotateCcw,       href: "/admin/returns",         color: "text-red-400"    },
     ],
   },

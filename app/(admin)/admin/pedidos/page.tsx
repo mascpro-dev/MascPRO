@@ -6,6 +6,7 @@ import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import {
   ShoppingBag, CheckCircle, XCircle, Clock,
   Loader2, RefreshCw, PackageCheck, PackageOpen, Truck, Trash2,
+  FileText, ExternalLink,
 } from "lucide-react";
 
 type Pedido = {
@@ -56,7 +57,34 @@ export default function AdminPedidosPage() {
   const [tracking, setTracking] = useState({ codigo: "", transportadora: "", previsao: "" });
   const [salvandoTracking, setSalvandoTracking] = useState(false);
 
+  // Modal NF-e
+  const [modalNfe, setModalNfe] = useState<Pedido | null>(null);
+  const [nfeForm, setNfeForm] = useState({ cpf_cnpj: "", observacao: "" });
+  const [emitindoNfe, setEmitindoNfe] = useState(false);
+  const [nfeResultado, setNfeResultado] = useState<{ numero?: string; chave?: string; erro?: string } | null>(null);
+
   useEffect(() => { carregarPedidos(); }, [filtro]);
+
+  async function emitirNfe(pedidoId: string) {
+    setEmitindoNfe(true);
+    setNfeResultado(null);
+    const res = await fetch("/api/admin/nfe/emitir", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        order_id:    pedidoId,
+        cpf_cnpj:    nfeForm.cpf_cnpj.replace(/\D/g, ""),
+        observacao:  nfeForm.observacao,
+      }),
+    });
+    const d = await res.json().catch(() => null);
+    if (res.ok && d?.ok) {
+      setNfeResultado({ numero: d.numero_nfe, chave: d.chave_acesso });
+    } else {
+      setNfeResultado({ erro: d?.error || "Erro ao emitir NF-e." });
+    }
+    setEmitindoNfe(false);
+  }
 
   async function salvarTracking(pedidoId: string) {
     setSalvandoTracking(true);
@@ -495,7 +523,7 @@ export default function AdminPedidosPage() {
                       </>
                     )}
 
-                    {/* PAGO → pode ir para separação ou cancelar */}
+                    {/* PAGO → pode ir para separação, emitir NF-e ou cancelar */}
                     {pedido.status === "paid" && (
                       <>
                         <button
@@ -505,6 +533,12 @@ export default function AdminPedidosPage() {
                         >
                           {isProcessando ? <Loader2 size={14} className="animate-spin" /> : <PackageCheck size={14} />}
                           SEPARAÇÃO
+                        </button>
+                        <button
+                          onClick={() => { setModalNfe(pedido); setNfeForm({ cpf_cnpj: "", observacao: "" }); setNfeResultado(null); }}
+                          className="flex items-center gap-1 bg-blue-900/30 hover:bg-blue-800/40 text-blue-300 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all"
+                        >
+                          <FileText size={14} /> NF-e
                         </button>
                         <button
                           onClick={() => atualizarStatus(pedido.id, "cancelled")}
@@ -563,6 +597,80 @@ export default function AdminPedidosPage() {
           </div>
         )}
       </main>
+
+      {/* ─── Modal NF-e ─── */}
+      {modalNfe && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+              <div>
+                <h2 className="font-black uppercase text-sm tracking-widest text-white flex items-center gap-2">
+                  <FileText size={16} className="text-blue-400" /> Emitir NF-e
+                </h2>
+                <p className="text-[10px] text-zinc-500 mt-0.5">{modalNfe.profiles?.full_name} — {modalNfe.total ? Number(modalNfe.total).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : ""}</p>
+              </div>
+              <button onClick={() => { setModalNfe(null); setNfeResultado(null); }}><XCircle size={20} className="text-zinc-500 hover:text-white" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Resultado */}
+              {nfeResultado && (
+                <div className={`rounded-xl px-4 py-3 text-sm font-bold ${nfeResultado.erro ? "bg-red-500/10 border border-red-500/30 text-red-400" : "bg-green-500/10 border border-green-500/30 text-green-400"}`}>
+                  {nfeResultado.erro ? (
+                    <p>❌ {nfeResultado.erro}</p>
+                  ) : (
+                    <div className="space-y-1">
+                      <p>✅ NF-e emitida com sucesso!</p>
+                      <p className="text-xs font-normal text-green-300">Número: <strong>{nfeResultado.numero}</strong></p>
+                      {nfeResultado.chave && <p className="text-[10px] font-mono text-green-300 break-all">{nfeResultado.chave}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!nfeResultado && (
+                <>
+                  <div>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">CPF ou CNPJ do cliente *</label>
+                    <input
+                      value={nfeForm.cpf_cnpj}
+                      onChange={e => setNfeForm(f => ({ ...f, cpf_cnpj: e.target.value }))}
+                      placeholder="000.000.000-00 ou 00.000.000/0001-00"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-[#C9A66B]"
+                    />
+                    <p className="text-[10px] text-zinc-600 mt-1">Se o cliente já tem CPF/CNPJ cadastrado no perfil, será salvo automaticamente.</p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Observação (opcional)</label>
+                    <textarea
+                      value={nfeForm.observacao}
+                      onChange={e => setNfeForm(f => ({ ...f, observacao: e.target.value }))}
+                      rows={2}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-[#C9A66B] resize-none"
+                      placeholder="Informações adicionais para a NF-e..."
+                    />
+                  </div>
+                  <div className="bg-zinc-900 rounded-xl p-3">
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Requisitos</p>
+                    <ul className="text-[10px] text-zinc-600 space-y-0.5">
+                      <li>• <span className="text-zinc-400">BLING_API_TOKEN</span> configurado no .env</li>
+                      <li>• Todos os produtos precisam ter o <span className="text-zinc-400">ID Bling</span> (Admin → Produtos)</li>
+                      <li>• Endereço do cliente cadastrado no perfil</li>
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => emitirNfe(modalNfe.id)}
+                    disabled={emitindoNfe || !nfeForm.cpf_cnpj.replace(/\D/g, "")}
+                    className="w-full bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2"
+                  >
+                    {emitindoNfe ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+                    {emitindoNfe ? "Emitindo via Bling..." : "Emitir NF-e"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Modal Tracking ─── */}
       {modalTracking && (
