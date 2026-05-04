@@ -18,6 +18,7 @@ import {
   Award,
   CheckCircle,
   Calculator,
+  BarChart2,
   type LucideIcon
 } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -98,17 +99,12 @@ export default function Sidebar() {
     loadUserProfile();
   }, [supabase]);
 
-  // Verificar se é Distribuidor
-  const isDistribuidor = userProfile?.work_type === "Distribuidor" || 
-                         userProfile?.work_type === "distribuidor" ||
-                         userProfile?.role === "Distribuidor" || 
-                         userProfile?.role === "distribuidor";
+  const _role = String(userProfile?.role || "").trim().toUpperCase();
 
-  // Verificar se é Embaixador
-  const isEmbaixadorRole = userProfile?.work_type === "Embaixador" || 
-                           userProfile?.work_type === "embaixador" ||
-                           userProfile?.role === "Embaixador" || 
-                           userProfile?.role === "embaixador";
+  // Usa role (uppercase) como fonte de verdade
+  const isDistribuidor   = _role === "DISTRIBUIDOR";
+  const isEmbaixadorRole = _role === "EMBAIXADOR";
+  const isAdmin          = _role === "ADMIN";
 
   // Retorna o label do cargo direto da coluna `role`
   const getUserRole = () => {
@@ -349,6 +345,24 @@ export default function Sidebar() {
                   </Link>
                 );
               })}
+
+              {/* CRM / ERP — visível para DISTRIBUIDOR e ADMIN */}
+              {(isDistribuidor || isAdmin) && (
+                <>
+                  <div className="border-t border-white/5 my-2" />
+                  <Link
+                    href="/admin/crm/dashboard"
+                    className={`flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group ${
+                      pathname.startsWith("/admin/crm")
+                        ? "bg-[#C9A66B]/10 text-[#C9A66B] font-black"
+                        : "text-slate-500 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5"
+                    }`}
+                  >
+                    <BarChart2 size={20} className={pathname.startsWith("/admin/crm") ? "text-[#C9A66B]" : "text-slate-500 group-hover:text-[#C9A66B]"} />
+                    <span className="text-xs uppercase tracking-widest font-bold">CRM / ERP</span>
+                  </Link>
+                </>
+              )}
             </nav>
           </div>
         </div>
