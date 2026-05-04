@@ -84,26 +84,66 @@ CREATE INDEX IF NOT EXISTS crm_atividades_created_idx   ON crm_atividades(create
 ALTER TABLE crm_leads       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE crm_atividades  ENABLE ROW LEVEL SECURITY;
 
--- Somente ADMIN e DISTRIBUIDOR têm acesso
 DROP POLICY IF EXISTS "crm_leads_acesso"      ON crm_leads;
 DROP POLICY IF EXISTS "crm_atividades_acesso" ON crm_atividades;
 
+-- ADMIN vê todos os leads.
+-- DISTRIBUIDOR vê apenas:
+--   • leads que ele mesmo criou (created_by)
+--   • leads onde ele é o responsável (responsavel_id)
+--   • leads criados ou atribuídos a membros diretos da sua rede (indicado_por = seu id)
 CREATE POLICY "crm_leads_acesso" ON crm_leads
   FOR ALL
   USING (
+    -- ADMIN: acesso total
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('ADMIN','DISTRIBUIDOR')
+        AND profiles.role = 'ADMIN'
+    )
+    OR
+    -- DISTRIBUIDOR: próprios leads + rede direta
+    (
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = auth.uid()
+          AND profiles.role = 'DISTRIBUIDOR'
+      )
+      AND (
+        crm_leads.created_by     = auth.uid()
+        OR crm_leads.responsavel_id = auth.uid()
+        OR crm_leads.responsavel_id IN (
+          SELECT id FROM profiles WHERE indicado_por = auth.uid()
+        )
+        OR crm_leads.created_by IN (
+          SELECT id FROM profiles WHERE indicado_por = auth.uid()
+        )
+      )
     )
   );
 
+-- Atividades seguem a mesma regra do lead pai
 CREATE POLICY "crm_atividades_acesso" ON crm_atividades
   FOR ALL
   USING (
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('ADMIN','DISTRIBUIDOR')
+        AND profiles.role = 'ADMIN'
+    )
+    OR (
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = auth.uid()
+          AND profiles.role = 'DISTRIBUIDOR'
+      )
+      AND crm_atividades.lead_id IN (
+        SELECT id FROM crm_leads
+        WHERE
+          created_by     = auth.uid()
+          OR responsavel_id = auth.uid()
+          OR responsavel_id IN (SELECT id FROM profiles WHERE indicado_por = auth.uid())
+          OR created_by     IN (SELECT id FROM profiles WHERE indicado_por = auth.uid())
+      )
     )
   );

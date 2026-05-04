@@ -15,7 +15,35 @@ async function assertCrmAccess(supabase: any, userId: string) {
   if (!["ADMIN", "DISTRIBUIDOR"].includes(role)) {
     return { ok: false as const, error: "Acesso restrito ao CRM." };
   }
-  return { ok: true as const, role, full_name: data?.full_name };
+  return { ok: true as const, role, full_name: data?.full_name as string };
+}
+
+async function podeAcessarLead(
+  supabase: any,
+  leadId: string,
+  userId: string,
+  role: string
+): Promise<boolean> {
+  if (role === "ADMIN") return true;
+  // Busca membros diretos da rede
+  const { data: rede } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("indicado_por", userId);
+  const redeIds = (rede || []).map((p: { id: string }) => p.id);
+  const todosIds = [userId, ...redeIds];
+
+  const { data } = await supabase
+    .from("crm_leads")
+    .select("id, created_by, responsavel_id")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  if (!data) return false;
+  return (
+    todosIds.includes(data.created_by) ||
+    todosIds.includes(data.responsavel_id)
+  );
 }
 
 // GET /api/admin/crm/leads/[id] — detalhe com atividades
@@ -31,6 +59,11 @@ export async function GET(
   const access = await assertCrmAccess(supabase, userId);
   if (!access.ok) {
     return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
+  }
+
+  const permitido = await podeAcessarLead(supabase, params.id, userId, access.role);
+  if (!permitido) {
+    return NextResponse.json({ ok: false, error: "Sem acesso a este lead." }, { status: 403 });
   }
 
   const { data: lead, error } = await supabase
@@ -73,6 +106,11 @@ export async function PATCH(
   const access = await assertCrmAccess(supabase, userId);
   if (!access.ok) {
     return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
+  }
+
+  const permitidoPatch = await podeAcessarLead(supabase, params.id, userId, access.role);
+  if (!permitidoPatch) {
+    return NextResponse.json({ ok: false, error: "Sem acesso a este lead." }, { status: 403 });
   }
 
   const body = await req.json().catch(() => null);
@@ -143,6 +181,11 @@ export async function DELETE(
   const access = await assertCrmAccess(supabase, userId);
   if (!access.ok) {
     return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
+  }
+
+  const permitidoDel = await podeAcessarLead(supabase, params.id, userId, access.role);
+  if (!permitidoDel) {
+    return NextResponse.json({ ok: false, error: "Sem acesso a este lead." }, { status: 403 });
   }
 
   const { error } = await supabase.from("crm_leads").delete().eq("id", params.id);

@@ -15,7 +15,16 @@ async function assertCrmAccess(supabase: any, userId: string) {
   if (!["ADMIN", "DISTRIBUIDOR"].includes(role)) {
     return { ok: false as const, error: "Acesso restrito ao CRM." };
   }
-  return { ok: true as const, role, full_name: data?.full_name };
+  return { ok: true as const, role, full_name: data?.full_name as string };
+}
+
+/** Retorna os IDs da rede direta de um distribuidor (quem ele indicou) */
+async function getRedeIds(supabase: any, userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("indicado_por", userId);
+  return (data || []).map((p: { id: string }) => p.id);
 }
 
 // GET /api/admin/crm/leads — lista leads (todos ou por status)
@@ -44,6 +53,15 @@ export async function GET(req: NextRequest) {
       responsavel:profiles!crm_leads_responsavel_id_fkey(id, full_name, avatar_url)
     `)
     .order("updated_at", { ascending: false });
+
+  // DISTRIBUIDOR: filtro por próprios leads + rede direta
+  if (access.role !== "ADMIN") {
+    const redeIds = await getRedeIds(supabase, userId);
+    const todosIds = [userId, ...redeIds];
+    query = query.or(
+      todosIds.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
+    );
+  }
 
   if (filterStatus) query = query.eq("status", filterStatus);
   if (busca) {
