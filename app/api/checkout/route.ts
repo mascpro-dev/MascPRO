@@ -10,6 +10,7 @@ import {
 } from "@/lib/correiosFrete";
 import { isCepMariliaSp } from "@/lib/freteMarilia";
 import { getConfigNum } from "@/lib/systemConfig";
+import { rateLimit, LIMITS } from "@/lib/rateLimit";
 
 function getAppUrl(req: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -23,6 +24,14 @@ function getAppUrl(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
+  const limit = await rateLimit(req, LIMITS.checkout);
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "Muitas requisições. Aguarde um momento antes de tentar novamente." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((limit.resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
     const APP_URL = getAppUrl(req);
     const { items, userId, userEmail, userName, accessToken, shippingCep, shippingAddress } = await req.json();

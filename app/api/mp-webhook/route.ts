@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
+import { rateLimit, LIMITS } from "@/lib/rateLimit";
 
 function getSupabase() {
   // Usa service_role se disponível (bypassa RLS), senão anon key com grants manuais
@@ -111,12 +112,71 @@ async function garantirComissao(supabase: any, orderId: string) {
   await supabase.from("orders").update({ comissao_aplicada: true }).eq("id", orderId);
 }
 
+/** Verifica assinatura HMAC-SHA256 do Mercado Pago */
+async function verificarAssinaturaMP(req: NextRequest, body: any): Promise<boolean> {
+  const secret = process.env.MP_WEBHOOK_SECRET;
+  if (!secret) {
+    // Se não configurou o secret, permite passar (retrocompatibilidade)
+    // Para produção: adicione MP_WEBHOOK_SECRET no .env
+    console.warn("[mp-webhook] MP_WEBHOOK_SECRET não configurado — assinatura não verificada");
+    return true;
+  }
+
+  const xSignature  = req.headers.get("x-signature") || "";
+  const xRequestId  = req.headers.get("x-request-id") || "";
+  const url         = new URL(req.url);
+  const dataId      = url.searchParams.get("data.id") || url.searchParams.get("id") || body?.data?.id || "";
+
+  if (!xSignature) {
+    console.warn("[mp-webhook] Header x-signature ausente");
+    return false;
+  }
+
+  // Extrai ts e v1 do header: "ts=TIMESTAMP,v1=HASH"
+  const parts = Object.fromEntries(xSignature.split(",").map((p) => p.split("=")));
+  const ts = parts["ts"];
+  const v1 = parts["v1"];
+
+  if (!ts || !v1) return false;
+
+  // Manifesto a assinar: id:PAYMENT_ID;request-id:REQUEST_ID;ts:TIMESTAMP
+  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts}`;
+
+  try {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secret);
+    const msgData = encoder.encode(manifest);
+
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+    );
+    const sigBuffer = await crypto.subtle.sign("HMAC", cryptoKey, msgData);
+    const sigHex = Array.from(new Uint8Array(sigBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    if (sigHex !== v1) {
+      console.error("[mp-webhook] Assinatura inválida — possível requisição forjada");
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("[mp-webhook] Erro ao verificar assinatura:", e);
+    return false;
+  }
+}
+
 // Suporta GET para validação inicial do MP
 export async function GET() {
   return NextResponse.json({ ok: true });
 }
 
 export async function POST(req: NextRequest) {
+  const limit = await rateLimit(req, LIMITS.webhook);
+  if (!limit.ok) {
+    return NextResponse.json({ ok: false, error: "Rate limit." }, { status: 429 });
+  }
+
   try {
     const url = new URL(req.url);
     // Formato IPN: ?topic=payment&id=PAYMENT_ID
@@ -126,6 +186,12 @@ export async function POST(req: NextRequest) {
 
     let body: any = {};
     try { body = await req.json(); } catch { body = {}; }
+
+    // ── Verifica assinatura do MP ─────────────────────────
+    const assinaturaValida = await verificarAssinaturaMP(req, body);
+    if (!assinaturaValida) {
+      return NextResponse.json({ ok: false, error: "Assinatura inválida." }, { status: 401 });
+    }
 
     const type      = body.type || body.action?.split(".")?.[0] || queryTopic;
     const paymentId = body.data?.id || queryId;

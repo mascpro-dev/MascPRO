@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { rateLimit, LIMITS } from "@/lib/rateLimit";
 
 export async function POST(req: NextRequest) {
+  const limit = await rateLimit(req, LIMITS.saques);
+  if (!limit.ok) {
+    return NextResponse.json(
+      { ok: false, error: "Muitas tentativas de saque. Aguarde antes de tentar novamente." },
+      { status: 429 }
+    );
+  }
+
   try {
     // Usa o cliente com JWT do usuário — satisfaz a RLS policy
     const supabase = createRouteHandlerClient({ cookies });

@@ -2,39 +2,99 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+// Rotas públicas que nunca precisam de auth
+const PUBLIC_ROUTES = ['/agendar', '/catalago', '/instalar-app', '/auth-choice', '/role-select']
+const PUBLIC_PREFIXES = ['/agendar/', '/catalago/', '/api/mp-webhook', '/api/frete', '/api/agendar/']
+
+// Rotas que requerem APENAS login (qualquer usuário autenticado)
+const AUTH_ONLY_PREFIXES = ['/home', '/agenda', '/perfil', '/comunidade', '/loja', '/evolucao', '/jornada', '/rede', '/eventos', '/aula', '/calculadora', '/embaixador']
+
+// Rotas admin — requerem login + role ADMIN ou DISTRIBUIDOR (para /admin/crm)
+const ADMIN_CRM_PREFIXES = ['/admin/crm']
+const ADMIN_STRICT_PREFIXES = ['/admin']
+
 export async function middleware(req: NextRequest) {
-  const pathname = req.nextUrl.pathname
-
-  // Agendamento público: cliente não deve passar por login/cadastro PRO
-  if (pathname === '/agendar' || pathname.startsWith('/agendar/')) {
-    return NextResponse.next()
-  }
-
+  const { pathname } = req.nextUrl
   const res = NextResponse.next()
+
+  // ── Sempre permitir rotas públicas ────────────────────────
+  if (
+    PUBLIC_ROUTES.includes(pathname) ||
+    PUBLIC_PREFIXES.some((p) => pathname.startsWith(p)) ||
+    pathname.startsWith('/api/') // APIs têm proteção própria via assertAdmin
+  ) {
+    return res
+  }
+
+  // ── Verifica sessão ───────────────────────────────────────
   const supabase = createMiddlewareClient({ req, res })
+  const { data: { session } } = await supabase.auth.getSession()
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  // ── Sem sessão → login ────────────────────────────────────
+  const needsAuth =
+    pathname === '/' ||
+    AUTH_ONLY_PREFIXES.some((p) => pathname.startsWith(p)) ||
+    ADMIN_STRICT_PREFIXES.some((p) => pathname.startsWith(p))
 
-  // 1. Se NÃO estiver logado e tentar acessar área interna -> Manda para Login
-  if (!session && pathname.startsWith('/home')) {
-    return NextResponse.redirect(new URL('/login', req.url))
+  if (!session && needsAuth) {
+    const url = new URL('/login', req.url)
+    url.searchParams.set('next', pathname)
+    return NextResponse.redirect(url)
   }
-  
-  // 2. Se NÃO estiver logado e tentar acessar a raiz -> Manda para Login
-  if (!session && pathname === '/') {
-    return NextResponse.redirect(new URL('/login', req.url))
-  }
 
-  // 3. Se JÁ estiver logado e tentar acessar Login ou Raiz -> Manda para Home
+  // ── Logado tentando acessar login → home ──────────────────
   if (session && (pathname === '/login' || pathname === '/')) {
     return NextResponse.redirect(new URL('/home', req.url))
+  }
+
+  // ── Proteção da área admin ────────────────────────────────
+  if (session && ADMIN_STRICT_PREFIXES.some((p) => pathname.startsWith(p))) {
+    // Busca o role do usuário (cache em cookie para não bater no DB toda vez)
+    const roleCookie = req.cookies.get('user_role')?.value
+
+    let role = roleCookie
+
+    if (!role) {
+      // Busca do banco apenas quando cookie não existe
+      const { data: perfil } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle()
+      role = String(perfil?.role || '').toUpperCase()
+
+      // Salva no cookie por 30min para evitar DB calls repetidos
+      res.cookies.set('user_role', role, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 60 * 30,
+        path: '/',
+      })
+    }
+
+    const isAdmin      = role === 'ADMIN'
+    const isDistrib    = role === 'DISTRIBUIDOR'
+
+    // /admin/crm → ADMIN e DISTRIBUIDOR têm acesso
+    if (ADMIN_CRM_PREFIXES.some((p) => pathname.startsWith(p))) {
+      if (!isAdmin && !isDistrib) {
+        return NextResponse.redirect(new URL('/home', req.url))
+      }
+    } else {
+      // Resto do /admin → somente ADMIN
+      if (!isAdmin) {
+        return NextResponse.redirect(new URL('/home', req.url))
+      }
+    }
   }
 
   return res
 }
 
 export const config = {
-  matcher: ['/', '/login', '/home/:path*', '/agendar', '/agendar/:path*'],
+  matcher: [
+    // Cobre todas as rotas exceto arquivos estáticos e _next
+    '/((?!_next/static|_next/image|favicon.ico|icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)',
+  ],
 }

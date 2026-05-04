@@ -31,6 +31,36 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   },
 });
 
+const securityHeaders = [
+  // Impede que o site seja embutido em iframes (clickjacking)
+  { key: "X-Frame-Options", value: "DENY" },
+  // Evita MIME type sniffing
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  // Controla informações de referência em links externos
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // Força HTTPS por 2 anos (só em produção)
+  ...(process.env.NODE_ENV === "production"
+    ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }]
+    : []),
+  // Desativa algumas APIs de browser perigosas
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(self)" },
+  // Content Security Policy básico — bloqueia XSS de fontes externas não autorizadas
+  {
+    key: "Content-Security-Policy",
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https: http:",
+      "media-src 'self' https:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://www.bling.com.br https://melhorenvio.com.br https://sandbox.melhorenvio.com.br",
+      "frame-src https://sdk.mercadopago.com https://www.mercadopago.com.br",
+      "worker-src 'self' blob:",
+    ].join("; "),
+  },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -43,6 +73,15 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ["lucide-react"],
+  },
+  async headers() {
+    return [
+      {
+        // Aplica headers de segurança em todas as rotas
+        source: "/(.*)",
+        headers: securityHeaders,
+      },
+    ];
   },
 };
 

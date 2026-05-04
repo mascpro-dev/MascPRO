@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext, assertAdmin } from "@/lib/adminServer";
 import { emitirNfe, type DadosCliente } from "@/lib/blingNfe";
 import { registrarAudit } from "@/lib/auditLog";
+import { rateLimit, LIMITS } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
 // POST /api/admin/nfe/emitir
 // Body: { order_id, cpf_cnpj?, observacao? }
 export async function POST(req: NextRequest) {
+  const limit = await rateLimit(req, LIMITS.nfe);
+  if (!limit.ok) {
+    return NextResponse.json({ ok: false, error: "Muitas emissões em sequência. Aguarde." }, { status: 429 });
+  }
+
   const { supabase, userId, error: authErr, status } = await getAdminContext();
   if (!supabase || !userId) return NextResponse.json({ ok: false, error: authErr }, { status });
 
