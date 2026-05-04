@@ -7,7 +7,7 @@ import {
   Users, UserPlus, GitMerge, Zap, Clock, LayoutDashboard,
   ShieldCheck, ArrowDownToLine, ShoppingBag, UsersRound,
   Calendar, BookOpen, Bell, Package, Menu, X, ChevronRight,
-  Eye,
+  Eye, Kanban,
 } from "lucide-react";
 
 const menuItems = [
@@ -52,6 +52,18 @@ const menuItems = [
     items: [
       { name: "Produtos", desc: "Preços, estoque, fotos", icon: Package, href: "/admin/produtos", color: "text-emerald-400" },
       { name: "Pedidos", desc: "Separação e despacho", icon: ShoppingBag, href: "/admin/pedidos", color: "text-blue-400" },
+    ],
+  },
+  {
+    title: "CRM",
+    items: [
+      {
+        name: "Pipeline de Leads",
+        desc: "Funil de vendas e follow-ups",
+        icon: Kanban,
+        href: "/admin/crm",
+        color: "text-[#C9A66B]",
+      },
     ],
   },
   {
