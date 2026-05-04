@@ -220,6 +220,26 @@ export default function Sidebar() {
                   <Award size={18} className={pathname === "/jornada" ? "text-[#C9A66B]" : "text-slate-500"} />
                   <span className="font-medium">Minha Jornada</span>
                 </Link>
+
+                {/* CRM / ERP no dropdown mobile — DISTRIBUIDOR e ADMIN */}
+                {userProfile && (isDistribuidor || isAdmin) && (
+                  <>
+                    <div className="border-t border-white/5 my-1" />
+                    <Link
+                      href="/admin/crm/dashboard"
+                      onClick={() => setDropdownOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                        pathname.startsWith("/admin/crm")
+                          ? "bg-[#C9A66B]/10 text-[#C9A66B]"
+                          : "text-[#C9A66B]/70 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5"
+                      }`}
+                    >
+                      <BarChart2 size={18} className="text-[#C9A66B]" />
+                      <span className="font-bold">CRM / ERP</span>
+                    </Link>
+                  </>
+                )}
+
                 <div className="border-t border-white/5 mt-2 pt-2">
                   <button
                     onClick={(e) => handleLogout(e)}
@@ -345,25 +365,28 @@ export default function Sidebar() {
                   </Link>
                 );
               })}
-
-              {/* CRM / ERP — visível para DISTRIBUIDOR e ADMIN */}
-              {(isDistribuidor || isAdmin) && (
-                <>
-                  <div className="border-t border-white/5 my-2" />
-                  <Link
-                    href="/admin/crm/dashboard"
-                    className={`flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group ${
-                      pathname.startsWith("/admin/crm")
-                        ? "bg-[#C9A66B]/10 text-[#C9A66B] font-black"
-                        : "text-slate-500 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5"
-                    }`}
-                  >
-                    <BarChart2 size={20} className={pathname.startsWith("/admin/crm") ? "text-[#C9A66B]" : "text-slate-500 group-hover:text-[#C9A66B]"} />
-                    <span className="text-xs uppercase tracking-widest font-bold">CRM / ERP</span>
-                  </Link>
-                </>
-              )}
             </nav>
+
+            {/* CRM / ERP — visível para DISTRIBUIDOR e ADMIN, fora da nav para não ter conflito de scroll */}
+            {userProfile && (isDistribuidor || isAdmin) && (
+              <div className="mt-4 pt-4 border-t border-white/5">
+                <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] mb-2 px-2">Gestão</p>
+                <Link
+                  href="/admin/crm/dashboard"
+                  className={`flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group ${
+                    pathname.startsWith("/admin/crm")
+                      ? "bg-[#C9A66B]/15 border border-[#C9A66B]/30 text-[#C9A66B] font-black"
+                      : "text-slate-500 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5 border border-transparent"
+                  }`}
+                >
+                  <BarChart2 size={20} className={pathname.startsWith("/admin/crm") ? "text-[#C9A66B]" : "text-slate-500 group-hover:text-[#C9A66B]"} />
+                  <div>
+                    <span className="text-xs uppercase tracking-widest font-bold block">CRM / ERP</span>
+                    <span className="text-[9px] text-slate-600 font-normal">Pipeline · Financeiro</span>
+                  </div>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 
