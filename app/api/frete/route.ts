@@ -127,6 +127,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado.";
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    const erro =
+      /aborted|abort|timeout/i.test(msg)
+        ? "Correios demorou para responder. Tente novamente em instantes."
+        : msg;
+    return NextResponse.json({ ok: false, error: erro }, { status: 500 });
   }
 }

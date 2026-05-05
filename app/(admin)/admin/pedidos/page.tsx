@@ -46,7 +46,7 @@ export default function AdminPedidosPage() {
   const supabase = createClientComponentClient();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filtro, setFiltro] = useState<Filtro>("paid");
+  const [filtro, setFiltro] = useState<Filtro>("todos");
   const [processando, setProcessando] = useState<string | null>(null);
   const [adminSecret, setAdminSecret] = useState("");
   const [limpando, setLimpando] = useState(false);

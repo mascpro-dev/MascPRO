@@ -86,12 +86,9 @@ export default function CartDrawer() {
     setLoadingFrete(true);
     setFreteErro("");
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12_000);
       const res = await fetch("/api/frete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
         body: JSON.stringify({
           cep: c,
           cidade: endereco.cidade,
@@ -103,7 +100,6 @@ export default function CartDrawer() {
           subtotal,
         }),
       });
-      clearTimeout(timeout);
       const data = await res.json();
       if (!res.ok || !data?.ok) {
         setFrete(null);
@@ -127,14 +123,10 @@ export default function CartDrawer() {
           pg != null ? ` · ${Number(pg).toLocaleString("pt-BR")} g` : ""
         }`
       );
-    } catch (e: any) {
+    } catch {
       setFrete(null);
       setFreteInfo("");
-      if (e?.name === "AbortError") {
-        setFreteErro("Correios demorou para responder. Tente novamente em instantes.");
-      } else {
-        setFreteErro("Falha de conexão ao consultar o frete.");
-      }
+      setFreteErro("Falha de conexão ao consultar o frete.");
     } finally {
       setLoadingFrete(false);
     }
