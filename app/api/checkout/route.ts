@@ -178,10 +178,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const payer: Record<string, string> = {};
+    if (userName) payer.name = String(userName);
+    if (userEmail) payer.email = String(userEmail);
+
     const result = await preference.create({
       body: {
         items: mpItems,
-        payer: { name: userName || "", email: userEmail || "" },
+        ...(Object.keys(payer).length > 0 ? { payer } : {}),
         back_urls: {
           success: `${APP_URL}/loja/sucesso?order_id=${order.id}`,
           failure: `${APP_URL}/loja/falha?order_id=${order.id}`,
@@ -195,18 +199,31 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    const checkoutUrl = result.init_point || (result as any).sandbox_init_point;
+    if (!checkoutUrl) {
+      return NextResponse.json(
+        { error: "Mercado Pago não retornou URL de pagamento. Verifique se o token é de produção/teste correto." },
+        { status: 502 }
+      );
+    }
+
     await supabase
       .from("orders")
       .update({ mp_preference_id: result.id })
       .eq("id", order.id);
 
     return NextResponse.json({
-      init_point: result.init_point,
+      init_point: checkoutUrl,
       preference_id: result.id,
       order_id: order.id,
     });
   } catch (err: any) {
     console.error("Checkout erro:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const detalhe =
+      err?.cause?.[0]?.description ||
+      err?.cause?.[0]?.message ||
+      err?.message ||
+      "Falha ao criar pagamento no Mercado Pago.";
+    return NextResponse.json({ error: detalhe }, { status: 500 });
   }
 }
