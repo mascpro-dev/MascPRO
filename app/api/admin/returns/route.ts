@@ -4,38 +4,90 @@ import { registrarAudit } from "@/lib/auditLog";
 
 export const dynamic = "force-dynamic";
 
+async function getRole(supabase: any, userId: string): Promise<string> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  return String(data?.role || "").trim().toUpperCase();
+}
+
 // GET /api/admin/returns?status=solicitado
 export async function GET(req: NextRequest) {
   const { supabase, userId, error: authErr, status } = await getAdminContext();
   if (!supabase || !userId) return NextResponse.json({ ok: false, error: authErr }, { status });
 
-  const check = await assertAdmin(supabase, userId);
-  if (!check.ok) return NextResponse.json({ ok: false, error: check.error }, { status: 403 });
+  const role = await getRole(supabase, userId);
+  if (!["ADMIN", "DISTRIBUIDOR"].includes(role)) {
+    return NextResponse.json({ ok: false, error: "Acesso restrito." }, { status: 403 });
+  }
 
   const filtro = new URL(req.url).searchParams.get("status") || "solicitado";
 
-  let query = supabase
+  const baseSelect = `
+    *, 
+    profiles!returns_profile_id_fkey(id, full_name, email, whatsapp),
+    orders!returns_order_id_fkey(id, total, status, created_at),
+    return_items(*, products!return_items_product_id_fkey(id, title, image_url))
+  `;
+
+  if (role === "ADMIN") {
+    let query = supabase.from("returns").select(baseSelect).order("created_at", { ascending: false });
+    if (filtro !== "todos") query = query.eq("status", filtro);
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, role, returns: data || [] });
+  }
+
+  const { data: rede } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("indicado_por", userId);
+  const redeIds = (rede || []).map((p: any) => p.id);
+  const idsVisiveis = [userId, ...redeIds];
+
+  let queryCriados = supabase
     .from("returns")
-    .select(`
-      *, 
-      profiles!returns_profile_id_fkey(id, full_name, email, whatsapp),
-      orders!returns_order_id_fkey(id, total, status, created_at),
-      return_items(*, products!return_items_product_id_fkey(id, title, image_url))
-    `)
+    .select(baseSelect)
+    .eq("created_by", userId)
     .order("created_at", { ascending: false });
+  if (filtro !== "todos") queryCriados = queryCriados.eq("status", filtro);
 
-  if (filtro !== "todos") query = query.eq("status", filtro);
+  const { data: criados, error: errCriados } = await queryCriados;
+  if (errCriados) return NextResponse.json({ ok: false, error: errCriados.message }, { status: 500 });
 
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  let daRede: any[] = [];
+  if (idsVisiveis.length > 0) {
+    let queryRede = supabase
+      .from("returns")
+      .select(baseSelect)
+      .in("profile_id", idsVisiveis)
+      .order("created_at", { ascending: false });
+    if (filtro !== "todos") queryRede = queryRede.eq("status", filtro);
+    const { data: redeRows, error: errRede } = await queryRede;
+    if (errRede) return NextResponse.json({ ok: false, error: errRede.message }, { status: 500 });
+    daRede = redeRows || [];
+  }
 
-  return NextResponse.json({ ok: true, returns: data || [] });
+  const map = new Map<string, any>();
+  for (const r of [...(criados || []), ...daRede]) map.set(r.id, r);
+  const combinado = Array.from(map.values()).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  return NextResponse.json({ ok: true, role, returns: combinado });
 }
 
 // POST /api/admin/returns — cria solicitação de devolução
 export async function POST(req: NextRequest) {
   const { supabase, userId, error: authErr, status } = await getAdminContext();
   if (!supabase || !userId) return NextResponse.json({ ok: false, error: authErr }, { status });
+
+  const role = await getRole(supabase, userId);
+  if (!["ADMIN", "DISTRIBUIDOR"].includes(role)) {
+    return NextResponse.json({ ok: false, error: "Acesso restrito." }, { status: 403 });
+  }
 
   const body = await req.json().catch(() => null);
   if (!body?.order_id || !body?.motivo) {

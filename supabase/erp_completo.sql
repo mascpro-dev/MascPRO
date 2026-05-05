@@ -62,6 +62,8 @@ ALTER TABLE return_items ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE returns      TO authenticated, service_role;
 GRANT ALL ON TABLE return_items TO authenticated, service_role;
 
+DROP POLICY IF EXISTS "returns_acesso" ON returns;
+DROP POLICY IF EXISTS "return_items_acesso" ON return_items;
 CREATE POLICY "returns_acesso" ON returns FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role IN ('ADMIN','DISTRIBUIDOR'))
 );
@@ -83,6 +85,7 @@ CREATE TABLE IF NOT EXISTS distribuidor_metas (
 
 ALTER TABLE distribuidor_metas ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE distribuidor_metas TO authenticated, service_role;
+DROP POLICY IF EXISTS "metas_acesso" ON distribuidor_metas;
 CREATE POLICY "metas_acesso" ON distribuidor_metas FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role IN ('ADMIN','DISTRIBUIDOR'))
 );
@@ -98,18 +101,20 @@ CREATE TABLE IF NOT EXISTS system_config (
 
 ALTER TABLE system_config ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE system_config TO authenticated, service_role;
+DROP POLICY IF EXISTS "config_admin" ON system_config;
 CREATE POLICY "config_admin" ON system_config FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'ADMIN')
 );
 
 -- Valores padrão
 INSERT INTO system_config (chave, valor, descricao) VALUES
-  ('taxa_saque',           '11',    'Taxa de saque em % (ex: 11 = 11%)')          ON CONFLICT (chave) DO NOTHING,
-  ('percentual_comissao',  '15',    'Percentual de comissão padrão em %')          ON CONFLICT (chave) DO NOTHING,
-  ('percentual_comissao_cabeleireiro', '15', 'Percentual de comissão para indicador cabeleireiro em %') ON CONFLICT (chave) DO NOTHING,
-  ('frete_gratis_acima',   '1500',  'Valor mínimo em R$ para frete grátis')        ON CONFLICT (chave) DO NOTHING,
-  ('estoque_alerta_min',   '5',     'Qtd mínima de estoque para alertar')          ON CONFLICT (chave) DO NOTHING,
-  ('dias_cliente_risco',   '30',    'Dias sem compra para considerar cliente em risco') ON CONFLICT (chave) DO NOTHING;
+  ('taxa_saque',           '11',    'Taxa de saque em % (ex: 11 = 11%)'),
+  ('percentual_comissao',  '15',    'Percentual de comissão padrão em %'),
+  ('percentual_comissao_cabeleireiro', '15', 'Percentual de comissão para indicador cabeleireiro em %'),
+  ('frete_gratis_acima',   '1500',  'Valor mínimo em R$ para frete grátis'),
+  ('estoque_alerta_min',   '5',     'Qtd mínima de estoque para alertar'),
+  ('dias_cliente_risco',   '30',    'Dias sem compra para considerar cliente em risco')
+ON CONFLICT (chave) DO NOTHING;
 
 -- ── 6. AUDIT LOG ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -131,6 +136,7 @@ CREATE INDEX IF NOT EXISTS audit_log_created_idx   ON audit_log(created_at DESC)
 
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE audit_log TO authenticated, service_role;
+DROP POLICY IF EXISTS "audit_admin" ON audit_log;
 CREATE POLICY "audit_admin" ON audit_log FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'ADMIN')
 );
@@ -171,6 +177,8 @@ ALTER TABLE ordens_compra_itens ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE ordens_compra       TO authenticated, service_role;
 GRANT ALL ON TABLE ordens_compra_itens TO authenticated, service_role;
 
+DROP POLICY IF EXISTS "ordens_compra_acesso" ON ordens_compra;
+DROP POLICY IF EXISTS "ordens_compra_itens_acesso" ON ordens_compra_itens;
 CREATE POLICY "ordens_compra_acesso" ON ordens_compra FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid()
     AND (profiles.role = 'ADMIN' OR (profiles.role = 'DISTRIBUIDOR' AND ordens_compra.distribuidor_id = auth.uid())))
@@ -222,5 +230,7 @@ ALTER TABLE notas_fiscais ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE bling_config  TO authenticated, service_role;
 GRANT ALL ON TABLE notas_fiscais TO authenticated, service_role;
 
+DROP POLICY IF EXISTS "bling_admin" ON bling_config;
+DROP POLICY IF EXISTS "nfe_acesso" ON notas_fiscais;
 CREATE POLICY "bling_admin"  ON bling_config  FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'ADMIN'));
 CREATE POLICY "nfe_acesso"   ON notas_fiscais FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role IN ('ADMIN','DISTRIBUIDOR')));
