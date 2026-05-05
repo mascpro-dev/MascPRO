@@ -13,6 +13,7 @@ type Config = {
 const LABELS: Record<string, { label: string; tipo: "number" | "text"; prefixo?: string; sufixo?: string; min?: number; max?: number }> = {
   frete_gratis_acima:  { label: "Frete Grátis acima de",      tipo: "number", prefixo: "R$",  min: 0    },
   percentual_comissao: { label: "Comissão para embaixadores",  tipo: "number", sufixo: "%",   min: 0, max: 100 },
+  percentual_comissao_cabeleireiro: { label: "Comissão para cabeleireiros", tipo: "number", sufixo: "%", min: 0, max: 100 },
   taxa_saque:          { label: "Taxa de saque",               tipo: "number", sufixo: "%",   min: 0, max: 50  },
   estoque_alerta_min:  { label: "Alerta de estoque mínimo",    tipo: "number", sufixo: "un.", min: 0    },
   dias_cliente_risco:  { label: "Dias sem compra = risco",     tipo: "number", sufixo: "dias",min: 1    },
@@ -30,9 +31,19 @@ export default function ConfigPage() {
     const res = await fetch("/api/admin/config", { cache: "no-store" });
     const d = await res.json().catch(() => null);
     if (d?.ok) {
-      setConfigs(d.configs || []);
+      const existentes = (d.configs || []) as Config[];
+      const byKey = new Map(existentes.map((c) => [c.chave, c]));
+      const lista = Object.keys(LABELS).map((chave) =>
+        byKey.get(chave) || {
+          chave,
+          valor: "",
+          descricao: null,
+          updated_at: new Date().toISOString(),
+        }
+      );
+      setConfigs(lista);
       const map: Record<string, string> = {};
-      for (const c of d.configs || []) map[c.chave] = c.valor;
+      for (const c of lista) map[c.chave] = c.valor;
       setValores(map);
     }
     setLoading(false);
@@ -124,7 +135,7 @@ export default function ConfigPage() {
               <ul className="text-xs text-zinc-500 space-y-1">
                 <li>• Edite o valor e clique em <strong className="text-zinc-300">salvar</strong> ou pressione <kbd className="bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded text-[10px]">Enter</kbd></li>
                 <li>• <strong className="text-zinc-300">Frete Grátis:</strong> coloque 0 para desativar o frete grátis por valor</li>
-                <li>• <strong className="text-zinc-300">Comissão:</strong> altera automaticamente todos os novos pedidos (pedidos já pagos não são afetados)</li>
+                <li>• <strong className="text-zinc-300">Comissões:</strong> embaixador e cabeleireiro podem ter percentuais diferentes; vale para novos pedidos</li>
                 <li>• Todas as alterações ficam registradas no Audit Log</li>
               </ul>
             </div>

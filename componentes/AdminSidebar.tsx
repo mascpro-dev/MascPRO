@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
   Users, UserPlus, GitMerge, Zap, Clock, LayoutDashboard,
   ShieldCheck, ArrowDownToLine, ShoppingBag, UsersRound,
@@ -10,7 +11,7 @@ import {
   Eye, Kanban, TrendingUp, FileText, Target, Download, RotateCcw, Settings,
 } from "lucide-react";
 
-const menuItems = [
+const ADMIN_MENU_ITEMS = [
   {
     title: "VISÃO GERAL",
     items: [
@@ -86,9 +87,51 @@ const menuItems = [
   },
 ];
 
+const DISTRIBUIDOR_MENU_ITEMS = [
+  {
+    title: "CRM / ERP",
+    items: [
+      { name: "Dashboard",         desc: "Financeiro e geral",                icon: LayoutDashboard, href: "/admin/crm/dashboard",  color: "text-emerald-400" },
+      { name: "Pipeline de Leads", desc: "Funil de vendas e follow-ups",      icon: Kanban,          href: "/admin/crm",            color: "text-[#C9A66B]"  },
+      { name: "Saúde do Negócio",  desc: "Estoque · Margem · Curva ABC",      icon: TrendingUp,      href: "/admin/crm/saude",      color: "text-pink-400"   },
+      { name: "DRE",               desc: "Demonstração de resultado",          icon: FileText,        href: "/admin/crm/dre",        color: "text-blue-400"   },
+      { name: "Metas & Targets",   desc: "Objetivos por período",              icon: Target,          href: "/admin/crm/metas",      color: "text-yellow-400" },
+      { name: "Relatórios",        desc: "Exportação CSV",                     icon: Download,        href: "/admin/crm/relatorios", color: "text-zinc-400"   },
+      { name: "Devoluções",        desc: "Trocas e reembolsos",                icon: RotateCcw,       href: "/admin/returns",        color: "text-red-400"    },
+      { name: "Configurações",     desc: "Ajustes de metas e parâmetros",      icon: Settings,        href: "/admin/config",         color: "text-zinc-400"   },
+    ],
+  },
+];
+
 export default function AdminSidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const supabase = createClientComponentClient();
+  const [role, setRole] = useState<string>("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadRole() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user || !mounted) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (!mounted) return;
+      setRole(String(profile?.role || "").trim().toUpperCase());
+    }
+
+    loadRole();
+    return () => { mounted = false; };
+  }, [supabase]);
+
+  const isDistribuidor = role === "DISTRIBUIDOR";
+  const menuItems = isDistribuidor ? DISTRIBUIDOR_MENU_ITEMS : ADMIN_MENU_ITEMS;
 
   const currentPage =
     (menuItems as { items: { name: string; href: string }[] }[])

@@ -53,7 +53,6 @@ export async function GET(req: NextRequest) {
 
     const rows = [csvRow(["ID","Data","Cliente","Email","Total","Status","Pagamento","Frete","Rastreio","Transportadora"])];
     for (const p of (data || []) as any[]) {
-      // profiles pode vir como objeto ou array dependendo da query — normaliza
       const perfil = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
       rows.push(csvRow([
         p.id, p.created_at?.slice(0,10), perfil?.full_name, perfil?.email,

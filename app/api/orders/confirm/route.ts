@@ -57,8 +57,26 @@ async function garantirComissao(supabase: any, orderId: string) {
     .single();
   if (!comprador?.indicado_por) return;
 
+  const { data: indicador } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", comprador.indicado_por)
+    .maybeSingle();
+  const roleIndicador = String(indicador?.role || "").trim().toUpperCase();
+  const chavePercentual =
+    roleIndicador === "CABELEIREIRO"
+      ? "percentual_comissao_cabeleireiro"
+      : "percentual_comissao";
+
+  const { data: cfg } = await supabase
+    .from("system_config")
+    .select("valor")
+    .eq("chave", chavePercentual)
+    .maybeSingle();
+  const percentual = Number(cfg?.valor || 15);
+
   const valorPedido = Number(order.total || 0);
-  const valorComissao = Number((valorPedido * 0.15).toFixed(2));
+  const valorComissao = Number((valorPedido * (percentual / 100)).toFixed(2));
   if (valorComissao <= 0) return;
 
   await supabase.from("commissions").insert({
@@ -66,12 +84,12 @@ async function garantirComissao(supabase: any, orderId: string) {
     cabeleireiro_id: comprador.id,
     order_id: order.id,
     valor_pedido: valorPedido,
-    percentual: 15,
+    percentual,
     valor_comissao: valorComissao,
     status: "disponivel",
   });
 
-  // Credita PRO coins ao embaixador na coluna total_compras_rede
+  // Credita PRO coins ao indicador direto na coluna total_compras_rede
   const proBonus = Math.round(valorPedido);
   const { data: embaixadorProfile } = await supabase
     .from("profiles")

@@ -126,6 +126,7 @@ CREATE POLICY "config_admin" ON system_config FOR ALL USING (
 INSERT INTO system_config (chave, valor, descricao) VALUES
   ('taxa_saque',           '11',    'Taxa de saque em %'),
   ('percentual_comissao',  '15',    'Percentual de comissão padrão em %'),
+  ('percentual_comissao_cabeleireiro', '15', 'Percentual de comissão para indicador cabeleireiro em %'),
   ('frete_gratis_acima',   '1500',  'Valor mínimo em R$ para frete grátis'),
   ('estoque_alerta_min',   '5',     'Qtd mínima de estoque para alertar'),
   ('dias_cliente_risco',   '30',    'Dias sem compra para cliente em risco')

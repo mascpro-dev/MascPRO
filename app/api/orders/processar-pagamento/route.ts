@@ -41,8 +41,28 @@ export async function POST(req: NextRequest) {
       .eq("id", order.profile_id)
       .single();
 
+    let percentual = 15;
+    if (comprador?.indicado_por) {
+      const { data: indicador } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", comprador.indicado_por)
+        .maybeSingle();
+      const roleIndicador = String(indicador?.role || "").trim().toUpperCase();
+      const chavePercentual =
+        roleIndicador === "CABELEIREIRO"
+          ? "percentual_comissao_cabeleireiro"
+          : "percentual_comissao";
+      const { data: cfg } = await supabase
+        .from("system_config")
+        .select("valor")
+        .eq("chave", chavePercentual)
+        .maybeSingle();
+      percentual = Number(cfg?.valor || 15);
+    }
+
     const valorPedido = Number(order.total || 0);
-    const valorComissao = Number((valorPedido * 0.15).toFixed(2));
+    const valorComissao = Number((valorPedido * (percentual / 100)).toFixed(2));
     const proBonus = Math.round(valorPedido);
 
     // Compra própria: comprador sempre ganha PRO da loja
@@ -58,7 +78,7 @@ export async function POST(req: NextRequest) {
         .eq("id", order.profile_id);
     }
 
-    if (!comprador?.indicado_por) return NextResponse.json({ ok: true, msg: "sem embaixador indicador", proBonus });
+    if (!comprador?.indicado_por) return NextResponse.json({ ok: true, msg: "sem indicador", proBonus });
 
     // Cria comissão em R$
     if (valorComissao > 0) {
@@ -67,7 +87,7 @@ export async function POST(req: NextRequest) {
         cabeleireiro_id: comprador.id,
         order_id: order.id,
         valor_pedido: valorPedido,
-        percentual: 15,
+        percentual,
         valor_comissao: valorComissao,
         status: "disponivel",
       });

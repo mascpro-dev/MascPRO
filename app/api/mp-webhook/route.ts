@@ -72,11 +72,22 @@ async function garantirComissao(supabase: any, orderId: string) {
     .single();
   if (!comprador?.indicado_por) return;
 
-  // Busca percentual configurável
+  const { data: indicador } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", comprador.indicado_por)
+    .maybeSingle();
+  const roleIndicador = String(indicador?.role || "").trim().toUpperCase();
+  const chavePercentual =
+    roleIndicador === "CABELEIREIRO"
+      ? "percentual_comissao_cabeleireiro"
+      : "percentual_comissao";
+
+  // Busca percentual configurável por tipo de indicador
   const { data: cfg } = await supabase
     .from("system_config")
     .select("valor")
-    .eq("chave", "percentual_comissao")
+    .eq("chave", chavePercentual)
     .maybeSingle();
   const percentual = Number(cfg?.valor || 15);
 
@@ -94,7 +105,7 @@ async function garantirComissao(supabase: any, orderId: string) {
     status:           "disponivel",
   });
 
-  // Credita PRO coins (total_compras_rede) ao embaixador
+  // Credita PRO coins (total_compras_rede) ao indicador direto
   const proBonus = Math.round(valorPedido);
   if (proBonus > 0) {
     const { data: emb } = await supabase

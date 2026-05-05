@@ -67,8 +67,19 @@ async function processarComissao(supabase: any, orderId: string) {
     .from("profiles").select("id, indicado_por").eq("id", order.profile_id).single();
   if (!comprador?.indicado_por) return;
 
+  const { data: indicador } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", comprador.indicado_por)
+    .maybeSingle();
+  const roleIndicador = String(indicador?.role || "").trim().toUpperCase();
+  const chavePercentual =
+    roleIndicador === "CABELEIREIRO"
+      ? "percentual_comissao_cabeleireiro"
+      : "percentual_comissao";
+
   const { data: cfg } = await supabase
-    .from("system_config").select("valor").eq("chave", "percentual_comissao").maybeSingle();
+    .from("system_config").select("valor").eq("chave", chavePercentual).maybeSingle();
   const percentual = Number(cfg?.valor || 15);
 
   const valorPedido = Number(order.total || 0);

@@ -106,6 +106,7 @@ CREATE POLICY "config_admin" ON system_config FOR ALL USING (
 INSERT INTO system_config (chave, valor, descricao) VALUES
   ('taxa_saque',           '11',    'Taxa de saque em % (ex: 11 = 11%)')          ON CONFLICT (chave) DO NOTHING,
   ('percentual_comissao',  '15',    'Percentual de comissão padrão em %')          ON CONFLICT (chave) DO NOTHING,
+  ('percentual_comissao_cabeleireiro', '15', 'Percentual de comissão para indicador cabeleireiro em %') ON CONFLICT (chave) DO NOTHING,
   ('frete_gratis_acima',   '1500',  'Valor mínimo em R$ para frete grátis')        ON CONFLICT (chave) DO NOTHING,
   ('estoque_alerta_min',   '5',     'Qtd mínima de estoque para alertar')          ON CONFLICT (chave) DO NOTHING,
   ('dias_cliente_risco',   '30',    'Dias sem compra para considerar cliente em risco') ON CONFLICT (chave) DO NOTHING;
