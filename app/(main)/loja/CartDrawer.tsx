@@ -462,10 +462,7 @@ export default function CartDrawer() {
 
             <button
               onClick={handlePagar}
-              disabled={
-                loading ||
-                (!freteGratis && (loadingFrete || frete === null || !!freteErro))
-              }
+              disabled={loading}
               className="w-full bg-[#009EE3] text-white h-13 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-[#007EC3] transition-all flex items-center justify-center gap-3 disabled:opacity-60"
             >
               {loading ? (
