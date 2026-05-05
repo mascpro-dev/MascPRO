@@ -9,7 +9,7 @@ import {
   pesoTotalGramasItens,
 } from "@/lib/correiosFrete";
 import { isCepMariliaSp } from "@/lib/freteMarilia";
-import { getConfigNum } from "@/lib/systemConfig";
+import { getConfig, getConfigNum } from "@/lib/systemConfig";
 import { rateLimit, LIMITS } from "@/lib/rateLimit";
 
 function getAppUrl(req: NextRequest): string {
@@ -74,10 +74,12 @@ export async function POST(req: NextRequest) {
       if (cepDestino.length !== 8) {
         return NextResponse.json({ error: "CEP de entrega inválido ou ausente." }, { status: 400 });
       }
-      const cepOrigem = String(process.env.CORREIOS_CEP_ORIGEM || "").replace(/\D/g, "");
+      const cepOrigemConfig = String(await getConfig("correios_cep_origem") || "").replace(/\D/g, "");
+      const cepOrigemEnv = String(process.env.CORREIOS_CEP_ORIGEM || "").replace(/\D/g, "");
+      const cepOrigem = cepOrigemConfig.length === 8 ? cepOrigemConfig : cepOrigemEnv;
       if (cepOrigem.length !== 8) {
         return NextResponse.json(
-          { error: "Loja sem CEP de postagem: configure CORREIOS_CEP_ORIGEM no servidor (8 dígitos)." },
+          { error: "Loja sem CEP de postagem: configure em Configurações do Sistema ou na variável CORREIOS_CEP_ORIGEM (8 dígitos)." },
           { status: 500 }
         );
       }

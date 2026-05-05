@@ -124,6 +124,7 @@ CREATE POLICY "config_admin" ON system_config FOR ALL USING (
 );
 
 INSERT INTO system_config (chave, valor, descricao) VALUES
+  ('correios_cep_origem',  '',      'CEP de origem da loja para cálculo de frete Correios (8 dígitos)'),
   ('taxa_saque',           '11',    'Taxa de saque em %'),
   ('percentual_comissao',  '15',    'Percentual de comissão padrão em %'),
   ('percentual_comissao_cabeleireiro', '15', 'Percentual de comissão para indicador cabeleireiro em %'),

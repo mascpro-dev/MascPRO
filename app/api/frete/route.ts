@@ -8,7 +8,7 @@ import {
   pesoTotalGramasItens,
 } from "@/lib/correiosFrete";
 import { isCepMariliaSp } from "@/lib/freteMarilia";
-import { getConfigNum } from "@/lib/systemConfig";
+import { getConfig, getConfigNum } from "@/lib/systemConfig";
 
 function supabaseAnon() {
   return createClient(
@@ -44,13 +44,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const cepOrigem = String(process.env.CORREIOS_CEP_ORIGEM || "").replace(/\D/g, "");
+    const cepOrigemConfig = String(await getConfig("correios_cep_origem") || "").replace(/\D/g, "");
+    const cepOrigemEnv = String(process.env.CORREIOS_CEP_ORIGEM || "").replace(/\D/g, "");
+    const cepOrigem = cepOrigemConfig.length === 8 ? cepOrigemConfig : cepOrigemEnv;
     if (cepOrigem.length !== 8) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            "Frete não configurado: defina CORREIOS_CEP_ORIGEM (8 dígitos) nas variáveis de ambiente.",
+            "Frete não configurado: informe o CEP de origem dos Correios em Configurações do Sistema ou na variável CORREIOS_CEP_ORIGEM.",
         },
         { status: 503 }
       );

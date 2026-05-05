@@ -9,6 +9,7 @@ const DEFAULTS: Record<string, string> = {
   frete_gratis_acima:  "1500",
   percentual_comissao: "15",
   percentual_comissao_cabeleireiro: "15",
+  correios_cep_origem: "",
   taxa_saque:          "11",
   estoque_alerta_min:  "5",
   dias_cliente_risco:  "30",

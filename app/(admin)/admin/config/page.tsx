@@ -11,6 +11,7 @@ type Config = {
 };
 
 const LABELS: Record<string, { label: string; tipo: "number" | "text"; prefixo?: string; sufixo?: string; min?: number; max?: number }> = {
+  correios_cep_origem: { label: "CEP de origem Correios (loja)", tipo: "text" },
   frete_gratis_acima:  { label: "Frete Grátis acima de",      tipo: "number", prefixo: "R$",  min: 0    },
   percentual_comissao: { label: "Comissão para embaixadores",  tipo: "number", sufixo: "%",   min: 0, max: 100 },
   percentual_comissao_cabeleireiro: { label: "Comissão para cabeleireiros", tipo: "number", sufixo: "%", min: 0, max: 100 },
@@ -135,6 +136,7 @@ export default function ConfigPage() {
               <ul className="text-xs text-zinc-500 space-y-1">
                 <li>• Edite o valor e clique em <strong className="text-zinc-300">salvar</strong> ou pressione <kbd className="bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded text-[10px]">Enter</kbd></li>
                 <li>• <strong className="text-zinc-300">Frete Grátis:</strong> coloque 0 para desativar o frete grátis por valor</li>
+                <li>• <strong className="text-zinc-300">CEP origem Correios:</strong> informe 8 dígitos para habilitar cálculo de frete PAC</li>
                 <li>• <strong className="text-zinc-300">Comissões:</strong> embaixador e cabeleireiro podem ter percentuais diferentes; vale para novos pedidos</li>
                 <li>• Todas as alterações ficam registradas no Audit Log</li>
               </ul>
