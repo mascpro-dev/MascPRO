@@ -12,6 +12,14 @@ import { isCepMariliaSp } from "@/lib/freteMarilia";
 import { getConfig, getConfigNum } from "@/lib/systemConfig";
 import { rateLimit, LIMITS } from "@/lib/rateLimit";
 
+function normalizeText(v: string): string {
+  return String(v || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 function getAppUrl(req: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (envUrl) return envUrl.replace(/\/$/, "");
@@ -34,7 +42,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const APP_URL = getAppUrl(req);
-    const { items, userId, userEmail, userName, accessToken, shippingCep, shippingAddress } = await req.json();
+    const { items, userId, userEmail, userName, accessToken, shippingCep, shippingAddress, shippingCity, shippingState } = await req.json();
 
     if (!items?.length || !userId) {
       return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
@@ -64,9 +72,13 @@ export async function POST(req: NextRequest) {
     );
 
     const cepDestino = String(shippingCep || "").replace(/\D/g, "");
+    const cidadeDestino = normalizeText(String(shippingCity || ""));
+    const estadoDestino = String(shippingState || "").trim().toUpperCase();
     const freteGratisAcima = await getConfigNum("frete_gratis_acima");
     const isentoSubtotal = freteGratisAcima > 0 && subtotal >= freteGratisAcima;
-    const isentoMarilia = cepDestino.length === 8 && isCepMariliaSp(cepDestino);
+    const isentoMarilia =
+      (cepDestino.length === 8 && isCepMariliaSp(cepDestino)) ||
+      (cidadeDestino === "marilia" && estadoDestino === "SP");
     const freteGratis = isentoSubtotal || isentoMarilia;
     let frete = 0;
 

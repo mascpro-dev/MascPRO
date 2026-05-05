@@ -27,6 +27,14 @@ const ENDERECO_VAZIO: Endereco = {
   bairro: "", cidade: "", estado: "",
 };
 
+function normalizeText(v: string): string {
+  return String(v || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 export default function CartDrawer() {
   const { cart, isCartOpen, setIsCartOpen, updateQuantity, removeFromCart, clearCart } = useCart();
   const supabase = createClientComponentClient();
@@ -46,9 +54,12 @@ export default function CartDrawer() {
     0
   );
   const cepLimpo = endereco.cep.replace(/\D/g, "");
+  const cidadeNorm = normalizeText(endereco.cidade);
+  const estadoNorm = String(endereco.estado || "").trim().toUpperCase();
   const isentoSubtotal = subtotal >= FRETE_GRATIS_ACIMA;
   const isentoMarilia = cepLimpo.length === 8 && isCepMariliaSp(cepLimpo);
-  const freteGratis = isentoSubtotal || isentoMarilia;
+  const isentoMariliaCidade = cidadeNorm === "marilia" && estadoNorm === "SP";
+  const freteGratis = isentoSubtotal || isentoMarilia || isentoMariliaCidade;
   const freteValor = freteGratis ? 0 : (frete ?? 0);
   const total = subtotal + freteValor;
 
@@ -66,20 +77,25 @@ export default function CartDrawer() {
       setFreteErro("");
       return;
     }
-    if (isCepMariliaSp(c)) {
+    if (isCepMariliaSp(c) || isentoMariliaCidade) {
       setFrete(0);
-      setFreteInfo("Marília/SP — entrega com frete isento (CEP 17500–17519).");
+      setFreteInfo("Marília/SP — entrega com frete isento.");
       setFreteErro("");
       return;
     }
     setLoadingFrete(true);
     setFreteErro("");
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12_000);
       const res = await fetch("/api/frete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           cep: c,
+          cidade: endereco.cidade,
+          estado: endereco.estado,
           items: cart.map((i: { id: string; quantity?: number }) => ({
             id: i.id,
             quantity: Number(i.quantity || 1),
@@ -87,6 +103,7 @@ export default function CartDrawer() {
           subtotal,
         }),
       });
+      clearTimeout(timeout);
       const data = await res.json();
       if (!res.ok || !data?.ok) {
         setFrete(null);
@@ -110,14 +127,18 @@ export default function CartDrawer() {
           pg != null ? ` · ${Number(pg).toLocaleString("pt-BR")} g` : ""
         }`
       );
-    } catch {
+    } catch (e: any) {
       setFrete(null);
       setFreteInfo("");
-      setFreteErro("Falha de conexão ao consultar o frete.");
+      if (e?.name === "AbortError") {
+        setFreteErro("Correios demorou para responder. Tente novamente em instantes.");
+      } else {
+        setFreteErro("Falha de conexão ao consultar o frete.");
+      }
     } finally {
       setLoadingFrete(false);
     }
-  }, [endereco.cep, cart, subtotal, isentoSubtotal]);
+  }, [endereco.cep, endereco.cidade, endereco.estado, cart, subtotal, isentoSubtotal, isentoMariliaCidade]);
 
   useEffect(() => {
     const t = setTimeout(() => { void recalcularFrete(); }, 350);
@@ -236,6 +257,8 @@ export default function CartDrawer() {
           accessToken: session.access_token,
           shippingCost: freteValor,
           shippingCep: endereco.cep,
+          shippingCity: endereco.cidade,
+          shippingState: endereco.estado,
           shippingAddress: enderecoCompleto,
         }),
       });

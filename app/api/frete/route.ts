@@ -17,10 +17,20 @@ function supabaseAnon() {
   );
 }
 
+function normalizeText(v: string): string {
+  return String(v || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const cep = String(body.cep || "").replace(/\D/g, "");
+    const cidade = normalizeText(String(body.cidade || ""));
+    const estado = String(body.estado || "").trim().toUpperCase();
     const items: { id: string; quantity: number }[] = Array.isArray(body.items) ? body.items : [];
     const subtotal = Number(body.subtotal);
 
@@ -41,6 +51,18 @@ export async function POST(req: NextRequest) {
         prazoEntrega: null,
         pesoGramas: null,
         mensagem: `Frete grátis para pedidos acima de R$ ${freteGratisAcima.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`,
+      });
+    }
+
+    if (isCepMariliaSp(cep) || (cidade === "marilia" && estado === "SP")) {
+      return NextResponse.json({
+        ok: true,
+        frete: 0,
+        freteGratis: true,
+        prazoEntrega: null,
+        pesoGramas: null,
+        motivo: "marilia",
+        mensagem: "Marília/SP — entrega com frete isento.",
       });
     }
 
