@@ -65,26 +65,26 @@ export default function CartDrawer() {
 
   const recalcularFrete = useCallback(async () => {
     const c = endereco.cep.replace(/\D/g, "");
+    setFreteErro("");
     if (c.length !== 8 || cart.length === 0) {
       setFrete(null);
       setFreteInfo("");
-      setFreteErro("");
+      setLoadingFrete(false);
       return;
     }
     if (isentoSubtotal) {
       setFrete(0);
       setFreteInfo("Pedido acima do mínimo — frete grátis");
-      setFreteErro("");
+      setLoadingFrete(false);
       return;
     }
     if (isCepMariliaSp(c) || isentoMariliaCidade) {
       setFrete(0);
       setFreteInfo("Marília/SP — entrega com frete isento.");
-      setFreteErro("");
+      setLoadingFrete(false);
       return;
     }
     setLoadingFrete(true);
-    setFreteErro("");
     try {
       const res = await fetch("/api/frete", {
         method: "POST",
@@ -225,6 +225,8 @@ export default function CartDrawer() {
       }
     }
     setLoading(true);
+    const abortCtl = new AbortController();
+    const checkoutTimer = setTimeout(() => abortCtl.abort(), 90_000);
     try {
       const { data: authData } = await supabase.auth.getSession();
       const session = authData.session;
@@ -241,6 +243,7 @@ export default function CartDrawer() {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: abortCtl.signal,
         body: JSON.stringify({
           items: cart,
           userId: session.user.id,
@@ -255,7 +258,14 @@ export default function CartDrawer() {
         }),
       });
 
-      const data = await res.json();
+      let data: { init_point?: string; error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        alert("Resposta inválida do servidor. Tente novamente.");
+        setLoading(false);
+        return;
+      }
       if (!res.ok || !data.init_point) {
         alert(data.error || "Erro ao iniciar pagamento.");
         setLoading(false);
@@ -265,10 +275,12 @@ export default function CartDrawer() {
       clearCart();
       setIsCartOpen(false);
       window.location.href = data.init_point;
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
-      alert("Erro ao conectar com o gateway de pagamento.");
+      const aborted = err instanceof DOMException && err.name === "AbortError";
+      alert(aborted ? "Tempo esgotado ao contatar o pagamento. Tente de novo." : "Erro ao conectar com o gateway de pagamento.");
     } finally {
+      clearTimeout(checkoutTimer);
       setLoading(false);
     }
   };

@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Play, Pause, Volume2, VolumeX, Maximize, CheckCircle, Lock, Trophy, MessageSquare, Send, User, Bookmark, Reply, X } from "lucide-react";
@@ -51,8 +51,30 @@ export default function PlayerPage() {
   // Estado para guardar os IDs dos comentários que estão "abertos"
   const [comentariosAbertos, setComentariosAbertos] = useState<string[]>([]);
 
+  /** Sem isto, clicar em Play antes do iframe_api carregar deixa o player vazio (tela preta). */
+  const [ytApiReady, setYtApiReady] = useState(false);
+
   const playerRef = useRef<any>(null);
   const progressInterval = useRef<any>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const w = window as Window & { YT?: typeof window.YT; onYouTubeIframeAPIReady?: () => void };
+    const prev = w.onYouTubeIframeAPIReady;
+    w.onYouTubeIframeAPIReady = () => {
+      try {
+        if (typeof prev === "function") prev();
+      } catch {
+        /* ignore */
+      }
+      setYtApiReady(true);
+    };
+
+    if (w.YT?.Player) {
+      setYtApiReady(true);
+    }
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -64,6 +86,12 @@ export default function PlayerPage() {
       }
       const { data: courseData } = await supabase.from("courses").select("*").or(`code.eq.${params.code},slug.eq.${params.code}`).single();
       setCourse(courseData);
+      if (!courseData?.code) {
+        setLessons([]);
+        setCurrentLesson(null);
+        setLoading(false);
+        return;
+      }
       const { data: lessonsData } = await supabase.from("lessons").select("*").eq("course_code", courseData.code).order("sequence_order", { ascending: true });
       setLessons(lessonsData || []);
       const { data: progress } = await supabase.from("lesson_progress").select("lesson_id").eq("user_id", session?.user.id);
@@ -154,6 +182,16 @@ export default function PlayerPage() {
     }
   };
 
+  const handleFinish = async () => {
+    if (!currentLesson?.id) return;
+    await supabase.rpc("process_lesson_completion", { lesson_uuid: currentLesson.id });
+    await finalizarAula(currentLesson.id);
+    const newSet = new Set(completedLessons);
+    newSet.add(currentLesson.id);
+    setCompletedLessons(newSet);
+    router.refresh();
+  };
+
   // --- CONTROLE DE PLAY/PAUSE CORRIGIDO PARA CELULAR ---
   const togglePlay = (e?: any) => {
     if (e) {
@@ -173,74 +211,83 @@ export default function PlayerPage() {
     }
   };
 
-  useEffect(() => {
-    if (videoStarted && currentLesson?.video_id && window.YT) {
-      if (playerRef.current) playerRef.current.destroy();
-      
-      playerRef.current = new window.YT.Player('ninja-player', {
-        videoId: currentLesson.video_id,
-        height: '100%', width: '100%',
-        playerVars: { 
-            autoplay: 1, 
-            controls: 0, 
-            modestbranding: 1, 
-            rel: 0, 
-            disablekb: 1, 
-            iv_load_policy: 3,
-            playsinline: 1, // OBRIGATÓRIO PARA CELULAR
-            enablejsapi: 1
-        },
-        events: {
-          onReady: async (event: any) => {
-            setDuration(event.target.getDuration());
-            
-            // MEMÓRIA: BUSCA POSIÇÃO SALVA
-            const { data } = await supabase.from('lesson_progress')
-                .select('last_position')
-                .eq('lesson_id', currentLesson.id)
-                .eq('user_id', currentUser?.id)
-                .single();
-            
-            if (data?.last_position) event.target.seekTo(data.last_position);
-            
-            // No mobile, forçamos o play após interação
-            event.target.playVideo();
-            setIsPlaying(true);
-
-            progressInterval.current = setInterval(() => {
-              if (playerRef.current?.getCurrentTime) {
-                  const now = playerRef.current.getCurrentTime();
-                  setCurrentTime(now);
-                  // Salva no banco a cada 10 segundos
-                  if (Math.floor(now) % 10 === 0) saveProgress(now);
-              }
-            }, 1000);
-          },
-          onStateChange: (event: any) => {
-            if (event.data === window.YT.PlayerState.PLAYING) setIsPlaying(true);
-            if (event.data === window.YT.PlayerState.PAUSED) setIsPlaying(false);
-            if (event.data === window.YT.PlayerState.ENDED) handleFinish();
-          }
-        }
-      });
+  const destroyPlayer = useCallback(() => {
+    if (progressInterval.current) {
+      clearInterval(progressInterval.current);
+      progressInterval.current = null;
     }
-    return () => clearInterval(progressInterval.current);
-  }, [videoStarted, currentLesson]);
+    try {
+      playerRef.current?.destroy?.();
+    } catch {
+      /* ignore */
+    }
+    playerRef.current = null;
+    const el = typeof document !== "undefined" ? document.getElementById("ninja-player") : null;
+    if (el) el.innerHTML = "";
+  }, []);
 
-  const handleFinish = async () => {
-    // Gamificação / backend
-    await supabase.rpc('process_lesson_completion', { lesson_uuid: currentLesson.id });
+  useEffect(() => {
+    if (!videoStarted || !currentLesson?.video_id || !ytApiReady) return;
+    const YT = typeof window !== "undefined" ? (window as Window & { YT?: typeof window.YT }).YT : undefined;
+    if (!YT?.Player) return;
 
-    // Progresso permanente do usuário
-    await finalizarAula(currentLesson.id);
+    destroyPlayer();
 
-    const newSet = new Set(completedLessons);
-    newSet.add(currentLesson.id);
-    setCompletedLessons(newSet);
-    router.refresh();
-  };
+    playerRef.current = new YT.Player("ninja-player", {
+      videoId: currentLesson.video_id,
+      height: "100%",
+      width: "100%",
+      playerVars: {
+        autoplay: 1,
+        controls: 0,
+        modestbranding: 1,
+        rel: 0,
+        disablekb: 1,
+        iv_load_policy: 3,
+        playsinline: 1,
+        enablejsapi: 1,
+        origin: typeof window !== "undefined" ? window.location.origin : undefined,
+      },
+      events: {
+        onReady: async (event: { target: any }) => {
+          setDuration(event.target.getDuration());
 
-  // --- LÓGICA DE DÚVIDAS (MANTIDA) ---
+          const { data } = await supabase
+            .from("lesson_progress")
+            .select("last_position")
+            .eq("lesson_id", currentLesson.id)
+            .eq("user_id", currentUser?.id)
+            .single();
+
+          if (data?.last_position) event.target.seekTo(data.last_position);
+
+          event.target.playVideo();
+          setIsPlaying(true);
+
+          progressInterval.current = setInterval(() => {
+            if (playerRef.current?.getCurrentTime) {
+              const now = playerRef.current.getCurrentTime();
+              setCurrentTime(now);
+              if (Math.floor(now) % 10 === 0) saveProgress(now);
+            }
+          }, 1000);
+        },
+        onStateChange: (event: { data: number }) => {
+          if (!YT.PlayerState) return;
+          if (event.data === YT.PlayerState.PLAYING) setIsPlaying(true);
+          if (event.data === YT.PlayerState.PAUSED) setIsPlaying(false);
+          if (event.data === YT.PlayerState.ENDED) void handleFinish();
+        },
+      },
+    });
+
+    return () => {
+      destroyPlayer();
+    };
+    // handleFinish usa currentLesson no momento do término; não incluir nas deps para não reiniciar o player a cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoStarted, currentLesson?.video_id, currentLesson?.id, ytApiReady, currentUser?.id, destroyPlayer]);
+
   const handleCommentChange = (e: any) => {
     const text = e.target.value;
     setNewComment(text);
