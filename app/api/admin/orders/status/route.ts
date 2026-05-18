@@ -4,6 +4,7 @@ import { applyOrderToProInventory } from "@/lib/applyOrderToProInventory";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { registrarAudit } from "@/lib/auditLog";
 import { getAdminContext } from "@/lib/adminServer";
+import { percentualComissaoDoIndicador, calcularValorComissao } from "@/lib/comissaoIndicacao";
 
 function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -72,30 +73,25 @@ async function processarComissao(supabase: any, orderId: string) {
     .select("role")
     .eq("id", comprador.indicado_por)
     .maybeSingle();
-  const roleIndicador = String(indicador?.role || "").trim().toUpperCase();
-  const chavePercentual =
-    roleIndicador === "CABELEIREIRO"
-      ? "percentual_comissao_cabeleireiro"
-      : "percentual_comissao";
-
-  const { data: cfg } = await supabase
-    .from("system_config").select("valor").eq("chave", chavePercentual).maybeSingle();
-  const percentual = Number(cfg?.valor || 15);
 
   const valorPedido = Number(order.total || 0);
-  const valorComissao = Number((valorPedido * (percentual / 100)).toFixed(2));
-  if (valorComissao <= 0) return;
+  const percentual = await percentualComissaoDoIndicador(String(indicador?.role || ""));
 
-  const { error: eIns } = await supabase.from("commissions").insert({
-    embaixador_id:   comprador.indicado_por,
-    cabeleireiro_id: comprador.id,
-    order_id:        order.id,
-    valor_pedido:    valorPedido,
-    percentual,
-    valor_comissao:  valorComissao,
-    status:          "disponivel",
-  });
-  if (eIns) throw new Error(eIns.message);
+  if (percentual != null) {
+    const valorComissao = calcularValorComissao(valorPedido, percentual);
+    if (valorComissao > 0) {
+      const { error: eIns } = await supabase.from("commissions").insert({
+        embaixador_id: comprador.indicado_por,
+        cabeleireiro_id: comprador.id,
+        order_id: order.id,
+        valor_pedido: valorPedido,
+        percentual,
+        valor_comissao: valorComissao,
+        status: "disponivel",
+      });
+      if (eIns) throw new Error(eIns.message);
+    }
+  }
 
   const proBonus = Math.round(valorPedido);
   if (proBonus > 0) {

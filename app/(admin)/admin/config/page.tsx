@@ -13,8 +13,8 @@ type Config = {
 const LABELS: Record<string, { label: string; tipo: "number" | "text"; prefixo?: string; sufixo?: string; min?: number; max?: number }> = {
   correios_cep_origem: { label: "CEP de origem Correios (loja)", tipo: "text" },
   frete_gratis_acima:  { label: "Frete Grátis acima de",      tipo: "number", prefixo: "R$",  min: 0    },
-  percentual_comissao: { label: "Comissão para embaixadores",  tipo: "number", sufixo: "%",   min: 0, max: 100 },
-  percentual_comissao_cabeleireiro: { label: "Comissão para cabeleireiros", tipo: "number", sufixo: "%", min: 0, max: 100 },
+  percentual_comissao: { label: "Comissão embaixador (indicação)", tipo: "number", sufixo: "%", min: 0, max: 100 },
+  percentual_comissao_cabeleireiro: { label: "Comissão cabeleireiro (indicação)", tipo: "number", sufixo: "%", min: 0, max: 100 },
   taxa_saque:          { label: "Taxa de saque",               tipo: "number", sufixo: "%",   min: 0, max: 50  },
   estoque_alerta_min:  { label: "Alerta de estoque mínimo",    tipo: "number", sufixo: "un.", min: 0    },
   dias_cliente_risco:  { label: "Dias sem compra = risco",     tipo: "number", sufixo: "dias",min: 1    },
@@ -75,7 +75,7 @@ export default function ConfigPage() {
           <Settings className="text-[#C9A66B]" size={26} />
           <div>
             <h1 className="text-2xl font-black italic uppercase">Configurações <span className="text-[#C9A66B]">do Sistema</span></h1>
-            <p className="text-zinc-500 text-xs">Parâmetros globais — alterações têm efeito imediato</p>
+            <p className="text-zinc-500 text-xs">Parâmetros globais — alterações têm efeito imediato. Distribuidor não recebe comissão em R$ por indicação.</p>
           </div>
         </div>
 

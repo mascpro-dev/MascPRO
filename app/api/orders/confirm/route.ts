@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
+import { percentualComissaoDoIndicador, calcularValorComissao } from "@/lib/comissaoIndicacao";
 
 function getSupabase() {
   const key =
@@ -62,34 +63,25 @@ async function garantirComissao(supabase: any, orderId: string) {
     .select("role")
     .eq("id", comprador.indicado_por)
     .maybeSingle();
-  const roleIndicador = String(indicador?.role || "").trim().toUpperCase();
-  const chavePercentual =
-    roleIndicador === "CABELEIREIRO"
-      ? "percentual_comissao_cabeleireiro"
-      : "percentual_comissao";
-
-  const { data: cfg } = await supabase
-    .from("system_config")
-    .select("valor")
-    .eq("chave", chavePercentual)
-    .maybeSingle();
-  const percentual = Number(cfg?.valor || 15);
 
   const valorPedido = Number(order.total || 0);
-  const valorComissao = Number((valorPedido * (percentual / 100)).toFixed(2));
-  if (valorComissao <= 0) return;
+  const percentual = await percentualComissaoDoIndicador(String(indicador?.role || ""));
 
-  await supabase.from("commissions").insert({
-    embaixador_id: comprador.indicado_por,
-    cabeleireiro_id: comprador.id,
-    order_id: order.id,
-    valor_pedido: valorPedido,
-    percentual,
-    valor_comissao: valorComissao,
-    status: "disponivel",
-  });
+  if (percentual != null) {
+    const valorComissao = calcularValorComissao(valorPedido, percentual);
+    if (valorComissao > 0) {
+      await supabase.from("commissions").insert({
+        embaixador_id: comprador.indicado_por,
+        cabeleireiro_id: comprador.id,
+        order_id: order.id,
+        valor_pedido: valorPedido,
+        percentual,
+        valor_comissao: valorComissao,
+        status: "disponivel",
+      });
+    }
+  }
 
-  // Credita PRO coins ao indicador direto na coluna total_compras_rede
   const proBonus = Math.round(valorPedido);
   const { data: embaixadorProfile } = await supabase
     .from("profiles")

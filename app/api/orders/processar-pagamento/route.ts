@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
+import { percentualComissaoDoIndicador, calcularValorComissao } from "@/lib/comissaoIndicacao";
 
 function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -41,28 +42,19 @@ export async function POST(req: NextRequest) {
       .eq("id", order.profile_id)
       .single();
 
-    let percentual = 15;
+    let percentual: number | null = null;
     if (comprador?.indicado_por) {
       const { data: indicador } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", comprador.indicado_por)
         .maybeSingle();
-      const roleIndicador = String(indicador?.role || "").trim().toUpperCase();
-      const chavePercentual =
-        roleIndicador === "CABELEIREIRO"
-          ? "percentual_comissao_cabeleireiro"
-          : "percentual_comissao";
-      const { data: cfg } = await supabase
-        .from("system_config")
-        .select("valor")
-        .eq("chave", chavePercentual)
-        .maybeSingle();
-      percentual = Number(cfg?.valor || 15);
+      percentual = await percentualComissaoDoIndicador(String(indicador?.role || ""));
     }
 
     const valorPedido = Number(order.total || 0);
-    const valorComissao = Number((valorPedido * (percentual / 100)).toFixed(2));
+    const valorComissao =
+      percentual != null ? calcularValorComissao(valorPedido, percentual) : 0;
     const proBonus = Math.round(valorPedido);
 
     // Compra própria: comprador sempre ganha PRO da loja
@@ -80,8 +72,8 @@ export async function POST(req: NextRequest) {
 
     if (!comprador?.indicado_por) return NextResponse.json({ ok: true, msg: "sem indicador", proBonus });
 
-    // Cria comissão em R$
-    if (valorComissao > 0) {
+    // Cria comissão em R$ (distribuidor não recebe)
+    if (valorComissao > 0 && percentual != null) {
       await supabase.from("commissions").insert({
         embaixador_id: comprador.indicado_por,
         cabeleireiro_id: comprador.id,

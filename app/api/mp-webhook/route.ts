@@ -3,6 +3,7 @@ import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { rateLimit, LIMITS } from "@/lib/rateLimit";
+import { percentualComissaoDoIndicador, calcularValorComissao } from "@/lib/comissaoIndicacao";
 
 function getSupabase() {
   // Usa service_role se disponível (bypassa RLS), senão anon key com grants manuais
@@ -77,35 +78,26 @@ async function garantirComissao(supabase: any, orderId: string) {
     .select("role")
     .eq("id", comprador.indicado_por)
     .maybeSingle();
-  const roleIndicador = String(indicador?.role || "").trim().toUpperCase();
-  const chavePercentual =
-    roleIndicador === "CABELEIREIRO"
-      ? "percentual_comissao_cabeleireiro"
-      : "percentual_comissao";
-
-  // Busca percentual configurável por tipo de indicador
-  const { data: cfg } = await supabase
-    .from("system_config")
-    .select("valor")
-    .eq("chave", chavePercentual)
-    .maybeSingle();
-  const percentual = Number(cfg?.valor || 15);
 
   const valorPedido = Number(order.total || 0);
-  const valorComissao = Number((valorPedido * (percentual / 100)).toFixed(2));
-  if (valorComissao <= 0) return;
+  const percentual = await percentualComissaoDoIndicador(String(indicador?.role || ""));
 
-  await supabase.from("commissions").insert({
-    embaixador_id:    comprador.indicado_por,
-    cabeleireiro_id:  comprador.id,
-    order_id:         order.id,
-    valor_pedido:     valorPedido,
-    percentual,
-    valor_comissao:   valorComissao,
-    status:           "disponivel",
-  });
+  if (percentual != null) {
+    const valorComissao = calcularValorComissao(valorPedido, percentual);
+    if (valorComissao > 0) {
+      await supabase.from("commissions").insert({
+        embaixador_id: comprador.indicado_por,
+        cabeleireiro_id: comprador.id,
+        order_id: order.id,
+        valor_pedido: valorPedido,
+        percentual,
+        valor_comissao: valorComissao,
+        status: "disponivel",
+      });
+    }
+  }
 
-  // Credita PRO coins (total_compras_rede) ao indicador direto
+  // Credita PRO (rede) ao indicador direto — mesmo se não houver comissão em R$
   const proBonus = Math.round(valorPedido);
   if (proBonus > 0) {
     const { data: emb } = await supabase

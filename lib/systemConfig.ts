@@ -8,7 +8,7 @@ function sb() {
 const DEFAULTS: Record<string, string> = {
   frete_gratis_acima:  "1500",
   percentual_comissao: "15",
-  percentual_comissao_cabeleireiro: "15",
+  percentual_comissao_cabeleireiro: "5",
   correios_cep_origem: "",
   taxa_saque:          "11",
   estoque_alerta_min:  "5",
