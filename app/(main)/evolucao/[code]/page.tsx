@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Play, Pause, Volume2, VolumeX, Maximize, CheckCircle, Lock, Trophy, MessageSquare, Send, User, Bookmark, Reply, X } from "lucide-react";
@@ -11,6 +11,7 @@ import Link from "next/link";
 import Script from "next/script";
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { getLessonVideoId } from "@/lib/youtube";
 
 declare global {
   interface Window { onYouTubeIframeAPIReady: () => void; YT: any; }
@@ -51,15 +52,14 @@ export default function PlayerPage() {
   // Estado para guardar os IDs dos comentários que estão "abertos"
   const [comentariosAbertos, setComentariosAbertos] = useState<string[]>([]);
 
-  /** Sem isto, clicar em Play antes do iframe_api carregar deixa o player vazio (tela preta). */
-  const [ytApiReady, setYtApiReady] = useState(false);
-
   const playerRef = useRef<any>(null);
   const progressInterval = useRef<any>(null);
+  const [ytApiReady, setYtApiReady] = useState(false);
+
+  const lessonVideoId = getLessonVideoId(currentLesson);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     const w = window as Window & { YT?: typeof window.YT; onYouTubeIframeAPIReady?: () => void };
     const prev = w.onYouTubeIframeAPIReady;
     w.onYouTubeIframeAPIReady = () => {
@@ -70,11 +70,23 @@ export default function PlayerPage() {
       }
       setYtApiReady(true);
     };
-
-    if (w.YT?.Player) {
-      setYtApiReady(true);
-    }
+    if (w.YT?.Player) setYtApiReady(true);
   }, []);
+
+  useEffect(() => {
+    setVideoStarted(false);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    if (playerRef.current?.destroy) {
+      try {
+        playerRef.current.destroy();
+      } catch {
+        /* ignore */
+      }
+      playerRef.current = null;
+    }
+  }, [currentLesson?.id]);
 
   useEffect(() => {
     async function loadData() {
@@ -182,16 +194,6 @@ export default function PlayerPage() {
     }
   };
 
-  const handleFinish = async () => {
-    if (!currentLesson?.id) return;
-    await supabase.rpc("process_lesson_completion", { lesson_uuid: currentLesson.id });
-    await finalizarAula(currentLesson.id);
-    const newSet = new Set(completedLessons);
-    newSet.add(currentLesson.id);
-    setCompletedLessons(newSet);
-    router.refresh();
-  };
-
   // --- CONTROLE DE PLAY/PAUSE CORRIGIDO PARA CELULAR ---
   const togglePlay = (e?: any) => {
     if (e) {
@@ -211,82 +213,78 @@ export default function PlayerPage() {
     }
   };
 
-  const destroyPlayer = useCallback(() => {
-    if (progressInterval.current) {
-      clearInterval(progressInterval.current);
-      progressInterval.current = null;
-    }
-    try {
-      playerRef.current?.destroy?.();
-    } catch {
-      /* ignore */
-    }
-    playerRef.current = null;
-    const el = typeof document !== "undefined" ? document.getElementById("ninja-player") : null;
-    if (el) el.innerHTML = "";
-  }, []);
-
   useEffect(() => {
-    if (!videoStarted || !currentLesson?.video_id || !ytApiReady) return;
-    const YT = typeof window !== "undefined" ? (window as Window & { YT?: typeof window.YT }).YT : undefined;
-    if (!YT?.Player) return;
+    if (!videoStarted || !lessonVideoId || !ytApiReady || !window.YT?.Player) return;
 
-    destroyPlayer();
+    if (playerRef.current?.destroy) {
+      try {
+        playerRef.current.destroy();
+      } catch {
+        /* ignore */
+      }
+    }
 
-    playerRef.current = new YT.Player("ninja-player", {
-      videoId: currentLesson.video_id,
-      height: "100%",
-      width: "100%",
-      playerVars: {
-        autoplay: 1,
-        controls: 0,
-        modestbranding: 1,
-        rel: 0,
-        disablekb: 1,
-        iv_load_policy: 3,
-        playsinline: 1,
-        enablejsapi: 1,
-        origin: typeof window !== "undefined" ? window.location.origin : undefined,
-      },
-      events: {
-        onReady: async (event: { target: any }) => {
-          setDuration(event.target.getDuration());
-
-          const { data } = await supabase
-            .from("lesson_progress")
-            .select("last_position")
-            .eq("lesson_id", currentLesson.id)
-            .eq("user_id", currentUser?.id)
-            .single();
-
-          if (data?.last_position) event.target.seekTo(data.last_position);
-
-          event.target.playVideo();
-          setIsPlaying(true);
-
-          progressInterval.current = setInterval(() => {
-            if (playerRef.current?.getCurrentTime) {
-              const now = playerRef.current.getCurrentTime();
-              setCurrentTime(now);
-              if (Math.floor(now) % 10 === 0) saveProgress(now);
-            }
-          }, 1000);
+    playerRef.current = new window.YT.Player("ninja-player", {
+        videoId: lessonVideoId,
+        height: "100%",
+        width: "100%",
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          modestbranding: 1,
+          rel: 0,
+          disablekb: 1,
+          iv_load_policy: 3,
+          playsinline: 1,
+          enablejsapi: 1,
+          origin: typeof window !== "undefined" ? window.location.origin : undefined,
         },
-        onStateChange: (event: { data: number }) => {
-          if (!YT.PlayerState) return;
-          if (event.data === YT.PlayerState.PLAYING) setIsPlaying(true);
-          if (event.data === YT.PlayerState.PAUSED) setIsPlaying(false);
-          if (event.data === YT.PlayerState.ENDED) void handleFinish();
+        events: {
+          onReady: async (event: any) => {
+            setDuration(event.target.getDuration());
+
+            const { data } = await supabase
+              .from("lesson_progress")
+              .select("last_position")
+              .eq("lesson_id", currentLesson.id)
+              .eq("user_id", currentUser?.id)
+              .single();
+
+            if (data?.last_position) event.target.seekTo(data.last_position);
+
+            event.target.playVideo();
+            setIsPlaying(true);
+
+            progressInterval.current = setInterval(() => {
+              if (playerRef.current?.getCurrentTime) {
+                const now = playerRef.current.getCurrentTime();
+                setCurrentTime(now);
+                if (Math.floor(now) % 10 === 0) saveProgress(now);
+              }
+            }, 1000);
+          },
+          onStateChange: (event: any) => {
+            if (event.data === window.YT.PlayerState.PLAYING) setIsPlaying(true);
+            if (event.data === window.YT.PlayerState.PAUSED) setIsPlaying(false);
+            if (event.data === window.YT.PlayerState.ENDED) handleFinish();
+          },
         },
-      },
-    });
+      });
 
     return () => {
-      destroyPlayer();
+      if (progressInterval.current) clearInterval(progressInterval.current);
     };
-    // handleFinish usa currentLesson no momento do término; não incluir nas deps para não reiniciar o player a cada render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoStarted, currentLesson?.video_id, currentLesson?.id, ytApiReady, currentUser?.id, destroyPlayer]);
+  }, [videoStarted, lessonVideoId, currentLesson?.id, ytApiReady, currentUser?.id]);
+
+  const handleFinish = async () => {
+    await supabase.rpc("process_lesson_completion", { lesson_uuid: currentLesson.id });
+    await finalizarAula(currentLesson.id);
+    const newSet = new Set(completedLessons);
+    newSet.add(currentLesson.id);
+    setCompletedLessons(newSet);
+    router.refresh();
+  };
 
   const handleCommentChange = (e: any) => {
     const text = e.target.value;
@@ -478,7 +476,7 @@ export default function PlayerPage() {
             <div className="aspect-video w-full bg-black rounded-xl overflow-hidden border border-white/5 relative group shadow-2xl">
               {!videoStarted ? (
                 <button onClick={() => setVideoStarted(true)} className="absolute inset-0 z-20 flex flex-col items-center justify-center">
-                  <img src={`https://img.youtube.com/vi/${currentLesson?.video_id}/maxresdefault.jpg`} className="absolute inset-0 w-full h-full object-cover opacity-30" />
+                  <img src={`https://img.youtube.com/vi/${lessonVideoId}/maxresdefault.jpg`} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
                   <div className="w-16 h-16 bg-[#C9A66B] rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-110">
                     <Play size={24} className="text-black ml-1 fill-black" />
                   </div>
