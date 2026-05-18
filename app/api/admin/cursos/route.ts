@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { extractYouTubeVideoId } from "@/lib/youtube";
 
 function sb() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -36,11 +37,37 @@ export async function GET() {
   return NextResponse.json({ ok: true, courses: cursosComAulas });
 }
 
+/** Campos reais da tabela `lessons` (sem coins_reward / video_url do formulário). */
+function buildLessonRow(body: {
+  title?: string;
+  description?: string;
+  video_url?: string;
+  materials?: string;
+  sequence_order?: number | string;
+}) {
+  const row: Record<string, unknown> = {};
+  if (body.title !== undefined) row.title = body.title;
+  if (body.description !== undefined) row.description = body.description || null;
+  if (body.sequence_order !== undefined) row.sequence_order = Number(body.sequence_order) || 1;
+
+  if (body.video_url !== undefined) {
+    const raw = String(body.video_url).trim();
+    row.video_id = raw ? extractYouTubeVideoId(raw) || raw : null;
+  }
+
+  if (body.materials !== undefined) {
+    const m = String(body.materials).trim();
+    row.material_url = m || null;
+  }
+
+  return row;
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   if (body._type === "lesson") {
     // course_id aqui é o ID do course — buscamos o code para usar como FK
-    const { course_id, title, description, video_url, materials, coins_reward, sequence_order } = body;
+    const { course_id, title } = body;
     if (!course_id || !title) return NextResponse.json({ ok: false, error: "course_id e title obrigatórios" }, { status: 400 });
 
     // Busca o code do curso pelo id
@@ -50,9 +77,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await sb().from("lessons").insert({
       course_code,
-      title, description, video_url, materials,
-      coins_reward: Number(coins_reward) || 10,
-      sequence_order: Number(sequence_order) || 1,
+      ...buildLessonRow(body),
     }).select().single();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, lesson: data });
@@ -70,11 +95,21 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const body = await req.json();
-  const { id, _type, ...campos } = body;
+  const { id, _type } = body;
   if (!id) return NextResponse.json({ ok: false, error: "id obrigatório" }, { status: 400 });
   const table = _type === "lesson" ? "lessons" : "courses";
-  if (campos.sequence_order) campos.sequence_order = Number(campos.sequence_order);
-  if (campos.coins_reward) campos.coins_reward = Number(campos.coins_reward);
+
+  let campos: Record<string, unknown>;
+  if (_type === "lesson") {
+    campos = buildLessonRow(body);
+  } else {
+    const { course_id: _c, ...rest } = body;
+    campos = rest;
+    delete campos.id;
+    delete campos._type;
+    if (campos.sequence_order) campos.sequence_order = Number(campos.sequence_order);
+  }
+
   const { error } = await sb().from(table).update(campos).eq("id", id);
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

@@ -134,7 +134,7 @@ export default function AdminCursosPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <button onClick={() => { setEditandoAula(aula); setFormAula({ title: aula.title, description: aula.description || "", video_url: aula.video_url || "", materials: aula.materials || "", coins_reward: String(aula.coins_reward || 10), sequence_order: String(aula.sequence_order) }); setErro(""); setShowAula(curso.id); }}
+                            <button onClick={() => { setEditandoAula(aula); setFormAula({ title: aula.title, description: aula.description || "", video_url: aula.video_url || aula.video_id || "", materials: aula.material_url || aula.materials || "", coins_reward: String(aula.coins_reward || 10), sequence_order: String(aula.sequence_order) }); setErro(""); setShowAula(curso.id); }}
                               className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white">
                               <Pencil size={12} />
                             </button>
