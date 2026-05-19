@@ -70,7 +70,8 @@ function ProductDetailContent() {
       title: product.title,
       image_url: product.image_url,
       price: finalPrice,
-      quantity: quantity // A quantidade que você escolheu no + e -
+      displayPrice: finalPrice,
+      quantity: quantity,
     };
 
     addToCart(productToCart);

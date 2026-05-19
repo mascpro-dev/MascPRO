@@ -1,24 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
-import {
-  calcularFretePAC,
-  getDimensoesPadraoEm,
-  getPesoDefaultProdutoGramas,
-  getPesoEmbalagemGramas,
-  pesoTotalGramasItens,
-} from "@/lib/correiosFrete";
-import { isCepMariliaSp } from "@/lib/freteMarilia";
-import { getConfig, getConfigNum } from "@/lib/systemConfig";
+import { calcularFretePedido } from "@/lib/fretePedido";
 import { rateLimit, LIMITS } from "@/lib/rateLimit";
-
-function normalizeText(v: string): string {
-  return String(v || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
 
 function getAppUrl(req: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -42,7 +26,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const APP_URL = getAppUrl(req);
-    const { items, userId, userEmail, userName, accessToken, shippingCep, shippingAddress, shippingCity, shippingState } = await req.json();
+    const {
+      items,
+      userId,
+      userEmail,
+      userName,
+      accessToken,
+      shippingCost,
+      shippingCep,
+      shippingAddress,
+      shippingCity,
+      shippingState,
+    } = await req.json();
 
     if (!items?.length || !userId) {
       return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
@@ -72,63 +67,38 @@ export async function POST(req: NextRequest) {
     );
 
     const cepDestino = String(shippingCep || "").replace(/\D/g, "");
-    const cidadeDestino = normalizeText(String(shippingCity || ""));
-    const estadoDestino = String(shippingState || "").trim().toUpperCase();
-    const freteGratisAcima = await getConfigNum("frete_gratis_acima");
-    const isentoSubtotal = freteGratisAcima > 0 && subtotal >= freteGratisAcima;
-    const isentoMarilia =
-      (cepDestino.length === 8 && isCepMariliaSp(cepDestino)) ||
-      (cidadeDestino === "marilia" && estadoDestino === "SP");
-    const freteGratis = isentoSubtotal || isentoMarilia;
     let frete = 0;
+    let freteGratis = false;
 
-    if (!freteGratis) {
-      if (cepDestino.length !== 8) {
-        return NextResponse.json({ error: "CEP de entrega inválido ou ausente." }, { status: 400 });
-      }
-      const cepOrigemConfig = String(await getConfig("correios_cep_origem") || "").replace(/\D/g, "");
-      const cepOrigemEnv = String(process.env.CORREIOS_CEP_ORIGEM || "").replace(/\D/g, "");
-      const cepOrigem = cepOrigemConfig.length === 8 ? cepOrigemConfig : cepOrigemEnv;
-      if (cepOrigem.length !== 8) {
-        return NextResponse.json(
-          { error: "Loja sem CEP de postagem: configure em Configurações do Sistema ou na variável CORREIOS_CEP_ORIGEM (8 dígitos)." },
-          { status: 500 }
-        );
-      }
-      const cartIds = items.map((i: { id: string }) => i.id);
-      const { data: productRows, error: perr } = await supabase
-        .from("products")
-        .select("id, peso_gramas")
-        .in("id", cartIds);
-      if (perr || !productRows?.length) {
-        return NextResponse.json(
-          { error: "Não foi possível validar o peso dos produtos. Tente novamente." },
-          { status: 500 }
-        );
-      }
-      const cartIt = items.map((i: { id: string; quantity?: number }) => ({
-        id: i.id,
-        quantity: Number(i.quantity || 1),
-      }));
-      const pesoBase = pesoTotalGramasItens(
-        productRows,
-        cartIt,
-        getPesoDefaultProdutoGramas()
-      );
-      const pesoGramas = pesoBase + getPesoEmbalagemGramas();
-      const r = await calcularFretePAC({
-        cepOrigem,
+    try {
+      const freteCalc = await calcularFretePedido({
+        subtotal,
         cepDestino,
-        pesoGramas,
-        dim: getDimensoesPadraoEm(),
+        cidade: shippingCity,
+        estado: shippingState,
+        items: items.map((i: { id: string; quantity?: number }) => ({
+          id: i.id,
+          quantity: Number(i.quantity || 1),
+        })),
+        supabase,
       });
-      if (!r.ok) {
-        return NextResponse.json(
-          { error: `Não foi possível calcular o frete: ${r.mensagem}` },
-          { status: 502 }
-        );
-      }
-      frete = Number(r.valor.toFixed(2));
+      frete = freteCalc.frete;
+      freteGratis = freteCalc.freteGratis;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro ao calcular frete.";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+
+    const freteCliente = Number(shippingCost);
+    if (Number.isFinite(freteCliente) && Math.abs(freteCliente - frete) > 0.02) {
+      return NextResponse.json(
+        {
+          error: freteGratis
+            ? "O frete grátis não foi aplicado corretamente. Feche o carrinho e abra de novo."
+            : "O valor do frete mudou. Aguarde o cálculo e tente pagar novamente.",
+        },
+        { status: 409 }
+      );
     }
 
     const total = subtotal + frete;
@@ -196,16 +166,19 @@ export async function POST(req: NextRequest) {
     if (userName) payer.name = String(userName);
     if (userEmail) payer.email = String(userEmail);
 
+    const backUrls = {
+      success: `${APP_URL}/loja/sucesso?order_id=${order.id}`,
+      failure: `${APP_URL}/loja/falha?order_id=${order.id}`,
+      pending: `${APP_URL}/loja/pendente?order_id=${order.id}`,
+    };
+    const podeAutoReturn = APP_URL.startsWith("https://");
+
     const result = await preference.create({
       body: {
         items: mpItems,
         ...(Object.keys(payer).length > 0 ? { payer } : {}),
-        back_urls: {
-          success: `${APP_URL}/loja/sucesso?order_id=${order.id}`,
-          failure: `${APP_URL}/loja/falha?order_id=${order.id}`,
-          pending: `${APP_URL}/loja/pendente?order_id=${order.id}`,
-        },
-        auto_return: "approved",
+        back_urls: backUrls,
+        ...(podeAutoReturn ? { auto_return: "approved" as const } : {}),
         notification_url: `${APP_URL}/api/mp-webhook`,
         external_reference: order.id,
         payment_methods: { installments: 12, default_installments: 1 },

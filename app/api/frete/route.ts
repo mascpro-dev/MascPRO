@@ -1,36 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import {
-  calcularFretePAC,
-  getDimensoesPadraoEm,
-  getPesoDefaultProdutoGramas,
-  getPesoEmbalagemGramas,
-  pesoTotalGramasItens,
-} from "@/lib/correiosFrete";
-import { isCepMariliaSp } from "@/lib/freteMarilia";
-import { getConfig, getConfigNum } from "@/lib/systemConfig";
-
-function supabaseAnon() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
-
-function normalizeText(v: string): string {
-  return String(v || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
+import { calcularFretePedido } from "@/lib/fretePedido";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const cep = String(body.cep || "").replace(/\D/g, "");
-    const cidade = normalizeText(String(body.cidade || ""));
-    const estado = String(body.estado || "").trim().toUpperCase();
     const items: { id: string; quantity: number }[] = Array.isArray(body.items) ? body.items : [];
     const subtotal = Number(body.subtotal);
 
@@ -41,88 +15,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Carrinho vazio." }, { status: 400 });
     }
 
-    const freteGratisAcima = await getConfigNum("frete_gratis_acima");
-
-    if (Number.isFinite(subtotal) && freteGratisAcima > 0 && subtotal >= freteGratisAcima) {
-      return NextResponse.json({
-        ok: true,
-        frete: 0,
-        freteGratis: true,
-        prazoEntrega: null,
-        pesoGramas: null,
-        mensagem: `Frete grátis para pedidos acima de R$ ${freteGratisAcima.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`,
-      });
-    }
-
-    if (isCepMariliaSp(cep) || (cidade === "marilia" && estado === "SP")) {
-      return NextResponse.json({
-        ok: true,
-        frete: 0,
-        freteGratis: true,
-        prazoEntrega: null,
-        pesoGramas: null,
-        motivo: "marilia",
-        mensagem: "Marília/SP — entrega com frete isento.",
-      });
-    }
-
-    const cepOrigemConfig = String(await getConfig("correios_cep_origem") || "").replace(/\D/g, "");
-    const cepOrigemEnv = String(process.env.CORREIOS_CEP_ORIGEM || "").replace(/\D/g, "");
-    const cepOrigem = cepOrigemConfig.length === 8 ? cepOrigemConfig : cepOrigemEnv;
-    if (cepOrigem.length !== 8) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Frete não configurado: informe o CEP de origem dos Correios em Configurações do Sistema ou na variável CORREIOS_CEP_ORIGEM.",
-        },
-        { status: 503 }
-      );
-    }
-
-    const ids = [...new Set(items.map((i) => i.id))];
-    const supabase = supabaseAnon();
-    const { data: productRows, error: qerr } = await supabase
-      .from("products")
-      .select("id, peso_gramas")
-      .in("id", ids);
-
-    if (qerr || !productRows) {
-      return NextResponse.json({ ok: false, error: "Não foi possível carregar os produtos." }, { status: 500 });
-    }
-
-    const def = getPesoDefaultProdutoGramas();
-    const emb = getPesoEmbalagemGramas();
-    const pesoBase = pesoTotalGramasItens(productRows, items, def);
-    const pesoGramas = pesoBase + emb;
-
-    const dim = getDimensoesPadraoEm();
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 20_000);
-
-    const r = await calcularFretePAC({
-      cepOrigem,
+    const r = await calcularFretePedido({
+      subtotal,
       cepDestino: cep,
-      pesoGramas,
-      dim,
-      signal: controller.signal,
+      cidade: body.cidade,
+      estado: body.estado,
+      items,
     });
-    clearTimeout(t);
 
-    if (!r.ok) {
-      return NextResponse.json(
-        { ok: false, error: r.mensagem || "Erro ao calcular frete." },
-        { status: 502 }
-      );
+    if (r.freteGratis) {
+      const mensagem =
+        r.motivo === "marilia"
+          ? "Marília/SP — entrega com frete isento."
+          : `Frete grátis para pedidos acima de R$ ${r.freteGratisAcima.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`;
+      return NextResponse.json({
+        ok: true,
+        frete: 0,
+        freteGratis: true,
+        freteGratisAcima: r.freteGratisAcima,
+        prazoEntrega: null,
+        pesoGramas: null,
+        motivo: r.motivo || "subtotal",
+        mensagem,
+      });
     }
 
     return NextResponse.json({
       ok: true,
-      frete: Number(r.valor.toFixed(2)),
+      frete: r.frete,
       freteGratis: false,
-      prazoEntrega: r.prazoEntrega,
-      servico: r.servico,
-      pesoGramas,
+      freteGratisAcima: r.freteGratisAcima,
       motivo: "correios",
     });
   } catch (e: unknown) {

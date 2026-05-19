@@ -29,8 +29,28 @@ export async function getConfig(chave: string): Promise<string> {
   }
 }
 
+/** Converte valor salvo (1500, 2.500,00, R$ 2500) para número. */
+export function parseConfigNum(raw: string): number {
+  const s = String(raw ?? "").trim();
+  if (!s) return NaN;
+  const cleaned = s.replace(/[^\d,.-]/g, "");
+  if (!cleaned) return NaN;
+  if (cleaned.includes(",")) {
+    const n = Number(cleaned.replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : NaN;
+  }
+  if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) {
+    const n = Number(cleaned.replace(/\./g, ""));
+    return Number.isFinite(n) ? n : NaN;
+  }
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 /** Lê uma chave e retorna como número. */
 export async function getConfigNum(chave: string): Promise<number> {
   const v = await getConfig(chave);
-  return Number(v) || Number(DEFAULTS[chave] || 0);
+  const parsed = parseConfigNum(v);
+  if (Number.isFinite(parsed)) return parsed;
+  return parseConfigNum(DEFAULTS[chave] || "") || 0;
 }
