@@ -204,6 +204,7 @@ function CadastroContent() {
 
   return (
     <div className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 p-8 rounded-2xl shadow-2xl my-10">
+      <div className="text-center mb-8">
         <h1 className="text-3xl font-black italic text-[#C9A66B]">FICHA DE MEMBRO</h1>
         <p className="text-gray-400 text-sm mt-2">Preencha seus dados para acessar a plataforma.</p>
       </div>
@@ -476,10 +477,6 @@ function CadastroContent() {
       </p>
     </div>
   );
-}
-
-function CadastroShell({ children }: { children: React.ReactNode }) {
-  return <div>{children}</div>;
 }
 
 export default function CadastroPage() {
