@@ -28,25 +28,36 @@ export async function POST(req: NextRequest) {
         r.motivo === "marilia"
           ? "Marília/SP — entrega com frete isento."
           : `Frete grátis para pedidos acima de R$ ${r.freteGratisAcima.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`;
-      return NextResponse.json({
-        ok: true,
-        frete: 0,
-        freteGratis: true,
-        freteGratisAcima: r.freteGratisAcima,
-        prazoEntrega: null,
-        pesoGramas: null,
-        motivo: r.motivo || "subtotal",
-        mensagem,
-      });
+      return NextResponse.json(
+        {
+          ok: true,
+          frete: 0,
+          freteGratis: true,
+          freteGratisAcima: r.freteGratisAcima,
+          prazoEntrega: null,
+          pesoGramas: null,
+          motivo: r.motivo || "subtotal",
+          mensagem,
+        },
+        { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+      );
     }
 
-    return NextResponse.json({
-      ok: true,
-      frete: r.frete,
-      freteGratis: false,
-      freteGratisAcima: r.freteGratisAcima,
-      motivo: "correios",
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        frete: r.frete,
+        freteGratis: false,
+        freteGratisAcima: r.freteGratisAcima,
+        motivo: "correios",
+        prazoEntrega: r.prazoEntrega ?? null,
+        pesoGramas: r.pesoGramas ?? null,
+        cepOrigem: r.cepOrigem,
+        cepDestino: r.cepDestino,
+        servico: r.servico,
+      },
+      { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado.";
     const erro =

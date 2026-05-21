@@ -4,6 +4,25 @@ import { createClient } from "@supabase/supabase-js";
 import { calcularFretePedido } from "@/lib/fretePedido";
 import { rateLimit, LIMITS } from "@/lib/rateLimit";
 
+function sbService() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) return null;
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
+}
+
+async function verifyUser(accessToken: string | undefined, userId: string) {
+  if (!accessToken) return { ok: false as const, error: "Sessão expirada. Faça login novamente." };
+  const authClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
+  );
+  const { data: { user }, error } = await authClient.auth.getUser();
+  if (error || !user) return { ok: false as const, error: "Sessão inválida. Faça login novamente." };
+  if (user.id !== userId) return { ok: false as const, error: "Usuário não confere com a sessão." };
+  return { ok: true as const, user };
+}
+
 function getAppUrl(req: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (envUrl) return envUrl.replace(/\/$/, "");
@@ -43,6 +62,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
     }
 
+    const auth = await verifyUser(accessToken, userId);
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+
+    const db = sbService();
+    if (!db) {
+      return NextResponse.json(
+        { error: "Servidor sem permissão para registrar pedidos. Configure SUPABASE_SERVICE_ROLE_KEY." },
+        { status: 500 }
+      );
+    }
+
     // Verifica se a chave MP está configurada
     const mpToken = process.env.MP_ACCESS_TOKEN;
     if (!mpToken || mpToken === "COLE_SEU_ACCESS_TOKEN_AQUI") {
@@ -51,15 +83,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    // Supabase com o token do usuário logado (RLS funciona corretamente)
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      accessToken
-        ? { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
-        : {}
-    );
 
     const subtotal = items.reduce(
       (acc: number, i: any) => acc + Number(i.displayPrice || i.price || 0) * Number(i.quantity || 1),
@@ -80,7 +103,7 @@ export async function POST(req: NextRequest) {
           id: i.id,
           quantity: Number(i.quantity || 1),
         })),
-        supabase,
+        supabase: db,
       });
       frete = freteCalc.frete;
       freteGratis = freteCalc.freteGratis;
@@ -89,21 +112,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
 
-    const freteCliente = Number(shippingCost);
-    if (Number.isFinite(freteCliente) && Math.abs(freteCliente - frete) > 0.02) {
-      return NextResponse.json(
-        {
-          error: freteGratis
-            ? "O frete grátis não foi aplicado corretamente. Feche o carrinho e abra de novo."
-            : "O valor do frete mudou. Aguarde o cálculo e tente pagar novamente.",
-        },
-        { status: 409 }
-      );
-    }
-
     const total = subtotal + frete;
 
-    const { data: order, error: orderError } = await supabase
+    const { data: order, error: orderError } = await db
       .from("orders")
       .insert({
         profile_id: userId,
@@ -126,7 +137,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Itens do pedido
-    const { error: itemsError } = await supabase.from("order_items").insert(
+    const { error: itemsError } = await db.from("order_items").insert(
       items.map((i: any) => ({
         order_id: order.id,
         product_id: i.id,
@@ -136,35 +147,51 @@ export async function POST(req: NextRequest) {
     );
     if (itemsError) console.error("order_items error:", itemsError);
 
-    // Cria preferência no MercadoPago
     const mp = new MercadoPagoConfig({ accessToken: mpToken });
     const preference = new Preference(mp);
 
-    const mpItems: any[] = items.map((i: any) => ({
-      id: String(i.id),
-      title: i.title || i.name || "Produto MascPRO",
-      description: i.category || "Produto MascPRO",
-      picture_url: i.image_url || undefined,
-      quantity: Number(i.quantity || 1),
-      unit_price: Number(Number(i.displayPrice || i.price || 0).toFixed(2)),
-      currency_id: "BRL",
-    }));
+    const mpItems: Array<{
+      id: string;
+      title: string;
+      quantity: number;
+      unit_price: number;
+      currency_id: string;
+    }> = [];
+
+    for (const i of items) {
+      const unit = Number(Number(i.displayPrice || i.price || 0).toFixed(2));
+      if (!Number.isFinite(unit) || unit < 0.01) {
+        return NextResponse.json(
+          { error: `Preço inválido para o produto "${i.title || i.name || i.id}".` },
+          { status: 400 }
+        );
+      }
+      const title = String(i.title || i.name || "Produto MascPRO").slice(0, 256);
+      mpItems.push({
+        id: String(i.id).slice(0, 256),
+        title,
+        quantity: Math.max(1, Number(i.quantity || 1)),
+        unit_price: unit,
+        currency_id: "BRL",
+      });
+    }
 
     // Adiciona frete como item separado no MP (se houver)
-    if (frete > 0) {
+    if (frete >= 0.01) {
       mpItems.push({
         id: "frete",
-        title: "Frete — PAC Correios",
-        description: shippingCep ? `CEP ${shippingCep}` : "Entrega",
+        title: "Frete PAC Correios",
         quantity: 1,
         unit_price: Number(frete.toFixed(2)),
         currency_id: "BRL",
       });
     }
 
-    const payer: Record<string, string> = {};
-    if (userName) payer.name = String(userName);
-    if (userEmail) payer.email = String(userEmail);
+    const payer: { email?: string; name?: string } = {};
+    const email = String(userEmail || auth.user.email || "").trim();
+    if (email) payer.email = email;
+    const nome = String(userName || "").trim();
+    if (nome) payer.name = nome.slice(0, 256);
 
     const backUrls = {
       success: `${APP_URL}/loja/sucesso?order_id=${order.id}`,
@@ -194,7 +221,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await supabase
+    await db
       .from("orders")
       .update({ mp_preference_id: result.id })
       .eq("id", order.id);
@@ -203,6 +230,9 @@ export async function POST(req: NextRequest) {
       init_point: checkoutUrl,
       preference_id: result.id,
       order_id: order.id,
+      frete: Number(frete.toFixed(2)),
+      subtotal: Number(subtotal.toFixed(2)),
+      total: Number(total.toFixed(2)),
     });
   } catch (err: any) {
     console.error("Checkout erro:", err);

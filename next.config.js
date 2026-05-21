@@ -12,6 +12,10 @@ const withPWA = require("@ducanh2912/next-pwa").default({
     maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
     runtimeCaching: [
       {
+        urlPattern: ({ url }) => url.pathname.startsWith("/api/"),
+        handler: "NetworkOnly",
+      },
+      {
         urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
         handler: "CacheFirst",
         options: {
@@ -49,13 +53,13 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://www.youtube.com https://s.ytimg.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://http2.mlstatic.com https://www.mercadolibre.com https://www.youtube.com https://s.ytimg.com https://www.googleapis.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https: http:",
-      "media-src 'self' https:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://www.bling.com.br https://melhorenvio.com.br https://sandbox.melhorenvio.com.br",
-      "frame-src https://sdk.mercadopago.com https://www.mercadopago.com.br https://www.youtube.com https://www.youtube-nocookie.com",
+      "media-src 'self' https: blob:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://api.mercadolibre.com https://www.mercadopago.com.br https://www.mercadolibre.com https://www.youtube.com https://youtube.com https://*.googlevideo.com https://www.bling.com.br https://melhorenvio.com.br https://sandbox.melhorenvio.com.br",
+      "frame-src 'self' https://sdk.mercadopago.com https://www.mercadopago.com.br https://www.mercadolibre.com https://www.youtube.com https://www.youtube-nocookie.com https://youtube.com",
       "worker-src 'self' blob:",
     ].join("; "),
   },

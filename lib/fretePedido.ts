@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import {
   calcularFretePAC,
+  dimensoesParaCarrinho,
   getDimensoesPadraoEm,
   getPesoDefaultProdutoGramas,
   getPesoEmbalagemGramas,
@@ -22,7 +23,12 @@ export type FretePedidoResult = {
   frete: number;
   freteGratis: boolean;
   freteGratisAcima: number;
-  motivo?: "subtotal" | "marilia";
+  motivo?: "subtotal" | "marilia" | "correios";
+  prazoEntrega?: number;
+  pesoGramas?: number;
+  cepOrigem?: string;
+  cepDestino?: string;
+  servico?: string;
 };
 
 function normalizeText(v: string): string {
@@ -84,19 +90,22 @@ export async function calcularFretePedido(input: FretePedidoInput): Promise<Fret
     .select("id, peso_gramas")
     .in("id", cartIds);
 
-  if (perr || !productRows?.length) {
+  if (perr) {
     throw new Error("Não foi possível validar o peso dos produtos. Tente novamente.");
   }
 
-  const pesoBase = pesoTotalGramasItens(productRows, cartIt, getPesoDefaultProdutoGramas());
+  const rows = productRows?.length ? productRows : [];
+  const pesoBase = pesoTotalGramasItens(rows, cartIt, getPesoDefaultProdutoGramas());
   const pesoGramas = pesoBase + getPesoEmbalagemGramas();
+  const dim = dimensoesParaCarrinho(getDimensoesPadraoEm(), cartIt);
+
   const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 20_000);
+  const t = setTimeout(() => controller.abort(), 25_000);
   const r = await calcularFretePAC({
     cepOrigem,
     cepDestino,
     pesoGramas,
-    dim: getDimensoesPadraoEm(),
+    dim,
     signal: controller.signal,
   });
   clearTimeout(t);
@@ -105,9 +114,20 @@ export async function calcularFretePedido(input: FretePedidoInput): Promise<Fret
     throw new Error(`Não foi possível calcular o frete: ${r.mensagem}`);
   }
 
+  const valor = Number(r.valor.toFixed(2));
+  if (!Number.isFinite(valor) || valor < 0) {
+    throw new Error("Correios retornou um valor de frete inválido. Tente novamente.");
+  }
+
   return {
-    frete: Number(r.valor.toFixed(2)),
+    frete: valor,
     freteGratis: false,
     freteGratisAcima,
+    motivo: "correios",
+    prazoEntrega: r.prazoEntrega,
+    pesoGramas,
+    cepOrigem,
+    cepDestino,
+    servico: r.servico,
   };
 }

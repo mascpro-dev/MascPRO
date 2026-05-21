@@ -12,9 +12,15 @@ function onlyDigits(cep: string): string {
   return String(cep || "").replace(/\D/g, "").slice(0, 8);
 }
 
+/** Valor no XML dos Correios: "45,90" ou "1.234,56" */
 function parseMoedaBr(val: string): number {
-  const t = val.trim().replace(/\./g, "").replace(",", ".");
-  const n = Number(t);
+  const t = String(val || "").trim();
+  if (!t) return NaN;
+  if (t.includes(",")) {
+    const n = Number(t.replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : NaN;
+  }
+  const n = Number(t.replace(",", "."));
   return Number.isFinite(n) ? n : NaN;
 }
 
@@ -43,7 +49,21 @@ export function pesoTotalGramasItens(
     const unit = pg != null && Number(pg) > 0 ? Number(pg) : pesoPadraoGramas;
     g += unit * q;
   }
-  return Math.max(1, Math.round(g));
+  return Math.max(100, Math.round(g));
+}
+
+/** Ajusta altura da embalagem conforme quantidade de itens (evita sempre o mesmo cubagem). */
+export function dimensoesParaCarrinho(
+  base: DimensaoCm,
+  items: { quantity?: number }[]
+): DimensaoCm {
+  const q = items.reduce((s, it) => s + Math.max(1, Number(it.quantity) || 1), 0);
+  const fator = Math.min(6, Math.max(1, Math.ceil(q / 2)));
+  return {
+    comprimento: base.comprimento,
+    largura: base.largura,
+    altura: Math.min(60, Math.max(base.altura, base.altura * fator)),
+  };
 }
 
 export type ResultadoCorreios = {

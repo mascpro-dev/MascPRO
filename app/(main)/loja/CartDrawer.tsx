@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useCart } from "./CartContext";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
@@ -48,6 +48,7 @@ export default function CartDrawer() {
   const [loadingFrete, setLoadingFrete] = useState(false);
   const [freteErro, setFreteErro] = useState("");
   const [freteGratisAcima, setFreteGratisAcima] = useState(FRETE_GRATIS_PADRAO);
+  const freteAbortRef = useRef<AbortController | null>(null);
 
   const subtotal = cart.reduce(
     (acc: number, i: any) => acc + (Number(i.displayPrice || i.price || 0) * (i.quantity || 1)),
@@ -75,8 +76,59 @@ export default function CartDrawer() {
       .catch(() => {});
   }, [isCartOpen]);
 
+  const consultarFreteCorreios = useCallback(
+    async (signal?: AbortSignal): Promise<number | null> => {
+      const c = endereco.cep.replace(/\D/g, "");
+      if (c.length !== 8 || cart.length === 0) return null;
+
+      const res = await fetch("/api/frete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        signal,
+        body: JSON.stringify({
+          cep: c,
+          cidade: endereco.cidade,
+          estado: endereco.estado,
+          items: cart.map((i: { id: string; quantity?: number }) => ({
+            id: i.id,
+            quantity: Number(i.quantity || 1),
+          })),
+          subtotal,
+        }),
+      });
+      const data = await res.json();
+      if (typeof data?.freteGratisAcima === "number" && data.freteGratisAcima > 0) {
+        setFreteGratisAcima(data.freteGratisAcima);
+      }
+      if (!res.ok || !data?.ok) {
+        throw new Error(String(data?.error || "Não foi possível calcular o frete."));
+      }
+      if (data.freteGratis) {
+        setFrete(0);
+        setFreteInfo(String(data.mensagem || "Frete grátis"));
+        return 0;
+      }
+      const valor = typeof data.frete === "number" ? data.frete : null;
+      const pr = data.prazoEntrega;
+      const pg = data.pesoGramas;
+      const cepFmt = data.cepDestino ? String(data.cepDestino).replace(/(\d{5})(\d{3})/, "$1-$2") : c;
+      setFreteInfo(
+        `PAC Correios · CEP ${cepFmt}${pr != null ? ` · ~${pr} dia(s) úteis` : ""}${
+          pg != null ? ` · ${Number(pg).toLocaleString("pt-BR")} g` : ""
+        }`
+      );
+      return valor;
+    },
+    [endereco.cep, endereco.cidade, endereco.estado, cart, subtotal]
+  );
+
   const recalcularFrete = useCallback(async () => {
     const c = endereco.cep.replace(/\D/g, "");
+    freteAbortRef.current?.abort();
+    const ac = new AbortController();
+    freteAbortRef.current = ac;
+
     setFreteErro("");
     if (c.length !== 8 || cart.length === 0) {
       setFrete(null);
@@ -98,57 +150,28 @@ export default function CartDrawer() {
       setLoadingFrete(false);
       return;
     }
+
+    setFrete(null);
     setLoadingFrete(true);
     try {
-      const res = await fetch("/api/frete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cep: c,
-          cidade: endereco.cidade,
-          estado: endereco.estado,
-          items: cart.map((i: { id: string; quantity?: number }) => ({
-            id: i.id,
-            quantity: Number(i.quantity || 1),
-          })),
-          subtotal,
-        }),
-      });
-      const data = await res.json();
-      if (typeof data?.freteGratisAcima === "number" && data.freteGratisAcima > 0) {
-        setFreteGratisAcima(data.freteGratisAcima);
-      }
-      if (!res.ok || !data?.ok) {
-        setFrete(null);
-        setFreteInfo("");
-        setFreteErro(String(data?.error || "Não foi possível calcular o frete."));
-        setLoadingFrete(false);
-        return;
-      }
-      setFrete(typeof data.frete === "number" ? data.frete : null);
-      if (data.freteGratis) {
-        if (data.motivo === "marilia") {
-          setFreteInfo(String(data.mensagem || "Marília/SP — frete isento."));
-        } else {
-          setFreteInfo("Frete grátis");
-        }
-        return;
-      }
-      const pr = data.prazoEntrega;
-      const pg = data.pesoGramas;
-      setFreteInfo(
-        `PAC Correios${pr != null ? ` · entrega em ~${pr} dia(s) úteis` : ""}${
-          pg != null ? ` · ${Number(pg).toLocaleString("pt-BR")} g` : ""
-        }`
-      );
-    } catch {
+      const valor = await consultarFreteCorreios(ac.signal);
+      if (!ac.signal.aborted) setFrete(valor);
+    } catch (e) {
+      if (ac.signal.aborted) return;
       setFrete(null);
       setFreteInfo("");
-      setFreteErro("Falha de conexão ao consultar o frete.");
+      setFreteErro(e instanceof Error ? e.message : "Falha de conexão ao consultar o frete.");
     } finally {
-      setLoadingFrete(false);
+      if (!ac.signal.aborted) setLoadingFrete(false);
     }
-  }, [endereco.cep, endereco.cidade, endereco.estado, cart, subtotal, isentoSubtotal, isentoMariliaCidade, freteGratisAcima]);
+  }, [
+    endereco.cep,
+    cart.length,
+    isentoSubtotal,
+    isentoMariliaCidade,
+    freteGratisAcima,
+    consultarFreteCorreios,
+  ]);
 
   useEffect(() => {
     const t = setTimeout(() => { void recalcularFrete(); }, 350);
@@ -228,21 +251,32 @@ export default function CartDrawer() {
       setShowEnderecoForm(true);
       return;
     }
+    let freteParaPagamento = freteValor;
+
     if (!freteGratis) {
       if (loadingFrete) {
         alert("Aguarde o cálculo do frete (Correios).");
         return;
       }
-      if (freteErro) {
-        alert(freteErro);
+      setLoading(true);
+      try {
+        const valorAtual = await consultarFreteCorreios();
+        if (valorAtual === null || valorAtual < 0) {
+          alert("Não foi possível obter o frete dos Correios. Verifique o CEP e tente de novo.");
+          setLoading(false);
+          return;
+        }
+        setFrete(valorAtual);
+        freteParaPagamento = valorAtual;
+        setFreteErro("");
+      } catch (e) {
+        alert(e instanceof Error ? e.message : "Erro ao calcular frete.");
+        setLoading(false);
         return;
       }
-      if (frete === null) {
-        alert("Não foi possível obter o frete. Verifique o CEP e tente de novo.");
-        return;
-      }
+    } else {
+      setLoading(true);
     }
-    setLoading(true);
     const abortCtl = new AbortController();
     const checkoutTimer = setTimeout(() => abortCtl.abort(), 90_000);
     try {
@@ -268,7 +302,7 @@ export default function CartDrawer() {
           userEmail: session.user.email,
           userName: profile?.full_name || "",
           accessToken: session.access_token,
-          shippingCost: freteValor,
+          shippingCost: freteParaPagamento,
           shippingCep: endereco.cep,
           shippingCity: endereco.cidade,
           shippingState: endereco.estado,
@@ -290,9 +324,11 @@ export default function CartDrawer() {
         return;
       }
 
+      const payUrl = data.init_point;
       clearCart();
       setIsCartOpen(false);
-      window.location.href = data.init_point;
+      // PWA: mesma aba evita bloqueio de popup e perda de sessão
+      window.location.assign(payUrl);
     } catch (err: unknown) {
       console.error(err);
       const aborted = err instanceof DOMException && err.name === "AbortError";

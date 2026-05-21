@@ -3,19 +3,14 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Play, Pause, Volume2, VolumeX, Maximize, CheckCircle, Lock, Trophy, MessageSquare, Send, User, Bookmark, Reply, X } from "lucide-react";
+import { ArrowLeft, Loader2, Play, CheckCircle, Lock, Trophy, MessageSquare, Send, User, Bookmark, Reply, X } from "lucide-react";
 import Link from "next/link";
-import Script from "next/script";
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getLessonVideoId } from "@/lib/youtube";
-
-declare global {
-  interface Window { onYouTubeIframeAPIReady: () => void; YT: any; }
-}
+import LessonYoutubePlayer from "@/componentes/LessonYoutubePlayer";
 
 export default function PlayerPage() {
   const params = useParams();
@@ -31,9 +26,6 @@ export default function PlayerPage() {
   const [concluidas, setConcluidas] = useState<string[]>([]);
   
   const [videoStarted, setVideoStarted] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'sobre' | 'materiais' | 'duvidas'>('sobre');
@@ -52,40 +44,8 @@ export default function PlayerPage() {
   // Estado para guardar os IDs dos comentários que estão "abertos"
   const [comentariosAbertos, setComentariosAbertos] = useState<string[]>([]);
 
-  const playerRef = useRef<any>(null);
-  const progressInterval = useRef<any>(null);
-  const [ytApiReady, setYtApiReady] = useState(false);
-
-  const lessonVideoId = getLessonVideoId(currentLesson);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const w = window as Window & { YT?: typeof window.YT; onYouTubeIframeAPIReady?: () => void };
-    const prev = w.onYouTubeIframeAPIReady;
-    w.onYouTubeIframeAPIReady = () => {
-      try {
-        if (typeof prev === "function") prev();
-      } catch {
-        /* ignore */
-      }
-      setYtApiReady(true);
-    };
-    if (w.YT?.Player) setYtApiReady(true);
-  }, []);
-
   useEffect(() => {
     setVideoStarted(false);
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-    if (playerRef.current?.destroy) {
-      try {
-        playerRef.current.destroy();
-      } catch {
-        /* ignore */
-      }
-      playerRef.current = null;
-    }
   }, [currentLesson?.id]);
 
   const courseKey = String(params.code || "").trim();
@@ -203,16 +163,6 @@ export default function PlayerPage() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  // --- FUNÇÃO PARA SALVAR ONDE PAROU ---
-  const saveProgress = async (time: number) => {
-    if (!currentUser || !currentLesson) return;
-    await supabase.from('lesson_progress').upsert({ 
-        user_id: currentUser.id, 
-        lesson_id: currentLesson.id, 
-        last_position: time 
-    });
-  };
-
   // --- MARCAR AULA COMO ASSISTIDA (user_progress) ---
   const finalizarAula = async (lessonId: string) => {
     if (!currentUser) return;
@@ -233,89 +183,6 @@ export default function PlayerPage() {
       );
     }
   };
-
-  // --- CONTROLE DE PLAY/PAUSE CORRIGIDO PARA CELULAR ---
-  const togglePlay = (e?: any) => {
-    if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-    if (!playerRef.current) return;
-    
-    const state = playerRef.current.getPlayerState();
-    if (state === 1) { // 1 = Tocando
-      playerRef.current.pauseVideo();
-      setIsPlaying(false);
-      saveProgress(playerRef.current.getCurrentTime());
-    } else {
-      playerRef.current.playVideo();
-      setIsPlaying(true);
-    }
-  };
-
-  useEffect(() => {
-    if (!videoStarted || !lessonVideoId || !ytApiReady || !window.YT?.Player) return;
-
-    if (playerRef.current?.destroy) {
-      try {
-        playerRef.current.destroy();
-      } catch {
-        /* ignore */
-      }
-    }
-
-    playerRef.current = new window.YT.Player("ninja-player", {
-        videoId: lessonVideoId,
-        height: "100%",
-        width: "100%",
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          modestbranding: 1,
-          rel: 0,
-          disablekb: 1,
-          iv_load_policy: 3,
-          playsinline: 1,
-          enablejsapi: 1,
-          origin: typeof window !== "undefined" ? window.location.origin : undefined,
-        },
-        events: {
-          onReady: async (event: any) => {
-            setDuration(event.target.getDuration());
-
-            const { data } = await supabase
-              .from("lesson_progress")
-              .select("last_position")
-              .eq("lesson_id", currentLesson.id)
-              .eq("user_id", currentUser?.id)
-              .single();
-
-            if (data?.last_position) event.target.seekTo(data.last_position);
-
-            event.target.playVideo();
-            setIsPlaying(true);
-
-            progressInterval.current = setInterval(() => {
-              if (playerRef.current?.getCurrentTime) {
-                const now = playerRef.current.getCurrentTime();
-                setCurrentTime(now);
-                if (Math.floor(now) % 10 === 0) saveProgress(now);
-              }
-            }, 1000);
-          },
-          onStateChange: (event: any) => {
-            if (event.data === window.YT.PlayerState.PLAYING) setIsPlaying(true);
-            if (event.data === window.YT.PlayerState.PAUSED) setIsPlaying(false);
-            if (event.data === window.YT.PlayerState.ENDED) handleFinish();
-          },
-        },
-      });
-
-    return () => {
-      if (progressInterval.current) clearInterval(progressInterval.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoStarted, lessonVideoId, currentLesson?.id, ytApiReady, currentUser?.id]);
 
   const handleFinish = async () => {
     await supabase.rpc("process_lesson_completion", { lesson_uuid: currentLesson.id });
@@ -507,8 +374,6 @@ export default function PlayerPage() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-300 font-sans selection:bg-[#C9A66B]/30">
-      <Script src="https://www.youtube.com/iframe_api" strategy="afterInteractive" />
-
       {/* HEADER (TEXTO REFINADO) */}
       <header className="h-16 px-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-md sticky top-0 z-50">
         <Link href="/evolucao" className="flex items-center gap-3 text-zinc-500 hover:text-white transition-all">
@@ -528,62 +393,31 @@ export default function PlayerPage() {
             
             {/* PLAYER NINJA (CORRIGIDO PARA TOUCH) */}
             <div className="aspect-video w-full bg-black rounded-xl overflow-hidden border border-white/5 relative group shadow-2xl">
-              {!lessonVideoId ? (
-                <div className="absolute inset-0 z-20 flex items-center justify-center p-6 text-center text-zinc-500 text-sm">
-                  Esta aula não tem vídeo cadastrado.
-                </div>
-              ) : !videoStarted ? (
-                <button onClick={() => setVideoStarted(true)} className="absolute inset-0 z-20 flex flex-col items-center justify-center">
-                  <img
-                    src={`https://img.youtube.com/vi/${lessonVideoId}/hqdefault.jpg`}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover opacity-30"
-                    onError={(e) => {
-                      e.currentTarget.src = `https://img.youtube.com/vi/${lessonVideoId}/default.jpg`;
-                    }}
-                  />
-                  <div className="w-16 h-16 bg-[#C9A66B] rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-110 relative z-10">
-                    <Play size={24} className="text-black ml-1 fill-black" />
-                  </div>
-                </button>
-              ) : (
-                <>
-                    <div className="w-full h-full pointer-events-none">
-                        <div id="ninja-player" className="w-full h-full"></div>
-                    </div>
-                    {/* MÁSCARA QUE ACEITA TOQUE (TOUCH) E CLIQUE */}
-                    <div 
-                        className="absolute inset-0 z-30 cursor-pointer" 
-                        onPointerDown={togglePlay} // onPointerDown funciona melhor que onClick em celulares
-                    >
-                        <div className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
-                            <div className="p-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="flex-1 h-1 bg-white/10 rounded-full relative overflow-hidden">
-                                        <div className="absolute top-0 left-0 h-full bg-[#C9A66B] transition-all" style={{ width: `${(currentTime / duration) * 100}%` }}></div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center justify-between text-[10px] font-bold text-white/50 uppercase tracking-widest">
-                                    <div className="flex items-center gap-4">
-                                        {isPlaying ? <Pause size={18} fill="white" /> : <Play size={18} fill="white" />}
-                                        <span className="hidden sm:inline">{(currentTime/60).toFixed(0)}:{(currentTime%60).toFixed(0).padStart(2,'0')} / {(duration/60).toFixed(0)}:{(duration%60).toFixed(0).padStart(2,'0')}</span>
-                                    </div>
-                                    <span>{Math.floor((currentTime / duration) * 100)}% assistido</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </>
-              )}
-          </div>
+              <LessonYoutubePlayer
+                lesson={currentLesson}
+                started={videoStarted}
+                onStart={() => setVideoStarted(true)}
+              />
+            </div>
 
             {/* TITULO E ABAS (VISUAL MANTIDO) */}
-            <div className="mt-8 flex justify-between items-center mb-12">
+            <div className="mt-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-12">
                 <h1 className="text-xl md:text-2xl font-semibold text-white tracking-tight italic uppercase">{currentLesson?.title}</h1>
-                <div className="hidden md:flex items-center gap-3 px-6 py-2.5 rounded-xl text-[10px] font-bold border border-[#C9A66B]/20 bg-[#C9A66B]/5">
-                    <Trophy size={14} className="text-[#C9A66B]" /> {completedLessons.has(currentLesson?.id) ? 'PRO ADQUIRIDO' : '+10 PRO'}
-          </div>
-        </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  {currentLesson && !completedLessons.has(currentLesson.id) && (
+                    <button
+                      type="button"
+                      onClick={() => void handleFinish()}
+                      className="px-4 py-2 rounded-xl bg-[#C9A66B] text-black text-[10px] font-black uppercase tracking-widest"
+                    >
+                      Concluir aula
+                    </button>
+                  )}
+                  <div className="flex items-center gap-3 px-6 py-2.5 rounded-xl text-[10px] font-bold border border-[#C9A66B]/20 bg-[#C9A66B]/5">
+                    <Trophy size={14} className="text-[#C9A66B]" /> {completedLessons.has(currentLesson?.id) ? "PRO ADQUIRIDO" : "+10 PRO"}
+                  </div>
+                </div>
+            </div>
 
             <div className="mt-8 border-t border-white/5 pt-8">
                 <div className="flex gap-6 md:gap-10 mb-8 overflow-x-auto no-scrollbar">
