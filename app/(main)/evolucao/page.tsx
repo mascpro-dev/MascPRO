@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Link from "next/link";
 import { Trophy, PlayCircle, Loader2, Lock } from "lucide-react";
+import { getCoursePath } from "@/lib/evolucaoRoutes";
 
 export default function EvolucaoPage() {
   const supabase = createClientComponentClient();
@@ -12,16 +13,17 @@ export default function EvolucaoPage() {
   const [modules, setModules] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [aulasConcluidas, setAulasConcluidas] = useState<string[]>([]);
-
-  useEffect(() => { loadData(); }, []);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
+    setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) {
+        setModules([]);
+        return;
+      }
       setCurrentUser(user);
 
-      // Busca só personal_coins (mérito pessoal = aulas assistidas pelo próprio usuário)
       const { data: profile } = await supabase
         .from("profiles")
         .select("personal_coins")
@@ -32,11 +34,33 @@ export default function EvolucaoPage() {
         setSaldoPessoal(profile.personal_coins || 0);
       }
 
-      // Busca Módulos na Ordem Certa
-      const { data: cursos } = await supabase.from("courses").select("*").order("sequence_order", { ascending: true });
+      const { data: cursos, error } = await supabase
+        .from("courses")
+        .select("*")
+        .order("sequence_order", { ascending: true });
+
+      if (error) console.error(error);
       setModules(cursos || []);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
-  }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadData();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user && !cancelled) void loadData();
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [loadData, supabase]);
 
   // --- COLE O FOFOQUEIRO AQUI (DENTRO DA FUNÇÃO, ANTES DO RETURN) ---
   const marcarComoConcluida = async (aulaId: string) => {
@@ -66,7 +90,13 @@ export default function EvolucaoPage() {
   };
   // -------------------------------------------------------------
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[#C9A66B]"><Loader2 className="animate-spin mr-2"/> Carregando...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center text-[#C9A66B]">
+        <Loader2 className="animate-spin mr-2" /> Carregando módulos...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-24">
@@ -94,15 +124,25 @@ export default function EvolucaoPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {modules.length === 0 && <p className="col-span-full text-gray-500 text-center py-10">Nenhum módulo encontrado.</p>}
           
-          {modules.map((mod, index) => {
-            // LÓGICA DO CADEADO:
-            // const isUnlocked = index <= 1; // (Comentei a regra antiga)
-            const isLocked = false; // AGORA TUDO ESTÁ ABERTO PARA TESTE 
+          {modules.map((mod) => {
+            const isLocked = false;
+            const courseHref = getCoursePath(mod);
+
+            if (!courseHref) {
+              return (
+                <div
+                  key={mod.id}
+                  className="aspect-[9/16] bg-[#111] border border-red-900/40 rounded-xl p-4 flex items-end"
+                >
+                  <p className="text-xs text-red-400">Módulo sem código — configure o slug no admin.</p>
+                </div>
+              );
+            }
 
             return (
                 <Link 
                     key={mod.id} 
-                    href={isLocked ? "#" : `/evolucao/${mod.code || mod.slug}`} 
+                    href={isLocked ? "#" : courseHref} 
                     className={`block group relative ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                     onClick={(e) => {
                         if (isLocked) {

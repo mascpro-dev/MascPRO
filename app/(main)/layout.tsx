@@ -39,12 +39,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
         
         if (profile && !profile.onboarding_completed && pathname !== "/onboarding") {
           router.push("/onboarding");
-        } else {
-          setChecking(false);
         }
-      } else {
-        setChecking(false);
       }
+      setChecking(false);
     }
     checkOnboarding();
   }, [supabase, router, pathname]);

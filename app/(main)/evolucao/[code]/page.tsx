@@ -27,7 +27,7 @@ export default function PlayerPage() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [currentLesson, setCurrentLesson] = useState<any>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
-  const [loadingProgresso, setLoadingProgresso] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [concluidas, setConcluidas] = useState<string[]>([]);
   
   const [videoStarted, setVideoStarted] = useState(false);
@@ -88,52 +88,92 @@ export default function PlayerPage() {
     }
   }, [currentLesson?.id]);
 
+  const courseKey = String(params.code || "").trim();
+
   useEffect(() => {
-    async function loadData() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-          setCurrentUser(session.user);
-          const { data: profiles } = await supabase.from('profiles').select('id, full_name, avatar_url');
-          setAllUsers(profiles || []);
-      }
-      const { data: courseData } = await supabase.from("courses").select("*").or(`code.eq.${params.code},slug.eq.${params.code}`).single();
-      setCourse(courseData);
-      if (!courseData?.code) {
-        setLessons([]);
-        setCurrentLesson(null);
-        setLoading(false);
-        return;
-      }
-      const { data: lessonsData } = await supabase.from("lessons").select("*").eq("course_code", courseData.code).order("sequence_order", { ascending: true });
-      setLessons(lessonsData || []);
-      const { data: progress } = await supabase.from("lesson_progress").select("lesson_id").eq("user_id", session?.user.id);
-      const completedSet = new Set<string>();
-      progress?.forEach((p: any) => completedSet.add(p.lesson_id));
-      setCompletedLessons(completedSet);
-      setCurrentLesson(lessonsData?.[0]);
+    if (!courseKey) {
+      setLoadError("Módulo inválido.");
       setLoading(false);
+      return;
     }
-    loadData();
-  }, [params.code]);
 
-  // 2. Busque no banco logo que a página abrir
-  useEffect(() => {
-    async function carregarProgresso() {
-      if (!currentUser) return;
+    let cancelled = false;
 
-      const { data } = await supabase
-        .from('user_progress')
-        .select('lesson_id')
-        .eq('user_id', currentUser.id);
+    async function loadData() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
 
-      if (data) {
-        // Transforma a lista do banco em um array simples de IDs
-        setConcluidas(data.map(p => p.lesson_id));
+        if (session?.user) {
+          setCurrentUser(session.user);
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, full_name, avatar_url");
+          if (!cancelled) setAllUsers(profiles || []);
+        }
+
+        const codeFilter = courseKey.replace(/,/g, "");
+        const { data: courseData, error: courseErr } = await supabase
+          .from("courses")
+          .select("*")
+          .or(`code.eq.${codeFilter},slug.eq.${codeFilter}`)
+          .maybeSingle();
+
+        if (courseErr) throw courseErr;
+        if (!courseData?.code) {
+          if (!cancelled) {
+            setCourse(null);
+            setLessons([]);
+            setCurrentLesson(null);
+            setLoadError("Módulo não encontrado.");
+          }
+          return;
+        }
+
+        const { data: lessonsData } = await supabase
+          .from("lessons")
+          .select("*")
+          .eq("course_code", courseData.code)
+          .order("sequence_order", { ascending: true });
+
+        const { data: progress } = userId
+          ? await supabase.from("lesson_progress").select("lesson_id").eq("user_id", userId)
+          : { data: null };
+
+        const { data: userProg } = userId
+          ? await supabase.from("user_progress").select("lesson_id").eq("user_id", userId)
+          : { data: null };
+
+        if (cancelled) return;
+
+        setCourse(courseData);
+        setLessons(lessonsData || []);
+        const completedSet = new Set<string>();
+        progress?.forEach((p: { lesson_id: string }) => completedSet.add(p.lesson_id));
+        setCompletedLessons(completedSet);
+        setConcluidas((userProg || []).map((p: { lesson_id: string }) => p.lesson_id));
+        setCurrentLesson(lessonsData?.[0] ?? null);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setLoadError("Não foi possível carregar o módulo. Tente novamente.");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoadingProgresso(false); // Só libera a tela após saber quem assistiu o que
     }
-    carregarProgresso();
-  }, [currentUser, currentLesson?.id]);
+
+    void loadData();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user && !cancelled) void loadData();
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [courseKey, supabase]);
 
   useEffect(() => {
     if (currentLesson?.id) loadComments();
@@ -446,10 +486,24 @@ export default function PlayerPage() {
 
   const materialLinks = getMaterialLinks(currentLesson?.material_url);
 
-  if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
-  
-  // 3. No seu HTML, só mostre o cadeado se o loadingProgresso for falso
-  if (loadingProgresso) return <div className="h-screen bg-black flex items-center justify-center"><p className="text-zinc-500">Sincronizando sua evolução...</p></div>;
+  if (loading) {
+    return (
+      <div className="h-screen bg-black flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#C9A66B]" />
+      </div>
+    );
+  }
+
+  if (loadError || !course) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-zinc-400">{loadError || "Módulo não encontrado."}</p>
+        <Link href="/evolucao" className="text-[#C9A66B] text-sm font-bold uppercase tracking-widest hover:underline">
+          Voltar à Evolução
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-300 font-sans selection:bg-[#C9A66B]/30">
@@ -474,10 +528,21 @@ export default function PlayerPage() {
             
             {/* PLAYER NINJA (CORRIGIDO PARA TOUCH) */}
             <div className="aspect-video w-full bg-black rounded-xl overflow-hidden border border-white/5 relative group shadow-2xl">
-              {!videoStarted ? (
+              {!lessonVideoId ? (
+                <div className="absolute inset-0 z-20 flex items-center justify-center p-6 text-center text-zinc-500 text-sm">
+                  Esta aula não tem vídeo cadastrado.
+                </div>
+              ) : !videoStarted ? (
                 <button onClick={() => setVideoStarted(true)} className="absolute inset-0 z-20 flex flex-col items-center justify-center">
-                  <img src={`https://img.youtube.com/vi/${lessonVideoId}/maxresdefault.jpg`} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
-                  <div className="w-16 h-16 bg-[#C9A66B] rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-110">
+                  <img
+                    src={`https://img.youtube.com/vi/${lessonVideoId}/hqdefault.jpg`}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover opacity-30"
+                    onError={(e) => {
+                      e.currentTarget.src = `https://img.youtube.com/vi/${lessonVideoId}/default.jpg`;
+                    }}
+                  />
+                  <div className="w-16 h-16 bg-[#C9A66B] rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-110 relative z-10">
                     <Play size={24} className="text-black ml-1 fill-black" />
                   </div>
                 </button>
