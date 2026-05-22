@@ -4,5 +4,13 @@
       "path": "/api/cron/agenda-lembretes",
       "schedule": "0 11 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "app/api/frete/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/checkout/route.ts": {
+      "maxDuration": 60
+    }
+  }
 }

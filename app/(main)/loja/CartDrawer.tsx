@@ -251,32 +251,20 @@ export default function CartDrawer() {
       setShowEnderecoForm(true);
       return;
     }
-    let freteParaPagamento = freteValor;
+    const freteParaPagamento = freteValor;
 
     if (!freteGratis) {
       if (loadingFrete) {
         alert("Aguarde o cálculo do frete (Correios).");
         return;
       }
-      setLoading(true);
-      try {
-        const valorAtual = await consultarFreteCorreios();
-        if (valorAtual === null || valorAtual < 0) {
-          alert("Não foi possível obter o frete dos Correios. Verifique o CEP e tente de novo.");
-          setLoading(false);
-          return;
-        }
-        setFrete(valorAtual);
-        freteParaPagamento = valorAtual;
-        setFreteErro("");
-      } catch (e) {
-        alert(e instanceof Error ? e.message : "Erro ao calcular frete.");
-        setLoading(false);
+      if (freteErro || frete === null) {
+        alert(freteErro || "Calcule o frete antes de pagar (confira o CEP).");
         return;
       }
-    } else {
-      setLoading(true);
     }
+
+    setLoading(true);
     const abortCtl = new AbortController();
     const checkoutTimer = setTimeout(() => abortCtl.abort(), 90_000);
     try {

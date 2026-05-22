@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calcularFretePedido } from "@/lib/fretePedido";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -61,8 +64,8 @@ export async function POST(req: NextRequest) {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro inesperado.";
     const erro =
-      /aborted|abort|timeout/i.test(msg)
-        ? "Correios demorou para responder. Tente novamente em instantes."
+      /aborted|abort|timeout|indisponível/i.test(msg)
+        ? "Correios demorou para responder. Aguarde o frete calcular e tente pagar de novo."
         : msg;
     return NextResponse.json({ ok: false, error: erro }, { status: 500 });
   }

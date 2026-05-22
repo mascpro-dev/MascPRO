@@ -4,6 +4,9 @@ import { createClient } from "@supabase/supabase-js";
 import { calcularFretePedido } from "@/lib/fretePedido";
 import { rateLimit, LIMITS } from "@/lib/rateLimit";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 function sbService() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) return null;
@@ -90,6 +93,7 @@ export async function POST(req: NextRequest) {
     );
 
     const cepDestino = String(shippingCep || "").replace(/\D/g, "");
+    const freteCliente = Number(shippingCost);
     let frete = 0;
     let freteGratis = false;
 
@@ -104,12 +108,23 @@ export async function POST(req: NextRequest) {
           quantity: Number(i.quantity || 1),
         })),
         supabase: db,
+        correiosTimeoutMs: 7_000,
       });
       frete = freteCalc.frete;
       freteGratis = freteCalc.freteGratis;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erro ao calcular frete.";
-      return NextResponse.json({ error: msg }, { status: 400 });
+      const podeUsarFreteCarrinho =
+        Number.isFinite(freteCliente) &&
+        freteCliente > 0 &&
+        cepDestino.length === 8;
+
+      if (podeUsarFreteCarrinho) {
+        frete = Number(freteCliente.toFixed(2));
+        console.warn("[checkout] Correios indisponível — usando frete do carrinho:", frete);
+      } else {
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
     }
 
     const total = subtotal + frete;

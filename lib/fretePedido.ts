@@ -17,6 +17,8 @@ export type FretePedidoInput = {
   estado?: string;
   items: { id: string; quantity?: number }[];
   supabase?: SupabaseClient;
+  /** Ex.: checkout com frete já exibido no carrinho — tentativa rápida aos Correios. */
+  correiosTimeoutMs?: number;
 };
 
 export type FretePedidoResult = {
@@ -99,16 +101,13 @@ export async function calcularFretePedido(input: FretePedidoInput): Promise<Fret
   const pesoGramas = pesoBase + getPesoEmbalagemGramas();
   const dim = dimensoesParaCarrinho(getDimensoesPadraoEm(), cartIt);
 
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 25_000);
   const r = await calcularFretePAC({
     cepOrigem,
     cepDestino,
     pesoGramas,
     dim,
-    signal: controller.signal,
+    timeoutMs: input.correiosTimeoutMs,
   });
-  clearTimeout(t);
 
   if (!r.ok) {
     throw new Error(`Não foi possível calcular o frete: ${r.mensagem}`);

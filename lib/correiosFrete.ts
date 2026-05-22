@@ -1,12 +1,20 @@
 /**
  * Cálculo de frete PAC (sem contrato) via webservice legado dos Correios.
- * Requer CEP de origem (loja) em process.env.CORREIOS_CEP_ORIGEM.
+ * Requer CEP de origem (loja) em process.env.CORREIOS_CEP_ORIGEM ou system_config.
  */
 
 const PAC_PADRAO = "04510";
+const PAC_ALT = "41106";
 const PESO_MIN_KG = 0.1;
 const PESO_MAX_KG = 30;
-const CUBAGEM_FATOR = 6000; // (cm): peso cubico kg = (C×L×A) / 6000
+const CUBAGEM_FATOR = 6000;
+/** Por tentativa — várias em paralelo; total deve caber no limite da Vercel (~10–60s). */
+const REQUEST_TIMEOUT_MS = 9_000;
+
+const BASES_CORREIOS = [
+  () => (process.env.CORREIOS_WS_BASE || "https://ws.correios.com.br").replace(/\/$/, ""),
+  () => "https://cws.correios.com.br",
+];
 
 function onlyDigits(cep: string): string {
   return String(cep || "").replace(/\D/g, "").slice(0, 8);
@@ -33,9 +41,6 @@ function pesoCubicoKg(dim: DimensaoCm): number {
   return (c * l * a) / CUBAGEM_FATOR;
 }
 
-/**
- * Soma o peso em gramas dos itens; produtos sem peso usam `pesoPadraoGramas` (ex.: 500g).
- */
 export function pesoTotalGramasItens(
   productRows: { id: string; peso_gramas: number | null }[],
   items: { id: string; quantity: number }[],
@@ -52,7 +57,6 @@ export function pesoTotalGramasItens(
   return Math.max(100, Math.round(g));
 }
 
-/** Ajusta altura da embalagem conforme quantidade de itens (evita sempre o mesmo cubagem). */
 export function dimensoesParaCarrinho(
   base: DimensaoCm,
   items: { quantity?: number }[]
@@ -100,30 +104,24 @@ function extrairDeServico(
   return null;
 }
 
-/**
- * Chama o webservice HTTP dos Correios (CalcPrecoPrazo).
- */
-export async function calcularFretePAC(opts: {
-  cepOrigem: string;
-  cepDestino: string;
-  pesoGramas: number;
-  dim: DimensaoCm;
-  nCdServico?: string;
-  signal?: AbortSignal;
-}): Promise<ResultadoCorreios | ErroCorreios> {
+async function chamarCorreiosUmaVez(
+  base: string,
+  servico: string,
+  opts: {
+    cepOrigem: string;
+    cepDestino: string;
+    pesoGramas: number;
+    dim: DimensaoCm;
+    timeoutMs?: number;
+  }
+): Promise<ResultadoCorreios | ErroCorreios> {
   const o = onlyDigits(opts.cepOrigem);
   const d = onlyDigits(opts.cepDestino);
-  if (o.length !== 8 || d.length !== 8) {
-    return { ok: false, mensagem: "CEP de origem ou destino inválido." };
-  }
-
   const pesoFisicoKg = Math.min(PESO_MAX_KG, Math.max(PESO_MIN_KG, opts.pesoGramas / 1000));
   const pCub = pesoCubicoKg(opts.dim);
   const nVlPeso = Math.min(PESO_MAX_KG, Math.max(PESO_MIN_KG, Math.max(pesoFisicoKg, pCub)));
-  const nCdServico = opts.nCdServico || process.env.CORREIOS_NCD_SERVICO || PAC_PADRAO;
 
-  const chamar = async (servico: string) => {
-    const params = new URLSearchParams({
+  const params = new URLSearchParams({
     nCdEmpresa: "",
     sDsSenha: "",
     nCdServico: servico,
@@ -141,46 +139,94 @@ export async function calcularFretePAC(opts: {
     StrRetorno: "xml",
   });
 
-    const base = (process.env.CORREIOS_WS_BASE || "https://ws.correios.com.br").replace(/\/$/, "");
-    const url = `${base}/calculador/CalcPrecoPrazo.asmx/CalcPrecoPrazo?${params.toString()}`;
+  const url = `${base}/calculador/CalcPrecoPrazo.asmx/CalcPrecoPrazo?${params.toString()}`;
+  const ac = new AbortController();
+  const ms = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  const timer = setTimeout(() => ac.abort(), ms);
+
+  try {
     const res = await fetch(url, {
       method: "GET",
       cache: "no-store",
-      signal: opts.signal,
+      signal: ac.signal,
+      headers: { Accept: "text/xml, application/xml, */*" },
     });
     if (!res.ok) {
-      return { ok: false, mensagem: `Correios retornou HTTP ${res.status}.` } as ErroCorreios;
+      return { ok: false, mensagem: `Correios HTTP ${res.status}.` };
     }
     const xml = await res.text();
     if (!xml.includes("<cServico")) {
-      return { ok: false, mensagem: "Resposta inesperada dos Correios." } as ErroCorreios;
+      return { ok: false, mensagem: "Resposta inesperada dos Correios." };
     }
     const parsed = extrairDeServico(xml, servico);
     if (parsed?.tipo === "ok") return parsed.r;
-    if (parsed?.tipo === "erro") return { ok: false, mensagem: parsed.msg } as ErroCorreios;
+    if (parsed?.tipo === "erro") return { ok: false, mensagem: parsed.msg };
     const anyErr = xml.match(/<MsgErro>([^<]*)<\/MsgErro>/i)?.[1]?.trim();
-    return { ok: false, mensagem: anyErr || "Não foi possível obter o valor do frete." } as ErroCorreios;
+    return { ok: false, mensagem: anyErr || "Valor de frete não encontrado na resposta." };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Falha de rede";
+    const timeout = /abort|timeout/i.test(msg);
+    return {
+      ok: false,
+      mensagem: timeout
+        ? "Correios demorou para responder."
+        : `Falha ao consultar Correios: ${msg}`,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Consulta Correios em paralelo (várias URLs + códigos PAC) — mais rápido na Vercel.
+ */
+export async function calcularFretePAC(opts: {
+  cepOrigem: string;
+  cepDestino: string;
+  pesoGramas: number;
+  dim: DimensaoCm;
+  nCdServico?: string;
+  signal?: AbortSignal;
+  /** Checkout: timeout menor — usa frete do carrinho se falhar. */
+  timeoutMs?: number;
+}): Promise<ResultadoCorreios | ErroCorreios> {
+  const o = onlyDigits(opts.cepOrigem);
+  const d = onlyDigits(opts.cepDestino);
+  if (o.length !== 8 || d.length !== 8) {
+    return { ok: false, mensagem: "CEP de origem ou destino inválido." };
+  }
+
+  const principal = opts.nCdServico || process.env.CORREIOS_NCD_SERVICO || PAC_PADRAO;
+  const servicos = [...new Set([principal, PAC_ALT])];
+  const bases = [...new Set(BASES_CORREIOS.map((fn) => fn()).filter(Boolean))];
+
+  const payload = {
+    cepOrigem: o,
+    cepDestino: d,
+    pesoGramas: opts.pesoGramas,
+    dim: opts.dim,
   };
 
-  let res: Awaited<ReturnType<typeof chamar>>;
-  try {
-    res = await chamar(nCdServico);
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Falha de rede ao consultar Correios.";
-    return { ok: false, mensagem: msg };
+  const tarefas = bases.flatMap((base) =>
+    servicos.map((servico) =>
+      chamarCorreiosUmaVez(base, servico, { ...payload, timeoutMs: opts.timeoutMs })
+    )
+  );
+
+  if (opts.signal?.aborted) {
+    return { ok: false, mensagem: "Consulta de frete cancelada." };
   }
 
-  if (res.ok) return res;
+  const todos = await Promise.allSettled(tarefas);
+  let ultimoErro: ErroCorreios = { ok: false, mensagem: "Correios indisponível. Tente novamente em instantes." };
 
-  if (nCdServico === PAC_PADRAO) {
-    try {
-      return await chamar("41106");
-    } catch (e2: unknown) {
-      return res;
-    }
+  for (const t of todos) {
+    if (t.status === "fulfilled" && t.value.ok) return t.value;
   }
-
-  return res;
+  for (const t of todos) {
+    if (t.status === "fulfilled" && !t.value.ok) ultimoErro = t.value;
+  }
+  return ultimoErro;
 }
 
 export function getDimensoesPadraoEm(): DimensaoCm {
