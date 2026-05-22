@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { calcularFretePedido } from "@/lib/fretePedido";
 import { rateLimit, LIMITS } from "@/lib/rateLimit";
 
-export const maxDuration = 60;
+export const maxDuration = 10;
 export const dynamic = "force-dynamic";
 
 function sbService() {
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
           quantity: Number(i.quantity || 1),
         })),
         supabase: db,
-        correiosTimeoutMs: 7_000,
+        correiosTimeoutMs: 6_000,
       });
       frete = freteCalc.frete;
       freteGratis = freteCalc.freteGratis;

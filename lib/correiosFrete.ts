@@ -1,15 +1,14 @@
 /**
- * Cálculo de frete PAC (sem contrato) via webservice legado dos Correios.
- * Requer CEP de origem (loja) em process.env.CORREIOS_CEP_ORIGEM ou system_config.
+ * Frete PAC via webservice legado dos Correios (sem contrato).
+ * CEP origem: system_config.correios_cep_origem ou CORREIOS_CEP_ORIGEM.
  */
 
-const PAC_PADRAO = "04510";
-const PAC_ALT = "41106";
+const PAC_CODIGOS = ["04510", "41106", "03298", "03220"];
 const PESO_MIN_KG = 0.1;
 const PESO_MAX_KG = 30;
 const CUBAGEM_FATOR = 6000;
-/** Por tentativa — várias em paralelo; total deve caber no limite da Vercel (~10–60s). */
-const REQUEST_TIMEOUT_MS = 9_000;
+/** Plano Vercel gratuito: função ~10s — uma requisição multi-serviço por base. */
+const REQUEST_TIMEOUT_MS = 8_000;
 
 const BASES_CORREIOS = [
   () => (process.env.CORREIOS_WS_BASE || "https://ws.correios.com.br").replace(/\/$/, ""),
@@ -20,7 +19,6 @@ function onlyDigits(cep: string): string {
   return String(cep || "").replace(/\D/g, "").slice(0, 8);
 }
 
-/** Valor no XML dos Correios: "45,90" ou "1.234,56" */
 function parseMoedaBr(val: string): number {
   const t = String(val || "").trim();
   if (!t) return NaN;
@@ -30,6 +28,26 @@ function parseMoedaBr(val: string): number {
   }
   const n = Number(t.replace(",", "."));
   return Number.isFinite(n) ? n : NaN;
+}
+
+/** SOAP/ASMX devolve XML escapado dentro de CalcPrecoPrazoResult. */
+function normalizarCorpoCorreios(raw: string): string {
+  let s = String(raw || "").trim();
+  if (!s) return s;
+
+  const soapInner = s.match(/<CalcPrecoPrazoResult[^>]*>([\s\S]*?)<\/CalcPrecoPrazoResult>/i);
+  if (soapInner?.[1]) s = soapInner[1];
+
+  if (s.includes("&lt;") || s.includes("&gt;")) {
+    s = s
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&amp;/gi, "&")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/g, "'");
+  }
+
+  return s;
 }
 
 export type DimensaoCm = { comprimento: number; largura: number; altura: number };
@@ -75,38 +93,65 @@ export type ResultadoCorreios = {
   valor: number;
   prazoEntrega: number;
   servico: string;
+  estimado?: boolean;
 };
 
 export type ErroCorreios = { ok: false; mensagem: string };
 
-function extrairDeServico(
-  xml: string,
-  codigoAlvo: string
-): { tipo: "ok"; r: ResultadoCorreios } | { tipo: "erro"; msg: string } | null {
-  const reBloco = /<cServico>[\s\S]*?<\/cServico>/gi;
+function extrairBlocosServico(xml: string): string[] {
+  const blocos: string[] = [];
+  const re = /<cServico\b[^>]*>[\s\S]*?<\/cServico>/gi;
   let m: RegExpExecArray | null;
-  while ((m = reBloco.exec(xml)) !== null) {
-    const bloco = m[0];
-    const cod = bloco.match(/<Codigo>([^<]+)<\/Codigo>/i)?.[1]?.trim() ?? "";
-    if (cod !== codigoAlvo) continue;
-    const err = bloco.match(/<Erro>([^<]+)<\/Erro>/i)?.[1]?.trim() ?? "0";
-    if (err !== "0" && err !== "") {
-      const msg = bloco.match(/<MsgErro>([^<]*)<\/MsgErro>/i)?.[1]?.trim() || "Erro ao calcular frete.";
-      return { tipo: "erro", msg };
-    }
-    const valStr = bloco.match(/<Valor>([^<]+)<\/Valor>/i)?.[1] ?? "";
-    const prazoStr = bloco.match(/<PrazoEntrega>([^<]+)<\/PrazoEntrega>/i)?.[1] ?? "0";
-    const valor = parseMoedaBr(valStr);
-    const prazoEntrega = parseInt(prazoStr, 10) || 0;
-    if (!Number.isFinite(valor)) return null;
-    return { tipo: "ok", r: { ok: true, valor, prazoEntrega, servico: codigoAlvo } };
+  while ((m = re.exec(xml)) !== null) blocos.push(m[0]);
+  return blocos;
+}
+
+function parseBlocoServico(
+  bloco: string,
+  codigosAceitos: Set<string>
+): { tipo: "ok"; r: ResultadoCorreios } | { tipo: "erro"; msg: string } | null {
+  const cod = bloco.match(/<Codigo>\s*([^<]+)\s*<\/Codigo>/i)?.[1]?.trim() ?? "";
+  if (!codigosAceitos.has(cod)) return null;
+
+  const err = bloco.match(/<Erro>\s*([^<]+)\s*<\/Erro>/i)?.[1]?.trim() ?? "0";
+  if (err !== "0" && err !== "") {
+    const msg = bloco.match(/<MsgErro>([^<]*)<\/MsgErro>/i)?.[1]?.trim() || "Erro ao calcular frete.";
+    return { tipo: "erro", msg };
   }
+
+  const valStr = bloco.match(/<Valor>\s*([^<]+)\s*<\/Valor>/i)?.[1] ?? "";
+  const prazoStr = bloco.match(/<PrazoEntrega>\s*([^<]+)\s*<\/PrazoEntrega>/i)?.[1] ?? "0";
+  const valor = parseMoedaBr(valStr);
+  const prazoEntrega = parseInt(prazoStr, 10) || 0;
+  if (!Number.isFinite(valor) || valor < 0) return null;
+  return { tipo: "ok", r: { ok: true, valor, prazoEntrega, servico: cod } };
+}
+
+function parseRespostaCorreios(xmlRaw: string, codigos: string[]): ResultadoCorreios | ErroCorreios | null {
+  const xml = normalizarCorpoCorreios(xmlRaw);
+  if (!xml) return null;
+
+  const codigosAceitos = new Set(codigos);
+  const blocos = extrairBlocosServico(xml);
+  let ultimoErro: string | null = null;
+
+  for (const bloco of blocos) {
+    const p = parseBlocoServico(bloco, codigosAceitos);
+    if (p?.tipo === "ok") return p.r;
+    if (p?.tipo === "erro") ultimoErro = p.msg;
+  }
+
+  if (ultimoErro) return { ok: false, mensagem: ultimoErro };
+
+  const anyErr = xml.match(/<MsgErro>([^<]*)<\/MsgErro>/i)?.[1]?.trim();
+  if (anyErr) return { ok: false, mensagem: anyErr };
+
   return null;
 }
 
-async function chamarCorreiosUmaVez(
+async function chamarCorreiosMulti(
   base: string,
-  servico: string,
+  servicos: string[],
   opts: {
     cepOrigem: string;
     cepDestino: string;
@@ -124,7 +169,7 @@ async function chamarCorreiosUmaVez(
   const params = new URLSearchParams({
     nCdEmpresa: "",
     sDsSenha: "",
-    nCdServico: servico,
+    nCdServico: servicos.join(","),
     sCepOrigem: o,
     sCepDestino: d,
     nVlPeso: nVlPeso.toFixed(2).replace(",", "."),
@@ -149,28 +194,33 @@ async function chamarCorreiosUmaVez(
       method: "GET",
       cache: "no-store",
       signal: ac.signal,
-      headers: { Accept: "text/xml, application/xml, */*" },
+      headers: {
+        Accept: "text/xml, application/xml, */*",
+        "User-Agent": "MascPRO/1.0 (+frete)",
+      },
     });
+    const body = await res.text();
     if (!res.ok) {
       return { ok: false, mensagem: `Correios HTTP ${res.status}.` };
     }
-    const xml = await res.text();
-    if (!xml.includes("<cServico")) {
-      return { ok: false, mensagem: "Resposta inesperada dos Correios." };
-    }
-    const parsed = extrairDeServico(xml, servico);
-    if (parsed?.tipo === "ok") return parsed.r;
-    if (parsed?.tipo === "erro") return { ok: false, mensagem: parsed.msg };
-    const anyErr = xml.match(/<MsgErro>([^<]*)<\/MsgErro>/i)?.[1]?.trim();
-    return { ok: false, mensagem: anyErr || "Valor de frete não encontrado na resposta." };
+
+    const parsed = parseRespostaCorreios(body, servicos);
+    if (parsed) return parsed;
+
+    const snippet = body.replace(/\s+/g, " ").slice(0, 120);
+    const pareceHtml = /<html/i.test(body);
+    return {
+      ok: false,
+      mensagem: pareceHtml
+        ? "Correios retornou página de erro (serviço instável). Tente de novo em instantes."
+        : `Resposta inesperada dos Correios${snippet ? `: ${snippet}` : "."}`,
+    };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Falha de rede";
     const timeout = /abort|timeout/i.test(msg);
     return {
       ok: false,
-      mensagem: timeout
-        ? "Correios demorou para responder."
-        : `Falha ao consultar Correios: ${msg}`,
+      mensagem: timeout ? "Correios demorou para responder." : `Falha ao consultar Correios: ${msg}`,
     };
   } finally {
     clearTimeout(timer);
@@ -178,8 +228,37 @@ async function chamarCorreiosUmaVez(
 }
 
 /**
- * Consulta Correios em paralelo (várias URLs + códigos PAC) — mais rápido na Vercel.
+ * Estimativa quando o webservice público falha (comum em Vercel + CEPs fora de SP).
+ * Baseada na diferença da região do CEP (1º dígito) e peso.
  */
+export function fretePacEstimado(opts: {
+  cepOrigem: string;
+  cepDestino: string;
+  pesoGramas: number;
+  valorBaseConfig?: number;
+}): ResultadoCorreios {
+  const o = onlyDigits(opts.cepOrigem);
+  const d = onlyDigits(opts.cepDestino);
+  const regO = parseInt(o.charAt(0) || "0", 10);
+  const regD = parseInt(d.charAt(0) || "0", 10);
+  const diff = Math.abs(regD - regO);
+  const pesoKg = Math.max(PESO_MIN_KG, opts.pesoGramas / 1000);
+  const extraPeso = Math.max(0, (pesoKg - 0.5) * 5);
+
+  const baseFixo =
+    opts.valorBaseConfig != null && opts.valorBaseConfig > 0 ? opts.valorBaseConfig : 22;
+  const valor = Number((baseFixo + diff * 6 + extraPeso).toFixed(2));
+  const prazoEntrega = Math.min(20, 5 + diff * 2 + Math.ceil(extraPeso));
+
+  return {
+    ok: true,
+    valor: Math.max(15, valor),
+    prazoEntrega,
+    servico: "ESTIMADO",
+    estimado: true,
+  };
+}
+
 export async function calcularFretePAC(opts: {
   cepOrigem: string;
   cepDestino: string;
@@ -187,8 +266,10 @@ export async function calcularFretePAC(opts: {
   dim: DimensaoCm;
   nCdServico?: string;
   signal?: AbortSignal;
-  /** Checkout: timeout menor — usa frete do carrinho se falhar. */
   timeoutMs?: number;
+  /** Se true, usa tabela estimada quando o webservice falhar. */
+  permitirEstimativa?: boolean;
+  valorEstimativaBase?: number;
 }): Promise<ResultadoCorreios | ErroCorreios> {
   const o = onlyDigits(opts.cepOrigem);
   const d = onlyDigits(opts.cepDestino);
@@ -196,36 +277,40 @@ export async function calcularFretePAC(opts: {
     return { ok: false, mensagem: "CEP de origem ou destino inválido." };
   }
 
-  const principal = opts.nCdServico || process.env.CORREIOS_NCD_SERVICO || PAC_PADRAO;
-  const servicos = [...new Set([principal, PAC_ALT])];
-  const bases = [...new Set(BASES_CORREIOS.map((fn) => fn()).filter(Boolean))];
+  const principal = opts.nCdServico || process.env.CORREIOS_NCD_SERVICO || PAC_CODIGOS[0];
+  const servicos = [...new Set([principal, ...PAC_CODIGOS])];
 
   const payload = {
     cepOrigem: o,
     cepDestino: d,
     pesoGramas: opts.pesoGramas,
     dim: opts.dim,
+    timeoutMs: opts.timeoutMs,
   };
-
-  const tarefas = bases.flatMap((base) =>
-    servicos.map((servico) =>
-      chamarCorreiosUmaVez(base, servico, { ...payload, timeoutMs: opts.timeoutMs })
-    )
-  );
 
   if (opts.signal?.aborted) {
     return { ok: false, mensagem: "Consulta de frete cancelada." };
   }
 
-  const todos = await Promise.allSettled(tarefas);
-  let ultimoErro: ErroCorreios = { ok: false, mensagem: "Correios indisponível. Tente novamente em instantes." };
+  let ultimoErro: ErroCorreios = { ok: false, mensagem: "Correios indisponível. Tente novamente." };
 
-  for (const t of todos) {
-    if (t.status === "fulfilled" && t.value.ok) return t.value;
+  for (const baseFn of BASES_CORREIOS) {
+    const base = baseFn();
+    if (!base) continue;
+    const r = await chamarCorreiosMulti(base, servicos, payload);
+    if (r.ok) return r;
+    ultimoErro = r;
   }
-  for (const t of todos) {
-    if (t.status === "fulfilled" && !t.value.ok) ultimoErro = t.value;
+
+  if (opts.permitirEstimativa) {
+    return fretePacEstimado({
+      cepOrigem: o,
+      cepDestino: d,
+      pesoGramas: opts.pesoGramas,
+      valorBaseConfig: opts.valorEstimativaBase,
+    });
   }
+
   return ultimoErro;
 }
 

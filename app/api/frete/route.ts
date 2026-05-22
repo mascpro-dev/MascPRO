@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calcularFretePedido } from "@/lib/fretePedido";
 
-export const maxDuration = 60;
+export const maxDuration = 10;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
@@ -52,7 +52,8 @@ export async function POST(req: NextRequest) {
         frete: r.frete,
         freteGratis: false,
         freteGratisAcima: r.freteGratisAcima,
-        motivo: "correios",
+        motivo: r.motivo || "correios",
+        freteEstimado: r.motivo === "estimado",
         prazoEntrega: r.prazoEntrega ?? null,
         pesoGramas: r.pesoGramas ?? null,
         cepOrigem: r.cepOrigem,

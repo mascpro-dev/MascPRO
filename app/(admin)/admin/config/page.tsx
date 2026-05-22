@@ -12,6 +12,8 @@ type Config = {
 
 const LABELS: Record<string, { label: string; tipo: "number" | "text"; prefixo?: string; sufixo?: string; min?: number; max?: number }> = {
   correios_cep_origem: { label: "CEP de origem Correios (loja)", tipo: "text" },
+  frete_pac_usar_estimativa: { label: "Usar frete estimado se Correios falhar", tipo: "text" },
+  frete_pac_fallback_base: { label: "Base do frete estimado (R$ 0 = automático)", tipo: "number", prefixo: "R$", min: 0 },
   frete_gratis_acima:  { label: "Frete Grátis acima de",      tipo: "number", prefixo: "R$",  min: 0    },
   percentual_comissao: { label: "Comissão embaixador (indicação)", tipo: "number", sufixo: "%", min: 0, max: 100 },
   percentual_comissao_cabeleireiro: { label: "Comissão cabeleireiro (indicação)", tipo: "number", sufixo: "%", min: 0, max: 100 },

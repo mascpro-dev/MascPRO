@@ -10,6 +10,8 @@ const DEFAULTS: Record<string, string> = {
   percentual_comissao: "15",
   percentual_comissao_cabeleireiro: "5",
   correios_cep_origem: "",
+  frete_pac_usar_estimativa: "true",
+  frete_pac_fallback_base: "0",
   taxa_saque:          "11",
   estoque_alerta_min:  "5",
   dias_cliente_risco:  "30",

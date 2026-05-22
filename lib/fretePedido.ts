@@ -25,7 +25,7 @@ export type FretePedidoResult = {
   frete: number;
   freteGratis: boolean;
   freteGratisAcima: number;
-  motivo?: "subtotal" | "marilia" | "correios";
+  motivo?: "subtotal" | "marilia" | "correios" | "estimado";
   prazoEntrega?: number;
   pesoGramas?: number;
   cepOrigem?: string;
@@ -101,12 +101,19 @@ export async function calcularFretePedido(input: FretePedidoInput): Promise<Fret
   const pesoGramas = pesoBase + getPesoEmbalagemGramas();
   const dim = dimensoesParaCarrinho(getDimensoesPadraoEm(), cartIt);
 
+  const fallbackBase = await getConfigNum("frete_pac_fallback_base");
+  const usarEstimativa =
+    (await getConfig("frete_pac_usar_estimativa")) !== "false" &&
+    process.env.FRETE_PAC_DESABILITAR_ESTIMATIVA !== "1";
+
   const r = await calcularFretePAC({
     cepOrigem,
     cepDestino,
     pesoGramas,
     dim,
     timeoutMs: input.correiosTimeoutMs,
+    permitirEstimativa: usarEstimativa,
+    valorEstimativaBase: fallbackBase > 0 ? fallbackBase : undefined,
   });
 
   if (!r.ok) {
@@ -122,7 +129,7 @@ export async function calcularFretePedido(input: FretePedidoInput): Promise<Fret
     frete: valor,
     freteGratis: false,
     freteGratisAcima,
-    motivo: "correios",
+    motivo: r.estimado ? "estimado" : "correios",
     prazoEntrega: r.prazoEntrega,
     pesoGramas,
     cepOrigem,

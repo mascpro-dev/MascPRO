@@ -112,10 +112,13 @@ export default function CartDrawer() {
       const valor = typeof data.frete === "number" ? data.frete : null;
       const pr = data.prazoEntrega;
       const pg = data.pesoGramas;
+      const estimado = data.freteEstimado || data.motivo === "estimado";
       const cepFmt = data.cepDestino ? String(data.cepDestino).replace(/(\d{5})(\d{3})/, "$1-$2") : c;
       setFreteInfo(
-        `PAC Correios · CEP ${cepFmt}${pr != null ? ` · ~${pr} dia(s) úteis` : ""}${
-          pg != null ? ` · ${Number(pg).toLocaleString("pt-BR")} g` : ""
+        `${estimado ? "Frete estimado (PAC)" : "PAC Correios"} · CEP ${cepFmt}${
+          pr != null ? ` · ~${pr} dia(s) úteis` : ""
+        }${pg != null ? ` · ${Number(pg).toLocaleString("pt-BR")} g` : ""}${
+          estimado ? " · valor aproximado" : ""
         }`
       );
       return valor;
