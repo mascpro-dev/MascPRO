@@ -1,11 +1,26 @@
 "use client";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { Suspense, useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import {
   ShoppingBag, User, Plus, Minus, Trash2, Search, Save, Loader2,
   CheckCircle2, AlertCircle, ArrowLeft, Package,
 } from "lucide-react";
+
+// Suspense boundary obrigatório no Next 14 quando há useSearchParams() (senão quebra o build).
+export default function PedidoManualPageWrapper() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen bg-black text-white items-center justify-center">
+          <Loader2 className="animate-spin text-[#C9A66B]" size={32} />
+        </div>
+      }
+    >
+      <PedidoManualPage />
+    </Suspense>
+  );
+}
 
 type Cliente = {
   id: string;
@@ -60,7 +75,7 @@ function precoPorRole(p: Produto, role: string | null | undefined): number {
   return Number(p.price_hairdresser) || Number(p.price) || 0;
 }
 
-export default function PedidoManualPage() {
+function PedidoManualPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preCliente = searchParams.get("cliente");
