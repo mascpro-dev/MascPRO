@@ -222,45 +222,47 @@ export default function AdminPedidosPage() {
 
   async function carregarPedidos() {
     setLoading(true);
-    let query = supabase
-      .from("orders")
-      .select(`
-        *,
-        profiles!orders_profile_id_fkey(full_name, nivel, avatar_url),
-        order_items(quantidade, preco_unitario, products(title))
-      `)
-      .order("created_at", { ascending: false });
-
-    if (filtro === "pending") {
-      query = query.in("status", ["pending", "novo"]);
-    } else if (filtro !== "todos") {
-      query = query.eq("status", filtro);
+    try {
+      const res = await fetch(`/api/admin/orders/list?filtro=${encodeURIComponent(filtro)}`, {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      const d = await res.json().catch(() => null);
+      if (!res.ok || !d?.ok) {
+        console.error("Falha ao carregar pedidos:", d?.error || res.statusText);
+        setPedidos([]);
+        return;
+      }
+      setPedidos((d.pedidos as Pedido[]) || []);
+    } catch (e) {
+      console.error("Erro de conexão ao listar pedidos:", e);
+      setPedidos([]);
+    } finally {
+      setLoading(false);
     }
-
-    const { data } = await query;
-    setPedidos((data as any) || []);
-    setLoading(false);
   }
 
   async function sincronizarPendentesMP(showFeedback = false) {
     if (syncingMp) return;
     setSyncingMp(true);
     try {
-      const { data: pendentes } = await supabase
-        .from("orders")
-        .select("id")
-        .in("status", ["pending", "novo"])
-        .order("created_at", { ascending: false })
-        .limit(30);
+      const res = await fetch("/api/admin/orders/list?filtro=pending&limit=50", {
+        cache: "no-store",
+      });
+      const d = await res.json().catch(() => null);
+      const pendentes: { id: string }[] = d?.ok ? d.pedidos : [];
 
-      if (!pendentes?.length) return;
+      if (!pendentes.length) {
+        if (showFeedback) alert("Nenhum pedido pendente para sincronizar.");
+        return;
+      }
 
       for (const pedido of pendentes) {
         await fetch("/api/orders/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId: pedido.id }),
-        });
+        }).catch(() => { /* segue para o próximo */ });
       }
 
       if (showFeedback) {
