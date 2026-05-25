@@ -12,6 +12,7 @@ const DEFAULTS: Record<string, string> = {
   correios_cep_origem: "",
   frete_pac_usar_estimativa: "true",
   frete_pac_fallback_base: "0",
+  frete_fixo_valor: "0",
   taxa_saque:          "11",
   estoque_alerta_min:  "5",
   dias_cliente_risco:  "30",

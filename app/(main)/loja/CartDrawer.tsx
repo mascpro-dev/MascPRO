@@ -83,7 +83,7 @@ export default function CartDrawer() {
 
       const res = await fetch("/api/frete", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         cache: "no-store",
         signal,
         body: JSON.stringify({
@@ -97,7 +97,20 @@ export default function CartDrawer() {
           subtotal,
         }),
       });
-      const data = await res.json();
+
+      // Trata resposta não-JSON (Vercel pode devolver HTML em 504/timeout).
+      // Sem isso, iOS Safari lança "The string did not match the expected pattern".
+      const raw = await res.text();
+      let data: Record<string, unknown> = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new Error(
+          res.status >= 500
+            ? "Servidor demorou para responder o frete. Tente de novo em alguns segundos."
+            : "Resposta inválida ao calcular o frete."
+        );
+      }
       if (typeof data?.freteGratisAcima === "number" && data.freteGratisAcima > 0) {
         setFreteGratisAcima(data.freteGratisAcima);
       }
@@ -301,11 +314,16 @@ export default function CartDrawer() {
         }),
       });
 
-      let data: { init_point?: string; error?: string };
+      const raw = await res.text();
+      let data: { init_point?: string; error?: string } = {};
       try {
-        data = await res.json();
+        data = raw ? JSON.parse(raw) : {};
       } catch {
-        alert("Resposta inválida do servidor. Tente novamente.");
+        alert(
+          res.status >= 500
+            ? "Servidor demorou para responder. Aguarde e tente pagar de novo."
+            : "Resposta inválida do servidor. Tente novamente."
+        );
         setLoading(false);
         return;
       }

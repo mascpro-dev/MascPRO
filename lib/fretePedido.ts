@@ -72,6 +72,22 @@ export async function calcularFretePedido(input: FretePedidoInput): Promise<Fret
     throw new Error("CEP de entrega inválido ou ausente.");
   }
 
+  // Atalho: frete fixo configurado pelo admin (sem consultar Correios).
+  const freteFixo = await getConfigNum("frete_fixo_valor");
+  if (freteFixo > 0) {
+    return {
+      frete: Number(freteFixo.toFixed(2)),
+      freteGratis: false,
+      freteGratisAcima,
+      motivo: "estimado",
+      prazoEntrega: 7,
+      pesoGramas: 0,
+      cepOrigem: "",
+      cepDestino,
+      servico: "FRETE FIXO",
+    };
+  }
+
   const cepOrigemConfig = String(await getConfig("correios_cep_origem") || "").replace(/\D/g, "");
   const cepOrigemEnv = String(process.env.CORREIOS_CEP_ORIGEM || "").replace(/\D/g, "");
   const cepOrigem = cepOrigemConfig.length === 8 ? cepOrigemConfig : cepOrigemEnv;

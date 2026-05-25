@@ -3,10 +3,11 @@ import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
+import Link from "next/link";
 import {
   ShoppingBag, CheckCircle, XCircle, Clock,
   Loader2, RefreshCw, PackageCheck, PackageOpen, Truck, Trash2,
-  FileText, ExternalLink,
+  FileText, ExternalLink, Plus,
 } from "lucide-react";
 
 type Pedido = {
@@ -338,9 +339,17 @@ export default function AdminPedidosPage() {
               </span>
             </p>
           </div>
-          <button onClick={carregarPedidos} className="text-zinc-500 hover:text-white transition-colors">
-            <RefreshCw size={20} />
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/admin/pedidos/manual"
+              className="flex items-center gap-2 bg-[#C9A66B] text-black font-black uppercase text-xs tracking-widest px-4 py-2 rounded-xl hover:bg-[#B89559] transition-colors"
+            >
+              <Plus size={14} /> Pedido manual
+            </Link>
+            <button onClick={carregarPedidos} className="text-zinc-500 hover:text-white transition-colors" aria-label="Recarregar">
+              <RefreshCw size={20} />
+            </button>
+          </div>
         </div>
         <div className="mb-4">
           <button
