@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   ShoppingBag, CheckCircle, XCircle, Clock,
   Loader2, RefreshCw, PackageCheck, PackageOpen, Truck, Trash2,
-  FileText, ExternalLink, Plus,
+  FileText, ExternalLink, Plus, AlertTriangle, Mail,
 } from "lucide-react";
 
 type Pedido = {
@@ -41,7 +41,24 @@ const STATUS: Record<string, StatusInfo> = {
   cancelled:  { label: "Cancelado",            style: "bg-red-900/30 text-red-400 border-red-800/40",         icon: <XCircle size={10} className="inline mr-1" /> },
 };
 
-type Filtro = "todos" | "pending" | "paid" | "separacao" | "despachado" | "entregue" | "cancelled";
+type Filtro = "todos" | "abandonados" | "pending" | "paid" | "separacao" | "despachado" | "entregue" | "cancelled";
+
+type CarrinhoAbandonado = {
+  profile_id: string;
+  items: Array<{ id: string; title: string; quantity: number; price: number; image_url?: string }>;
+  subtotal: number;
+  shipping_cep: string | null;
+  shipping_address: string | null;
+  shipping_cost: number;
+  updated_at: string;
+  created_at: string;
+  profiles: {
+    full_name: string | null;
+    email: string | null;
+    role: string | null;
+    avatar_url: string | null;
+  } | null;
+};
 
 export default function AdminPedidosPage() {
   const supabase = createClientComponentClient();
@@ -64,7 +81,40 @@ export default function AdminPedidosPage() {
   const [emitindoNfe, setEmitindoNfe] = useState(false);
   const [nfeResultado, setNfeResultado] = useState<{ numero?: string; chave?: string; erro?: string } | null>(null);
 
+  // Carrinhos abandonados
+  const [carrinhos, setCarrinhos] = useState<CarrinhoAbandonado[]>([]);
+  const [loadingCarrinhos, setLoadingCarrinhos] = useState(false);
+
   useEffect(() => { carregarPedidos(); }, [filtro]);
+  useEffect(() => {
+    if (filtro === "abandonados") void carregarCarrinhosAbandonados();
+  }, [filtro]);
+
+  async function carregarCarrinhosAbandonados() {
+    setLoadingCarrinhos(true);
+    try {
+      const res = await fetch("/api/admin/carrinhos-abandonados", { cache: "no-store" });
+      const d = await res.json().catch(() => null);
+      if (d?.ok) setCarrinhos(d.carrinhos || []);
+    } finally {
+      setLoadingCarrinhos(false);
+    }
+  }
+
+  async function descartarCarrinho(profileId: string) {
+    if (!confirm("Descartar este carrinho abandonado?")) return;
+    const res = await fetch("/api/admin/carrinhos-abandonados", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId }),
+    });
+    const d = await res.json().catch(() => null);
+    if (!d?.ok) {
+      alert(d?.error || "Erro ao descartar carrinho.");
+      return;
+    }
+    await carregarCarrinhosAbandonados();
+  }
 
   async function emitirNfe(pedidoId: string) {
     setEmitindoNfe(true);
@@ -304,13 +354,14 @@ export default function AdminPedidosPage() {
   const totalFiltrado = pedidos.reduce((acc, p) => acc + Number(p.total), 0);
 
   const FILTROS: { key: Filtro; label: string }[] = [
-    { key: "pending",    label: "Pendentes" },
-    { key: "paid",       label: "Pagos" },
-    { key: "separacao",  label: "Em Separação" },
-    { key: "despachado", label: "Despachados" },
-    { key: "entregue",   label: "Entregues" },
-    { key: "cancelled",  label: "Cancelados" },
-    { key: "todos",      label: "Todos" },
+    { key: "abandonados", label: "Abandonados" },
+    { key: "pending",     label: "Pendentes" },
+    { key: "paid",        label: "Pagos" },
+    { key: "separacao",   label: "Em Separação" },
+    { key: "despachado",  label: "Despachados" },
+    { key: "entregue",    label: "Entregues" },
+    { key: "cancelled",   label: "Cancelados" },
+    { key: "todos",       label: "Todos" },
   ];
 
   useEffect(() => {
@@ -410,8 +461,105 @@ export default function AdminPedidosPage() {
           </button>
         </div>
 
-        {/* Lista */}
-        {loading ? (
+        {/* Carrinhos abandonados */}
+        {filtro === "abandonados" ? (
+          loadingCarrinhos ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="animate-spin text-[#C9A66B]" size={32} />
+            </div>
+          ) : carrinhos.length === 0 ? (
+            <div className="text-center py-20 text-zinc-600">
+              <AlertTriangle size={48} className="mx-auto mb-4 opacity-30" />
+              <p className="font-bold uppercase tracking-widest text-sm">Nenhum carrinho abandonado</p>
+              <p className="text-xs text-zinc-500 mt-2 max-w-md mx-auto leading-relaxed">
+                Aqui aparecem os clientes logados que adicionaram produtos ao carrinho e não finalizaram a compra.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <p className="text-xs text-zinc-500">
+                Clique em <span className="text-[#C9A66B] font-bold">Finalizar venda</span> para criar o pedido manualmente — comissão é gerada do mesmo jeito.
+              </p>
+              {carrinhos.map((c) => {
+                const itensCount = c.items?.reduce((s, i) => s + (i.quantity || 0), 0) || 0;
+                const itensQuery = (c.items || [])
+                  .map((i) => `${i.id}:${i.quantity}:${i.price}`)
+                  .join(",");
+                const linkManual = `/admin/pedidos/manual?cliente=${c.profile_id}&itens=${encodeURIComponent(itensQuery)}`;
+                return (
+                  <div key={c.profile_id} className="bg-zinc-900/50 border border-amber-700/30 rounded-2xl p-6 flex flex-col gap-4">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                      <div className="flex items-start gap-4 flex-1 min-w-0">
+                        <AdminMemberAvatar
+                          avatarUrl={c.profiles?.avatar_url || null}
+                          name={c.profiles?.full_name || ""}
+                          className="rounded-lg border-amber-500/25 bg-amber-500/10 text-amber-400"
+                        />
+                        <div className="min-w-0">
+                          <p className="font-bold text-white truncate">{c.profiles?.full_name || "—"}</p>
+                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
+                            {c.profiles?.role || "—"} · Atualizado {new Date(c.updated_at).toLocaleString("pt-BR")}
+                          </p>
+                          {c.profiles?.email && (
+                            <p className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
+                              <Mail size={10} /> {c.profiles.email}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-start md:items-end gap-2 shrink-0">
+                        <p className="text-2xl font-black text-white">
+                          R$ {Number(c.subtotal || 0).toFixed(2)}
+                        </p>
+                        <span className="text-[10px] font-black uppercase tracking-widest border px-3 py-1 rounded-full bg-amber-900/30 text-amber-300 border-amber-700/40">
+                          {itensCount} {itensCount === 1 ? "item" : "itens"} no carrinho
+                        </span>
+                      </div>
+                    </div>
+
+                    {c.items?.length > 0 && (
+                      <div className="border-t border-zinc-800 pt-3">
+                        <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mb-2">Itens</p>
+                        <div className="flex flex-col gap-1">
+                          {c.items.map((i, ix) => (
+                            <div key={ix} className="flex justify-between text-xs text-zinc-400">
+                              <span className="truncate">{i.title || "Produto"} × {i.quantity}</span>
+                              <span>R$ {(Number(i.price || 0) * Number(i.quantity || 0)).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="border-t border-zinc-800 pt-3 flex flex-wrap gap-2 items-center">
+                      <Link
+                        href={linkManual}
+                        className="flex items-center gap-1 bg-[#C9A66B] hover:bg-[#B89559] text-black font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all"
+                      >
+                        <CheckCircle size={14} /> Finalizar venda
+                      </Link>
+                      {c.profiles?.email && (
+                        <a
+                          href={`mailto:${c.profiles.email}?subject=Sobre seu pedido na Masc PRO&body=Olá ${c.profiles.full_name || ""}, vi que você deixou itens no carrinho — posso te ajudar a finalizar?`}
+                          className="flex items-center gap-1 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 font-bold uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl border border-blue-800/40"
+                        >
+                          <Mail size={14} /> Enviar e-mail
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => descartarCarrinho(c.profile_id)}
+                        className="flex items-center gap-1 bg-red-900/20 hover:bg-red-900/40 text-red-400 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl border border-red-800/40"
+                      >
+                        <Trash2 size={14} /> Descartar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : loading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="animate-spin text-[#C9A66B]" size={32} />
           </div>

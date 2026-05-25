@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import {
   ShoppingBag, User, Plus, Minus, Trash2, Search, Save, Loader2,
@@ -62,6 +62,9 @@ function precoPorRole(p: Produto, role: string | null | undefined): number {
 
 export default function PedidoManualPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preCliente = searchParams.get("cliente");
+  const preItens = searchParams.get("itens");
 
   const [buscaCliente, setBuscaCliente] = useState("");
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -97,6 +100,58 @@ export default function PedidoManualPage() {
   }, []);
 
   useEffect(() => { void carregarProdutos(""); }, [carregarProdutos]);
+
+  // Pré-carrega cliente + itens vindos do carrinho abandonado (?cliente=&itens=)
+  useEffect(() => {
+    let cancelled = false;
+    async function preCarregar() {
+      if (!preCliente && !preItens) return;
+
+      if (preCliente) {
+        try {
+          const res = await fetch(`/api/admin/pedidos-manuais/busca?tipo=clientes&q=${encodeURIComponent(preCliente)}`, { cache: "no-store" });
+          const d = await res.json().catch(() => null);
+          const lista: Cliente[] = d?.clientes || [];
+          const c = lista.find((x) => x.id === preCliente) || lista[0] || null;
+          if (c && !cancelled) setClienteSel(c);
+        } catch { /* ignora */ }
+      }
+
+      if (preItens) {
+        // Formato: "id1:qty:price,id2:qty:price"
+        const partes = preItens
+          .split(",")
+          .map((p) => p.split(":"))
+          .filter((p) => p.length >= 2);
+        const ids = partes.map((p) => p[0]).filter(Boolean);
+        if (ids.length === 0) return;
+
+        try {
+          const res = await fetch(`/api/admin/pedidos-manuais/busca?tipo=produtos`, { cache: "no-store" });
+          const d = await res.json().catch(() => null);
+          const todos: Produto[] = d?.produtos || [];
+          if (cancelled) return;
+          const itensIniciais: ItemPedido[] = partes
+            .map(([id, qtd, preco]) => {
+              const p = todos.find((pp) => pp.id === id);
+              if (!p) return null;
+              const qty = Math.max(1, Math.floor(Number(qtd) || 1));
+              const precoNum = Number(preco) > 0 ? Number(preco) : precoPorRole(p, null);
+              return {
+                product_id: p.id,
+                title: p.title,
+                quantidade: qty,
+                preco_unitario: precoNum,
+              };
+            })
+            .filter((x): x is ItemPedido => x !== null);
+          if (itensIniciais.length > 0) setItens(itensIniciais);
+        } catch { /* ignora */ }
+      }
+    }
+    void preCarregar();
+    return () => { cancelled = true; };
+  }, [preCliente, preItens]);
 
   useEffect(() => {
     const t = setTimeout(() => { void carregarProdutos(buscaProduto); }, 300);
