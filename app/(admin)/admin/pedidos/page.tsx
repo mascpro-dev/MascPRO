@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   ShoppingBag, CheckCircle, XCircle, Clock,
   Loader2, RefreshCw, PackageCheck, PackageOpen, Truck, Trash2,
-  FileText, ExternalLink, Plus, AlertTriangle, Mail,
+  FileText, ExternalLink, Plus, AlertTriangle, Mail, Search, UserSearch,
 } from "lucide-react";
 
 type Pedido = {
@@ -85,6 +85,34 @@ export default function AdminPedidosPage() {
   const [carrinhos, setCarrinhos] = useState<CarrinhoAbandonado[]>([]);
   const [loadingCarrinhos, setLoadingCarrinhos] = useState(false);
 
+  // Busca de cliente (diagnóstico)
+  const [buscaCliente, setBuscaCliente] = useState("");
+  const [diagResultados, setDiagResultados] = useState<Array<{
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    role: string | null;
+    avatar_url: string | null;
+    last_sign_in_at: string | null;
+    pedidos: Array<{
+      id: string;
+      total: number;
+      status: string;
+      payment_method: string;
+      mp_payment_id: string | null;
+      shipping_cost: number;
+      created_at: string;
+      order_items?: Array<{ quantidade: number; preco_unitario: number; products: { title: string } | null }>;
+    }>;
+    carrinho: {
+      items?: Array<{ id: string; title: string; quantity: number; price: number }>;
+      subtotal?: number;
+      status?: string;
+      updated_at?: string;
+    } | null;
+  }>>([]);
+  const [diagLoading, setDiagLoading] = useState(false);
+
   useEffect(() => { carregarPedidos(); }, [filtro]);
   useEffect(() => {
     if (filtro === "abandonados") void carregarCarrinhosAbandonados();
@@ -98,6 +126,26 @@ export default function AdminPedidosPage() {
       if (d?.ok) setCarrinhos(d.carrinhos || []);
     } finally {
       setLoadingCarrinhos(false);
+    }
+  }
+
+  async function buscarCliente() {
+    const q = buscaCliente.trim();
+    if (q.length < 2) {
+      alert("Digite ao menos 2 letras do nome ou e-mail.");
+      return;
+    }
+    setDiagLoading(true);
+    try {
+      const res = await fetch(`/api/admin/clientes/diagnostico?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+      const d = await res.json().catch(() => null);
+      if (!d?.ok) {
+        alert(d?.error || "Erro ao buscar cliente.");
+        return;
+      }
+      setDiagResultados(d.clientes || []);
+    } finally {
+      setDiagLoading(false);
     }
   }
 
@@ -404,7 +452,7 @@ export default function AdminPedidosPage() {
             </button>
           </div>
         </div>
-        <div className="mb-4">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={async () => {
@@ -416,6 +464,106 @@ export default function AdminPedidosPage() {
           >
             {syncingMp ? "Sincronizando MP..." : "Sincronizar pagamentos MP"}
           </button>
+        </div>
+
+        {/* Diagnóstico — buscar cliente por nome/e-mail */}
+        <div className="mb-6 p-4 rounded-2xl border border-zinc-800 bg-zinc-900/40">
+          <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 flex items-center gap-2">
+            <UserSearch size={12} /> Buscar cliente (vê pedidos em qualquer status + carrinho)
+          </p>
+          <div className="flex flex-col md:flex-row gap-2">
+            <div className="flex-1 relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <input
+                type="text"
+                value={buscaCliente}
+                onChange={(e) => setBuscaCliente(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void buscarCliente(); }}
+                placeholder="Ex.: Silvia Cristina, silvia@gmail.com…"
+                className="w-full bg-black border border-zinc-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B]"
+              />
+            </div>
+            <button
+              onClick={buscarCliente}
+              disabled={diagLoading}
+              className="bg-[#C9A66B] hover:bg-[#B89559] text-black font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-2"
+            >
+              {diagLoading ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />} Buscar
+            </button>
+          </div>
+
+          {diagResultados.length > 0 && (
+            <div className="mt-4 space-y-3">
+              {diagResultados.map((c) => {
+                const linkManual = c.carrinho?.items?.length
+                  ? `/admin/pedidos/manual?cliente=${c.id}&itens=${encodeURIComponent(c.carrinho.items.map((i) => `${i.id}:${i.quantity}:${i.price}`).join(","))}`
+                  : `/admin/pedidos/manual?cliente=${c.id}`;
+                return (
+                  <div key={c.id} className="rounded-xl border border-zinc-800 bg-black/40 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <p className="font-bold text-white">{c.full_name || "(sem nome)"}</p>
+                        <p className="text-[10px] text-zinc-500">
+                          {c.email || "—"} · {c.role || "—"}
+                          {c.last_sign_in_at && ` · Último acesso ${new Date(c.last_sign_in_at).toLocaleString("pt-BR")}`}
+                        </p>
+                      </div>
+                      <Link
+                        href={linkManual}
+                        className="text-[10px] font-black uppercase tracking-widest bg-[#C9A66B] hover:bg-[#B89559] text-black px-3 py-1.5 rounded-lg flex items-center gap-1"
+                      >
+                        <Plus size={11} /> Criar pedido manual
+                      </Link>
+                    </div>
+
+                    {c.carrinho && (c.carrinho.items?.length || 0) > 0 && (
+                      <div className="mb-3 rounded-lg border border-amber-700/30 bg-amber-900/10 p-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-300 mb-1">
+                          Carrinho abandonado · R$ {Number(c.carrinho.subtotal || 0).toFixed(2)} · status: {c.carrinho.status}
+                        </p>
+                        {c.carrinho.items?.map((i, ix) => (
+                          <p key={ix} className="text-[11px] text-zinc-400">
+                            • {i.title} × {i.quantity} — R$ {(Number(i.price) * Number(i.quantity)).toFixed(2)}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">
+                        {c.pedidos.length === 0 ? "Nenhum pedido criado no banco" : `${c.pedidos.length} pedido(s) no banco`}
+                      </p>
+                      {c.pedidos.length === 0 ? (
+                        <p className="text-[11px] text-amber-400">
+                          ⚠ Cliente nunca conseguiu finalizar checkout — provavelmente travou na hora de pagar (frete, etc).
+                          Use o botão acima para criar manualmente.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {c.pedidos.map((p) => (
+                            <div key={p.id} className="text-[11px] flex flex-wrap items-center gap-2 bg-zinc-900/60 rounded-lg px-3 py-2 border border-zinc-800">
+                              <span className={`px-2 py-0.5 rounded-full font-black uppercase text-[9px] tracking-widest border ${(STATUS[p.status] || STATUS.pending).style}`}>
+                                {(STATUS[p.status] || STATUS.pending).label}
+                              </span>
+                              <span className="text-zinc-400">
+                                {new Date(p.created_at).toLocaleString("pt-BR")}
+                              </span>
+                              <span className="text-white font-bold">R$ {Number(p.total || 0).toFixed(2)}</span>
+                              <span className="text-zinc-500">via {pagamentoLabel(p.payment_method)}</span>
+                              {p.mp_payment_id && <span className="text-zinc-500 font-mono">MP #{p.mp_payment_id}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {!diagLoading && diagResultados.length === 0 && buscaCliente.trim().length >= 2 && (
+            <p className="text-xs text-zinc-500 mt-3">Clique em "Buscar" para procurar.</p>
+          )}
         </div>
 
         {/* Filtros */}
