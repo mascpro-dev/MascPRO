@@ -309,10 +309,11 @@ function PedidoManualPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex min-h-0 min-h-screen overflow-hidden bg-black text-white">
       <AdminSidebar />
-      <main className="flex-1 p-6 md:p-10 max-w-6xl mx-auto">
-        <div className="flex items-center gap-3 mb-8">
+      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-6 md:p-10">
+        <div className="max-w-6xl mx-auto">
+        <div className="flex items-center gap-3 mb-6 shrink-0">
           <button
             onClick={() => router.push("/admin/pedidos")}
             className="text-zinc-400 hover:text-white"
@@ -339,8 +340,8 @@ function PedidoManualPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <section className="lg:col-span-2 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-start pb-8">
+          <section className="lg:col-span-2 space-y-6 min-w-0">
             <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5">
               <h2 className="text-xs uppercase tracking-widest text-zinc-400 mb-3 flex items-center gap-2">
                 <User size={14} /> Cliente
@@ -408,7 +409,7 @@ function PedidoManualPage() {
                 />
               </div>
 
-              <div className="max-h-60 overflow-y-auto border border-zinc-800 rounded-lg divide-y divide-zinc-800">
+              <div className="max-h-72 sm:max-h-80 overflow-y-auto overscroll-contain border border-zinc-800 rounded-lg divide-y divide-zinc-800 pr-1">
                 {carregandoProdutos && (
                   <div className="p-3 text-xs text-zinc-500 flex items-center gap-2">
                     <Loader2 size={12} className="animate-spin" /> Carregando…
@@ -441,13 +442,19 @@ function PedidoManualPage() {
               </div>
             </div>
 
-            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5">
-              <h2 className="text-xs uppercase tracking-widest text-zinc-400 mb-3">
+            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 flex flex-col min-h-0">
+              <h2 className="text-xs uppercase tracking-widest text-zinc-400 mb-3 shrink-0">
                 Itens do pedido
+                {itens.length > 0 && (
+                  <span className="ml-2 text-zinc-600 font-normal normal-case">
+                    ({itens.length} {itens.length === 1 ? "item" : "itens"})
+                  </span>
+                )}
               </h2>
               {itens.length === 0 ? (
                 <p className="text-sm text-zinc-500">Adicione produtos no quadro acima.</p>
               ) : (
+                <div className="max-h-80 sm:max-h-[28rem] overflow-y-auto overscroll-contain pr-1">
                 <ul className="space-y-2">
                   {itens.map((i) => (
                     <li key={i.product_id} className="flex items-center gap-3 bg-black/40 rounded-lg p-3 border border-zinc-800">
@@ -485,10 +492,11 @@ function PedidoManualPage() {
                     </li>
                   ))}
                 </ul>
+                </div>
               )}
             </div>
 
-            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-3">
+            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-3 shrink-0">
               <h2 className="text-xs uppercase tracking-widest text-zinc-400">Entrega</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
@@ -544,7 +552,7 @@ function PedidoManualPage() {
             </div>
           </section>
 
-          <aside className="space-y-6">
+          <aside className="space-y-6 lg:sticky lg:top-6 self-start w-full">
             <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-3">
               <h2 className="text-xs uppercase tracking-widest text-zinc-400 mb-2">Resumo</h2>
               <div className="flex justify-between text-sm">
@@ -604,6 +612,7 @@ function PedidoManualPage() {
               )}
             </button>
           </aside>
+        </div>
         </div>
       </main>
     </div>
