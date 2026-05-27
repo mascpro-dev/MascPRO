@@ -3,11 +3,12 @@ import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
+import EditarPedidoModal from "@/componentes/EditarPedidoModal";
 import Link from "next/link";
 import {
   ShoppingBag, CheckCircle, XCircle, Clock,
   Loader2, RefreshCw, PackageCheck, PackageOpen, Truck, Trash2,
-  FileText, ExternalLink, Plus, AlertTriangle, Mail, Search, UserSearch,
+  FileText, ExternalLink, Plus, AlertTriangle, Mail, Search, UserSearch, Pencil,
 } from "lucide-react";
 
 type Pedido = {
@@ -69,6 +70,8 @@ export default function AdminPedidosPage() {
   const [adminSecret, setAdminSecret] = useState("");
   const [limpando, setLimpando] = useState(false);
   const [syncingMp, setSyncingMp] = useState(false);
+
+  const [editarPedidoId, setEditarPedidoId] = useState<string | null>(null);
 
   // Modal de tracking
   const [modalTracking, setModalTracking] = useState<Pedido | null>(null);
@@ -793,6 +796,15 @@ export default function AdminPedidosPage() {
 
                     <button
                       type="button"
+                      onClick={() => setEditarPedidoId(pedido.id)}
+                      disabled={isProcessando}
+                      className="flex items-center gap-1 bg-[#C9A66B]/20 hover:bg-[#C9A66B]/35 text-[#C9A66B] font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all disabled:opacity-50 border border-[#C9A66B]/40"
+                    >
+                      <Pencil size={14} /> Editar pedido
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => apagarPedidoAdmin(pedido.id)}
                       disabled={isProcessando}
                       className="flex items-center gap-1 bg-red-900/20 hover:bg-red-900/40 text-red-400 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all disabled:opacity-50 border border-red-800/40"
@@ -1029,6 +1041,14 @@ export default function AdminPedidosPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {editarPedidoId && (
+        <EditarPedidoModal
+          orderId={editarPedidoId}
+          onClose={() => setEditarPedidoId(null)}
+          onSaved={() => void carregarPedidos()}
+        />
       )}
     </div>
   );
