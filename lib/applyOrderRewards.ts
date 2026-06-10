@@ -37,18 +37,26 @@ export async function applyOrderRewards(
   let valorComissao = 0;
 
   if (!order.pro_aplicado && proBonus > 0) {
-    const { data: comp } = await supabase
+    const { data: comp, error: eComp } = await supabase
       .from("profiles")
       .select("total_compras_proprias")
       .eq("id", order.profile_id)
       .single();
-    await supabase
+    if (eComp) return { ok: false, error: eComp.message };
+
+    const { error: eUpPro } = await supabase
       .from("profiles")
       .update({
         total_compras_proprias: Number(comp?.total_compras_proprias || 0) + proBonus,
       })
       .eq("id", order.profile_id);
-    await supabase.from("orders").update({ pro_aplicado: true }).eq("id", orderId);
+    if (eUpPro) return { ok: false, error: eUpPro.message };
+
+    const { error: eFlagPro } = await supabase
+      .from("orders")
+      .update({ pro_aplicado: true })
+      .eq("id", orderId);
+    if (eFlagPro) return { ok: false, error: eFlagPro.message };
   }
 
   if (!order.comissao_aplicada) {
@@ -59,18 +67,20 @@ export async function applyOrderRewards(
       .maybeSingle();
 
     if (!existente) {
-      const { data: comprador } = await supabase
+      const { data: comprador, error: eComprador } = await supabase
         .from("profiles")
         .select("id, indicado_por")
         .eq("id", order.profile_id)
         .single();
+      if (eComprador) return { ok: false, error: eComprador.message };
 
       if (comprador?.indicado_por) {
-        const { data: indicador } = await supabase
+        const { data: indicador, error: eInd } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", comprador.indicado_por)
           .maybeSingle();
+        if (eInd) return { ok: false, error: eInd.message };
 
         const percentual = await percentualComissaoDoIndicador(
           String(indicador?.role || "")
@@ -78,7 +88,7 @@ export async function applyOrderRewards(
         if (percentual != null) {
           valorComissao = calcularValorComissao(valorPedido, percentual);
           if (valorComissao > 0) {
-            await supabase.from("commissions").insert({
+            const { error: eIns } = await supabase.from("commissions").insert({
               embaixador_id: comprador.indicado_por,
               cabeleireiro_id: comprador.id,
               order_id: order.id,
@@ -87,26 +97,34 @@ export async function applyOrderRewards(
               valor_comissao: valorComissao,
               status: "disponivel",
             });
+            if (eIns) return { ok: false, error: eIns.message };
           }
         }
 
         if (proBonus > 0) {
-          const { data: emb } = await supabase
+          const { data: emb, error: eEmb } = await supabase
             .from("profiles")
             .select("total_compras_rede")
             .eq("id", comprador.indicado_por)
             .single();
-          await supabase
+          if (eEmb) return { ok: false, error: eEmb.message };
+
+          const { error: eUpRede } = await supabase
             .from("profiles")
             .update({
               total_compras_rede: Number(emb?.total_compras_rede || 0) + proBonus,
             })
             .eq("id", comprador.indicado_por);
+          if (eUpRede) return { ok: false, error: eUpRede.message };
         }
       }
     }
 
-    await supabase.from("orders").update({ comissao_aplicada: true }).eq("id", orderId);
+    const { error: eFlagCom } = await supabase
+      .from("orders")
+      .update({ comissao_aplicada: true })
+      .eq("id", orderId);
+    if (eFlagCom) return { ok: false, error: eFlagCom.message };
   }
 
   return {

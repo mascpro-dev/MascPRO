@@ -383,6 +383,12 @@ export default function AdminPedidosPage() {
         alert(data?.error || "Erro ao atualizar status. Verifique os logs do Vercel.");
         return;
       }
+      if (data?.rewardsErro) {
+        alert(
+          `Pedido marcado como pago, mas comissão/PRO não foram aplicados:\n${data.rewardsErro}\n\n` +
+            `Se o erro mencionar "is_active", rode supabase/fix_trigger_is_active_profiles.sql no Supabase.`
+        );
+      }
       if (data?.estoqueCatalogoErro) {
         alert(`Status atualizado, mas a baixa do estoque do catálogo falhou:\n${data.estoqueCatalogoErro}`);
       }
