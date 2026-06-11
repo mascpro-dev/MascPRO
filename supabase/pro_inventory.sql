@@ -31,6 +31,9 @@ CREATE POLICY "pro_inventory_update_own" ON pro_inventory FOR UPDATE
 CREATE POLICY "pro_inventory_delete_own" ON pro_inventory FOR DELETE
   USING (auth.uid() = professional_id);
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pro_inventory TO authenticated;
+GRANT ALL ON public.pro_inventory TO service_role;
+
 -- Idempotência: não creditar estoque duas vezes para o mesmo pedido
 ALTER TABLE orders
   ADD COLUMN IF NOT EXISTS estoque_recebimento_aplicado boolean NOT NULL DEFAULT false;

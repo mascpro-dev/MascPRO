@@ -20,4 +20,7 @@ ALTER TABLE pro_inventory_movements ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "pim_select_own" ON pro_inventory_movements FOR SELECT
   USING (auth.uid() = professional_id);
 
+GRANT SELECT, INSERT ON public.pro_inventory_movements TO authenticated;
+GRANT ALL ON public.pro_inventory_movements TO service_role;
+
 -- Inserções feitas pelo backend com service role (sem policy de INSERT para o app do membro).

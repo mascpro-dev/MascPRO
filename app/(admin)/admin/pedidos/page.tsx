@@ -394,7 +394,12 @@ export default function AdminPedidosPage() {
       }
       if (novoStatus === "entregue") {
         if (data?.estoqueErro) {
-          alert(`Pedido marcado como entregue, mas o estoque automático do membro falhou:\n${data.estoqueErro}`);
+          alert(
+            `Pedido marcado como entregue, mas o estoque automático do membro falhou:\n${data.estoqueErro}` +
+              (String(data.estoqueErro).includes("permission denied")
+                ? `\n\nRode supabase/fix_pro_inventory_grants.sql no Supabase e clique em "Reaplicar estoque PRO".`
+                : "")
+          );
         } else if (data?.estoque?.appliedLines > 0) {
           alert(
             `Estoque do salão do membro atualizado automaticamente (${data.estoque.appliedLines} produto(s) / linhas no estoque PRO).`
@@ -913,6 +918,18 @@ export default function AdminPedidosPage() {
                           Ou o membro confirma em Meus pedidos — nos dois casos o estoque do salão é creditado uma vez.
                         </span>
                       </>
+                    )}
+
+                    {pedido.status === "entregue" && (
+                      <button
+                        type="button"
+                        onClick={() => atualizarStatus(pedido.id, "entregue")}
+                        disabled={isProcessando}
+                        className="flex items-center gap-1 bg-emerald-900/20 hover:bg-emerald-800/40 text-emerald-400 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all disabled:opacity-50 border border-emerald-800/30"
+                      >
+                        {isProcessando ? <Loader2 size={14} className="animate-spin" /> : <PackageOpen size={14} />}
+                        Reaplicar estoque PRO
+                      </button>
                     )}
 
                   </div>

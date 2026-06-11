@@ -36,3 +36,23 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #333 transparent;
 }
+
+/* Áreas de rolagem longas (ex.: itens do pedido manual) */
+.scroll-area-pedido {
+  scrollbar-width: auto;
+  scrollbar-color: #555 #1a1a1a;
+}
+.scroll-area-pedido::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-area-pedido::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 8px;
+}
+.scroll-area-pedido::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 8px;
+}
+.scroll-area-pedido::-webkit-scrollbar-thumb:hover {
+  background: #C9A66B;
+}

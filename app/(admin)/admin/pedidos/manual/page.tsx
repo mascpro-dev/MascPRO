@@ -340,9 +340,9 @@ function PedidoManualPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-start pb-8">
-          <section className="lg:col-span-2 space-y-6 min-w-0">
-            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-stretch pb-8 lg:min-h-[calc(100vh-7rem)]">
+          <section className="lg:col-span-2 flex flex-col gap-4 min-w-0 min-h-0 lg:overflow-hidden">
+            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 shrink-0">
               <h2 className="text-xs uppercase tracking-widest text-zinc-400 mb-3 flex items-center gap-2">
                 <User size={14} /> Cliente
               </h2>
@@ -393,7 +393,7 @@ function PedidoManualPage() {
               )}
             </div>
 
-            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5">
+            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 shrink-0">
               <h2 className="text-xs uppercase tracking-widest text-zinc-400 mb-3 flex items-center gap-2">
                 <Package size={14} /> Produtos
               </h2>
@@ -409,7 +409,7 @@ function PedidoManualPage() {
                 />
               </div>
 
-              <div className="max-h-72 sm:max-h-80 overflow-y-auto overscroll-contain border border-zinc-800 rounded-lg divide-y divide-zinc-800 pr-1">
+              <div className="max-h-40 sm:max-h-44 overflow-y-auto overscroll-contain border border-zinc-800 rounded-lg divide-y divide-zinc-800 pr-1">
                 {carregandoProdutos && (
                   <div className="p-3 text-xs text-zinc-500 flex items-center gap-2">
                     <Loader2 size={12} className="animate-spin" /> Carregando…
@@ -442,22 +442,29 @@ function PedidoManualPage() {
               </div>
             </div>
 
-            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 flex flex-col min-h-0">
-              <h2 className="text-xs uppercase tracking-widest text-zinc-400 mb-3 shrink-0">
-                Itens do pedido
-                {itens.length > 0 && (
-                  <span className="ml-2 text-zinc-600 font-normal normal-case">
-                    ({itens.length} {itens.length === 1 ? "item" : "itens"})
+            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 flex flex-col min-h-0 flex-1 lg:overflow-hidden">
+              <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
+                <h2 className="text-xs uppercase tracking-widest text-zinc-400">
+                  Itens do pedido
+                  {itens.length > 0 && (
+                    <span className="ml-2 text-zinc-600 font-normal normal-case">
+                      ({itens.length} {itens.length === 1 ? "item" : "itens"})
+                    </span>
+                  )}
+                </h2>
+                {itens.length > 3 && (
+                  <span className="text-[9px] text-zinc-500 uppercase tracking-widest hidden sm:inline">
+                    Role para conferir todos ↓
                   </span>
                 )}
-              </h2>
+              </div>
               {itens.length === 0 ? (
                 <p className="text-sm text-zinc-500">Adicione produtos no quadro acima.</p>
               ) : (
-                <div className="max-h-80 sm:max-h-[28rem] overflow-y-auto overscroll-contain pr-1">
+                <div className="scroll-area-pedido flex-1 min-h-[min(50vh,280px)] max-h-[min(55vh,420px)] lg:min-h-0 lg:max-h-none overflow-y-auto overscroll-contain rounded-xl border border-zinc-800 bg-black/30 p-2 pr-1">
                 <ul className="space-y-2">
                   {itens.map((i) => (
-                    <li key={i.product_id} className="flex items-center gap-3 bg-black/40 rounded-lg p-3 border border-zinc-800">
+                    <li key={i.product_id} className="flex items-center gap-3 bg-black/50 rounded-lg p-3 border border-zinc-800/80">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{i.title}</p>
                         <div className="flex items-center gap-3 mt-2">
@@ -496,7 +503,7 @@ function PedidoManualPage() {
               )}
             </div>
 
-            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-3 shrink-0">
+            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-3 shrink-0 lg:max-h-[28vh] lg:overflow-y-auto">
               <h2 className="text-xs uppercase tracking-widest text-zinc-400">Entrega</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>

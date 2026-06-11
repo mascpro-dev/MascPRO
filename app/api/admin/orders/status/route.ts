@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { applyOrderToProInventory } from "@/lib/applyOrderToProInventory";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { registrarAudit } from "@/lib/auditLog";
-import { getAdminContext, assertAdmin } from "@/lib/adminServer";
+import { getAdminContext, assertAdmin, createServiceRoleClient } from "@/lib/adminServer";
 
 export const dynamic = "force-dynamic";
-
-function getSupabase() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
-}
 
 function normalizeOrderStatus(raw: unknown): string {
   return String(raw || "").trim().toLowerCase();
@@ -48,7 +42,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = getSupabase();
+    const supabase = createServiceRoleClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { ok: false, error: "SUPABASE_SERVICE_ROLE_KEY não configurada no servidor." },
+        { status: 500 }
+      );
+    }
+
     const adm = await assertAdmin(supabase, userId);
     if (!adm.ok) {
       return NextResponse.json({ ok: false, error: adm.error }, { status: 403 });
