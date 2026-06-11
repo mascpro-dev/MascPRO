@@ -104,18 +104,7 @@ export async function applyOrderToProInventory(
         reason: "pedido_entregue",
       });
       if (mErr) {
-        await supabase
-          .from("pro_inventory")
-          .update({ quantity: prevQty, updated_at: now })
-          .eq("id", existing.id);
-        if (mErr.code === "42P01") {
-          return {
-            ok: false,
-            error:
-              "Tabela pro_inventory_movements ausente. Rode supabase/pro_inventory_movements.sql no Supabase.",
-          };
-        }
-        return { ok: false, error: mErr.message };
+        console.warn("[applyOrderToProInventory] histórico não salvo:", mErr.message);
       }
     } else {
       const { data: novo, error: ins } = await supabase
@@ -142,15 +131,7 @@ export async function applyOrderToProInventory(
         reason: "pedido_entregue",
       });
       if (mErr) {
-        if (novo?.id) await supabase.from("pro_inventory").delete().eq("id", novo.id);
-        if (mErr.code === "42P01") {
-          return {
-            ok: false,
-            error:
-              "Tabela pro_inventory_movements ausente. Rode supabase/pro_inventory_movements.sql no Supabase.",
-          };
-        }
-        return { ok: false, error: mErr.message };
+        console.warn("[applyOrderToProInventory] histórico não salvo:", mErr.message);
       }
     }
     appliedLines += 1;

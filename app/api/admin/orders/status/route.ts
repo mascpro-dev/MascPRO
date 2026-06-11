@@ -3,7 +3,7 @@ import { applyOrderToProInventory } from "@/lib/applyOrderToProInventory";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { registrarAudit } from "@/lib/auditLog";
-import { getAdminContext, assertAdmin, createServiceRoleClient } from "@/lib/adminServer";
+import { getAdminContext, assertAdmin } from "@/lib/adminServer";
 
 export const dynamic = "force-dynamic";
 
@@ -34,19 +34,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Status invalido." }, { status: 400 });
     }
 
-    const { userId, error: authErr, status: authStatus } = await getAdminContext();
-    if (!userId) {
+    const { supabase, userId, error: authErr, status: authStatus } = await getAdminContext();
+    if (!supabase || !userId) {
       return NextResponse.json(
         { ok: false, error: authErr || "Não autenticado." },
         { status: authStatus || 401 }
-      );
-    }
-
-    const supabase = createServiceRoleClient();
-    if (!supabase) {
-      return NextResponse.json(
-        { ok: false, error: "SUPABASE_SERVICE_ROLE_KEY não configurada no servidor." },
-        { status: 500 }
       );
     }
 

@@ -3,6 +3,21 @@ import { getAdminContext, assertAdmin } from "@/lib/adminServer";
 
 export const dynamic = "force-dynamic";
 
+type PedidoResumo = Record<string, unknown> & {
+  id: string;
+  profile_id: string;
+};
+
+type CarrinhoResumo = {
+  profile_id: string;
+  items: unknown;
+  subtotal: number | null;
+  shipping_cep: string | null;
+  shipping_address: string | null;
+  status: string | null;
+  updated_at: string | null;
+};
+
 /**
  * Diagnóstico completo de um cliente: perfil, pedidos (qualquer status)
  * e carrinho abandonado. Útil quando o admin precisa "achar" alguém
@@ -33,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     const { data: clientes, error: errC } = await supabase
       .from("profiles")
-      .select("id, full_name, email, role, avatar_url, cep, logradouro, numero, bairro, municipio, uf, indicado_por, created_at, last_sign_in_at")
+      .select("id, full_name, email, role, avatar_url, cep, created_at, last_sign_in_at")
       .or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
       .order("full_name", { ascending: true })
       .limit(20);
@@ -47,39 +62,45 @@ export async function GET(req: NextRequest) {
 
     const ids = clientes.map((c) => c.id);
 
-    const [{ data: pedidos }, { data: carrinhos }] = await Promise.all([
-      supabase
-        .from("orders")
-        .select(
-          "id, profile_id, total, status, payment_method, mp_payment_id, mp_preference_id, shipping_cost, shipping_cep, shipping_address, codigo_rastreio, transportadora, created_at, order_items(quantidade, preco_unitario, products(title))"
-        )
-        .in("profile_id", ids)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("abandoned_carts")
-        .select("profile_id, items, subtotal, shipping_cep, shipping_address, status, updated_at")
-        .in("profile_id", ids),
-    ]);
+    const { data: pedidos, error: errP } = await supabase
+      .from("orders")
+      .select(
+        "id, profile_id, total, status, payment_method, mp_payment_id, mp_preference_id, shipping_cost, shipping_cep, shipping_address, codigo_rastreio, transportadora, created_at, order_items(quantidade, preco_unitario, products(title))"
+      )
+      .in("profile_id", ids)
+      .order("created_at", { ascending: false });
 
-    type PedidoRow = NonNullable<typeof pedidos>[number];
-    type CarrinhoRow = NonNullable<typeof carrinhos>[number];
-
-    const pedidosPorCliente = new Map<string, PedidoRow[]>();
-    for (const p of pedidos ?? []) {
-      const arr = pedidosPorCliente.get(p.profile_id) ?? [];
-      arr.push(p);
-      pedidosPorCliente.set(p.profile_id, arr);
+    if (errP) {
+      return NextResponse.json({ ok: false, error: errP.message }, { status: 500 });
     }
 
-    const carrinhoPorCliente = new Map<string, CarrinhoRow>();
-    for (const c of carrinhos ?? []) {
+    let carrinhos: CarrinhoResumo[] = [];
+    const { data: cartsData, error: errCart } = await supabase
+      .from("abandoned_carts")
+      .select("profile_id, items, subtotal, shipping_cep, shipping_address, status, updated_at")
+      .in("profile_id", ids);
+
+    if (!errCart && cartsData) {
+      carrinhos = cartsData as CarrinhoResumo[];
+    }
+
+    const pedidosPorCliente = new Map<string, PedidoResumo[]>();
+    for (const p of pedidos ?? []) {
+      const row = p as PedidoResumo;
+      const arr = pedidosPorCliente.get(row.profile_id) ?? [];
+      arr.push(row);
+      pedidosPorCliente.set(row.profile_id, arr);
+    }
+
+    const carrinhoPorCliente = new Map<string, CarrinhoResumo>();
+    for (const c of carrinhos) {
       carrinhoPorCliente.set(c.profile_id, c);
     }
 
     const resultado = clientes.map((c) => ({
       ...c,
-      pedidos: pedidosPorCliente.get(c.id) || [],
-      carrinho: carrinhoPorCliente.get(c.id) || null,
+      pedidos: pedidosPorCliente.get(c.id) ?? [],
+      carrinho: carrinhoPorCliente.get(c.id) ?? null,
     }));
 
     return NextResponse.json({ ok: true, clientes: resultado });

@@ -461,7 +461,7 @@ function PedidoManualPage() {
               {itens.length === 0 ? (
                 <p className="text-sm text-zinc-500">Adicione produtos no quadro acima.</p>
               ) : (
-                <div className="scroll-area-pedido flex-1 min-h-[min(50vh,280px)] max-h-[min(55vh,420px)] lg:min-h-0 lg:max-h-none overflow-y-auto overscroll-contain rounded-xl border border-zinc-800 bg-black/30 p-2 pr-1">
+                <div className="scroll-area-pedido h-[min(52vh,26rem)] sm:h-[min(58vh,30rem)] overflow-y-auto overscroll-contain rounded-xl border border-zinc-800 bg-black/30 p-2 pr-1">
                 <ul className="space-y-2">
                   {itens.map((i) => (
                     <li key={i.product_id} className="flex items-center gap-3 bg-black/50 rounded-lg p-3 border border-zinc-800/80">
