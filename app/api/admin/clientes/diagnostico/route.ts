@@ -61,15 +61,20 @@ export async function GET(req: NextRequest) {
         .in("profile_id", ids),
     ]);
 
-    const pedidosPorCliente = new Map<string, typeof pedidos>();
-    (pedidos || []).forEach((p) => {
-      const arr = pedidosPorCliente.get(p.profile_id) || [];
+    type PedidoRow = NonNullable<typeof pedidos>[number];
+    type CarrinhoRow = NonNullable<typeof carrinhos>[number];
+
+    const pedidosPorCliente = new Map<string, PedidoRow[]>();
+    for (const p of pedidos ?? []) {
+      const arr = pedidosPorCliente.get(p.profile_id) ?? [];
       arr.push(p);
       pedidosPorCliente.set(p.profile_id, arr);
-    });
+    }
 
-    const carrinhoPorCliente = new Map<string, (typeof carrinhos)[number]>();
-    (carrinhos || []).forEach((c) => carrinhoPorCliente.set(c.profile_id, c));
+    const carrinhoPorCliente = new Map<string, CarrinhoRow>();
+    for (const c of carrinhos ?? []) {
+      carrinhoPorCliente.set(c.profile_id, c);
+    }
 
     const resultado = clientes.map((c) => ({
       ...c,
