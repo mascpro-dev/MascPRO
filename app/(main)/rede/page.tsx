@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Users, CheckCircle, TrendingUp, Copy, Instagram, MessageCircle, Search, Filter, AlertTriangle, DollarSign, ArrowDownToLine, X, Loader2, Clock, XCircle, ChevronDown, ChevronUp, Receipt } from "lucide-react";
+import { Users, CheckCircle, TrendingUp, Copy, Instagram, MessageCircle, Search, Filter, AlertTriangle, DollarSign, ArrowDownToLine, X, Loader2, Clock, XCircle, ChevronDown, ChevronUp, Receipt, ShoppingBag } from "lucide-react";
+
+type ComissaoDetalhe = {
+  id: string;
+  created_at: string;
+  comprador_nome: string;
+  valor_pedido: number;
+  percentual: number;
+  valor_comissao: number;
+  status: string;
+  order_id: string | null;
+};
 
 export default function RedePage() {
   const supabase = createClientComponentClient();
@@ -32,6 +43,11 @@ export default function RedePage() {
   // Histórico de saques
   const [historicoSaques, setHistoricoSaques] = useState<any[]>([]);
   const [showHistorico, setShowHistorico] = useState(false);
+
+  // Detalhe das comissões (compras dos indicados)
+  const [listaComissoes, setListaComissoes] = useState<ComissaoDetalhe[]>([]);
+  const [showComissoes, setShowComissoes] = useState(false);
+  const [loadingComissoes, setLoadingComissoes] = useState(false);
 
   // Lista da Equipe
   const [listaEquipe, setListaEquipe] = useState<any[]>([]);
@@ -137,6 +153,33 @@ export default function RedePage() {
   const copiarLink = () => {
     navigator.clipboard.writeText(linkConvite);
     alert("Link copiado!");
+  };
+
+  const carregarComissoes = async () => {
+    if (showComissoes) {
+      setShowComissoes(false);
+      return;
+    }
+    setLoadingComissoes(true);
+    try {
+      const res = await fetch("/api/rede/comissoes", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        alert(data?.error || "Não foi possível carregar as comissões.");
+        return;
+      }
+      setListaComissoes(data.comissoes || []);
+      setShowComissoes(true);
+      setShowHistorico(false);
+    } finally {
+      setLoadingComissoes(false);
+    }
+  };
+
+  const labelStatusComissao = (status: string) => {
+    if (status === "disponivel") return { text: "Disponível", cls: "bg-green-900/20 text-green-400 border-green-800/40" };
+    if (status === "sacado") return { text: "Sacado", cls: "bg-zinc-800 text-zinc-400 border-zinc-700" };
+    return { text: status, cls: "bg-zinc-800 text-zinc-400 border-zinc-700" };
   };
 
   const solicitarSaque = async () => {
@@ -263,9 +306,23 @@ export default function RedePage() {
           >
             <ArrowDownToLine size={18} /> SACAR
           </button>
+          <button
+            type="button"
+            onClick={carregarComissoes}
+            disabled={loadingComissoes}
+            className="flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all"
+          >
+            {loadingComissoes ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <ShoppingBag size={13} />
+            )}
+            {showComissoes ? "Ocultar compras" : "Ver compras"}
+            {showComissoes ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
           {historicoSaques.length > 0 && (
             <button
-              onClick={() => setShowHistorico(!showHistorico)}
+              onClick={() => { setShowHistorico(!showHistorico); if (!showHistorico) setShowComissoes(false); }}
               className="flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all"
             >
               <Receipt size={13} />
@@ -275,6 +332,69 @@ export default function RedePage() {
           )}
         </div>
       </div>
+
+      {/* DETALHE DAS COMISSÕES (compras dos indicados) */}
+      {showComissoes && (
+        <div className="mb-10 bg-zinc-900/60 border border-green-800/30 rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ShoppingBag size={16} className="text-green-400" />
+              <p className="text-sm font-black uppercase tracking-widest text-white">Compras que geraram comissão</p>
+            </div>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
+              {listaComissoes.length} {listaComissoes.length === 1 ? "venda" : "vendas"}
+            </p>
+          </div>
+          {listaComissoes.length === 0 ? (
+            <p className="px-6 py-8 text-center text-sm text-zinc-500">
+              Nenhuma comissão registrada ainda. Quando seus indicados comprarem na loja, aparece aqui.
+            </p>
+          ) : (
+            <div className="flex flex-col divide-y divide-zinc-800 max-h-[min(70vh,28rem)] overflow-y-auto">
+              {listaComissoes.map((c) => {
+                const st = labelStatusComissao(c.status);
+                return (
+                  <div
+                    key={c.id}
+                    className="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-zinc-900/40"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{c.comprador_nome}</p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">
+                        {new Date(c.created_at).toLocaleDateString("pt-BR", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                        {c.order_id && (
+                          <span className="ml-2 font-mono text-zinc-600">
+                            Pedido #{String(c.order_id).slice(0, 8)}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 md:justify-end">
+                      <div className="text-left md:text-right">
+                        <p className="text-[10px] text-zinc-600 uppercase tracking-widest">Valor da venda</p>
+                        <p className="text-sm font-bold text-zinc-300">R$ {c.valor_pedido.toFixed(2)}</p>
+                      </div>
+                      <div className="text-left md:text-right">
+                        <p className="text-[10px] text-zinc-600 uppercase tracking-widest">Sua comissão ({c.percentual}%)</p>
+                        <p className="text-sm font-black text-green-400">R$ {c.valor_comissao.toFixed(2)}</p>
+                      </div>
+                      <span
+                        className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border shrink-0 ${st.cls}`}
+                      >
+                        {st.text}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* HISTÓRICO DE SAQUES */}
       {showHistorico && historicoSaques.length > 0 && (
