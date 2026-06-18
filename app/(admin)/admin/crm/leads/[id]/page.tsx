@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import ErroComVoltar from "@/componentes/ErroComVoltar";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import CrmCadastrarMembroPanel from "@/componentes/CrmCadastrarMembroPanel";
 import {
@@ -287,13 +288,16 @@ export default function LeadDetalhePage() {
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
         <AdminSidebar />
         <main className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center">
-            <AlertCircle className="text-red-400 mx-auto mb-3" size={32} />
-            <p className="text-red-400 font-bold">{erro || "Lead não encontrado."}</p>
-            <Link href="/admin/crm" className="text-[#C9A66B] text-sm mt-4 block hover:underline">
-              ← Voltar ao CRM
-            </Link>
-          </div>
+          <ErroComVoltar
+            mensagem={erro || "Lead não encontrado."}
+            onVoltar={() => router.push("/admin/crm")}
+            onTentarNovamente={() => {
+              setLoading(true);
+              setErro("");
+              void carregar();
+            }}
+            rotuloVoltar="Voltar ao CRM"
+          />
         </main>
       </div>
     );

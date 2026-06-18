@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import ErroComVoltar from "@/componentes/ErroComVoltar";
 import { UserPlus, Loader2, KeyRound, Copy, CheckCircle2 } from "lucide-react";
 import { SENHA_PADRAO_CRM } from "@/lib/crmCadastroMembro";
 
@@ -131,7 +132,14 @@ export default function CrmCadastrarMembroPanel({
       <p className="text-[11px] text-zinc-500">
         Crie a conta com senha temporária <span className="text-zinc-400 font-mono">{SENHA_PADRAO_CRM}</span> para a cliente acessar depois.
       </p>
-      {erro && <p className="text-xs text-red-400 font-bold">{erro}</p>}
+      {erro && (
+        <ErroComVoltar
+          compacto
+          mensagem={erro}
+          onVoltar={() => setErro("")}
+          rotuloVoltar="Fechar"
+        />
+      )}
       <div>
         <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
           E-mail para login *

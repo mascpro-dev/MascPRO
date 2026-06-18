@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
+import ErroComVoltar from "@/componentes/ErroComVoltar";
 import {
   Kanban, Plus, Loader2, Search, X, ChevronRight, ChevronDown,
   Mail, Building2, Calendar, User, DollarSign,
@@ -35,6 +36,7 @@ type Distribuidor = {
   id: string;
   full_name: string;
   avatar_url?: string;
+  role?: string | null;
 };
 
 type NovoLeadForm = {
@@ -103,7 +105,7 @@ function DropdownDistribuidor({
   }, []);
 
   const label =
-    options.find((d) => d.id === value)?.full_name || "Todos os distribuidores";
+    options.find((d) => d.id === value)?.full_name || "Todos os responsáveis";
 
   return (
     <div ref={ref} className="relative">
@@ -125,7 +127,7 @@ function DropdownDistribuidor({
             onClick={() => { onChange(""); setOpen(false); }}
             className={`w-full text-left px-3 py-2.5 text-sm hover:bg-zinc-800 transition-colors ${!value ? "text-[#C9A66B] font-bold" : "text-white"}`}
           >
-            Todos os distribuidores
+            Todos os responsáveis
           </button>
           {options.map((d) => (
             <button
@@ -135,6 +137,9 @@ function DropdownDistribuidor({
               className={`w-full text-left px-3 py-2.5 text-sm hover:bg-zinc-800 transition-colors truncate ${value === d.id ? "text-[#C9A66B] font-bold" : "text-white"}`}
             >
               {d.full_name}
+              {String(d.role || "").toUpperCase() === "EMBAIXADOR" && (
+                <span className="text-[9px] text-pink-400 ml-1.5 uppercase">· Embaixadora</span>
+              )}
             </button>
           ))}
         </div>
@@ -147,11 +152,13 @@ function DropdownDistribuidor({
 function LeadCard({
   lead,
   onMover,
+  onNovoPedido,
   colunaAtual,
   mostrarDistribuidor = false,
 }: {
   lead: Lead;
   onMover: (id: string, novoStatus: string) => void;
+  onNovoPedido?: (lead: Lead) => void;
   colunaAtual: (typeof COLUNAS)[0];
   mostrarDistribuidor?: boolean;
 }) {
@@ -246,8 +253,17 @@ function LeadCard({
       </div>
 
       {/* Ações de mover */}
-      {(anterior || proxima) && (
-        <div className="flex gap-2 pt-1 border-t border-zinc-800">
+      {(anterior || proxima || colunaAtual.key === "fechado") && (
+        <div className="flex gap-2 pt-1 border-t border-zinc-800 flex-wrap">
+          {colunaAtual.key === "fechado" && onNovoPedido && (
+            <button
+              type="button"
+              onClick={() => onNovoPedido(lead)}
+              className="w-full text-[9px] font-black uppercase tracking-widest text-[#C9A66B] bg-[#C9A66B]/10 py-1.5 rounded-lg hover:bg-[#C9A66B]/20 transition-all"
+            >
+              + Novo pedido
+            </button>
+          )}
           {anterior && (
             <button
               onClick={() => mover(anterior.key)}
@@ -399,10 +415,12 @@ function ModalNovoLead({
 export default function CrmKanbanPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState("");
+  const [erroCarregamento, setErroCarregamento] = useState("");
+  const [aviso, setAviso] = useState("");
   const [busca, setBusca] = useState("");
   const [modalNovo, setModalNovo] = useState(false);
   const [leadFechamento, setLeadFechamento] = useState<Lead | null>(null);
+  const [modalPedidoKey, setModalPedidoKey] = useState(0);
 
   // Filtro por distribuidor (só visível para ADMIN)
   const [distribuidores, setDistribuidores] = useState<Distribuidor[]>([]);
@@ -417,7 +435,8 @@ export default function CrmKanbanPage() {
   }, []);
 
   const carregar = useCallback(async () => {
-    setErro("");
+    setErroCarregamento("");
+    setAviso("");
     const params = new URLSearchParams();
     if (busca.trim()) params.set("q", busca.trim());
     if (distribuidorSelecionado) params.set("distribuidor_id", distribuidorSelecionado);
@@ -425,7 +444,7 @@ export default function CrmKanbanPage() {
     const res = await fetch(`/api/admin/crm/leads${qs}`, { cache: "no-store" });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.ok) {
-      setErro(data?.error || "Falha ao carregar leads.");
+      setErroCarregamento(data?.error || "Falha ao carregar leads.");
       setLoading(false);
       return;
     }
@@ -443,11 +462,8 @@ export default function CrmKanbanPage() {
     if (novoStatus === "fechado") {
       const lead = leads.find((l) => l.id === id);
       if (lead) {
-        if (lead.order_id) {
-          setErro("Este lead já possui pedido vinculado.");
-          return;
-        }
-        setLeadFechamento(lead);
+        setAviso("");
+        abrirFechamentoPedido(lead);
       }
       return;
     }
@@ -462,16 +478,22 @@ export default function CrmKanbanPage() {
       setLeads((prev) =>
         prev.map((l) => (l.id === id ? { ...l, status: novoStatus } : l))
       );
+      setAviso("");
+    } else {
+      setAviso(d?.error || "Não foi possível mover o lead.");
     }
   }
 
-  function onPedidoConcluido(leadId: string) {
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === leadId ? { ...l, status: "fechado" } : l
-      )
-    );
+  function abrirFechamentoPedido(lead: Lead) {
+    setAviso("");
+    setModalPedidoKey((k) => k + 1);
+    setLeadFechamento(lead);
+  }
+
+  function onPedidoConcluido(_leadId: string) {
     setLeadFechamento(null);
+    setAviso("");
+    void carregar();
   }
 
   function onNovaCompraPipeline() {
@@ -542,17 +564,37 @@ export default function CrmKanbanPage() {
           </div>
         </div>
 
+        {aviso && !loading && !erroCarregamento && (
+          <div className="shrink-0 px-4 md:px-8 pb-2">
+            <ErroComVoltar
+              compacto
+              mensagem={aviso}
+              onVoltar={() => setAviso("")}
+              rotuloVoltar="Fechar aviso"
+            />
+          </div>
+        )}
+
         {/* Kanban Board */}
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
             <Loader2 className="animate-spin text-[#C9A66B]" size={32} />
           </div>
-        ) : erro ? (
+        ) : erroCarregamento ? (
           <div className="flex-1 flex items-center justify-center p-8">
-            <div className="text-center">
-              <AlertCircle className="text-red-400 mx-auto mb-3" size={32} />
-              <p className="text-red-400 font-bold">{erro}</p>
-            </div>
+            <ErroComVoltar
+              mensagem={erroCarregamento}
+              onVoltar={() => {
+                setErroCarregamento("");
+                setLoading(true);
+                void carregar();
+              }}
+              onTentarNovamente={() => {
+                setLoading(true);
+                void carregar();
+              }}
+              rotuloVoltar="Voltar ao pipeline"
+            />
           </div>
         ) : (
           <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
@@ -588,6 +630,7 @@ export default function CrmKanbanPage() {
                             <LeadCard
                               lead={lead}
                               onMover={moverLead}
+                              onNovoPedido={abrirFechamentoPedido}
                               colunaAtual={col}
                               mostrarDistribuidor={distribuidores.length > 0}
                             />
@@ -609,6 +652,7 @@ export default function CrmKanbanPage() {
 
       {leadFechamento && (
         <CrmFechamentoPedidoModal
+          key={modalPedidoKey}
           lead={{
             id: leadFechamento.id,
             nome: leadFechamento.nome,

@@ -117,12 +117,7 @@ export async function POST(
     );
   }
 
-  if (lead.order_id) {
-    return NextResponse.json(
-      { ok: false, error: "Este lead já possui um pedido vinculado.", order_id: lead.order_id },
-      { status: 409 }
-    );
-  }
+  const pedidoAnteriorId = lead.order_id || null;
 
   const itensLimpos: ItemBody[] = body.items
     .map((i: ItemBody) => ({
@@ -245,13 +240,17 @@ export async function POST(
     return NextResponse.json({ ok: false, error: errUpLead.message }, { status: 500 });
   }
 
+  const msgPedido = pedidoAnteriorId
+    ? `Novo pedido #${String(order.id).slice(0, 8)} criado (pedido anterior: #${String(pedidoAnteriorId).slice(0, 8)}). Total: R$ ${total.toFixed(2)}.`
+    : `Pedido #${String(order.id).slice(0, 8)} criado (${gestor.gestor_tipo === "empresa" ? "MascPRO" : "distribuidor"}). Total: R$ ${total.toFixed(2)}.`;
+
   await supabase.from("crm_atividades").insert({
     lead_id: lead.id,
     autor_id: userId,
-    tipo: "status_change",
-    conteudo: `Pedido #${String(order.id).slice(0, 8)} criado (${gestor.gestor_tipo === "empresa" ? "MascPRO" : "distribuidor"}). Total: R$ ${total.toFixed(2)}.`,
-    status_anterior: statusAnterior,
-    status_novo: "fechado",
+    tipo: pedidoAnteriorId ? "nota" : "status_change",
+    conteudo: msgPedido,
+    status_anterior: pedidoAnteriorId ? undefined : statusAnterior,
+    status_novo: pedidoAnteriorId ? undefined : "fechado",
   });
 
   let recompensas = null;

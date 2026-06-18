@@ -1,9 +1,10 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import CrmCadastrarMembroPanel from "@/componentes/CrmCadastrarMembroPanel";
+import ErroComVoltar from "@/componentes/ErroComVoltar";
 import {
   X, Loader2, Plus, Minus, Trash2, Search, Package,
-  MapPin, CreditCard, CheckCircle2, AlertCircle, Truck,
+  MapPin, CreditCard, CheckCircle2, Truck,
   Kanban, RotateCcw, ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
@@ -297,9 +298,16 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
 
         <div className="p-6 space-y-5">
           {erro && (
-            <div className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold bg-red-500/10 border border-red-500/30 text-red-400">
-              <AlertCircle size={16} /> {erro}
-            </div>
+            <ErroComVoltar
+              compacto
+              mensagem={erro}
+              onVoltar={() => {
+                setErro("");
+                onClose();
+              }}
+              onTentarNovamente={() => setErro("")}
+              rotuloVoltar="Voltar ao pipeline"
+            />
           )}
 
           {sucesso ? (

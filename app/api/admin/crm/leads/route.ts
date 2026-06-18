@@ -56,15 +56,26 @@ export async function GET(req: NextRequest) {
     .order("updated_at", { ascending: false });
 
   if (access.role === "ADMIN") {
-    // ADMIN com filtro de distribuidor específico
     if (distribuidorId) {
-      const redeIds = await getRedeIds(supabase, distribuidorId);
-      const todosIds = [distribuidorId, ...redeIds];
-      query = query.or(
-        todosIds.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
-      );
+      const { data: filtroPerfil } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", distribuidorId)
+        .maybeSingle();
+      const roleFiltro = String(filtroPerfil?.role || "").toUpperCase();
+
+      if (roleFiltro === "EMBAIXADOR") {
+        query = query.or(
+          `created_by.eq.${distribuidorId},responsavel_id.eq.${distribuidorId}`
+        );
+      } else {
+        const redeIds = await getRedeIds(supabase, distribuidorId);
+        const todosIds = [distribuidorId, ...redeIds];
+        query = query.or(
+          todosIds.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
+        );
+      }
     }
-    // ADMIN sem filtro → vê tudo (nenhum filtro adicional)
   } else {
     // DISTRIBUIDOR: sempre filtrado pela própria rede
     const redeIds = await getRedeIds(supabase, userId);
