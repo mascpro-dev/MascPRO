@@ -116,18 +116,6 @@ export default function CrmCadastrarMembroPanel({
             <p className="text-[10px] text-zinc-500">
               A cliente pode alterar a senha ao entrar no app pela primeira vez.
             </p>
-            {sucesso.whatsapp_enviado && (
-              <p className="text-[11px] text-emerald-400 flex items-center gap-1.5 font-bold">
-                <MessageCircle size={13} />
-                Acesso enviado automaticamente por WhatsApp!
-              </p>
-            )}
-            {sucesso.whatsapp_erro && !sucesso.whatsapp_enviado && (
-              <p className="text-[11px] text-amber-400 flex items-start gap-1.5">
-                <AlertCircle size={13} className="shrink-0 mt-0.5" />
-                {sucesso.whatsapp_erro}
-              </p>
-            )}
           </>
         )}
       </div>
@@ -141,8 +129,7 @@ export default function CrmCadastrarMembroPanel({
         Sem cadastro no app
       </div>
       <p className="text-[11px] text-zinc-500">
-        Crie a conta com senha temporária <span className="text-zinc-400 font-mono">{SENHA_PADRAO_CRM}</span>.
-        Os dados serão enviados automaticamente por WhatsApp se o lead tiver telefone.
+        Crie a conta com senha temporária <span className="text-zinc-400 font-mono">{SENHA_PADRAO_CRM}</span> para a cliente acessar depois.
       </p>
       {erro && <p className="text-xs text-red-400 font-bold">{erro}</p>}
       <div>
