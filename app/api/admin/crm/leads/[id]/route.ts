@@ -90,7 +90,12 @@ export async function GET(
 
   if (errAtv) return NextResponse.json({ ok: false, error: errAtv.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, lead, atividades: atividades || [] });
+  return NextResponse.json({
+    ok: true,
+    lead,
+    atividades: atividades || [],
+    viewer_role: access.role,
+  });
 }
 
 // PATCH /api/admin/crm/leads/[id] — atualiza lead
@@ -198,6 +203,13 @@ export async function DELETE(
   const access = await assertCrmAccess(supabase, userId);
   if (!access.ok) {
     return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
+  }
+
+  if (access.role !== "ADMIN") {
+    return NextResponse.json(
+      { ok: false, error: "Somente administradores podem excluir leads." },
+      { status: 403 }
+    );
   }
 
   const permitidoDel = await podeAcessarLead(supabase, params.id, userId, access.role);

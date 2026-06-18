@@ -1,9 +1,12 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import CrmCadastrarMembroPanel from "@/componentes/CrmCadastrarMembroPanel";
 import {
   X, Loader2, Plus, Minus, Trash2, Search, Package,
   MapPin, CreditCard, CheckCircle2, AlertCircle, Truck,
+  Kanban, RotateCcw, ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
 
 type LeadResumo = {
   id: string;
@@ -36,6 +39,7 @@ type ItemPedido = {
 type PerfilEndereco = {
   id: string;
   full_name: string | null;
+  email?: string | null;
   role: string | null;
   cep: string | null;
   logradouro: string | null;
@@ -62,9 +66,10 @@ type Props = {
   lead: LeadResumo;
   onClose: () => void;
   onConcluido: (leadId: string) => void;
+  onNovaCompra?: () => void;
 };
 
-export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido }: Props) {
+export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, onNovaCompra }: Props) {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [buscaProduto, setBuscaProduto] = useState("");
   const [itens, setItens] = useState<ItemPedido[]>([]);
@@ -90,6 +95,7 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido }:
   } | null>(null);
   const [statusPedido, setStatusPedido] = useState("paid");
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
+  const [criandoNovaCompra, setCriandoNovaCompra] = useState(false);
 
   const carregarProdutos = useCallback(async (q: string) => {
     const url = `/api/admin/crm/produtos${q ? `?q=${encodeURIComponent(q)}` : ""}`;
@@ -115,6 +121,25 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido }:
       })
       .catch(() => {});
   }, [lead.id, lead.profile_id]);
+
+  async function criarNovaCompra() {
+    setCriandoNovaCompra(true);
+    setErro("");
+    try {
+      const res = await fetch(`/api/admin/crm/leads/${lead.id}/nova-compra`, {
+        method: "POST",
+      });
+      const d = await res.json().catch(() => null);
+      if (!res.ok || !d?.ok) {
+        setErro(d?.error || "Erro ao criar lead de nova compra.");
+        return;
+      }
+      onNovaCompra?.();
+      onConcluido(lead.id);
+    } finally {
+      setCriandoNovaCompra(false);
+    }
+  }
 
   function aplicarEnderecoPerfil(p: PerfilEndereco) {
     setPerfilVinculado(p);
@@ -328,16 +353,57 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido }:
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={() => onConcluido(lead.id)}
-                className="w-full bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest py-3 rounded-xl"
-              >
-                Concluir
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onConcluido(lead.id)}
+                  className="w-full bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2"
+                >
+                  <Kanban size={14} />
+                  Voltar ao pipeline
+                </button>
+                <Link
+                  href={`/admin/crm/leads/${lead.id}`}
+                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2"
+                >
+                  <ExternalLink size={14} />
+                  Acompanhar lead
+                </Link>
+              </div>
+
+              {["paid", "separacao", "despachado", "entregue"].includes(statusPedido) && (
+                <button
+                  type="button"
+                  onClick={criarNovaCompra}
+                  disabled={criandoNovaCompra}
+                  className="w-full border border-zinc-700 hover:border-[#C9A66B]/50 text-zinc-300 hover:text-white font-black uppercase text-[10px] tracking-widest py-2.5 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {criandoNovaCompra ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <RotateCcw size={14} />
+                  )}
+                  Nova compra no pipeline
+                </button>
+              )}
             </div>
           ) : (
             <>
+              <CrmCadastrarMembroPanel
+                leadId={lead.id}
+                nome={lead.nome}
+                emailInicial={lead.email}
+                jaTemCadastro={Boolean(perfilVinculado || lead.profile_id)}
+                onCadastrado={(p) => aplicarEnderecoPerfil(p as PerfilEndereco)}
+              />
+
+              {perfilVinculado && (
+                <div className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+                  Cadastro vinculado: <strong>{perfilVinculado.full_name || lead.nome}</strong>
+                  {perfilVinculado.email ? ` · ${perfilVinculado.email}` : ""}
+                </div>
+              )}
+
               <div>
                 <p className={labelClass}>
                   <Package size={12} className="inline mr-1" />

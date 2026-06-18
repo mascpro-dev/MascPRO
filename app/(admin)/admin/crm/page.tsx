@@ -474,6 +474,10 @@ export default function CrmKanbanPage() {
     setLeadFechamento(null);
   }
 
+  function onNovaCompraPipeline() {
+    void carregar();
+  }
+
   function onLeadSalvo(lead: Lead) {
     setLeads((prev) => [lead, ...prev]);
     setModalNovo(false);
@@ -616,6 +620,7 @@ export default function CrmKanbanPage() {
           }}
           onClose={() => setLeadFechamento(null)}
           onConcluido={onPedidoConcluido}
+          onNovaCompra={onNovaCompraPipeline}
         />
       )}
     </div>

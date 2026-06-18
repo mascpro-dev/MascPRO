@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AdminSidebar from "@/componentes/AdminSidebar";
+import CrmCadastrarMembroPanel from "@/componentes/CrmCadastrarMembroPanel";
 import {
   ArrowLeft, Loader2, Pencil, Save, X, AlertCircle,
   CheckCircle, MessageCircle, Instagram, Mail, Building2,
@@ -121,6 +122,7 @@ export default function LeadDetalhePage() {
 
   // Confirmar exclusão
   const [excluindo, setExcluindo] = useState(false);
+  const [viewerRole, setViewerRole] = useState("");
 
   // Jornada 360
   const [cliente360, setCliente360] = useState<Cliente360 | null>(null);
@@ -133,6 +135,7 @@ export default function LeadDetalhePage() {
   const [perfisEncontrados, setPerfisEncontrados] = useState<PerfilBusca[]>([]);
   const [buscandoPerfil, setBuscandoPerfil] = useState(false);
   const [convertendo, setConvertendo] = useState(false);
+  const [cadastroCriado, setCadastroCriado] = useState(false);
 
   const carregar = useCallback(async () => {
     const res = await fetch(`/api/admin/crm/leads/${id}`, { cache: "no-store" });
@@ -144,6 +147,7 @@ export default function LeadDetalhePage() {
     }
     setLead(data.lead);
     setAtividades(data.atividades || []);
+    setViewerRole(String(data.viewer_role || "").toUpperCase());
     setLoading(false);
   }, [id]);
 
@@ -251,11 +255,15 @@ export default function LeadDetalhePage() {
   }
 
   async function excluirLead() {
+    if (viewerRole !== "ADMIN") return;
+    if (!confirm("Excluir este lead permanentemente? Esta ação não pode ser desfeita.")) return;
     setExcluindo(true);
     const res = await fetch(`/api/admin/crm/leads/${id}`, { method: "DELETE" });
-    if (res.ok) {
+    const d = await res.json().catch(() => null);
+    if (res.ok && d?.ok) {
       router.push("/admin/crm");
     } else {
+      alert(d?.error || "Não foi possível excluir o lead.");
       setExcluindo(false);
     }
   }
@@ -406,15 +414,17 @@ export default function LeadDetalhePage() {
               </div>
             )}
 
-            {/* Excluir */}
-            <button
-              onClick={excluirLead}
-              disabled={excluindo}
-              className="flex items-center justify-center gap-2 text-red-500 hover:text-red-400 text-[11px] font-black uppercase tracking-widest py-2 rounded-xl border border-red-900/40 hover:border-red-800/60 bg-red-950/20 hover:bg-red-950/40 transition-all disabled:opacity-50"
-            >
-              {excluindo ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              {excluindo ? "Excluindo..." : "Excluir Lead"}
-            </button>
+            {/* Excluir — somente admin */}
+            {viewerRole === "ADMIN" && (
+              <button
+                onClick={excluirLead}
+                disabled={excluindo}
+                className="flex items-center justify-center gap-2 text-red-500 hover:text-red-400 text-[11px] font-black uppercase tracking-widest py-2 rounded-xl border border-red-900/40 hover:border-red-800/60 bg-red-950/20 hover:bg-red-950/40 transition-all disabled:opacity-50"
+              >
+                {excluindo ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {excluindo ? "Excluindo..." : "Excluir Lead"}
+              </button>
+            )}
           </div>
 
           {/* ─── COLUNA DIREITA — Abas CRM / 360 ─── */}
@@ -446,7 +456,7 @@ export default function LeadDetalhePage() {
                     <p className="text-zinc-400 font-bold mb-1">Lead ainda não convertido</p>
                     <p className="text-zinc-600 text-xs mb-5">Vincule este lead a um perfil do MascPRO para acompanhar a jornada pós-venda.</p>
                     <button
-                      onClick={() => setModalConverter(true)}
+                      onClick={() => { setCadastroCriado(false); setModalConverter(true); }}
                       className="inline-flex items-center gap-2 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest px-5 py-2.5 rounded-xl"
                     >
                       <Link2 size={14} /> Converter Lead
@@ -700,11 +710,24 @@ export default function LeadDetalhePage() {
               )}
 
               {!buscandoPerfil && buscaPerfil.trim() && perfisEncontrados.length === 0 && (
-                <p className="text-zinc-600 text-sm text-center py-4">Nenhum membro encontrado.</p>
+                <p className="text-zinc-600 text-sm text-center py-2">Nenhum membro encontrado.</p>
               )}
 
               {!buscaPerfil.trim() && (
-                <p className="text-zinc-600 text-xs text-center py-4">Digite o nome ou contato do membro para buscar.</p>
+                <p className="text-zinc-600 text-xs text-center py-2">Digite o nome ou contato do membro para buscar.</p>
+              )}
+
+              {!lead.profile_id && (
+                <CrmCadastrarMembroPanel
+                  leadId={id}
+                  nome={lead?.nome || ""}
+                  emailInicial={lead?.email}
+                  jaTemCadastro={Boolean(lead?.profile_id) || cadastroCriado}
+                  onCadastrado={() => {
+                    setCadastroCriado(true);
+                    void carregar();
+                  }}
+                />
               )}
             </div>
           </div>
