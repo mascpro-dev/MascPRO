@@ -221,6 +221,25 @@ export default function Sidebar() {
                   <span className="font-medium">Minha Jornada</span>
                 </Link>
 
+                {/* CRM da Rede — EMBAIXADOR */}
+                {userProfile && isEmbaixadorRole && (
+                  <>
+                    <div className="border-t border-white/5 my-1" />
+                    <Link
+                      href="/embaixador/crm/dashboard"
+                      onClick={() => setDropdownOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                        pathname.startsWith("/embaixador/crm")
+                          ? "bg-purple-500/10 text-purple-300"
+                          : "text-purple-400/70 hover:text-purple-300 hover:bg-purple-500/5"
+                      }`}
+                    >
+                      <BarChart2 size={18} className="text-purple-400" />
+                      <span className="font-bold">CRM da Rede</span>
+                    </Link>
+                  </>
+                )}
+
                 {/* CRM / ERP no dropdown mobile — DISTRIBUIDOR e ADMIN */}
                 {userProfile && (isDistribuidor || isAdmin) && (
                   <>
@@ -366,6 +385,27 @@ export default function Sidebar() {
                 );
               })}
             </nav>
+
+            {/* CRM da Rede — EMBAIXADOR */}
+            {userProfile && isEmbaixadorRole && (
+              <div className="mt-4 pt-4 border-t border-white/5">
+                <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] mb-2 px-2">Minha rede</p>
+                <Link
+                  href="/embaixador/crm/dashboard"
+                  className={`flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group ${
+                    pathname.startsWith("/embaixador/crm")
+                      ? "bg-purple-600/15 border border-purple-500/30 text-purple-300 font-black"
+                      : "text-slate-500 hover:text-purple-300 hover:bg-purple-600/5 border border-transparent"
+                  }`}
+                >
+                  <BarChart2 size={20} className={pathname.startsWith("/embaixador/crm") ? "text-purple-400" : "text-slate-500 group-hover:text-purple-400"} />
+                  <div>
+                    <span className="text-xs uppercase tracking-widest font-bold block">CRM da Rede</span>
+                    <span className="text-[9px] text-slate-600 font-normal">Pipeline · Pedidos MascPRO</span>
+                  </div>
+                </Link>
+              </div>
+            )}
 
             {/* CRM / ERP — visível para DISTRIBUIDOR e ADMIN, fora da nav para não ter conflito de scroll */}
             {userProfile && (isDistribuidor || isAdmin) && (

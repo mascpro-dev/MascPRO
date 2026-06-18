@@ -12,6 +12,7 @@ const AUTH_ONLY_PREFIXES = ['/home', '/agenda', '/perfil', '/comunidade', '/loja
 // Rotas admin com acesso para ADMIN e DISTRIBUIDOR
 const ADMIN_DISTRIB_PREFIXES = ['/admin/crm', '/admin/returns']
 const ADMIN_STRICT_PREFIXES = ['/admin']
+const EMBAIXADORA_CRM_PREFIX = '/embaixador/crm'
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
@@ -47,23 +48,23 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/home', req.url))
   }
 
-  // ── Proteção da área admin ────────────────────────────────
-  if (session && ADMIN_STRICT_PREFIXES.some((p) => pathname.startsWith(p))) {
-    // Busca o role do usuário (cache em cookie para não bater no DB toda vez)
-    const roleCookie = req.cookies.get('user_role')?.value
+  const precisaRole =
+    session &&
+    (ADMIN_STRICT_PREFIXES.some((p) => pathname.startsWith(p)) ||
+      pathname.startsWith(EMBAIXADORA_CRM_PREFIX))
 
+  if (precisaRole) {
+    const roleCookie = req.cookies.get('user_role')?.value
     let role = roleCookie
 
     if (!role) {
-      // Busca do banco apenas quando cookie não existe
       const { data: perfil } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', session.user.id)
+        .eq('id', session!.user.id)
         .maybeSingle()
       role = String(perfil?.role || '').toUpperCase()
 
-      // Salva no cookie por 30min para evitar DB calls repetidos
       res.cookies.set('user_role', role, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -73,17 +74,20 @@ export async function middleware(req: NextRequest) {
       })
     }
 
-    const isAdmin      = role === 'ADMIN'
-    const isDistrib    = role === 'DISTRIBUIDOR'
+    const isAdmin = role === 'ADMIN'
+    const isDistrib = role === 'DISTRIBUIDOR'
+    const isEmbaixador = role === 'EMBAIXADOR'
 
-    // Prefixos permitidos para ADMIN e DISTRIBUIDOR
-    if (ADMIN_DISTRIB_PREFIXES.some((p) => pathname.startsWith(p))) {
-      if (!isAdmin && !isDistrib) {
-        return NextResponse.redirect(new URL('/home', req.url))
-      }
-    } else {
-      // Resto do /admin → somente ADMIN
-      if (!isAdmin) {
+    if (pathname.startsWith(EMBAIXADORA_CRM_PREFIX) && !isEmbaixador) {
+      return NextResponse.redirect(new URL('/home', req.url))
+    }
+
+    if (ADMIN_STRICT_PREFIXES.some((p) => pathname.startsWith(p))) {
+      if (ADMIN_DISTRIB_PREFIXES.some((p) => pathname.startsWith(p))) {
+        if (!isAdmin && !isDistrib) {
+          return NextResponse.redirect(new URL('/home', req.url))
+        }
+      } else if (!isAdmin) {
         return NextResponse.redirect(new URL('/home', req.url))
       }
     }

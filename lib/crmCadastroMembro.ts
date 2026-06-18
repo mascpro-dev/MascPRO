@@ -26,6 +26,14 @@ export type ResultadoCadastroLead = {
   profile_id?: string;
 };
 
+export type RoleMembroCrm = "CLIENTE" | "CABELEIREIRO" | "EMBAIXADOR";
+
+function nivelPorRole(role: RoleMembroCrm): string {
+  if (role === "CABELEIREIRO") return "cabeleireiro";
+  if (role === "EMBAIXADOR") return "embaixador";
+  return "cliente";
+}
+
 export async function criarMembroDeLead(
   supabase: SupabaseClient,
   params: {
@@ -34,9 +42,11 @@ export async function criarMembroDeLead(
     indicadoPor?: string | null;
     closingUserId: string;
     vincularLead?: boolean;
+    roleMembro?: RoleMembroCrm;
   }
 ): Promise<ResultadoCadastroLead> {
   const { lead, closingUserId, vincularLead = true } = params;
+  const roleMembro = params.roleMembro || "CLIENTE";
 
   if (lead.profile_id) {
     return {
@@ -104,8 +114,8 @@ export async function criarMembroDeLead(
     state: lead.estado?.trim()?.toUpperCase().slice(0, 2) || null,
     municipio: lead.cidade?.trim() || null,
     uf: lead.estado?.trim()?.toUpperCase().slice(0, 2) || null,
-    role: "CLIENTE",
-    nivel: "cliente",
+    role: roleMembro,
+    nivel: nivelPorRole(roleMembro),
     indicado_por: indicado || null,
     onboarding_completed: true,
     updated_at: new Date().toISOString(),

@@ -68,9 +68,24 @@ type Props = {
   onClose: () => void;
   onConcluido: (leadId: string) => void;
   onNovaCompra?: () => void;
+  /** admin = CRM gestão · embaixadora = pedido da rede MascPRO */
+  variant?: "admin" | "embaixadora";
+  apiBase?: string;
 };
 
-export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, onNovaCompra }: Props) {
+export default function CrmFechamentoPedidoModal({
+  lead,
+  onClose,
+  onConcluido,
+  onNovaCompra,
+  variant = "admin",
+  apiBase,
+}: Props) {
+  const isRede = variant === "embaixadora";
+  const api = apiBase || (isRede ? "/api/embaixador/crm" : "/api/admin/crm");
+  const accent = isRede ? "purple" : "gold";
+  const accentHex = isRede ? "#a855f7" : "#C9A66B";
+  const leadHref = isRede ? `/embaixador/crm/leads/${lead.id}` : `/admin/crm/leads/${lead.id}`;
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [buscaProduto, setBuscaProduto] = useState("");
   const [itens, setItens] = useState<ItemPedido[]>([]);
@@ -99,11 +114,11 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
   const [criandoNovaCompra, setCriandoNovaCompra] = useState(false);
 
   const carregarProdutos = useCallback(async (q: string) => {
-    const url = `/api/admin/crm/produtos${q ? `?q=${encodeURIComponent(q)}` : ""}`;
+    const url = `${api}/produtos${q ? `?q=${encodeURIComponent(q)}` : ""}`;
     const res = await fetch(url, { cache: "no-store" });
     const d = await res.json().catch(() => null);
     if (d?.ok) setProdutos(d.produtos || []);
-  }, []);
+  }, [api]);
 
   useEffect(() => { void carregarProdutos(""); }, [carregarProdutos]);
 
@@ -113,21 +128,21 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
   }, [buscaProduto, carregarProdutos]);
 
   useEffect(() => {
-    if (!lead.profile_id) return;
-    fetch(`/api/admin/crm/leads/${lead.id}/converter?q=`, { cache: "no-store" })
+    if (!lead.profile_id || isRede) return;
+    fetch(`${api}/leads/${lead.id}/converter?q=`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
         const p = (d?.perfis || []).find((x: PerfilEndereco) => x.id === lead.profile_id);
         if (p) aplicarEnderecoPerfil(p);
       })
       .catch(() => {});
-  }, [lead.id, lead.profile_id]);
+  }, [lead.id, lead.profile_id, api, isRede]);
 
   async function criarNovaCompra() {
     setCriandoNovaCompra(true);
     setErro("");
     try {
-      const res = await fetch(`/api/admin/crm/leads/${lead.id}/nova-compra`, {
+      const res = await fetch(`${api}/leads/${lead.id}/nova-compra`, {
         method: "POST",
       });
       const d = await res.json().catch(() => null);
@@ -198,7 +213,7 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
     setEnviando(true);
     setErro("");
     try {
-      const res = await fetch(`/api/admin/crm/leads/${lead.id}/fechar-pedido`, {
+      const res = await fetch(`${api}/leads/${lead.id}/fechar-pedido`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -240,7 +255,7 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
     setAtualizandoStatus(true);
     setErro("");
     try {
-      const res = await fetch(`/api/admin/crm/leads/${lead.id}/fechar-pedido`, {
+      const res = await fetch(`${api}/leads/${lead.id}/fechar-pedido`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ acao: "confirmar_pagamento" }),
@@ -258,10 +273,11 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
   }
 
   async function mudarStatusPedido(novoStatus: string) {
+    if (isRede) return;
     setAtualizandoStatus(true);
     setErro("");
     try {
-      const res = await fetch(`/api/admin/crm/leads/${lead.id}/fechar-pedido`, {
+      const res = await fetch(`${api}/leads/${lead.id}/fechar-pedido`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ acao: "mudar_status", novo_status: novoStatus }),
@@ -277,19 +293,29 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
     }
   }
 
-  const inputClass =
-    "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B] placeholder:text-zinc-700";
+  const inputClass = isRede
+    ? "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-purple-500 placeholder:text-zinc-700"
+    : "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B] placeholder:text-zinc-700";
   const labelClass = "block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1";
+  const btnPrimary = isRede
+    ? "bg-purple-600 hover:bg-purple-500 text-white"
+    : "bg-[#C9A66B] hover:bg-[#b08d55] text-black";
 
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
       <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[94vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-950 z-10">
           <div>
-            <h2 className="font-black uppercase text-sm tracking-widest text-[#C9A66B]">
-              Fechar venda
+            <h2
+              className="font-black uppercase text-sm tracking-widest"
+              style={{ color: accentHex }}
+            >
+              {isRede ? "Pedido da rede MascPRO" : "Fechar venda"}
             </h2>
-            <p className="text-xs text-zinc-500 mt-0.5">{lead.nome}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {lead.nome}
+              {isRede && " · envio pela equipe MascPRO"}
+            </p>
           </div>
           <button type="button" onClick={onClose} aria-label="Fechar">
             <X size={20} className="text-zinc-500 hover:text-white" />
@@ -306,7 +332,7 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
                 onClose();
               }}
               onTentarNovamente={() => setErro("")}
-              rotuloVoltar="Voltar ao pipeline"
+              rotuloVoltar={isRede ? "Voltar ao pipeline" : "Voltar ao pipeline"}
             />
           )}
 
@@ -315,10 +341,14 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
               <div className="flex items-start gap-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-4">
                 <CheckCircle2 className="text-emerald-400 shrink-0" size={22} />
                 <div>
-                  <p className="font-bold text-emerald-300">Pedido criado!</p>
+                  <p className="font-bold text-emerald-300">
+                    {isRede ? "Pedido da rede registrado!" : "Pedido criado!"}
+                  </p>
                   <p className="text-xs text-zinc-400 mt-1">
-                    #{sucesso.order_id.slice(0, 8)} · Gestão:{" "}
-                    {sucesso.gestor_tipo === "empresa" ? "MascPRO (empresa)" : "Distribuidor"}
+                    #{sucesso.order_id.slice(0, 8)} ·{" "}
+                    {isRede
+                      ? "A MascPRO fará separação e envio"
+                      : `Gestão: ${sucesso.gestor_tipo === "empresa" ? "MascPRO (empresa)" : "Distribuidor"}`}
                   </p>
                 </div>
               </div>
@@ -339,7 +369,7 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
                 </button>
               )}
 
-              {["paid", "separacao", "despachado"].includes(statusPedido) && (
+              {["paid", "separacao", "despachado"].includes(statusPedido) && !isRede && (
                 <div className="space-y-2">
                   <p className={labelClass}>
                     <Truck size={12} className="inline mr-1" />
@@ -365,13 +395,13 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
                 <button
                   type="button"
                   onClick={() => onConcluido(lead.id)}
-                  className="w-full bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2"
+                  className={`w-full ${btnPrimary} font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2`}
                 >
                   <Kanban size={14} />
                   Voltar ao pipeline
                 </button>
                 <Link
-                  href={`/admin/crm/leads/${lead.id}`}
+                  href={leadHref}
                   className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2"
                 >
                   <ExternalLink size={14} />
@@ -403,6 +433,9 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
                 emailInicial={lead.email}
                 jaTemCadastro={Boolean(perfilVinculado || lead.profile_id)}
                 onCadastrado={(p) => aplicarEnderecoPerfil(p as PerfilEndereco)}
+                apiBase={api}
+                permitirTipoMembro={isRede}
+                accent={accent}
               />
 
               {perfilVinculado && (
@@ -435,7 +468,7 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
                       className="w-full text-left px-3 py-2 hover:bg-zinc-900 flex justify-between items-center"
                     >
                       <span className="text-sm truncate">{p.title}</span>
-                      <span className="text-[11px] text-[#C9A66B] shrink-0 ml-2">
+                      <span className={`text-[11px] shrink-0 ml-2 ${isRede ? "text-purple-400" : "text-[#C9A66B]"}`}>
                         R$ {precoConsumidor(p).toFixed(2)}
                       </span>
                     </button>
@@ -541,7 +574,7 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
 
               <div className="flex justify-between items-center border-t border-zinc-800 pt-4">
                 <span className="text-zinc-500 text-sm">Total</span>
-                <span className="text-2xl font-black text-[#C9A66B]">
+                <span className={`text-2xl font-black ${isRede ? "text-purple-400" : "text-[#C9A66B]"}`}>
                   R$ {total.toFixed(2)}
                 </span>
               </div>
@@ -550,14 +583,14 @@ export default function CrmFechamentoPedidoModal({ lead, onClose, onConcluido, o
                 type="button"
                 onClick={criarPedido}
                 disabled={enviando}
-                className="w-full bg-[#C9A66B] hover:bg-[#b08d55] disabled:opacity-60 text-black font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2"
+                className={`w-full ${btnPrimary} disabled:opacity-60 font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2`}
               >
                 {enviando ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
                   <CheckCircle2 size={16} />
                 )}
-                {enviando ? "Salvando..." : "Criar pedido e fechar lead"}
+                {enviando ? "Salvando..." : isRede ? "Registrar pedido da rede" : "Criar pedido e fechar lead"}
               </button>
             </>
           )}

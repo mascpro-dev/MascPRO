@@ -24,6 +24,10 @@ type Props = {
   emailInicial?: string | null;
   jaTemCadastro?: boolean;
   onCadastrado: (perfil: PerfilCriado, info?: { senha?: string; email?: string }) => void;
+  apiBase?: string;
+  /** Exibe seletor Cabeleireira / Embaixadora (CRM da rede) */
+  permitirTipoMembro?: boolean;
+  accent?: "gold" | "purple";
 };
 
 export default function CrmCadastrarMembroPanel({
@@ -32,8 +36,13 @@ export default function CrmCadastrarMembroPanel({
   emailInicial,
   jaTemCadastro,
   onCadastrado,
+  apiBase = "/api/admin/crm",
+  permitirTipoMembro = false,
+  accent = "gold",
 }: Props) {
   const [email, setEmail] = useState(emailInicial || "");
+  const [tipoMembro, setTipoMembro] = useState<"CABELEIREIRO" | "EMBAIXADOR">("CABELEIREIRO");
+  const accentColor = accent === "purple" ? "#a855f7" : "#C9A66B";
   const [criando, setCriando] = useState(false);
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState<{
@@ -49,10 +58,13 @@ export default function CrmCadastrarMembroPanel({
     setErro("");
     setCriando(true);
     try {
-      const res = await fetch(`/api/admin/crm/leads/${leadId}/cadastrar-membro`, {
+      const res = await fetch(`${apiBase}/leads/${leadId}/cadastrar-membro`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({
+          email: email.trim(),
+          ...(permitirTipoMembro ? { role_membro: tipoMembro } : {}),
+        }),
       });
       const d = await res.json().catch(() => null);
       if (!res.ok || !d?.ok) {
@@ -86,7 +98,9 @@ export default function CrmCadastrarMembroPanel({
   }
 
   const inputClass =
-    "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B]";
+    accent === "purple"
+      ? "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-purple-500"
+      : "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B]";
 
   if (sucesso) {
     return (
@@ -126,12 +140,34 @@ export default function CrmCadastrarMembroPanel({
   return (
     <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/50 p-4 space-y-3">
       <div className="flex items-center gap-2 text-sm font-bold text-white">
-        <UserPlus size={16} className="text-[#C9A66B]" />
-        Sem cadastro no app
+        <UserPlus size={16} style={{ color: accentColor }} />
+        {permitirTipoMembro ? "Cadastrar na rede antes do app" : "Sem cadastro no app"}
       </div>
       <p className="text-[11px] text-zinc-500">
-        Crie a conta com senha temporária <span className="text-zinc-400 font-mono">{SENHA_PADRAO_CRM}</span> para a cliente acessar depois.
+        {permitirTipoMembro
+          ? "Crie o acesso como cabeleireira ou nova embaixadora da sua rede. Senha temporária:"
+          : "Crie a conta com senha temporária"}{" "}
+        <span className="text-zinc-400 font-mono">{SENHA_PADRAO_CRM}</span>
+        {permitirTipoMembro ? "" : " para a cliente acessar depois."}
       </p>
+      {permitirTipoMembro && (
+        <div className="flex gap-2">
+          {(["CABELEIREIRO", "EMBAIXADOR"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTipoMembro(t)}
+              className={`flex-1 text-[10px] font-black uppercase tracking-widest py-2 rounded-lg border transition-all ${
+                tipoMembro === t
+                  ? "border-purple-500/50 bg-purple-600/20 text-purple-300"
+                  : "border-zinc-700 text-zinc-500 hover:border-zinc-600"
+              }`}
+            >
+              {t === "CABELEIREIRO" ? "Cabeleireira" : "Embaixadora"}
+            </button>
+          ))}
+        </div>
+      )}
       {erro && (
         <ErroComVoltar
           compacto
@@ -159,7 +195,7 @@ export default function CrmCadastrarMembroPanel({
         className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 border border-zinc-700 text-white font-black uppercase text-[10px] tracking-widest py-2.5 rounded-xl flex items-center justify-center gap-2"
       >
         {criando ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
-        {criando ? "Criando..." : "Criar cadastro no app"}
+        {criando ? "Criando..." : permitirTipoMembro ? `Criar ${tipoMembro === "EMBAIXADOR" ? "embaixadora" : "cabeleireira"}` : "Criar cadastro no app"}
       </button>
     </div>
   );
