@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext, assertAdmin } from "@/lib/adminServer";
 import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
+import { fetchIndicadorRole, resolveOrderGestor } from "@/lib/orderGestor";
 
 export const dynamic = "force-dynamic";
 
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
 
     const { data: comprador, error: errComp } = await supabase
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, role, indicado_por")
       .eq("id", body.profile_id)
       .maybeSingle();
     if (errComp) {
@@ -126,6 +127,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const { data: adminPerfil } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+    const adminRole = String(adminPerfil?.role || "ADMIN").toUpperCase();
+    const indicadorRole = comprador.indicado_por
+      ? await fetchIndicadorRole(supabase, comprador.indicado_por)
+      : null;
+    const gestor = resolveOrderGestor({
+      buyer: comprador,
+      indicadorRole,
+      closingUserId: userId,
+      closingUserRole: adminRole,
+      leadResponsavelId: null,
+    });
+
     const { data: order, error: errOrder } = await supabase
       .from("orders")
       .insert({
@@ -138,6 +156,8 @@ export async function POST(req: NextRequest) {
         shipping_address: body.shipping_address || null,
         codigo_rastreio: body.codigo_rastreio || null,
         transportadora: body.transportadora || null,
+        gestor_tipo: gestor.gestor_tipo,
+        distribuidor_gestor_id: gestor.distribuidor_gestor_id,
       })
       .select("id")
       .single();

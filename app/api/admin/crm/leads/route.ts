@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       id, created_at, updated_at,
       nome, empresa, telefone, email, instagram, cidade, estado,
       status, origem, valor_estimado, data_followup, notas,
-      responsavel_id, created_by,
+      responsavel_id, created_by, profile_id, order_id,
       responsavel:profiles!crm_leads_responsavel_id_fkey(id, full_name, avatar_url)
     `)
     .order("updated_at", { ascending: false });

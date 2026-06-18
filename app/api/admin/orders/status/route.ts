@@ -3,7 +3,8 @@ import { applyOrderToProInventory } from "@/lib/applyOrderToProInventory";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { registrarAudit } from "@/lib/auditLog";
-import { getAdminContext, assertAdmin } from "@/lib/adminServer";
+import { getAdminContext } from "@/lib/adminServer";
+import { assertCanChangeOrderStatus } from "@/lib/orderGestor";
 
 export const dynamic = "force-dynamic";
 
@@ -42,16 +43,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const adm = await assertAdmin(supabase, userId);
-    if (!adm.ok) {
-      return NextResponse.json({ ok: false, error: adm.error }, { status: 403 });
-    }
-
     const { data: orderAtual } = await supabase
       .from("orders")
-      .select("status, total, profile_id")
+      .select("status, total, profile_id, gestor_tipo, distribuidor_gestor_id")
       .eq("id", orderId)
       .single();
+
+    if (!orderAtual) {
+      return NextResponse.json({ ok: false, error: "Pedido não encontrado." }, { status: 404 });
+    }
+
+    const perm = await assertCanChangeOrderStatus(supabase, userId, orderAtual);
+    if (!perm.ok) {
+      return NextResponse.json({ ok: false, error: perm.error }, { status: 403 });
+    }
     const jaEstavaPago = STATUS_PAGO.has(normalizeOrderStatus(orderAtual?.status));
 
     const { error } = await supabase

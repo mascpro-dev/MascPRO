@@ -136,6 +136,23 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "Nenhum campo para atualizar." }, { status: 400 });
   }
 
+  if (campos.status === "fechado") {
+    const { data: leadCheck } = await supabase
+      .from("crm_leads")
+      .select("order_id")
+      .eq("id", params.id)
+      .maybeSingle();
+    if (!leadCheck?.order_id) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Para fechar o lead, crie o pedido pelo modal (produtos, pagamento e endereço).",
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   const { data: lead, error } = await supabase
     .from("crm_leads")
     .update(campos)

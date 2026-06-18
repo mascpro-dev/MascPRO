@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import AdminSidebar from "@/componentes/AdminSidebar";
+import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
 import {
-  Kanban, Plus, Loader2, Search, X, ChevronRight,
+  Kanban, Plus, Loader2, Search, X, ChevronRight, ChevronDown,
   Mail, Building2, Calendar, User, DollarSign,
   MessageCircle, Instagram, AlertCircle, Filter,
 } from "lucide-react";
@@ -16,12 +17,16 @@ type Lead = {
   telefone: string | null;
   email: string | null;
   instagram: string | null;
+  cidade: string | null;
+  estado: string | null;
   status: string;
   origem: string;
   valor_estimado: number | null;
   data_followup: string | null;
   notas: string | null;
   responsavel_id: string | null;
+  profile_id: string | null;
+  order_id: string | null;
   responsavel: { id: string; full_name: string; avatar_url?: string } | null;
   updated_at: string;
 };
@@ -75,6 +80,67 @@ function dataFormatada(d: string) {
 function followupAtrasado(data: string | null) {
   if (!data) return false;
   return new Date(data) < new Date(new Date().toDateString());
+}
+
+function DropdownDistribuidor({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  options: Distribuidor[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function fora(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", fora);
+    return () => document.removeEventListener("mousedown", fora);
+  }, []);
+
+  const label =
+    options.find((d) => d.id === value)?.full_name || "Todos os distribuidores";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white hover:border-zinc-600 min-w-[200px] justify-between"
+      >
+        <span className="flex items-center gap-2 truncate">
+          <Filter size={13} className="text-zinc-500 shrink-0" />
+          <span className="truncate max-w-[160px]">{label}</span>
+        </span>
+        <ChevronDown size={14} className={`text-zinc-500 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-[200] bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl min-w-full max-h-64 overflow-y-auto py-1">
+          <button
+            type="button"
+            onClick={() => { onChange(""); setOpen(false); }}
+            className={`w-full text-left px-3 py-2.5 text-sm hover:bg-zinc-800 transition-colors ${!value ? "text-[#C9A66B] font-bold" : "text-white"}`}
+          >
+            Todos os distribuidores
+          </button>
+          {options.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => { onChange(d.id); setOpen(false); }}
+              className={`w-full text-left px-3 py-2.5 text-sm hover:bg-zinc-800 transition-colors truncate ${value === d.id ? "text-[#C9A66B] font-bold" : "text-white"}`}
+            >
+              {d.full_name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Card do Lead ─────────────────────────────────────────
@@ -336,6 +402,7 @@ export default function CrmKanbanPage() {
   const [erro, setErro] = useState("");
   const [busca, setBusca] = useState("");
   const [modalNovo, setModalNovo] = useState(false);
+  const [leadFechamento, setLeadFechamento] = useState<Lead | null>(null);
 
   // Filtro por distribuidor (só visível para ADMIN)
   const [distribuidores, setDistribuidores] = useState<Distribuidor[]>([]);
@@ -373,6 +440,18 @@ export default function CrmKanbanPage() {
   }, [carregar, busca]);
 
   async function moverLead(id: string, novoStatus: string) {
+    if (novoStatus === "fechado") {
+      const lead = leads.find((l) => l.id === id);
+      if (lead) {
+        if (lead.order_id) {
+          setErro("Este lead já possui pedido vinculado.");
+          return;
+        }
+        setLeadFechamento(lead);
+      }
+      return;
+    }
+
     const res = await fetch(`/api/admin/crm/leads/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -384,6 +463,15 @@ export default function CrmKanbanPage() {
         prev.map((l) => (l.id === id ? { ...l, status: novoStatus } : l))
       );
     }
+  }
+
+  function onPedidoConcluido(leadId: string) {
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === leadId ? { ...l, status: "fechado" } : l
+      )
+    );
+    setLeadFechamento(null);
   }
 
   function onLeadSalvo(lead: Lead) {
@@ -424,19 +512,11 @@ export default function CrmKanbanPage() {
             <div className="flex items-center gap-3 flex-wrap justify-end">
               {/* Dropdown de distribuidor — só aparece para ADMIN (lista não vazia) */}
               {distribuidores.length > 0 && (
-                <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2">
-                  <Filter size={13} className="text-zinc-500 shrink-0" />
-                  <select
-                    value={distribuidorSelecionado}
-                    onChange={(e) => setDistribuidorSelecionado(e.target.value)}
-                    className="bg-transparent text-sm text-white outline-none cursor-pointer"
-                  >
-                    <option value="">Todos os distribuidores</option>
-                    {distribuidores.map((d) => (
-                      <option key={d.id} value={d.id}>{d.full_name}</option>
-                    ))}
-                  </select>
-                </div>
+                <DropdownDistribuidor
+                  value={distribuidorSelecionado}
+                  onChange={setDistribuidorSelecionado}
+                  options={distribuidores}
+                />
               )}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={14} />
@@ -521,6 +601,22 @@ export default function CrmKanbanPage() {
 
       {modalNovo && (
         <ModalNovoLead onClose={() => setModalNovo(false)} onSalvo={onLeadSalvo} />
+      )}
+
+      {leadFechamento && (
+        <CrmFechamentoPedidoModal
+          lead={{
+            id: leadFechamento.id,
+            nome: leadFechamento.nome,
+            email: leadFechamento.email,
+            telefone: leadFechamento.telefone,
+            cidade: leadFechamento.cidade,
+            estado: leadFechamento.estado,
+            profile_id: leadFechamento.profile_id,
+          }}
+          onClose={() => setLeadFechamento(null)}
+          onConcluido={onPedidoConcluido}
+        />
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminContext, assertAdmin } from "@/lib/adminServer";
+import { getAdminContext } from "@/lib/adminServer";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +17,17 @@ export async function GET(req: NextRequest) {
         { status: status || 401 }
       );
     }
-    const adm = await assertAdmin(supabase, userId);
-    if (!adm.ok) {
-      return NextResponse.json({ ok: false, error: adm.error }, { status: 403 });
+    const { data: perfil } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+    const role = String(perfil?.role || "").trim().toUpperCase();
+    if (!["ADMIN", "DISTRIBUIDOR"].includes(role)) {
+      return NextResponse.json(
+        { ok: false, error: "Acesso restrito a administradores e distribuidores." },
+        { status: 403 }
+      );
     }
 
     const { searchParams } = new URL(req.url);
@@ -35,6 +43,19 @@ export async function GET(req: NextRequest) {
       )
       .order("created_at", { ascending: false })
       .limit(limit);
+
+    if (role === "DISTRIBUIDOR") {
+      query = query
+        .eq("gestor_tipo", "distribuidor")
+        .eq("distribuidor_gestor_id", userId);
+    } else {
+      const gestao = searchParams.get("gestao");
+      if (gestao === "empresa") {
+        query = query.eq("gestor_tipo", "empresa");
+      } else if (gestao === "distribuidor") {
+        query = query.eq("gestor_tipo", "distribuidor");
+      }
+    }
 
     if (filtro === "pending") {
       query = query.in("status", ["pending", "novo"]);
