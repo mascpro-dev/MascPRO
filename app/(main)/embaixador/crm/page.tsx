@@ -82,12 +82,12 @@ function LeadCard({
   }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-3 hover:border-purple-500/20 transition-all group relative">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-3 hover:border-zinc-700 transition-all group relative">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <Link
             href={`/embaixador/crm/leads/${lead.id}`}
-            className="text-sm font-black text-white leading-tight hover:text-purple-400 transition-colors truncate block"
+            className="text-sm font-black text-white leading-tight hover:text-[#C9A66B] transition-colors truncate block"
           >
             {lead.nome}
           </Link>
@@ -135,7 +135,7 @@ function LeadCard({
 
       <div className="flex items-center gap-3 flex-wrap">
         {lead.valor_estimado != null && lead.valor_estimado > 0 && (
-          <span className="flex items-center gap-1 text-[10px] text-purple-400 font-bold">
+          <span className="flex items-center gap-1 text-[10px] text-[#C9A66B] font-bold">
             <DollarSign size={10} /> {moeda(lead.valor_estimado)}
           </span>
         )}
@@ -158,7 +158,7 @@ function LeadCard({
             <button
               type="button"
               onClick={() => onNovoPedido(lead)}
-              className="w-full text-[9px] font-black uppercase tracking-widest text-purple-400 bg-purple-500/10 py-1.5 rounded-lg hover:bg-purple-500/20"
+              className="w-full text-[9px] font-black uppercase tracking-widest text-[#C9A66B] bg-[#C9A66B]/10 py-1.5 rounded-lg hover:bg-[#C9A66B]/20"
             >
               + Novo pedido da rede
             </button>
@@ -188,7 +188,7 @@ function LeadCard({
 
       {movendo && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-2xl">
-          <Loader2 size={18} className="animate-spin text-purple-400" />
+          <Loader2 size={18} className="animate-spin text-[#C9A66B]" />
         </div>
       )}
     </div>
@@ -231,15 +231,15 @@ function ModalNovoLead({
     setSalvando(false);
   }
 
-  const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500";
+  const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-[#C9A66B] placeholder:text-zinc-700";
   const labelClass = "block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1";
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-zinc-950 border border-purple-500/20 rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-950">
           <div>
-            <h2 className="font-black uppercase text-sm tracking-widest text-purple-400">Novo contato da rede</h2>
+            <h2 className="font-black uppercase text-sm tracking-widest text-[#C9A66B]">Novo contato da rede</h2>
             <p className="text-[10px] text-zinc-500 mt-0.5">Cabeleireira ou futura embaixadora</p>
           </div>
           <button type="button" onClick={onClose}><X size={20} className="text-zinc-500" /></button>
@@ -290,7 +290,7 @@ function ModalNovoLead({
             type="button"
             onClick={salvar}
             disabled={salvando}
-            className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2"
+            className="w-full bg-[#C9A66B] hover:bg-[#b08d55] disabled:opacity-60 text-black font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2"
           >
             {salvando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
             {salvando ? "Salvando..." : "Adicionar ao pipeline"}
@@ -364,56 +364,56 @@ export default function EmbaixadoraCrmPipelinePage() {
   ).length;
 
   return (
-    <div className="-mx-4 md:-mx-6">
-      <div className="px-4 md:px-6 pb-4 border-b border-purple-500/10 mb-4">
+    <div className="space-y-4">
+      <div className="pb-4 border-b border-white/5">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <Kanban className="text-purple-400" size={24} />
+            <Kanban className="text-[#C9A66B]" size={26} />
             <div>
-              <h1 className="text-xl font-black uppercase italic">
-                Pipeline <span className="text-purple-400">da Rede</span>
+              <h1 className="text-2xl font-black uppercase italic">
+                CRM <span className="text-[#C9A66B]">Pipeline</span>
               </h1>
               <p className="text-zinc-500 text-xs">
-                {leads.length} contato(s)
+                {leads.length} contato(s) na sua rede
                 {followupsHoje > 0 && (
                   <span className="ml-2 text-red-400 font-bold">· {followupsHoje} follow-up(s) atrasado(s)</span>
                 )}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={14} />
               <input
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar..."
-                className="bg-zinc-900 border border-zinc-800 rounded-xl py-2 pl-9 pr-4 text-sm text-white outline-none focus:border-purple-500/50 w-40"
+                placeholder="Buscar lead..."
+                className="bg-zinc-900 border border-zinc-800 rounded-xl py-2 pl-9 pr-4 text-sm text-white outline-none focus:border-[#C9A66B]/50 w-48"
               />
             </div>
             <button
               type="button"
               onClick={() => setModalNovo(true)}
-              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-black uppercase text-xs tracking-widest px-4 py-2.5 rounded-xl"
+              className="flex items-center gap-2 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest px-4 py-2.5 rounded-xl transition-all"
             >
-              <Plus size={16} /> Novo contato
+              <Plus size={16} /> Novo Lead
             </button>
           </div>
         </div>
       </div>
 
       {aviso && !loading && (
-        <div className="px-4 md:px-6 pb-2">
+        <div className="pb-2">
           <ErroComVoltar compacto mensagem={aviso} onVoltar={() => setAviso("")} rotuloVoltar="Fechar" />
         </div>
       )}
 
       {loading ? (
         <div className="flex justify-center py-20">
-          <Loader2 className="animate-spin text-purple-400" size={32} />
+          <Loader2 className="animate-spin text-[#C9A66B]" size={32} />
         </div>
       ) : erroCarregamento ? (
-        <div className="px-4 md:px-6 py-12">
+        <div className="py-12">
           <ErroComVoltar
             mensagem={erroCarregamento}
             onVoltar={() => { setErroCarregamento(""); setLoading(true); void carregar(); }}
@@ -421,7 +421,7 @@ export default function EmbaixadoraCrmPipelinePage() {
           />
         </div>
       ) : (
-        <div className="overflow-x-auto pb-8 px-4 md:px-6">
+        <div className="overflow-x-auto pb-8 -mx-2 px-2">
           <div className="flex gap-4 min-w-max">
             {COLUNAS.map((col) => {
               const leadsColuna = leads.filter((l) => l.status === col.key);

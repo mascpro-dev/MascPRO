@@ -230,11 +230,11 @@ export default function Sidebar() {
                       onClick={() => setDropdownOpen(false)}
                       className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
                         pathname.startsWith("/embaixador/crm")
-                          ? "bg-purple-500/10 text-purple-300"
-                          : "text-purple-400/70 hover:text-purple-300 hover:bg-purple-500/5"
+                          ? "bg-[#C9A66B]/10 text-[#C9A66B]"
+                          : "text-[#C9A66B]/70 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5"
                       }`}
                     >
-                      <BarChart2 size={18} className="text-purple-400" />
+                      <BarChart2 size={18} className="text-[#C9A66B]" />
                       <span className="font-bold">CRM da Rede</span>
                     </Link>
                   </>
@@ -394,11 +394,11 @@ export default function Sidebar() {
                   href="/embaixador/crm/dashboard"
                   className={`flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group ${
                     pathname.startsWith("/embaixador/crm")
-                      ? "bg-purple-600/15 border border-purple-500/30 text-purple-300 font-black"
-                      : "text-slate-500 hover:text-purple-300 hover:bg-purple-600/5 border border-transparent"
+                      ? "bg-[#C9A66B]/15 border border-[#C9A66B]/30 text-[#C9A66B] font-black"
+                      : "text-slate-500 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5 border border-transparent"
                   }`}
                 >
-                  <BarChart2 size={20} className={pathname.startsWith("/embaixador/crm") ? "text-purple-400" : "text-slate-500 group-hover:text-purple-400"} />
+                  <BarChart2 size={20} className={pathname.startsWith("/embaixador/crm") ? "text-[#C9A66B]" : "text-slate-500 group-hover:text-[#C9A66B]"} />
                   <div>
                     <span className="text-xs uppercase tracking-widest font-bold block">CRM da Rede</span>
                     <span className="text-[9px] text-slate-600 font-normal">Pipeline · Pedidos MascPRO</span>

@@ -35,7 +35,7 @@ export default function EmbaixadoraCrmLayout({ children }: { children: ReactNode
   if (!ok) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <Loader2 className="animate-spin text-purple-400" size={28} />
+        <Loader2 className="animate-spin text-[#C9A66B]" size={28} />
       </div>
     );
   }

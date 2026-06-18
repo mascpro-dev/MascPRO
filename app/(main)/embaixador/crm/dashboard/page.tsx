@@ -28,13 +28,13 @@ function moeda(v: number) {
 }
 
 function Card({
-  icon, label, value, sub, cor = "text-purple-400", bg = "bg-purple-500/10", href,
+  icon, label, value, sub, cor = "text-[#C9A66B]", bg = "bg-[#C9A66B]/10", href,
 }: {
   icon: React.ReactNode; label: string; value: string | number;
   sub?: string; cor?: string; bg?: string; href?: string;
 }) {
   const inner = (
-    <div className="bg-zinc-900/50 border border-purple-500/10 rounded-2xl p-5 flex items-center gap-4 hover:border-purple-500/25 transition-all h-full">
+    <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5 flex items-center gap-4 hover:border-[#C9A66B]/20 transition-all h-full">
       <div className={`w-11 h-11 rounded-xl ${bg} flex items-center justify-center shrink-0`}>{icon}</div>
       <div className="min-w-0">
         <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest truncate">{label}</p>
@@ -72,7 +72,7 @@ export default function EmbaixadoraCrmDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="animate-spin text-purple-400" size={32} />
+        <Loader2 className="animate-spin text-[#C9A66B]" size={32} />
       </div>
     );
   }
@@ -95,38 +95,38 @@ export default function EmbaixadoraCrmDashboardPage() {
     <div className="space-y-8 pb-8">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center">
-            <LayoutDashboard className="text-purple-400" size={22} />
+          <div className="w-10 h-10 rounded-xl bg-[#C9A66B]/15 border border-[#C9A66B]/25 flex items-center justify-center">
+            <LayoutDashboard className="text-[#C9A66B]" size={22} />
           </div>
           <div>
             <h1 className="text-xl md:text-2xl font-black uppercase italic">
-              Dashboard <span className="text-purple-400">da Rede</span>
+              Dashboard <span className="text-[#C9A66B]">CRM</span>
             </h1>
-            <p className="text-zinc-500 text-xs">{data.usuario.full_name}</p>
+            <p className="text-zinc-500 text-xs">{data.usuario.full_name} · Rede</p>
           </div>
         </div>
         <button
           type="button"
           onClick={() => void carregar(true)}
           disabled={atualizando}
-          className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-purple-300 px-3 py-2 rounded-lg border border-zinc-800 hover:border-purple-500/30 disabled:opacity-50"
+          className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-[#C9A66B] px-3 py-2 rounded-lg border border-zinc-800 hover:border-[#C9A66B]/30 disabled:opacity-50"
         >
           <RefreshCw size={12} className={atualizando ? "animate-spin" : ""} />
           Atualizar
         </button>
       </div>
 
-      <div className="rounded-xl border border-purple-500/20 bg-purple-950/20 px-4 py-3 flex items-start gap-3">
-        <Sparkles size={16} className="text-purple-400 shrink-0 mt-0.5" />
+      <div className="rounded-xl border border-[#C9A66B]/15 bg-zinc-900/40 px-4 py-3 flex items-start gap-3">
+        <Sparkles size={16} className="text-[#C9A66B] shrink-0 mt-0.5" />
         <p className="text-xs text-zinc-400 leading-relaxed">
-          Aqui você acompanha sua rede e registra <strong className="text-purple-300">pedidos da MascPRO</strong> para cabeleireiras e novas embaixadoras.
-          Separação e envio ficam com a equipe — diferente do pedido manual do painel admin.
+          Acompanhe sua rede e registre <strong className="text-[#C9A66B]">pedidos da MascPRO</strong> para cabeleireiras e novas embaixadoras.
+          Separação e envio ficam com a equipe.
         </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card
-          icon={<DollarSign size={20} className="text-purple-400" />}
+          icon={<DollarSign size={20} className="text-[#C9A66B]" />}
           label="Vendas do mês"
           value={moeda(resumo.vendas_mes)}
           sub={`${resumo.pedidos_mes} pedido(s) pago(s)`}
@@ -176,7 +176,7 @@ export default function EmbaixadoraCrmDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-zinc-900/40 border border-white/5 rounded-2xl p-5">
           <h2 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
-            <Kanban size={14} className="text-purple-400" />
+            <Kanban size={14} className="text-[#C9A66B]" />
             Funil da rede
           </h2>
           <div className="grid grid-cols-3 gap-2">
@@ -226,14 +226,14 @@ export default function EmbaixadoraCrmDashboardPage() {
       {ultimos_pedidos.length > 0 && (
         <div className="bg-zinc-900/40 border border-white/5 rounded-2xl p-5">
           <h2 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
-            <ShoppingBag size={14} className="text-purple-400" />
+            <ShoppingBag size={14} className="text-[#C9A66B]" />
             Últimos pedidos da rede
           </h2>
           <ul className="divide-y divide-zinc-800">
             {ultimos_pedidos.map((p) => (
               <li key={p.id} className="flex justify-between items-center py-3 text-sm">
                 <span className="text-zinc-400 font-mono text-xs">#{p.id.slice(0, 8)}</span>
-                <span className="font-bold text-purple-300">{moeda(Number(p.total))}</span>
+                <span className="font-bold text-[#C9A66B]">{moeda(Number(p.total))}</span>
                 <span className="text-[10px] uppercase text-zinc-500">{p.status}</span>
               </li>
             ))}

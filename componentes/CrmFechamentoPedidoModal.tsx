@@ -83,8 +83,8 @@ export default function CrmFechamentoPedidoModal({
 }: Props) {
   const isRede = variant === "embaixadora";
   const api = apiBase || (isRede ? "/api/embaixador/crm" : "/api/admin/crm");
-  const accent = isRede ? "purple" : "gold";
-  const accentHex = isRede ? "#a855f7" : "#C9A66B";
+  const accent = "gold";
+  const accentHex = "#C9A66B";
   const leadHref = isRede ? `/embaixador/crm/leads/${lead.id}` : `/admin/crm/leads/${lead.id}`;
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [buscaProduto, setBuscaProduto] = useState("");
@@ -293,13 +293,10 @@ export default function CrmFechamentoPedidoModal({
     }
   }
 
-  const inputClass = isRede
-    ? "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-purple-500 placeholder:text-zinc-700"
-    : "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B] placeholder:text-zinc-700";
+  const inputClass =
+    "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B] placeholder:text-zinc-700";
   const labelClass = "block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1";
-  const btnPrimary = isRede
-    ? "bg-purple-600 hover:bg-purple-500 text-white"
-    : "bg-[#C9A66B] hover:bg-[#b08d55] text-black";
+  const btnPrimary = "bg-[#C9A66B] hover:bg-[#b08d55] text-black";
 
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
@@ -468,7 +465,7 @@ export default function CrmFechamentoPedidoModal({
                       className="w-full text-left px-3 py-2 hover:bg-zinc-900 flex justify-between items-center"
                     >
                       <span className="text-sm truncate">{p.title}</span>
-                      <span className={`text-[11px] shrink-0 ml-2 ${isRede ? "text-purple-400" : "text-[#C9A66B]"}`}>
+                      <span className="text-[11px] text-[#C9A66B] shrink-0 ml-2">
                         R$ {precoConsumidor(p).toFixed(2)}
                       </span>
                     </button>
@@ -574,7 +571,7 @@ export default function CrmFechamentoPedidoModal({
 
               <div className="flex justify-between items-center border-t border-zinc-800 pt-4">
                 <span className="text-zinc-500 text-sm">Total</span>
-                <span className={`text-2xl font-black ${isRede ? "text-purple-400" : "text-[#C9A66B]"}`}>
+                <span className="text-2xl font-black text-[#C9A66B]">
                   R$ {total.toFixed(2)}
                 </span>
               </div>

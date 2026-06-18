@@ -27,7 +27,7 @@ type Props = {
   apiBase?: string;
   /** Exibe seletor Cabeleireira / Embaixadora (CRM da rede) */
   permitirTipoMembro?: boolean;
-  accent?: "gold" | "purple";
+  accent?: "gold";
 };
 
 export default function CrmCadastrarMembroPanel({
@@ -42,7 +42,7 @@ export default function CrmCadastrarMembroPanel({
 }: Props) {
   const [email, setEmail] = useState(emailInicial || "");
   const [tipoMembro, setTipoMembro] = useState<"CABELEIREIRO" | "EMBAIXADOR">("CABELEIREIRO");
-  const accentColor = accent === "purple" ? "#a855f7" : "#C9A66B";
+  const accentColor = "#C9A66B";
   const [criando, setCriando] = useState(false);
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState<{
@@ -98,9 +98,7 @@ export default function CrmCadastrarMembroPanel({
   }
 
   const inputClass =
-    accent === "purple"
-      ? "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-purple-500"
-      : "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B]";
+    "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B]";
 
   if (sucesso) {
     return (
@@ -159,7 +157,7 @@ export default function CrmCadastrarMembroPanel({
               onClick={() => setTipoMembro(t)}
               className={`flex-1 text-[10px] font-black uppercase tracking-widest py-2 rounded-lg border transition-all ${
                 tipoMembro === t
-                  ? "border-purple-500/50 bg-purple-600/20 text-purple-300"
+                  ? "border-[#C9A66B]/50 bg-[#C9A66B]/15 text-[#C9A66B]"
                   : "border-zinc-700 text-zinc-500 hover:border-zinc-600"
               }`}
             >

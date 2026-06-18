@@ -136,7 +136,7 @@ export default function EmbaixadoraLeadDetalhePage() {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="animate-spin text-purple-400" size={28} />
+        <Loader2 className="animate-spin text-[#C9A66B]" size={28} />
       </div>
     );
   }
@@ -151,20 +151,20 @@ export default function EmbaixadoraLeadDetalhePage() {
     );
   }
 
-  const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-purple-500";
+  const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B]";
 
   return (
     <div className="space-y-6 pb-12 max-w-3xl">
       <Link
         href="/embaixador/crm"
-        className="inline-flex items-center gap-1.5 text-zinc-500 hover:text-purple-300 text-xs font-bold uppercase tracking-widest"
+        className="inline-flex items-center gap-1.5 text-zinc-500 hover:text-[#C9A66B] text-xs font-bold uppercase tracking-widest"
       >
         <ArrowLeft size={14} /> Pipeline
       </Link>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-purple-400/80 mb-1">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]/80 mb-1">
             {STATUS_LABEL[lead.status] || lead.status}
           </p>
           <h1 className="text-2xl font-black text-white">{lead.nome}</h1>
@@ -192,7 +192,7 @@ export default function EmbaixadoraLeadDetalhePage() {
                 type="button"
                 onClick={salvar}
                 disabled={salvando}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 text-white text-xs font-black uppercase tracking-widest disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A66B] text-black text-xs font-black uppercase tracking-widest disabled:opacity-50"
               >
                 {salvando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 Salvar
@@ -202,7 +202,7 @@ export default function EmbaixadoraLeadDetalhePage() {
           <button
             type="button"
             onClick={() => setModalPedido(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs font-black uppercase tracking-widest hover:bg-purple-600/30"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A66B]/15 border border-[#C9A66B]/30 text-[#C9A66B] text-xs font-black uppercase tracking-widest hover:bg-[#C9A66B]/25"
           >
             <ShoppingBag size={14} />
             {lead.status === "fechado" ? "Novo pedido" : "Pedido da rede"}
@@ -217,7 +217,7 @@ export default function EmbaixadoraLeadDetalhePage() {
           emailInicial={lead.email}
           apiBase="/api/embaixador/crm"
           permitirTipoMembro
-          accent="purple"
+          accent="gold"
           onCadastrado={() => void carregar()}
         />
       )}
