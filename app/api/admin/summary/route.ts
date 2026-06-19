@@ -41,38 +41,40 @@ export async function GET() {
     const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
 
     const [
-      { count: membros },
-      { count: cadastrosHoje },
-      { count: cadastrosSemana },
-      { count: acessosHoje },
-      { count: pedidosPagos }, // mesmo critério de STATUS_CONFIRMADOS (histórico completo)
-      { count: pedidosAguardandoPagamentoMp },
-      { count: pedidosPendentes }, // paid + separacao — precisam de operação na loja
-      { count: pedidosDespachados },
-      { count: pedidosEntregues },
+      membrosRes,
+      cadastrosHojeRes,
+      cadastrosSemanaRes,
+      acessosHojeRes,
+      pedidosPagosRes,
+      pedidosAguardandoMpRes,
+      pedidosPendentesRes,
+      pedidosDespachadosRes,
+      pedidosEntreguesRes,
       pedidosTodosPagosTot,
       pedidosMesFin,
-      { data: saques },
-      { data: ultimosMembros },
-      { data: ultimosPedidos },
-      { data: comissoes },
+      saquesRes,
+      ultimosMembrosRes,
+      ultimosPedidosRes,
+      comissoesRes,
     ] = await Promise.all([
       supabase.from("profiles").select("id", { count: "exact", head: true }),
-      supabase.from("profiles")
+      supabase
+        .from("profiles")
         .select("id", { count: "exact", head: true })
         .gte("created_at", `${hoje}T00:00:00.000Z`)
         .lte("created_at", `${hoje}T23:59:59.999Z`),
-      supabase.from("profiles")
+      supabase
+        .from("profiles")
         .select("id", { count: "exact", head: true })
         .gte("created_at", inicioSemana.toISOString()),
-      supabase.from("profiles")
+      supabase
+        .from("profiles")
         .select("id", { count: "exact", head: true })
         .gte("last_sign_in_at", `${hoje}T00:00:00.000Z`),
       supabase
         .from("orders")
         .select("id", { count: "exact", head: true })
         .in("status", STATUS_CONFIRMADOS),
-      // Só fluxo Mercado Pago/checkout (não conta rascunho `novo`)
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
       supabase
         .from("orders")
@@ -103,75 +105,88 @@ export async function GET() {
         .limit(6),
       supabase
         .from("orders")
-        .select("id, total, status, created_at, profiles(full_name)")
+        .select("id, total, status, created_at, profiles!orders_profile_id_fkey(full_name)")
         .order("created_at", { ascending: false })
         .limit(6),
       supabase.from("commissions").select("valor_comissao"),
     ]);
 
-    const criticos = [
-      ultimosMembros,
-      ultimosPedidos,
-      comissoes,
-      saques,
-      pedidosTodosPagosTot.rows,
-      pedidosMesFin.rows,
-    ];
-    if (criticos.some((x) => x === null)) {
+    const erros: string[] = [];
+    if (ultimosMembrosRes.error) erros.push(`membros: ${ultimosMembrosRes.error.message}`);
+    if (ultimosPedidosRes.error) erros.push(`pedidos: ${ultimosPedidosRes.error.message}`);
+    if (comissoesRes.error) erros.push(`comissões: ${comissoesRes.error.message}`);
+    if (saquesRes.error) erros.push(`saques: ${saquesRes.error.message}`);
+    if (pedidosTodosPagosTot.error) erros.push(`vendas: ${pedidosTodosPagosTot.error}`);
+    if (pedidosMesFin.error) erros.push(`vendas mês: ${pedidosMesFin.error}`);
+
+    if (erros.length > 0) {
+      console.error("[admin/summary]", erros.join(" | "));
+      return NextResponse.json(
+        {
+          ok: false,
+          error: erros[0] || "Falha ao carregar métricas administrativas.",
+          detalhes: erros,
+        },
+        { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
+      );
+    }
+
+    const ultimosMembros = ultimosMembrosRes.data;
+    const ultimosPedidos = ultimosPedidosRes.data;
+    const comissoes = comissoesRes.data;
+    const saques = saquesRes.data;
+
+    if (
+      ultimosMembros == null ||
+      ultimosPedidos == null ||
+      comissoes == null ||
+      saques == null
+    ) {
       return NextResponse.json(
         { ok: false, error: "Falha ao carregar métricas administrativas." },
         { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
       );
     }
 
-    if (pedidosTodosPagosTot.error || pedidosMesFin.error) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: pedidosTodosPagosTot.error || pedidosMesFin.error || "Erro ao somar pedidos.",
-        },
-        { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
-      );
-    }
-
-    const totalVendas = pedidosTodosPagosTot.rows.reduce((acc, p: any) => acc + Number(p.total || 0), 0);
-    const vendasMes = pedidosMesFin.rows.reduce((acc, p: any) => acc + Number(p.total || 0), 0);
+    const totalVendas = pedidosTodosPagosTot.rows.reduce((acc, p) => acc + Number(p.total || 0), 0);
+    const vendasMes = pedidosMesFin.rows.reduce((acc, p) => acc + Number(p.total || 0), 0);
     const ativosNoMes = new Set(
-      pedidosMesFin.rows.map((p: any) => p.profile_id).filter(Boolean) as string[]
+      pedidosMesFin.rows.map((p) => p.profile_id).filter(Boolean) as string[]
     ).size;
 
-    const saquesAbertos = (saques || []).length;
-    const valorSaquesAbertos = (saques || []).reduce((acc: number, s: any) => acc + Number(s.valor_liquido), 0);
-    const comissoesTotais = (comissoes || []).reduce((acc: number, c: any) => acc + Number(c.valor_comissao), 0);
+    const saquesAbertos = saques.length;
+    const valorSaquesAbertos = saques.reduce((acc, s) => acc + Number(s.valor_liquido), 0);
+    const comissoesTotais = comissoes.reduce((acc, c) => acc + Number(c.valor_comissao), 0);
 
     return NextResponse.json(
       {
         ok: true,
         resumo: {
-          membros: membros || 0,
-          acessosHoje: acessosHoje || 0,
-          cadastrosHoje: cadastrosHoje || 0,
-          cadastrosSemana: cadastrosSemana || 0,
+          membros: membrosRes.count || 0,
+          acessosHoje: acessosHojeRes.count || 0,
+          cadastrosHoje: cadastrosHojeRes.count || 0,
+          cadastrosSemana: cadastrosSemanaRes.count || 0,
           ativosNoMes,
           totalVendas,
           vendasMes,
-          pedidosPagos: pedidosPagos ?? 0,
-          pedidosPendentes: pedidosPendentes ?? 0,
-          pedidosDespachados: pedidosDespachados ?? 0,
-          pedidosEntregues: pedidosEntregues ?? 0,
-          pedidosAguardando: pedidosAguardandoPagamentoMp ?? 0,
+          pedidosPagos: pedidosPagosRes.count ?? 0,
+          pedidosPendentes: pedidosPendentesRes.count ?? 0,
+          pedidosDespachados: pedidosDespachadosRes.count ?? 0,
+          pedidosEntregues: pedidosEntreguesRes.count ?? 0,
+          pedidosAguardando: pedidosAguardandoMpRes.count ?? 0,
           saquesAbertos,
           valorSaquesAbertos,
           comissoesTotais,
-          ultimosMembros: ultimosMembros || [],
-          ultimosPedidos: ultimosPedidos || [],
+          ultimosMembros,
+          ultimosPedidos,
         },
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     );
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Erro interno.";
     return NextResponse.json(
-      { ok: false, error: e?.message || "Erro interno." },
+      { ok: false, error: msg },
       { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
     );
   }
