@@ -14,6 +14,45 @@ const ADMIN_DISTRIB_PREFIXES = ['/admin/crm', '/admin/returns']
 const ADMIN_STRICT_PREFIXES = ['/admin']
 const EMBAIXADORA_CRM_PREFIX = '/embaixador/crm'
 
+async function resolveUserRole(
+  supabase: ReturnType<typeof createMiddlewareClient>,
+  userId: string,
+  req: NextRequest,
+  res: NextResponse
+): Promise<string> {
+  const roleCookie = req.cookies.get('user_role')?.value
+  const uidCookie = req.cookies.get('user_role_uid')?.value
+
+  if (roleCookie && uidCookie === userId) {
+    return String(roleCookie).trim().toUpperCase()
+  }
+
+  const { data: perfil } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .maybeSingle()
+
+  const role = String(perfil?.role || '').trim().toUpperCase()
+
+  res.cookies.set('user_role', role, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 30,
+    path: '/',
+  })
+  res.cookies.set('user_role_uid', userId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 30,
+    path: '/',
+  })
+
+  return role
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   const res = NextResponse.next()
@@ -53,26 +92,8 @@ export async function middleware(req: NextRequest) {
     (ADMIN_STRICT_PREFIXES.some((p) => pathname.startsWith(p)) ||
       pathname.startsWith(EMBAIXADORA_CRM_PREFIX))
 
-  if (precisaRole) {
-    const roleCookie = req.cookies.get('user_role')?.value
-    let role = roleCookie
-
-    if (!role) {
-      const { data: perfil } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session!.user.id)
-        .maybeSingle()
-      role = String(perfil?.role || '').toUpperCase()
-
-      res.cookies.set('user_role', role, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 60 * 30,
-        path: '/',
-      })
-    }
+  if (precisaRole && session) {
+    const role = await resolveUserRole(supabase, session.user.id, req, res)
 
     const isAdmin = role === 'ADMIN'
     const isDistrib = role === 'DISTRIBUIDOR'
