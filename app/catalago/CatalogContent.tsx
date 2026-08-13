@@ -2,9 +2,11 @@
 import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import ProductCard from './ProductCard';
+import { useCatalogVendedor } from './CatalogVendedorContext';
 
 export default function CatalogContent() {
   const supabase = createClientComponentClient();
+  const { montarWhatsApp, vendedor } = useCatalogVendedor();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,10 +44,14 @@ export default function CatalogContent() {
       </div>
 
       <a
-        href="https://wa.me/5514991570389?text=Quero%20acesso%20profissional%20ao%20app%20MASC%20PRO"
+        href={montarWhatsApp(
+          vendedor
+            ? `Olá ${vendedor.full_name.split(" ")[0]}! Quero comprar com desconto pelo catálogo MascPRO.`
+            : "Quero acesso profissional ao app MASC PRO"
+        )}
         className="mt-8 inline-block bg-black text-white px-6 py-3 rounded-xl"
       >
-        Quero comprar com desconto →
+        {vendedor ? "Quero comprar com desconto →" : "Quero comprar com desconto →"}
       </a>
     </>
   );

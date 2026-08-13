@@ -1,11 +1,11 @@
 "use client";
 import { useCart } from "./CartContext";
-import { supabase } from '@/lib/supabaseClient';
-
-const WHATS_NUMBER = '5514991570389'; // WhatsApp para finalizar pedidos
+import { useCatalogVendedor } from "./CatalogVendedorContext";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function CartDrawer() {
   const { cart, removeFromCart, clearCart, isCartOpen, setIsCartOpen } = useCart();
+  const { vendedor, montarWhatsApp } = useCatalogVendedor();
 
   const total = cart.reduce((acc: number, i: any) => {
     const unit = Number(i.price ?? 0);
@@ -14,29 +14,29 @@ export default function CartDrawer() {
 
   const goWhats = async () => {
     if (cart.length === 0) return;
-    
+
     const linhas = cart.map(
       (i: any) =>
-        `• ${i.title || i.name || 'Produto'} – ${i.quantity || 1} × R$ ${Number(i.price ?? 0).toFixed(2)}`
+        `• ${i.title || i.name || "Produto"} – ${i.quantity || 1} × R$ ${Number(i.price ?? 0).toFixed(2)}`
     );
-    const msg =
-      `*Pedido MASC PRO*\n\n` +
-      linhas.join('\n') +
-      `\n\nTotal: R$ ${total.toFixed(2)}`;
-    
-    // Abre WhatsApp
-    window.open(`https://wa.me/${WHATS_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
 
-    // --- Creditar moedas ---
+    let msg = "*Pedido MascPRO — Catálogo*\n\n";
+    if (vendedor) {
+      msg += `Distribuidor: ${vendedor.full_name}\n\n`;
+    }
+    msg += linhas.join("\n") + `\n\n*Total: R$ ${total.toFixed(2)}*`;
+
+    window.open(montarWhatsApp(msg), "_blank");
+
     const user = await supabase.auth.getUser();
     const buyerId = user.data.user?.id;
     const referrerId = user.data.user?.user_metadata?.referrer_id || null;
 
     if (buyerId) {
-      await supabase.rpc('pro_compra', {
+      await supabase.rpc("pro_compra", {
         p_buyer: buyerId,
         p_referrer: referrerId,
-        p_total: total
+        p_total: total,
       });
     }
 
@@ -55,10 +55,10 @@ export default function CartDrawer() {
             className="bg-white w-80 h-full p-6 flex flex-col relative"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* cabeçalho */}
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-lg">Meu carrinho</h3>
               <button
+                type="button"
                 onClick={() => setIsCartOpen(false)}
                 className="text-2xl leading-none hover:text-gray-600 transition"
               >
@@ -66,7 +66,12 @@ export default function CartDrawer() {
               </button>
             </div>
 
-            {/* lista */}
+            {vendedor && (
+              <p className="text-[10px] text-zinc-500 mb-3 pb-3 border-b border-zinc-200">
+                Pedido será enviado para <strong className="text-black">{vendedor.full_name}</strong> via WhatsApp.
+              </p>
+            )}
+
             {cart.length === 0 ? (
               <p className="text-sm text-gray-500 flex-1">Carrinho vazio.</p>
             ) : (
@@ -84,6 +89,7 @@ export default function CartDrawer() {
                         </p>
                       </div>
                       <button
+                        type="button"
                         onClick={() => removeFromCart(i.id)}
                         className="text-red-500 text-xs hover:text-red-700 transition"
                       >
@@ -93,16 +99,16 @@ export default function CartDrawer() {
                   ))}
                 </ul>
 
-                {/* total + CTA */}
                 <div className="border-t pt-4 mt-4">
                   <p className="font-extrabold mb-4 text-red-600 text-lg">
                     Total: R$ {total.toFixed(2)}
                   </p>
                   <button
+                    type="button"
                     onClick={goWhats}
                     className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800 transition"
                   >
-                    Enviar pedido
+                    Enviar pedido no WhatsApp
                   </button>
                 </div>
               </>

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import HeaderNotifications from "@/componentes/HeaderNotifications";
+import CatalogoLinkDistribuidor from "@/componentes/CatalogoLinkDistribuidor";
 
 // Tipos para os itens de navegação
 type NavItem = {
@@ -240,6 +241,14 @@ export default function Sidebar() {
                   </>
                 )}
 
+                {/* Catálogo WhatsApp — DISTRIBUIDOR */}
+                {userProfile && isDistribuidor && (
+                  <>
+                    <div className="border-t border-white/5 my-1" />
+                    <CatalogoLinkDistribuidor compacto />
+                  </>
+                )}
+
                 {/* CRM / ERP no dropdown mobile — DISTRIBUIDOR e ADMIN */}
                 {userProfile && (isDistribuidor || isAdmin) && (
                   <>
@@ -404,6 +413,13 @@ export default function Sidebar() {
                     <span className="text-[9px] text-slate-600 font-normal">Pipeline · Pedidos MascPRO</span>
                   </div>
                 </Link>
+              </div>
+            )}
+
+            {/* Catálogo + CRM — DISTRIBUIDOR */}
+            {userProfile && isDistribuidor && (
+              <div className="mt-4 pt-4 border-t border-white/5 px-2">
+                <CatalogoLinkDistribuidor />
               </div>
             )}
 
