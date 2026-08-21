@@ -24,6 +24,7 @@ const ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: "EMBAIXADOR", label: "EMBAIXADOR" },
   { value: "EDUCADOR_TECNICO", label: "EDUCADOR TÉCNICO" },
   { value: "DISTRIBUIDOR", label: "DISTRIBUIDOR" },
+  { value: "VENDEDOR", label: "VENDEDOR (equipe do distribuidor)" },
   { value: "ADMIN", label: "ADMIN" },
 ];
 
@@ -39,6 +40,7 @@ function roleParaNivel(role: string): string {
     // Regra de negócio: educador técnico usa a mesma tabela de preço de embaixador.
     EDUCADOR_TECNICO: "embaixador",
     DISTRIBUIDOR: "distribuidor",
+    VENDEDOR: "cabeleireiro",
     ADMIN: "cabeleireiro",
   };
   return m[role] || "cabeleireiro";
@@ -60,8 +62,20 @@ export default function AdminMembrosPage() {
   const [feedback, setFeedback] = useState<{tipo: "ok"|"erro"; msg: string}|null>(null);
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
+  const [distribuidores, setDistribuidores] = useState<{ id: string; full_name: string }[]>([]);
 
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => { void carregar(); void carregarDistribuidores(); }, []);
+
+  async function carregarDistribuidores() {
+    const res = await fetch("/api/admin/membros");
+    const data = await res.json().catch(() => null);
+    if (data?.ok) {
+      const dists = (data.membros || [])
+        .filter((m: Membro) => String(m.role).toUpperCase() === "DISTRIBUIDOR")
+        .map((m: Membro) => ({ id: m.id, full_name: m.full_name }));
+      setDistribuidores(dists);
+    }
+  }
 
   async function carregar() {
     setLoading(true);
@@ -104,6 +118,16 @@ export default function AdminMembrosPage() {
 
   async function salvar() {
     if (!editando) return;
+
+    const roleUp = String(form.role || "").toUpperCase();
+    if (roleUp === "VENDEDOR" && !form.indicado_por?.trim()) {
+      setFeedback({
+        tipo: "erro",
+        msg: "Vendedor precisa estar vinculado a um distribuidor. Selecione o distribuidor responsável.",
+      });
+      return;
+    }
+
     setSalvando(true); setFeedback(null);
     const body: any = {
       user_id: editando.id,
@@ -128,7 +152,13 @@ export default function AdminMembrosPage() {
   }
 
   const set = (k: string, v: string) => setForm((f: any) => ({ ...f, [k]: v }));
-  const roles = ["todos", ...Array.from(new Set(membros.map(m => m.role).filter(Boolean)))];
+  const rolesFiltro = [
+    "todos",
+    ...ROLE_OPTIONS.map((r) => r.value),
+    ...Array.from(new Set(membros.map((m) => m.role).filter(Boolean))).filter(
+      (r) => !ROLE_OPTIONS.some((o) => o.value === r)
+    ),
+  ];
 
   const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-[#C9A66B]";
   const labelClass = "block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1";
@@ -153,7 +183,7 @@ export default function AdminMembrosPage() {
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-sm text-white outline-none focus:border-[#C9A66B]/50" />
           </div>
           <div className="flex gap-2 flex-wrap">
-            {roles.map(r => (
+            {rolesFiltro.map((r) => (
               <button key={r} onClick={() => setFiltroRole(r)}
                 className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl border transition-all ${filtroRole === r ? "bg-[#C9A66B] text-black border-[#C9A66B]" : "bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-600"}`}>
                 {r === "todos" ? `Todos (${membros.length})` : labelRole(r)}
@@ -163,6 +193,13 @@ export default function AdminMembrosPage() {
         </div>
 
         <p className="text-xs text-zinc-600 mb-4 font-bold">{filtrado.length} membro(s) encontrado(s)</p>
+
+        <div className="mb-6 rounded-xl border border-[#C9A66B]/20 bg-[#C9A66B]/5 px-4 py-3 text-xs text-zinc-400">
+          <strong className="text-[#C9A66B]">Vendedor de campo:</strong> edite o membro, escolha role{" "}
+          <strong className="text-zinc-300">VENDEDOR (equipe do distribuidor)</strong> e selecione o distribuidor
+          responsável. O distribuidor também pode cadastrar em{" "}
+          <strong className="text-zinc-300">CRM → Equipe / Vendedores</strong>.
+        </div>
 
         {loading ? (
           <div className="flex justify-center mt-20"><Loader2 className="animate-spin text-[#C9A66B]" size={32} /></div>
@@ -361,7 +398,11 @@ export default function AdminMembrosPage() {
 
                 <div>
                   <label className={labelClass}>Nível / Role</label>
-                  <select value={form.role} onChange={e => set("role", e.target.value)} className={inputClass}>
+                  <select
+                    value={form.role}
+                    onChange={(e) => set("role", e.target.value)}
+                    className={inputClass}
+                  >
                     {form.role && !ROLE_OPTIONS.some((r) => r.value === form.role) && (
                       <option value={form.role}>{form.role}</option>
                     )}
@@ -372,13 +413,37 @@ export default function AdminMembrosPage() {
                     ))}
                   </select>
                   <p className="text-[10px] text-zinc-600 mt-1">Tabela de preços aplicada automaticamente: <span className="text-zinc-400 font-bold">{roleParaNivel(form.role)}</span></p>
+                  {String(form.role).toUpperCase() === "VENDEDOR" && (
+                    <p className="text-[10px] text-amber-400/90 mt-2">
+                      Obrigatório vincular ao distribuidor abaixo. O vendedor acessa o CRM em /vendedor/crm.
+                    </p>
+                  )}
                 </div>
 
+                {String(form.role).toUpperCase() === "VENDEDOR" ? (
+                  <div>
+                    <label className={labelClass}>Distribuidor responsável *</label>
+                    <select
+                      value={form.indicado_por || ""}
+                      onChange={(e) => set("indicado_por", e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">Selecione o distribuidor...</option>
+                      {distribuidores.map((d) => (
+                        <option key={d.id} value={d.id}>{d.full_name}</option>
+                      ))}
+                    </select>
+                    {!distribuidores.length && (
+                      <p className="text-[10px] text-red-400 mt-1">Nenhum distribuidor cadastrado no sistema.</p>
+                    )}
+                  </div>
+                ) : (
                 <div>
                   <label className={labelClass}>ID do Indicador (quem indicou)</label>
                   <input value={form.indicado_por} onChange={e => set("indicado_por", e.target.value)} placeholder="UUID do membro que indicou (ou vazio)" className={inputClass} />
                   {editando.indicador && <p className="text-[10px] text-zinc-600 mt-1">Atual: <span className="text-zinc-400">{editando.indicador.full_name}</span></p>}
                 </div>
+                )}
 
                 {/* LINK DE INDICAÇÃO DO MEMBRO */}
                 <div className="bg-zinc-900 rounded-xl p-4">

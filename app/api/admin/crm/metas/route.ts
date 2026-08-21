@@ -47,8 +47,8 @@ export async function GET(req: NextRequest) {
       .gte("created_at", iniMes).lte("created_at", `${fimMes}T23:59:59`),
 
     supabase.from("orders")
-      .select("total")
-      .in("profile_id", todosIds)
+      .select("total, excluir_meta, distribuidor_gestor_id, vendedor_id")
+      .or(`profile_id.in.(${todosIds.join(",")}),distribuidor_gestor_id.eq.${distribuidorId}`)
       .in("status", ["paid","separacao","despachado","entregue"])
       .gte("created_at", iniMes).lte("created_at", `${fimMes}T23:59:59`),
   ]);
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
   const realizado = {
     leads:      leads.length,
     conversoes: leads.filter((l: any) => l.status === "fechado").length,
-    receita:    pedidos.reduce((s: number, p: any) => s + Number(p.total || 0), 0),
+    receita:    pedidos.filter((p: any) => !p.excluir_meta).reduce((s: number, p: any) => s + Number(p.total || 0), 0),
   };
 
   const meta_obj = meta || { meta_leads: 0, meta_conversoes: 0, meta_receita: 0 };

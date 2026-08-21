@@ -22,12 +22,15 @@ export async function applyOrderRewards(
 > {
   const { data: order, error: eOrder } = await supabase
     .from("orders")
-    .select("id, profile_id, total, comissao_aplicada, pro_aplicado")
+    .select("id, profile_id, total, comissao_aplicada, pro_aplicado, excluir_comissao")
     .eq("id", orderId)
     .maybeSingle();
 
   if (eOrder) return { ok: false, error: eOrder.message };
   if (!order) return { ok: false, error: "Pedido não encontrado." };
+  if (order.excluir_comissao) {
+    return { ok: true, valorComissao: 0, proPropria: 0, proRede: 0, skipped: "excluir_comissao" };
+  }
   if (!order.profile_id) {
     return { ok: false, error: "Pedido sem comprador (profile_id)." };
   }

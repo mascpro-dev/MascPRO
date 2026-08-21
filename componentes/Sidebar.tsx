@@ -105,6 +105,7 @@ export default function Sidebar() {
   // Usa role (uppercase) como fonte de verdade
   const isDistribuidor   = _role === "DISTRIBUIDOR";
   const isEmbaixadorRole = _role === "EMBAIXADOR";
+  const isVendedor       = _role === "VENDEDOR";
   const isAdmin          = _role === "ADMIN";
 
   // Retorna o label do cargo direto da coluna `role`
@@ -221,6 +222,24 @@ export default function Sidebar() {
                   <Award size={18} className={pathname === "/jornada" ? "text-[#C9A66B]" : "text-slate-500"} />
                   <span className="font-medium">Minha Jornada</span>
                 </Link>
+
+                {userProfile && isVendedor && (
+                  <>
+                    <div className="border-t border-white/5 my-1" />
+                    <Link
+                      href="/vendedor/crm/dashboard"
+                      onClick={() => setDropdownOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                        pathname.startsWith("/vendedor/crm")
+                          ? "bg-[#C9A66B]/10 text-[#C9A66B]"
+                          : "text-[#C9A66B]/70 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5"
+                      }`}
+                    >
+                      <BarChart2 size={18} className="text-[#C9A66B]" />
+                      <span className="font-bold">CRM Vendedor</span>
+                    </Link>
+                  </>
+                )}
 
                 {/* CRM da Rede — EMBAIXADOR */}
                 {userProfile && isEmbaixadorRole && (
@@ -394,6 +413,26 @@ export default function Sidebar() {
                 );
               })}
             </nav>
+
+            {userProfile && isVendedor && (
+              <div className="mt-4 pt-4 border-t border-white/5">
+                <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] mb-2 px-2">Vendas</p>
+                <Link
+                  href="/vendedor/crm/dashboard"
+                  className={`flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group ${
+                    pathname.startsWith("/vendedor/crm")
+                      ? "bg-[#C9A66B]/15 border border-[#C9A66B]/30 text-[#C9A66B] font-black"
+                      : "text-slate-500 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5 border border-transparent"
+                  }`}
+                >
+                  <BarChart2 size={20} className={pathname.startsWith("/vendedor/crm") ? "text-[#C9A66B]" : "text-slate-500 group-hover:text-[#C9A66B]"} />
+                  <div>
+                    <span className="text-xs uppercase tracking-widest font-bold block">CRM Vendedor</span>
+                    <span className="text-[9px] text-slate-600 font-normal">Pipeline · Pedidos</span>
+                  </div>
+                </Link>
+              </div>
+            )}
 
             {/* CRM da Rede — EMBAIXADOR */}
             {userProfile && isEmbaixadorRole && (

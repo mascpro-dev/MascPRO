@@ -7,12 +7,13 @@ const PUBLIC_ROUTES = ['/agendar', '/catalago', '/instalar-app', '/auth-choice',
 const PUBLIC_PREFIXES = ['/agendar/', '/catalago/', '/api/mp-webhook', '/api/frete', '/api/config/loja', '/api/agendar/']
 
 // Rotas que requerem APENAS login (qualquer usuário autenticado)
-const AUTH_ONLY_PREFIXES = ['/home', '/agenda', '/perfil', '/comunidade', '/loja', '/evolucao', '/jornada', '/rede', '/eventos', '/aula', '/calculadora', '/embaixador']
+const AUTH_ONLY_PREFIXES = ['/home', '/agenda', '/perfil', '/comunidade', '/loja', '/evolucao', '/jornada', '/rede', '/eventos', '/aula', '/calculadora', '/embaixador', '/vendedor']
 
 // Rotas admin com acesso para ADMIN e DISTRIBUIDOR
 const ADMIN_DISTRIB_PREFIXES = ['/admin/crm', '/admin/returns']
 const ADMIN_STRICT_PREFIXES = ['/admin']
 const EMBAIXADORA_CRM_PREFIX = '/embaixador/crm'
+const VENDEDOR_CRM_PREFIX = '/vendedor/crm'
 
 async function resolveUserRole(
   supabase: ReturnType<typeof createMiddlewareClient>,
@@ -90,7 +91,8 @@ export async function middleware(req: NextRequest) {
   const precisaRole =
     session &&
     (ADMIN_STRICT_PREFIXES.some((p) => pathname.startsWith(p)) ||
-      pathname.startsWith(EMBAIXADORA_CRM_PREFIX))
+      pathname.startsWith(EMBAIXADORA_CRM_PREFIX) ||
+      pathname.startsWith(VENDEDOR_CRM_PREFIX))
 
   if (precisaRole && session) {
     const role = await resolveUserRole(supabase, session.user.id, req, res)
@@ -98,8 +100,13 @@ export async function middleware(req: NextRequest) {
     const isAdmin = role === 'ADMIN'
     const isDistrib = role === 'DISTRIBUIDOR'
     const isEmbaixador = role === 'EMBAIXADOR'
+    const isVendedor = role === 'VENDEDOR'
 
     if (pathname.startsWith(EMBAIXADORA_CRM_PREFIX) && !isEmbaixador) {
+      return NextResponse.redirect(new URL('/home', req.url))
+    }
+
+    if (pathname.startsWith(VENDEDOR_CRM_PREFIX) && !isVendedor) {
       return NextResponse.redirect(new URL('/home', req.url))
     }
 

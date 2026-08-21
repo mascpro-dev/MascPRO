@@ -23,6 +23,13 @@ export function resolveOrderGestor(params: {
   const buyerRole = String(params.buyer?.role || "").toUpperCase();
   const closingRole = String(params.closingUserRole || "").toUpperCase();
 
+  if (closingRole === "VENDEDOR" && params.leadResponsavelId) {
+    return {
+      gestor_tipo: "distribuidor",
+      distribuidor_gestor_id: params.leadResponsavelId,
+    };
+  }
+
   if (["CABELEIREIRO", "EMBAIXADOR", "DISTRIBUIDOR"].includes(buyerRole)) {
     return { gestor_tipo: "empresa", distribuidor_gestor_id: null };
   }

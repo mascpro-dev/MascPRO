@@ -5,6 +5,7 @@ import Link from "next/link";
 import ErroComVoltar from "@/componentes/ErroComVoltar";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import CrmCadastrarMembroPanel from "@/componentes/CrmCadastrarMembroPanel";
+import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import {
   ArrowLeft, Loader2, Pencil, Save, X, AlertCircle,
   CheckCircle, MessageCircle, Instagram, Mail, Building2,
@@ -528,9 +529,12 @@ export default function LeadDetalhePage() {
                                     )}
                                   </div>
                                 </div>
-                                <span className="text-sm font-black text-white">
-                                  {Number(p.total).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                                </span>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-black text-white">
+                                    {Number(p.total).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                  </span>
+                                  <PedidoPdfClienteButton orderId={p.id} compacto />
+                                </div>
                               </div>
                             );
                           })}

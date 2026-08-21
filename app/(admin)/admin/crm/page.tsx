@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
+import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import ErroComVoltar from "@/componentes/ErroComVoltar";
 import {
   Kanban, Plus, Loader2, Search, X, ChevronRight, ChevronDown,
@@ -256,13 +257,20 @@ function LeadCard({
       {(anterior || proxima || colunaAtual.key === "fechado") && (
         <div className="flex gap-2 pt-1 border-t border-zinc-800 flex-wrap">
           {colunaAtual.key === "fechado" && onNovoPedido && (
-            <button
-              type="button"
-              onClick={() => onNovoPedido(lead)}
-              className="w-full text-[9px] font-black uppercase tracking-widest text-[#C9A66B] bg-[#C9A66B]/10 py-1.5 rounded-lg hover:bg-[#C9A66B]/20 transition-all"
-            >
-              + Novo pedido
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => onNovoPedido(lead)}
+                className="w-full text-[9px] font-black uppercase tracking-widest text-[#C9A66B] bg-[#C9A66B]/10 py-1.5 rounded-lg hover:bg-[#C9A66B]/20 transition-all"
+              >
+                + Novo pedido
+              </button>
+              {lead.order_id && (
+                <div className="w-full flex justify-center">
+                  <PedidoPdfClienteButton orderId={lead.order_id} compacto />
+                </div>
+              )}
+            </>
           )}
           {anterior && (
             <button

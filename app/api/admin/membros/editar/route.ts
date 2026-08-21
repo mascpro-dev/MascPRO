@@ -26,6 +26,36 @@ export async function POST(req: NextRequest) {
     if (role !== undefined) camposProfile.role = role;
     if (nivel !== undefined) camposProfile.nivel = nivel;
     if (indicado_por !== undefined) camposProfile.indicado_por = indicado_por || null;
+
+    if (String(role || "").toUpperCase() === "VENDEDOR") {
+      let distId = indicado_por !== undefined ? indicado_por : undefined;
+      if (distId === undefined) {
+        const { data: atual } = await sb()
+          .from("profiles")
+          .select("indicado_por")
+          .eq("id", user_id)
+          .maybeSingle();
+        distId = atual?.indicado_por;
+      }
+      if (!distId) {
+        return NextResponse.json(
+          { ok: false, error: "Vendedor exige distribuidor responsável (indicado_por)." },
+          { status: 400 }
+        );
+      }
+      const { data: dist } = await sb()
+        .from("profiles")
+        .select("role")
+        .eq("id", distId)
+        .maybeSingle();
+      if (String(dist?.role || "").toUpperCase() !== "DISTRIBUIDOR") {
+        return NextResponse.json(
+          { ok: false, error: "indicado_por deve ser um perfil DISTRIBUIDOR." },
+          { status: 400 }
+        );
+      }
+    }
+
     camposProfile.updated_at = new Date().toISOString();
 
     if (Object.keys(camposProfile).length > 1) {

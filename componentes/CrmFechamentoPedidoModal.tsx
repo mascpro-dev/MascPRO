@@ -8,6 +8,7 @@ import {
   Kanban, RotateCcw, ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
+import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 
 type LeadResumo = {
   id: string;
@@ -26,6 +27,8 @@ type Produto = {
   price_hairdresser: number;
   price_ambassador: number;
   price_distributor: number;
+  preco_final?: number;
+  preco_minimo?: number;
   stock: number;
   ativo: boolean;
 };
@@ -35,6 +38,9 @@ type ItemPedido = {
   title: string;
   quantidade: number;
   preco_unitario: number;
+  bonificado?: boolean;
+  preco_minimo?: number;
+  preco_final?: number;
 };
 
 type PerfilEndereco = {
@@ -52,6 +58,7 @@ type PerfilEndereco = {
 };
 
 const PAGAMENTOS = ["pix", "dinheiro", "cartao", "boleto", "transferencia", "manual"];
+const PAGAMENTOS_VENDEDOR = [...PAGAMENTOS, "consignado"];
 
 const STATUS_POS_PAGO = [
   { value: "separacao", label: "Em separação" },
@@ -59,7 +66,10 @@ const STATUS_POS_PAGO = [
   { value: "entregue", label: "Entregue" },
 ];
 
-function precoConsumidor(p: Produto): number {
+function precoConsumidor(p: Produto, variant: string): number {
+  if (variant === "vendedor") {
+    return Number(p.preco_final) || Number(p.price_hairdresser) || Number(p.price) || 0;
+  }
   return Number(p.price_hairdresser) || Number(p.price) || 0;
 }
 
@@ -68,8 +78,8 @@ type Props = {
   onClose: () => void;
   onConcluido: (leadId: string) => void;
   onNovaCompra?: () => void;
-  /** admin = CRM gestão · embaixadora = pedido da rede MascPRO */
-  variant?: "admin" | "embaixadora";
+  /** admin = CRM gestão · embaixadora = pedido da rede MascPRO · vendedor = equipe distribuidor */
+  variant?: "admin" | "embaixadora" | "vendedor";
   apiBase?: string;
 };
 
@@ -82,10 +92,15 @@ export default function CrmFechamentoPedidoModal({
   apiBase,
 }: Props) {
   const isRede = variant === "embaixadora";
-  const api = apiBase || (isRede ? "/api/embaixador/crm" : "/api/admin/crm");
-  const accent = "gold";
+  const isVendedor = variant === "vendedor";
+  const api = apiBase || (isVendedor ? "/api/vendedor/crm" : isRede ? "/api/embaixador/crm" : "/api/admin/crm");
   const accentHex = "#C9A66B";
-  const leadHref = isRede ? `/embaixador/crm/leads/${lead.id}` : `/admin/crm/leads/${lead.id}`;
+  const leadHref = isVendedor
+    ? `/vendedor/crm/leads/${lead.id}`
+    : isRede
+      ? `/embaixador/crm/leads/${lead.id}`
+      : `/admin/crm/leads/${lead.id}`;
+  const pagamentosLista = isVendedor ? PAGAMENTOS_VENDEDOR : isRede ? ["rede_embaixadora", ...PAGAMENTOS] : PAGAMENTOS;
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [buscaProduto, setBuscaProduto] = useState("");
   const [itens, setItens] = useState<ItemPedido[]>([]);
@@ -107,7 +122,8 @@ export default function CrmFechamentoPedidoModal({
   const [sucesso, setSucesso] = useState<{
     order_id: string;
     status: string;
-    gestor_tipo: string;
+    gestor_tipo?: string;
+    precisa_aprovacao?: boolean;
   } | null>(null);
   const [statusPedido, setStatusPedido] = useState("paid");
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
@@ -128,7 +144,7 @@ export default function CrmFechamentoPedidoModal({
   }, [buscaProduto, carregarProdutos]);
 
   useEffect(() => {
-    if (!lead.profile_id || isRede) return;
+    if (!lead.profile_id || isRede || isVendedor) return;
     fetch(`${api}/leads/${lead.id}/converter?q=`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
@@ -136,7 +152,7 @@ export default function CrmFechamentoPedidoModal({
         if (p) aplicarEnderecoPerfil(p);
       })
       .catch(() => {});
-  }, [lead.id, lead.profile_id, api, isRede]);
+  }, [lead.id, lead.profile_id, api, isRede, isVendedor]);
 
   async function criarNovaCompra() {
     setCriandoNovaCompra(true);
@@ -169,7 +185,9 @@ export default function CrmFechamentoPedidoModal({
   }
 
   function adicionarProduto(p: Produto) {
-    const preco = precoConsumidor(p);
+    const preco = precoConsumidor(p, variant);
+    const minimo = isVendedor ? Number(p.preco_minimo) || preco : preco;
+    const final = isVendedor ? Number(p.preco_final) || preco : preco;
     setItens((arr) => {
       const ix = arr.findIndex((i) => i.product_id === p.id);
       if (ix >= 0) {
@@ -177,7 +195,18 @@ export default function CrmFechamentoPedidoModal({
         copia[ix] = { ...copia[ix], quantidade: copia[ix].quantidade + 1 };
         return copia;
       }
-      return [...arr, { product_id: p.id, title: p.title, quantidade: 1, preco_unitario: preco }];
+      return [
+        ...arr,
+        {
+          product_id: p.id,
+          title: p.title,
+          quantidade: 1,
+          preco_unitario: preco,
+          preco_minimo: minimo,
+          preco_final: final,
+          bonificado: false,
+        },
+      ];
     });
   }
 
@@ -194,7 +223,11 @@ export default function CrmFechamentoPedidoModal({
   }
 
   const subtotal = useMemo(
-    () => itens.reduce((s, i) => s + i.quantidade * i.preco_unitario, 0),
+    () =>
+      itens.reduce(
+        (s, i) => s + i.quantidade * (i.bonificado ? 0 : i.preco_unitario),
+        0
+      ),
     [itens]
   );
   const freteNum = Number(String(frete).replace(",", ".")) || 0;
@@ -221,7 +254,8 @@ export default function CrmFechamentoPedidoModal({
           items: itens.map((i) => ({
             product_id: i.product_id,
             quantidade: i.quantidade,
-            preco_unitario: i.preco_unitario,
+            preco_unitario: i.bonificado ? 0 : i.preco_unitario,
+            bonificado: Boolean(i.bonificado),
           })),
           payment_method: pagamento,
           shipping_cost: freteNum,
@@ -243,7 +277,8 @@ export default function CrmFechamentoPedidoModal({
       setSucesso({
         order_id: d.order_id,
         status: d.status,
-        gestor_tipo: d.gestor_tipo || "empresa",
+        gestor_tipo: d.gestor_tipo || "distribuidor",
+        precisa_aprovacao: d.precisa_aprovacao,
       });
       setStatusPedido(d.status === "pending" ? "pending" : "paid");
     } finally {
@@ -307,11 +342,12 @@ export default function CrmFechamentoPedidoModal({
               className="font-black uppercase text-sm tracking-widest"
               style={{ color: accentHex }}
             >
-              {isRede ? "Pedido da rede MascPRO" : "Fechar venda"}
+              {isRede ? "Pedido da rede MascPRO" : isVendedor ? "Fechar venda (vendedor)" : "Fechar venda"}
             </h2>
             <p className="text-xs text-zinc-500 mt-0.5">
               {lead.nome}
               {isRede && " · envio pela equipe MascPRO"}
+              {isVendedor && " · tabela cabeleireiro · aprovação se houver desconto/bônus"}
             </p>
           </div>
           <button type="button" onClick={onClose} aria-label="Fechar">
@@ -343,14 +379,22 @@ export default function CrmFechamentoPedidoModal({
                   </p>
                   <p className="text-xs text-zinc-400 mt-1">
                     #{sucesso.order_id.slice(0, 8)} ·{" "}
-                    {isRede
-                      ? "A MascPRO fará separação e envio"
-                      : `Gestão: ${sucesso.gestor_tipo === "empresa" ? "MascPRO (empresa)" : "Distribuidor"}`}
+                    {isVendedor
+                      ? sucesso.precisa_aprovacao
+                        ? "Aguardando aprovação do distribuidor"
+                        : pagamento === "consignado"
+                          ? "Consignado — não entra em meta/comissão"
+                          : "Pedido registrado"
+                      : isRede
+                        ? "A MascPRO fará separação e envio"
+                        : `Gestão: ${sucesso.gestor_tipo === "empresa" ? "MascPRO (empresa)" : "Distribuidor"}`}
                   </p>
                 </div>
               </div>
 
-              {statusPedido === "pending" && (
+              <PedidoPdfClienteButton orderId={sucesso.order_id} label="Gerar PDF para o cliente" className="w-full" />
+
+              {statusPedido === "pending" && !isVendedor && (
                 <button
                   type="button"
                   onClick={confirmarRecebimento}
@@ -406,7 +450,7 @@ export default function CrmFechamentoPedidoModal({
                 </Link>
               </div>
 
-              {["paid", "separacao", "despachado", "entregue"].includes(statusPedido) && (
+              {["paid", "separacao", "despachado", "entregue"].includes(statusPedido) && !isRede && !isVendedor && (
                 <button
                   type="button"
                   onClick={criarNovaCompra}
@@ -432,7 +476,7 @@ export default function CrmFechamentoPedidoModal({
                 onCadastrado={(p) => aplicarEnderecoPerfil(p as PerfilEndereco)}
                 apiBase={api}
                 permitirTipoMembro={isRede}
-                accent={accent}
+                accent="gold"
               />
 
               {perfilVinculado && (
@@ -466,7 +510,12 @@ export default function CrmFechamentoPedidoModal({
                     >
                       <span className="text-sm truncate">{p.title}</span>
                       <span className="text-[11px] text-[#C9A66B] shrink-0 ml-2">
-                        R$ {precoConsumidor(p).toFixed(2)}
+                        R$ {precoConsumidor(p, variant).toFixed(2)}
+                        {isVendedor && p.preco_minimo != null && (
+                          <span className="text-zinc-600 ml-1">
+                            (mín. {(Number(p.preco_minimo)).toFixed(2)})
+                          </span>
+                        )}
                       </span>
                     </button>
                   ))}
@@ -476,9 +525,49 @@ export default function CrmFechamentoPedidoModal({
                     {itens.map((i) => (
                       <li
                         key={i.product_id}
-                        className="flex items-center gap-2 bg-zinc-900 rounded-xl p-2 border border-zinc-800"
+                        className="flex flex-wrap items-center gap-2 bg-zinc-900 rounded-xl p-2 border border-zinc-800"
                       >
-                        <span className="flex-1 text-xs truncate">{i.title}</span>
+                        <span className="flex-1 text-xs truncate min-w-[120px]">{i.title}</span>
+                        {isVendedor && (
+                          <>
+                            <label className="flex items-center gap-1 text-[10px] text-zinc-500">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(i.bonificado)}
+                                onChange={(e) =>
+                                  setItens((arr) =>
+                                    arr.map((x) =>
+                                      x.product_id === i.product_id
+                                        ? { ...x, bonificado: e.target.checked, preco_unitario: e.target.checked ? 0 : x.preco_final || x.preco_unitario }
+                                        : x
+                                    )
+                                  )
+                                }
+                              />
+                              Bonificar
+                            </label>
+                            {!i.bonificado && (
+                              <input
+                                type="number"
+                                step="0.01"
+                                min={i.preco_minimo}
+                                max={i.preco_final}
+                                value={i.preco_unitario}
+                                onChange={(e) =>
+                                  setItens((arr) =>
+                                    arr.map((x) =>
+                                      x.product_id === i.product_id
+                                        ? { ...x, preco_unitario: Number(e.target.value) || 0 }
+                                        : x
+                                    )
+                                  )
+                                }
+                                className="w-20 bg-zinc-950 border border-zinc-700 rounded px-1 py-0.5 text-[10px] text-white"
+                                title={`Entre ${i.preco_minimo?.toFixed(2)} e ${i.preco_final?.toFixed(2)}`}
+                              />
+                            )}
+                          </>
+                        )}
                         <div className="flex items-center gap-1">
                           <button type="button" onClick={() => alterarQtd(i.product_id, -1)}>
                             <Minus size={12} />
@@ -489,7 +578,7 @@ export default function CrmFechamentoPedidoModal({
                           </button>
                         </div>
                         <span className="text-[10px] text-zinc-400 w-16 text-right">
-                          R$ {(i.preco_unitario * i.quantidade).toFixed(2)}
+                          {i.bonificado ? "Bônus" : `R$ ${(i.preco_unitario * i.quantidade).toFixed(2)}`}
                         </span>
                         <button type="button" onClick={() => alterarQtd(i.product_id, -i.quantidade)}>
                           <Trash2 size={12} className="text-zinc-600 hover:text-red-400" />
@@ -549,7 +638,7 @@ export default function CrmFechamentoPedidoModal({
                     onChange={(e) => setPagamento(e.target.value)}
                     className={`${inputClass} cursor-pointer`}
                   >
-                    {PAGAMENTOS.map((p) => (
+                    {pagamentosLista.map((p) => (
                       <option key={p} value={p} className="bg-zinc-900 text-white">
                         {p}
                       </option>
@@ -557,6 +646,7 @@ export default function CrmFechamentoPedidoModal({
                   </select>
                 </div>
                 <div className="flex items-end">
+                  {!isVendedor && (
                   <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer pb-2">
                     <input
                       type="checkbox"
@@ -566,6 +656,12 @@ export default function CrmFechamentoPedidoModal({
                     />
                     Pagamento já recebido
                   </label>
+                  )}
+                  {isVendedor && pagamento === "consignado" && (
+                    <p className="text-[10px] text-amber-400/90 pb-2">
+                      Consignado não entra em metas nem comissão.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -587,7 +683,7 @@ export default function CrmFechamentoPedidoModal({
                 ) : (
                   <CheckCircle2 size={16} />
                 )}
-                {enviando ? "Salvando..." : isRede ? "Registrar pedido da rede" : "Criar pedido e fechar lead"}
+                {enviando ? "Salvando..." : isRede ? "Registrar pedido da rede" : isVendedor ? "Enviar pedido" : "Criar pedido e fechar lead"}
               </button>
             </>
           )}
