@@ -18,7 +18,7 @@ const ADMIN_MENU_ITEMS = [
       { name: "Painel Admin", icon: LayoutDashboard, href: "/admin" },
       {
         name: "Painel Comercial",
-        desc: "Layout claro · dados reais",
+        desc: "Fase 1 · dashboard, funil e metas",
         icon: Target,
         href: "/admin/comercial",
         color: "text-[#C9A66B]",

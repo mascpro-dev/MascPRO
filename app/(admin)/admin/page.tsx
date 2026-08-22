@@ -7,7 +7,7 @@ import {
   Users, Activity, ShoppingBag, DollarSign,
   ArrowDownToLine, AlertTriangle, PackageCheck,
   UserPlus, TrendingUp, Truck, PackageOpen, Clock,
-  BadgeDollarSign, Loader2, Eye, Kanban, HeartPulse,
+  BadgeDollarSign, Loader2, Eye, Kanban, HeartPulse, Target,
 } from "lucide-react";
 
 type Resumo = {
@@ -163,6 +163,18 @@ export default function AdminDashboard() {
 
             {/* CRM / ERP */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+              <Link href="/admin/comercial" className="block md:col-span-2">
+                <div className="w-full bg-[#C9A66B]/10 border border-[#C9A66B]/35 rounded-2xl px-6 py-4 flex items-center justify-between group hover:border-[#C9A66B]/60 transition-all">
+                  <div className="flex items-center gap-3">
+                    <Target size={20} className="text-[#C9A66B]" />
+                    <div>
+                      <p className="text-[#E8D5A8] font-bold text-sm">Painel comercial — fase 1</p>
+                      <p className="text-[10px] text-zinc-500">Leads, funil, pedidos pagos, semáforo e as 5 perguntas do dia</p>
+                    </div>
+                  </div>
+                  <span className="text-[#C9A66B]/70 text-xs font-bold uppercase tracking-widest group-hover:text-[#C9A66B]">Abrir →</span>
+                </div>
+              </Link>
               <Link href="/admin/crm/dashboard" className="block">
                 <div className="w-full bg-emerald-950/20 border border-emerald-800/35 rounded-2xl px-6 py-4 flex items-center justify-between group hover:border-emerald-500/50 transition-all">
                   <div className="flex items-center gap-3">

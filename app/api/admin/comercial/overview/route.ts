@@ -1,21 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext, assertAdmin } from "@/lib/adminServer";
+import { registrarAudit } from "@/lib/auditLog";
+import {
+  STATUS_PEDIDO_PAGO,
+  ORIGEM_LEAD_LABEL,
+  ROLE_LABEL,
+  CHAVE_METAS_COMERCIAL,
+  METAS_VAZIAS,
+  parseMetasPorPeriodo,
+  gravarMetasPeriodo,
+  semaforoComercial,
+  notaMeta,
+  progressoMeta,
+  pctSeguro,
+  DEFINICOES_FASE1,
+  type MetasCiclo,
+} from "@/lib/comercialMetricas";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const STATUS_PAGOS = ["paid", "separacao", "despachado", "entregue"];
 const PAGE = 1000;
-
-const ORIGEM_LABEL: Record<string, string> = {
-  manual: "Manual",
-  indicacao: "Indicação",
-  instagram: "Instagram",
-  whatsapp: "WhatsApp",
-  email: "E-mail",
-  evento: "Evento",
-  outro: "Outro",
-};
 
 async function fetchAllRows<T>(
   fetchPage: (from: number, to: number) => Promise<{ data: T[] | null; error: { message: string } | null }>
@@ -51,44 +56,14 @@ function boundsMes(ym: string) {
 
 function mesAnterior(ym: string) {
   const [y, m] = ym.split("-").map(Number);
-  const d = new Date(y, m - 2, 1);
-  return ymOf(d);
+  return ymOf(new Date(y, m - 2, 1));
 }
 
 function mesesAte(ym: string, n: number) {
   const [y, m] = ym.split("-").map(Number);
   const out: string[] = [];
-  for (let i = n - 1; i >= 0; i--) {
-    out.push(ymOf(new Date(y, m - 1 - i, 1)));
-  }
+  for (let i = n - 1; i >= 0; i--) out.push(ymOf(new Date(y, m - 1 - i, 1)));
   return out;
-}
-
-function pct(num: number, den: number) {
-  if (den <= 0) return 0;
-  return Math.round((num / den) * 100);
-}
-
-function semaforo(atual: number, anterior: number, invertido = false) {
-  if (invertido) {
-    if (atual === 0) return "ok" as const;
-    if (anterior === 0) return atual > 3 ? ("risco" as const) : ("atencao" as const);
-    if (atual <= anterior) return "ok" as const;
-    if (atual <= anterior * 1.25) return "atencao" as const;
-    return "risco" as const;
-  }
-  if (anterior <= 0) return atual > 0 ? ("ok" as const) : ("atencao" as const);
-  const r = atual / anterior;
-  if (r >= 1) return "ok" as const;
-  if (r >= 0.75) return "atencao" as const;
-  return "risco" as const;
-}
-
-function deltaTxt(atual: number, anterior: number) {
-  const d = atual - anterior;
-  if (d === 0) return "0";
-  const sign = d > 0 ? "+" : "";
-  return `${sign}${d}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -105,17 +80,11 @@ export async function GET(req: NextRequest) {
   const periodo = req.nextUrl.searchParams.get("periodo") || ymOf(agora);
   const prev = mesAnterior(periodo);
   const janela = mesesAte(periodo, 6);
-  const janelaPedidos = mesesAte(periodo, 18);
-  const inicioJanela = boundsMes(janelaPedidos[0]).ini;
+  const inicioPedidos = boundsMes(mesesAte(periodo, 18)[0]).ini;
   const { ini: iniMes, fim: fimMes } = boundsMes(periodo);
   const { ini: iniPrev, fim: fimPrev } = boundsMes(prev);
 
-  const [
-    leadsRes,
-    pedidosRes,
-    embCount,
-    distCount,
-  ] = await Promise.all([
+  const [leadsRes, pedidosRes, embCount, distCount, metasCfg] = await Promise.all([
     fetchAllRows<{
       id: string;
       created_at: string;
@@ -139,13 +108,14 @@ export async function GET(req: NextRequest) {
       supabase
         .from("orders")
         .select("id, total, status, created_at, profile_id")
-        .in("status", STATUS_PAGOS)
-        .gte("created_at", inicioJanela)
+        .in("status", [...STATUS_PEDIDO_PAGO])
+        .gte("created_at", inicioPedidos)
         .order("created_at", { ascending: false })
         .range(from, to)
     ),
     supabase.from("profiles").select("id", { count: "exact", head: true }).ilike("role", "embaixador"),
     supabase.from("profiles").select("id", { count: "exact", head: true }).ilike("role", "distribuidor"),
+    supabase.from("system_config").select("valor").eq("chave", CHAVE_METAS_COMERCIAL).maybeSingle(),
   ]);
 
   if (leadsRes.error) {
@@ -155,6 +125,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: `pedidos: ${pedidosRes.error}` }, { status: 500 });
   }
 
+  const metas = parseMetasPorPeriodo(metasCfg.data?.valor, periodo);
   const leads = leadsRes.rows;
   const pedidos = pedidosRes.rows;
   const noMes = (iso: string, ini: string, fim: string) => iso >= ini && iso <= fim;
@@ -164,9 +135,9 @@ export async function GET(req: NextRequest) {
   const pedidosMes = pedidos.filter((p) => noMes(p.created_at, iniMes, fimMes));
   const pedidosPrev = pedidos.filter((p) => noMes(p.created_at, iniPrev, fimPrev));
 
-  const fat = (lista: typeof pedidos) => lista.reduce((s, p) => s + Number(p.total || 0), 0);
-  const fatMes = fat(pedidosMes);
-  const fatPrev = fat(pedidosPrev);
+  const somaFat = (lista: typeof pedidos) => lista.reduce((s, p) => s + Number(p.total || 0), 0);
+  const fatMes = somaFat(pedidosMes);
+  const fatPrev = somaFat(pedidosPrev);
   const ticketMes = pedidosMes.length ? fatMes / pedidosMes.length : 0;
   const ticketPrev = pedidosPrev.length ? fatPrev / pedidosPrev.length : 0;
 
@@ -191,76 +162,121 @@ export async function GET(req: NextRequest) {
   ).length;
 
   const primeiraCompra = new Map<string, string>();
-  const ordenados = [...pedidos].sort((a, b) => a.created_at.localeCompare(b.created_at));
-  for (const p of ordenados) {
+  for (const p of [...pedidos].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
     if (!p.profile_id) continue;
     if (!primeiraCompra.has(p.profile_id)) primeiraCompra.set(p.profile_id, p.created_at);
   }
-  const recomprasMes = pedidosMes.filter((p) => {
-    if (!p.profile_id) return false;
-    const prim = primeiraCompra.get(p.profile_id);
-    return prim != null && prim < iniMes;
-  }).length;
-  const recomprasPrev = pedidosPrev.filter((p) => {
-    if (!p.profile_id) return false;
-    const prim = primeiraCompra.get(p.profile_id);
-    return prim != null && prim < iniPrev;
-  }).length;
+  const contarRecompras = (lista: typeof pedidos, ini: string) =>
+    lista.filter((p) => {
+      if (!p.profile_id) return false;
+      const prim = primeiraCompra.get(p.profile_id);
+      return prim != null && prim < ini;
+    }).length;
+  const recomprasMes = contarRecompras(pedidosMes, iniMes);
+  const recomprasPrev = contarRecompras(pedidosPrev, iniPrev);
 
   const compradores = new Set(pedidos.map((p) => p.profile_id).filter(Boolean) as string[]);
-  const repetiram = new Set<string>();
   const freq = new Map<string, number>();
   for (const p of pedidos) {
     if (!p.profile_id) continue;
     freq.set(p.profile_id, (freq.get(p.profile_id) || 0) + 1);
   }
-  for (const [id, n] of freq) if (n >= 2) repetiram.add(id);
-  const taxaRecompra = pct(repetiram.size, compradores.size);
+  const repetiram = [...freq.values()].filter((n) => n >= 2).length;
+  const taxaRecompra = pctSeguro(repetiram, compradores.size);
 
   const saidaNovo = pipeline.contato_feito + pipeline.proposta + pipeline.negociacao + pipeline.fechado;
   const emProposta = pipeline.proposta + pipeline.negociacao + pipeline.fechado;
+  const denProposta = pipeline.contato_feito + emProposta;
+  const denFecha = pipeline.proposta + pipeline.negociacao + pipeline.fechado;
+
   const gauges = [
-    { label: "Contato", value: pct(saidaNovo, saidaNovo + pipeline.novo) },
-    { label: "Proposta", value: pct(emProposta, pipeline.contato_feito + emProposta) },
-    { label: "Fechamento", value: pct(pipeline.fechado, pipeline.proposta + pipeline.negociacao + pipeline.fechado) },
-    { label: "Conversão", value: pct(pipeline.fechado, pipeline.total) },
-    { label: "Recompra", value: taxaRecompra },
+    {
+      label: "Contato",
+      value: pctSeguro(saidaNovo, saidaNovo + pipeline.novo),
+      formula: "(contato + proposta + negociação + fechado) ÷ (isso + novos)",
+    },
+    {
+      label: "Proposta",
+      value: pctSeguro(emProposta, denProposta),
+      formula: "(proposta + negociação + fechado) ÷ (contato + esses)",
+    },
+    {
+      label: "Fechamento",
+      value: pctSeguro(pipeline.fechado, denFecha),
+      formula: "fechado ÷ (proposta + negociação + fechado)",
+    },
+    {
+      label: "Conversão",
+      value: pctSeguro(pipeline.fechado, pipeline.total),
+      formula: "fechado ÷ total de leads do CRM",
+    },
+    {
+      label: "Recompra",
+      value: taxaRecompra,
+      formula: "compradores com 2+ pedidos pagos no recorte ÷ compradores",
+    },
   ];
+
+  const diagnosticos: { problema: string; leitura: string }[] = [];
+  if (pipeline.total >= 8 && pctSeguro(saidaNovo, saidaNovo + pipeline.novo) < 50) {
+    diagnosticos.push({
+      problema: "Muito lead parado em Novo",
+      leitura: "Atendimento fraco ou lead sem dono. Todo lead precisa de responsável e próximo passo.",
+    });
+  }
+  if (denProposta >= 8 && pctSeguro(emProposta, denProposta) < 40) {
+    diagnosticos.push({
+      problema: "Contato sem virar proposta",
+      leitura: "Conversa começa e não vira oferta. Revisar script e indicação de kit.",
+    });
+  }
+  if (denFecha >= 5 && pctSeguro(pipeline.fechado, denFecha) < 40) {
+    diagnosticos.push({
+      problema: "Muita proposta, pouco fechamento",
+      leitura: "Objeção mal respondida ou oferta fraca.",
+    });
+  }
+  if (pedidosMes.length >= 5 && pctSeguro(recomprasMes, pedidosMes.length) < 20) {
+    diagnosticos.push({
+      problema: "Venda sem recompra",
+      leitura: "Pós-venda fraco. A régua 7/15/30 entra na fase 3; por ora cobrar follow-up no CRM.",
+    });
+  }
+  if (!diagnosticos.length && pipeline.total > 0) {
+    diagnosticos.push({
+      problema: "Funil operando",
+      leitura: "Nenhum gargalo gritante neste recorte. Olhe follow-ups atrasados e origem.",
+    });
+  }
 
   const serie = janela.map((ym) => {
     const b = boundsMes(ym);
     const l = leads.filter((x) => noMes(x.created_at, b.ini, b.fim));
     const p = pedidos.filter((x) => noMes(x.created_at, b.ini, b.fim));
-    const rec = p.filter((x) => {
-      if (!x.profile_id) return false;
-      const prim = primeiraCompra.get(x.profile_id);
-      return prim != null && prim < b.ini;
-    }).length;
     return {
       mes: ym,
       label: mesLabel(ym),
       leads: l.length,
       pedidos: p.length,
-      faturamento: fat(p),
-      ticket: p.length ? fat(p) / p.length : 0,
-      recompras: rec,
+      faturamento: somaFat(p),
+      ticket: p.length ? somaFat(p) / p.length : 0,
+      recompras: contarRecompras(p, b.ini),
     };
   });
 
-  const origemBase = (leadsMes.length ? leadsMes : leads).reduce((acc, l) => {
+  const origemBase = leadsMes.reduce((acc, l) => {
     const k = (l.origem || "outro").toLowerCase();
     acc[k] = (acc[k] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
   const origens = Object.entries(origemBase)
-    .map(([key, n]) => ({ key, label: ORIGEM_LABEL[key] || key, n }))
+    .map(([key, n]) => ({ key, label: ORIGEM_LEAD_LABEL[key] || key, n }))
     .sort((a, b) => b.n - a.n);
 
   const pedidoIds = pedidosMes.map((p) => p.id);
   const itens: { product_id: string | null; quantidade: unknown; preco_unitario: unknown }[] = [];
   for (let i = 0; i < pedidoIds.length; i += 80) {
     const chunk = pedidoIds.slice(i, i + 80);
-    if (!chunk.length) break;
     const { data, error } = await supabase
       .from("order_items")
       .select("product_id, quantidade, preco_unitario")
@@ -283,8 +299,7 @@ export async function GET(req: NextRequest) {
   const prodIds = [...porProduto.keys()].filter((id) => id !== "_sem");
   const titulos = new Map<string, string>();
   for (let i = 0; i < prodIds.length; i += 80) {
-    const chunk = prodIds.slice(i, i + 80);
-    const { data } = await supabase.from("products").select("id, title").in("id", chunk);
+    const { data } = await supabase.from("products").select("id, title").in("id", prodIds.slice(i, i + 80));
     for (const p of data || []) titulos.set(p.id, p.title);
   }
   const topProdutos = [...porProduto.entries()]
@@ -297,6 +312,29 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => b.receita - a.receita)
     .slice(0, 7);
 
+  const buyerIds = [...new Set(pedidosMes.map((p) => p.profile_id).filter(Boolean) as string[])];
+  const roleMap = new Map<string, string>();
+  for (let i = 0; i < buyerIds.length; i += 80) {
+    const { data } = await supabase.from("profiles").select("id, role").in("id", buyerIds.slice(i, i + 80));
+    for (const p of data || []) roleMap.set(p.id, String(p.role || "").toUpperCase());
+  }
+  const porRole = new Map<string, { pedidos: number; faturamento: number }>();
+  for (const p of pedidosMes) {
+    const role = (p.profile_id && roleMap.get(p.profile_id)) || "SEM_PERFIL";
+    const cur = porRole.get(role) || { pedidos: 0, faturamento: 0 };
+    cur.pedidos += 1;
+    cur.faturamento += Number(p.total || 0);
+    porRole.set(role, cur);
+  }
+  const quemConverte = [...porRole.entries()]
+    .map(([role, v]) => ({
+      role,
+      label: ROLE_LABEL[role] || role,
+      pedidos: v.pedidos,
+      faturamento: v.faturamento,
+    }))
+    .sort((a, b) => b.faturamento - a.faturamento);
+
   const funil = [
     { key: "novo", label: "Novo", n: pipeline.novo },
     { key: "contato_feito", label: "Contato feito", n: pipeline.contato_feito },
@@ -306,97 +344,60 @@ export async function GET(req: NextRequest) {
     { key: "perdido", label: "Perdido", n: pipeline.perdido },
   ];
 
+  function kpi(
+    key: string,
+    label: string,
+    value: number,
+    anterior: number | null,
+    formato: "int" | "moeda",
+    meta: number,
+    spark: number[],
+    invertido = false
+  ) {
+    const status = semaforoComercial({ atual: value, anterior, meta, invertido });
+    return {
+      key,
+      label,
+      value,
+      anterior,
+      formato,
+      meta: meta > 0 ? meta : null,
+      progresso: progressoMeta(value, meta),
+      nota: notaMeta(value, meta),
+      status,
+      spark,
+      referencia: meta > 0 ? "meta" : anterior != null ? "mes_anterior" : "posicao",
+    };
+  }
+
   const kpis = [
-    {
-      key: "leads",
-      label: "Leads no mês",
-      value: leadsMes.length,
-      anterior: leadsPrev.length,
-      formato: "int" as const,
-      status: semaforo(leadsMes.length, leadsPrev.length),
-      spark: serie.map((s) => s.leads),
-    },
-    {
-      key: "pipeline",
-      label: "Pipeline aberto",
-      value: pipelineAberto,
-      anterior: null as number | null,
-      formato: "int" as const,
-      status: pipelineAberto > 0 ? ("atencao" as const) : ("ok" as const),
-      spark: serie.map((s) => s.leads),
-    },
-    {
-      key: "pedidos",
-      label: "Pedidos pagos",
-      value: pedidosMes.length,
-      anterior: pedidosPrev.length,
-      formato: "int" as const,
-      status: semaforo(pedidosMes.length, pedidosPrev.length),
-      spark: serie.map((s) => s.pedidos),
-    },
-    {
-      key: "faturamento",
-      label: "Faturamento",
-      value: fatMes,
-      anterior: fatPrev,
-      formato: "moeda" as const,
-      status: semaforo(fatMes, fatPrev),
-      spark: serie.map((s) => s.faturamento),
-    },
-    {
-      key: "ticket",
-      label: "Ticket médio",
-      value: ticketMes,
-      anterior: ticketPrev,
-      formato: "moeda" as const,
-      status: semaforo(ticketMes, ticketPrev),
-      spark: serie.map((s) => s.ticket),
-    },
-    {
-      key: "followups",
-      label: "Follow-ups atrasados",
-      value: followupsAtrasados,
-      anterior: null,
-      formato: "int" as const,
-      status: semaforo(followupsAtrasados, 0, true),
-      spark: [] as number[],
-    },
-    {
-      key: "recompras",
-      label: "Recompras no mês",
-      value: recomprasMes,
-      anterior: recomprasPrev,
-      formato: "int" as const,
-      status: semaforo(recomprasMes, recomprasPrev),
-      spark: serie.map((s) => s.recompras),
-    },
-    {
-      key: "embaixadoras",
-      label: "Embaixadoras",
-      value: embCount.count || 0,
-      anterior: null,
-      formato: "int" as const,
-      status: "ok" as const,
-      spark: [] as number[],
-    },
+    kpi("leads", "Leads no mês", leadsMes.length, leadsPrev.length, "int", metas.leads, serie.map((s) => s.leads)),
+    kpi("pipeline", "Pipeline aberto", pipelineAberto, null, "int", 0, serie.map((s) => s.leads)),
+    kpi("pedidos", "Pedidos pagos", pedidosMes.length, pedidosPrev.length, "int", metas.pedidos, serie.map((s) => s.pedidos)),
+    kpi("faturamento", "Faturamento", fatMes, fatPrev, "moeda", metas.receita, serie.map((s) => s.faturamento)),
+    kpi("ticket", "Ticket médio", ticketMes, ticketPrev, "moeda", 0, serie.map((s) => s.ticket)),
+    kpi("followups", "Follow-ups atrasados", followupsAtrasados, null, "int", 0, [], true),
+    kpi("recompras", "Recompras no mês", recomprasMes, recomprasPrev, "int", metas.recompras, serie.map((s) => s.recompras)),
+    kpi("embaixadoras", "Embaixadoras", embCount.count || 0, null, "int", 0, []),
   ];
 
   const scorecard = kpis
-    .filter((k) => k.anterior != null)
+    .filter((k) => k.meta != null || k.anterior != null)
     .map((k) => ({
       area: k.label,
       atual: k.value,
-      anterior: k.anterior as number,
+      anterior: k.anterior,
+      meta: k.meta,
+      progresso: k.progresso,
+      nota: k.nota,
       formato: k.formato,
       status: k.status,
-      delta: deltaTxt(
-        k.formato === "moeda" ? Math.round(k.value) : k.value,
-        k.formato === "moeda" ? Math.round(k.anterior as number) : (k.anterior as number)
-      ),
+      referencia: k.referencia,
     }));
 
   const origemTop = origens[0];
   const produtoTop = topProdutos[0];
+  const converteTop = quemConverte[0];
   const etapasFluxo = funil.filter((f) => f.key !== "perdido");
   let gargalo = etapasFluxo[0]?.label || "—";
   let maiorQueda = 0;
@@ -410,19 +411,27 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
+    fase: 1,
     periodo,
     periodoAnterior: prev,
+    metas,
     kpis,
     serie,
     origens,
     gauges,
     funil,
+    diagnosticos,
     topProdutos,
+    quemConverte,
     scorecard,
+    definicoes: DEFINICOES_FASE1,
     leitura: {
       origem: origemTop
-        ? `${origemTop.label} (${origemTop.n} lead${origemTop.n === 1 ? "" : "s"})`
-        : "Ainda sem leads no CRM",
+        ? `${origemTop.label} (${origemTop.n} lead${origemTop.n === 1 ? "" : "s"} no mês)`
+        : "Nenhum lead criado neste mês",
+      converte: converteTop
+        ? `${converteTop.label} puxa o faturamento (${converteTop.pedidos} pedido${converteTop.pedidos === 1 ? "" : "s"})`
+        : "Sem pedido pago neste mês",
       produto: produtoTop
         ? `${produtoTop.title} · ${produtoTop.qtd} un.`
         : "Sem itens vendidos neste mês",
@@ -431,7 +440,7 @@ export async function GET(req: NextRequest) {
         ? `${followupsAtrasados} follow-up(s) atrasado(s)`
         : "Nenhum follow-up atrasado",
       recompra: compradores.size
-        ? `${taxaRecompra}% dos compradores do período voltaram a pedir`
+        ? `${taxaRecompra}% dos compradores do recorte voltaram a pedir`
         : "Sem base de recompra neste recorte",
     },
     totais: {
@@ -439,4 +448,63 @@ export async function GET(req: NextRequest) {
       distribuidores: distCount.count || 0,
     },
   });
+}
+
+export async function POST(req: NextRequest) {
+  const { supabase, userId, error: authErr, status } = await getAdminContext();
+  if (!supabase || !userId) {
+    return NextResponse.json({ ok: false, error: authErr }, { status });
+  }
+  const admin = await assertAdmin(supabase, userId);
+  if (!admin.ok) {
+    return NextResponse.json({ ok: false, error: admin.error }, { status: 403 });
+  }
+
+  const body = (await req.json().catch(() => null)) as {
+    periodo?: string;
+    metas?: Partial<MetasCiclo>;
+  } | null;
+  const periodo = body?.periodo || ymOf(new Date());
+  if (!/^\d{4}-\d{2}$/.test(periodo)) {
+    return NextResponse.json({ ok: false, error: "Período inválido." }, { status: 400 });
+  }
+
+  const { data: atual } = await supabase
+    .from("system_config")
+    .select("valor")
+    .eq("chave", CHAVE_METAS_COMERCIAL)
+    .maybeSingle();
+
+  const metas: MetasCiclo = {
+    leads: Number(body?.metas?.leads) || 0,
+    pedidos: Number(body?.metas?.pedidos) || 0,
+    receita: Number(body?.metas?.receita) || 0,
+    recompras: Number(body?.metas?.recompras) || 0,
+  };
+  const valor = gravarMetasPeriodo(atual?.valor, periodo, metas);
+
+  const { error } = await supabase.from("system_config").upsert(
+    {
+      chave: CHAVE_METAS_COMERCIAL,
+      valor,
+      descricao: "Metas mensais do painel comercial (fase 1). JSON por YYYY-MM.",
+      updated_by: userId,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "chave" }
+  );
+  if (error) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+
+  await registrarAudit(supabase, {
+    usuarioId: userId,
+    acao: "UPDATE_CONFIG",
+    entidade: "system_config",
+    entidadeId: CHAVE_METAS_COMERCIAL,
+    dadosAntes: { valor: atual?.valor },
+    dadosApos: { periodo, metas },
+  });
+
+  return NextResponse.json({ ok: true, periodo, metas });
 }

@@ -1,17 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  LayoutDashboard, Kanban, Filter, ShoppingBag, RefreshCw, Package,
-  Sparkles, Users, Camera, Calendar, MessageCircle, Target,
-  Bell, ChevronDown, Menu, ArrowUpRight, ArrowDownRight, Loader2,
+  LayoutDashboard, Filter, Target, Kanban, ShoppingBag,
+  ChevronDown, Menu, ArrowUpRight, ArrowDownRight, Loader2, Save,
 } from "lucide-react";
 
-type ModuloId =
-  | "dashboard" | "leads" | "funil" | "vendas" | "homecare" | "linhas"
-  | "embaixadoras" | "distribuidores" | "provas" | "eventos" | "ia" | "metas";
-
+type Aba = "dashboard" | "funil" | "metas";
 type Semaforo = "ok" | "atencao" | "risco";
 type Formato = "int" | "moeda";
 
@@ -21,8 +17,12 @@ type Kpi = {
   value: number;
   anterior: number | null;
   formato: Formato;
+  meta: number | null;
+  progresso: number | null;
+  nota: number | null;
   status: Semaforo;
   spark: number[];
+  referencia: string;
 };
 
 type Overview = {
@@ -30,29 +30,30 @@ type Overview = {
   error?: string;
   periodo: string;
   periodoAnterior: string;
+  metas: { leads: number; pedidos: number; receita: number; recompras: number };
   kpis: Kpi[];
   serie: { mes: string; label: string; leads: number; pedidos: number; faturamento: number }[];
   origens: { key: string; label: string; n: number }[];
-  gauges: { label: string; value: number }[];
+  gauges: { label: string; value: number; formula?: string }[];
   funil: { key: string; label: string; n: number }[];
+  diagnosticos: { problema: string; leitura: string }[];
   topProdutos: { id: string; title: string; qtd: number; receita: number }[];
-  scorecard: { area: string; atual: number; anterior: number; formato: Formato; status: Semaforo; delta: string }[];
-  leitura: { origem: string; produto: string; gargalo: string; followups: string; recompra: string };
+  quemConverte: { role: string; label: string; pedidos: number; faturamento: number }[];
+  scorecard: {
+    area: string; atual: number; anterior: number | null; meta: number | null;
+    progresso: number | null; nota: number | null; formato: Formato; status: Semaforo; referencia: string;
+  }[];
+  definicoes: { termo: string; texto: string }[];
+  leitura: {
+    origem: string; converte: string; produto: string;
+    gargalo: string; followups: string; recompra: string;
+  };
 };
 
-const NAV: { id: ModuloId; nome: string; icon: typeof LayoutDashboard }[] = [
+const ABAS: { id: Aba; nome: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", nome: "Dashboard", icon: LayoutDashboard },
-  { id: "leads", nome: "CRM de Leads", icon: Kanban },
-  { id: "funil", nome: "Funil comercial", icon: Filter },
-  { id: "vendas", nome: "Vendas e pedidos", icon: ShoppingBag },
-  { id: "homecare", nome: "Home care", icon: RefreshCw },
-  { id: "linhas", nome: "Produtos e linhas", icon: Package },
-  { id: "embaixadoras", nome: "Embaixadoras", icon: Sparkles },
-  { id: "distribuidores", nome: "Distribuidores", icon: Users },
-  { id: "provas", nome: "Banco de provas", icon: Camera },
-  { id: "eventos", nome: "Eventos", icon: Calendar },
-  { id: "ia", nome: "Atendimento e IA", icon: MessageCircle },
-  { id: "metas", nome: "Metas e scorecard", icon: Target },
+  { id: "funil", nome: "Funil", icon: Filter },
+  { id: "metas", nome: "Metas do ciclo", icon: Target },
 ];
 
 const DONUT_COLORS = ["#C9A66B", "#6F8F78", "#B8A48A", "#B85C4C", "#8A847A", "#D4C4A8"];
@@ -67,7 +68,7 @@ function fmt(v: number, f: Formato) {
   return f === "moeda" ? moeda(v) : num(Math.round(v));
 }
 function tone(s: Semaforo) {
-  if (s === "ok") return { text: "text-[#4F7A5A]", bg: "bg-[#E7F0EA]", bar: "#6F8F78", label: "Acima / estável" };
+  if (s === "ok") return { text: "text-[#4F7A5A]", bg: "bg-[#E7F0EA]", bar: "#6F8F78", label: "No alvo" };
   if (s === "atencao") return { text: "text-[#8A6A32]", bg: "bg-[#F5EDDF]", bar: "#C9A66B", label: "Atenção" };
   return { text: "text-[#9A4338]", bg: "bg-[#F6E6E2]", bar: "#B85C4C", label: "Abaixo" };
 }
@@ -77,9 +78,7 @@ function ymNow() {
 }
 
 function Sparkline({ values, color }: { values: number[]; color: string }) {
-  if (!values.length || values.every((v) => v === 0)) {
-    return <div className="w-[88px] h-8" />;
-  }
+  if (!values.length || values.every((v) => v === 0)) return <div className="w-[88px] h-8" />;
   const w = 88;
   const h = 32;
   const max = Math.max(...values);
@@ -159,17 +158,14 @@ function DonutOrigem({ origens }: { origens: Overview["origens"] }) {
         {total > 0 && parts.map((p) => (
           <circle
             key={p.key}
-            cx="80" cy="80" r={r}
-            fill="none"
-            stroke={p.color}
-            strokeWidth="14"
+            cx="80" cy="80" r={r} fill="none" stroke={p.color} strokeWidth="14"
             strokeDasharray={`${p.dash} ${c - p.dash}`}
             strokeDashoffset={-p.offset}
             transform="rotate(-90 80 80)"
           />
         ))}
         <text x="80" y="76" textAnchor="middle" fontSize="22" fontWeight="600" fill="#2A2723">{total}</text>
-        <text x="80" y="96" textAnchor="middle" fontSize="11" fill="#8A847A">leads</text>
+        <text x="80" y="96" textAnchor="middle" fontSize="11" fill="#8A847A">leads no mês</text>
       </svg>
       <ul className="mt-2 w-full space-y-1.5 text-[12px] text-[#6B6560]">
         {parts.slice(0, 5).map((p) => (
@@ -181,7 +177,7 @@ function DonutOrigem({ origens }: { origens: Overview["origens"] }) {
             <span className="tabular-nums text-[#8A847A]">{Math.round(p.pct * 100)}%</span>
           </li>
         ))}
-        {total === 0 && <li className="text-[#8A847A]">Sem origem registrada</li>}
+        {total === 0 && <li className="text-[#8A847A]">Nenhum lead neste mês</li>}
       </ul>
     </div>
   );
@@ -198,10 +194,7 @@ function Gauge({ value, label }: { value: number; label: string }) {
         <path d="M 14 64 A 42 42 0 0 1 98 64" fill="none" stroke="#EEEAE2" strokeWidth="10" strokeLinecap="round" />
         <path
           d="M 14 64 A 42 42 0 0 1 98 64"
-          fill="none"
-          stroke={color}
-          strokeWidth="10"
-          strokeLinecap="round"
+          fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
           strokeDasharray={`${filled} ${circ}`}
         />
         <text x="56" y="58" textAnchor="middle" fontSize="18" fontWeight="600" fill="#2A2723">{value}%</text>
@@ -236,7 +229,7 @@ function BarsProdutos({ itens }: { itens: Overview["topProdutos"] }) {
 }
 
 export default function PainelComercialPage() {
-  const [modulo, setModulo] = useState<ModuloId>("dashboard");
+  const [aba, setAba] = useState<Aba>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
   const [periodo, setPeriodo] = useState(ymNow);
   const [data, setData] = useState<Overview | null>(null);
@@ -253,29 +246,26 @@ export default function PainelComercialPage() {
     });
   }, []);
 
-  useEffect(() => {
-    let ativo = true;
+  const carregar = useCallback(async () => {
     setLoading(true);
     setErro("");
-    fetch(`/api/admin/comercial/overview?periodo=${periodo}`, { cache: "no-store" })
-      .then(async (res) => {
-        const json = (await res.json().catch(() => null)) as Overview | null;
-        if (!ativo) return;
-        if (!res.ok || !json?.ok) {
-          setErro(json?.error || "Falha ao carregar o painel.");
-          setData(null);
-        } else {
-          setData(json);
-        }
-      })
-      .catch(() => {
-        if (ativo) setErro("Falha ao carregar o painel.");
-      })
-      .finally(() => {
-        if (ativo) setLoading(false);
-      });
-    return () => { ativo = false; };
+    try {
+      const res = await fetch(`/api/admin/comercial/overview?periodo=${periodo}`, { cache: "no-store" });
+      const json = (await res.json().catch(() => null)) as Overview | null;
+      if (!res.ok || !json?.ok) {
+        setErro(json?.error || "Falha ao carregar o painel.");
+        setData(null);
+      } else {
+        setData(json);
+      }
+    } catch {
+      setErro("Falha ao carregar o painel.");
+    } finally {
+      setLoading(false);
+    }
   }, [periodo]);
+
+  useEffect(() => { carregar(); }, [carregar]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#F6F3EE] text-[#2A2723]">
@@ -285,18 +275,19 @@ export default function PainelComercialPage() {
 
       <aside className={`fixed md:static z-40 h-full w-[248px] shrink-0 bg-[#FBF9F6] border-r border-[#E7E1D6] flex flex-col transition-transform ${menuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="px-5 pt-6 pb-4">
-          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">Masc PRO</p>
+          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">Masc PRO · Fase 1</p>
           <p className="text-[15px] font-semibold mt-1">Controle comercial</p>
-          <p className="text-[11px] text-[#8A847A] mt-0.5">Layout claro · dados reais</p>
+          <p className="text-[11px] text-[#8A847A] mt-0.5">Ver · funil · semáforo</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
-          {NAV.map((item) => {
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#A39C90] px-3 mb-2">Este painel</p>
+          {ABAS.map((item) => {
             const Icon = item.icon;
-            const active = modulo === item.id;
+            const active = aba === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => { setModulo(item.id); setMenuOpen(false); }}
+                onClick={() => { setAba(item.id); setMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[13px] mb-0.5 text-left transition-colors ${
                   active ? "bg-[#EDE4D4] text-[#2A2723] font-medium" : "text-[#6B6560] hover:bg-[#F3EEE6]"
                 }`}
@@ -306,9 +297,16 @@ export default function PainelComercialPage() {
               </button>
             );
           })}
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#A39C90] px-3 mt-5 mb-2">Já existia</p>
+          <Link href="/admin/crm" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[13px] text-[#6B6560] hover:bg-[#F3EEE6]">
+            <Kanban size={16} strokeWidth={1.6} className="text-[#A39C90]" /> Pipeline de leads
+          </Link>
+          <Link href="/admin/pedidos" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[13px] text-[#6B6560] hover:bg-[#F3EEE6]">
+            <ShoppingBag size={16} strokeWidth={1.6} className="text-[#A39C90]" /> Pedidos
+          </Link>
         </nav>
         <div className="p-4 border-t border-[#E7E1D6]">
-          <Link href="/admin" className="text-[12px] text-[#8A847A] hover:text-[#2A2723]">← Voltar ao admin atual</Link>
+          <Link href="/admin" className="text-[12px] text-[#8A847A] hover:text-[#2A2723]">← Admin operacional</Link>
         </div>
       </aside>
 
@@ -320,40 +318,36 @@ export default function PainelComercialPage() {
             </button>
             <div className="flex-1 min-w-[160px]">
               <h1 className="text-lg md:text-xl font-semibold tracking-tight">
-                {NAV.find((n) => n.id === modulo)?.nome}
+                {ABAS.find((n) => n.id === aba)?.nome}
               </h1>
-              <p className="text-[12px] text-[#8A847A]">Semáforo = mês atual contra o mês anterior</p>
+              <p className="text-[12px] text-[#8A847A]">
+                Pedido fechado = pago, separação, despachado ou entregue
+              </p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <label className="flex items-center gap-1.5 bg-white border border-[#E7E1D6] rounded-2xl px-3 h-10 text-[12px] text-[#6B6560]">
-                <select
-                  value={periodo}
-                  onChange={(e) => setPeriodo(e.target.value)}
-                  className="bg-transparent outline-none capitalize max-w-[160px]"
-                >
-                  {periodos.map((p) => (
-                    <option key={p.ym} value={p.ym}>{p.label}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} />
-              </label>
-              <span className="hidden sm:flex items-center h-10 px-3 rounded-2xl bg-white border border-[#E7E1D6] text-[12px] text-[#8A847A]">
-                CRM + pedidos pagos
-              </span>
-              <button className="w-10 h-10 rounded-2xl bg-white border border-[#E7E1D6] grid place-items-center text-[#8A847A]" aria-label="Alertas">
-                <Bell size={16} strokeWidth={1.6} />
-              </button>
-            </div>
+            <label className="flex items-center gap-1.5 bg-white border border-[#E7E1D6] rounded-2xl px-3 h-10 text-[12px] text-[#6B6560]">
+              <select
+                value={periodo}
+                onChange={(e) => setPeriodo(e.target.value)}
+                className="bg-transparent outline-none capitalize max-w-[180px]"
+              >
+                {periodos.map((p) => (
+                  <option key={p.ym} value={p.ym}>{p.label}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} />
+            </label>
           </div>
         </header>
 
         <div className="px-4 md:px-8 py-6 max-w-[1400px]">
-          {modulo !== "dashboard" ? (
-            <Placeholder id={modulo} />
-          ) : loading ? (
+          {loading ? (
             <div className="flex justify-center py-24"><Loader2 className="animate-spin text-[#C9A66B]" size={28} /></div>
           ) : erro || !data ? (
             <p className="text-[#9A4338] text-sm">{erro || "Sem dados."}</p>
+          ) : aba === "funil" ? (
+            <FunilView data={data} />
+          ) : aba === "metas" ? (
+            <MetasView data={data} periodo={periodo} onSaved={carregar} />
           ) : (
             <Dashboard data={data} />
           )}
@@ -370,7 +364,11 @@ function Dashboard({ data }: { data: Overview }) {
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         {data.kpis.map((k) => {
           const t = tone(k.status);
-          const sub = k.anterior == null ? "posição atual" : `mês ant. ${fmt(k.anterior, k.formato)}`;
+          const sub = k.meta
+            ? `meta ${fmt(k.meta, k.formato)}${k.progresso != null ? ` · ${k.progresso}%` : ""}`
+            : k.anterior != null
+              ? `mês ant. ${fmt(k.anterior, k.formato)}`
+              : "posição atual";
           const d = k.anterior == null ? null : k.value - k.anterior;
           return (
             <div key={k.key} className="bg-white rounded-[22px] border border-[#E7E1D6] p-4 flex flex-col gap-3">
@@ -385,12 +383,16 @@ function Dashboard({ data }: { data: Overview }) {
                 </div>
                 <Sparkline values={k.spark} color={t.bar} />
               </div>
-              {d != null && (
+              {k.meta ? (
+                <div className="h-1.5 rounded-full bg-[#EEEAE2] overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, k.progresso || 0)}%`, background: t.bar }} />
+                </div>
+              ) : d != null ? (
                 <span className={`flex items-center gap-0.5 text-[11px] ${d >= 0 ? "text-[#4F7A5A]" : "text-[#9A4338]"}`}>
                   {d >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                  {k.formato === "moeda" ? (d >= 0 ? "+" : "") + moeda(d) : `${d >= 0 ? "+" : ""}${num(Math.round(d))}`}
+                  {k.formato === "moeda" ? `${d >= 0 ? "+" : ""}${moeda(d)}` : `${d >= 0 ? "+" : ""}${num(Math.round(d))}`}
                 </span>
-              )}
+              ) : null}
             </div>
           );
         })}
@@ -401,7 +403,7 @@ function Dashboard({ data }: { data: Overview }) {
           <div className="flex items-start justify-between mb-2 gap-3">
             <div>
               <h2 className="text-[15px] font-semibold">Leads do CRM e pedidos pagos</h2>
-              <p className="text-[12px] text-[#8A847A]">Últimos 6 meses · mesma escala (quantidade)</p>
+              <p className="text-[12px] text-[#8A847A]">Últimos 6 meses · quantidade</p>
             </div>
             <div className="flex gap-3 text-[11px] text-[#8A847A] shrink-0">
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#C9A66B] inline-block" /> Leads</span>
@@ -410,19 +412,16 @@ function Dashboard({ data }: { data: Overview }) {
           </div>
           <AreaChart serie={data.serie} />
         </section>
-
         <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
-          <h2 className="text-[15px] font-semibold">Origem dos leads</h2>
-          <p className="text-[12px] text-[#8A847A] mb-2">Mês selecionado; se vazio, usa o histórico</p>
+          <h2 className="text-[15px] font-semibold">De onde vêm os leads</h2>
+          <p className="text-[12px] text-[#8A847A] mb-2">Somente leads criados no mês</p>
           <DonutOrigem origens={data.origens} />
         </section>
       </div>
 
       <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
-        <h2 className="text-[15px] font-semibold">Taxas do funil MASC</h2>
-        <p className="text-[12px] text-[#8A847A] mb-4">
-          Contato, proposta e fechamento sobre o pipeline do CRM · recompra = quem já comprou 2+ vezes nos pedidos pagos
-        </p>
+        <h2 className="text-[15px] font-semibold">Taxas do funil</h2>
+        <p className="text-[12px] text-[#8A847A] mb-4">Pipeline atual do CRM · recompra nos pedidos pagos</p>
         <div className="flex flex-wrap justify-between gap-4">
           {data.gauges.map((g) => (
             <Gauge key={g.label} value={g.value} label={g.label} />
@@ -432,21 +431,20 @@ function Dashboard({ data }: { data: Overview }) {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
-          <h2 className="text-[15px] font-semibold">Faturamento por produto</h2>
+          <h2 className="text-[15px] font-semibold">Qual produto gira</h2>
           <p className="text-[12px] text-[#8A847A] mb-3">Itens de pedidos pagos no mês · top 7</p>
           <BarsProdutos itens={data.topProdutos} />
         </section>
-
         <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
-          <h2 className="text-[15px] font-semibold">Pipeline do CRM</h2>
-          <p className="text-[12px] text-[#8A847A] mb-4">Posição atual das colunas · não é o funil do PDF (ainda sem diagnóstico)</p>
+          <h2 className="text-[15px] font-semibold">Pipeline agora</h2>
+          <p className="text-[12px] text-[#8A847A] mb-4">Estoque de leads por coluna · não é coorte</p>
           <div className="space-y-2.5">
             {data.funil.map((f) => (
               <div key={f.key} className="flex items-center gap-3">
                 <span className="w-28 text-[12px] text-[#6B6560] shrink-0">{f.label}</span>
                 <div className="flex-1 h-8 rounded-full bg-[#F3EEE6] overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-[#EDE4D4] flex items-center px-3 text-[11px] font-medium text-[#2A2723]"
+                    className="h-full rounded-full bg-[#EDE4D4] flex items-center px-3 text-[11px] font-medium"
                     style={{ width: `${Math.max(f.n ? 12 : 0, (f.n / maxFunil) * 100)}%` }}
                   >
                     {f.n}
@@ -460,25 +458,28 @@ function Dashboard({ data }: { data: Overview }) {
 
       <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
         <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5 overflow-x-auto">
-          <h2 className="text-[15px] font-semibold mb-1">Comparativo mensal</h2>
-          <p className="text-[12px] text-[#8A847A] mb-4">Mesmo recorte do filtro · sem meta inventada do PDF</p>
+          <h2 className="text-[15px] font-semibold mb-1">Scorecard</h2>
+          <p className="text-[12px] text-[#8A847A] mb-4">Nota 0 / 5 / 8 / 10 quando há meta · senão compara o mês anterior</p>
           <table className="w-full text-[13px]">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">
                 <th className="font-medium pb-3">Indicador</th>
-                <th className="font-medium pb-3 text-right">Mês</th>
-                <th className="font-medium pb-3 text-right">Anterior</th>
+                <th className="font-medium pb-3 text-right">Realizado</th>
+                <th className="font-medium pb-3 text-right">Meta / ant.</th>
+                <th className="font-medium pb-3 text-right">Nota</th>
                 <th className="font-medium pb-3">Status</th>
               </tr>
             </thead>
             <tbody>
               {data.scorecard.map((r) => {
                 const t = tone(r.status);
+                const base = r.meta != null ? r.meta : r.anterior;
                 return (
                   <tr key={r.area} className="border-t border-[#F0EBE3]">
                     <td className="py-3">{r.area}</td>
                     <td className="py-3 text-right tabular-nums">{fmt(r.atual, r.formato)}</td>
-                    <td className="py-3 text-right tabular-nums text-[#8A847A]">{fmt(r.anterior, r.formato)}</td>
+                    <td className="py-3 text-right tabular-nums text-[#8A847A]">{base != null ? fmt(base, r.formato) : "—"}</td>
+                    <td className="py-3 text-right tabular-nums">{r.nota ?? "—"}</td>
                     <td className="py-3">
                       <span className={`text-[11px] px-2.5 py-0.5 rounded-full ${t.bg} ${t.text}`}>{t.label}</span>
                     </td>
@@ -490,28 +491,28 @@ function Dashboard({ data }: { data: Overview }) {
         </section>
 
         <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
-          <h2 className="text-[15px] font-semibold mb-1">Leitura do período</h2>
-          <p className="text-[12px] text-[#8A847A] mb-4">Cinco perguntas do painel, com o que o sistema já mede</p>
+          <h2 className="text-[15px] font-semibold mb-1">Cinco perguntas do dia</h2>
+          <p className="text-[12px] text-[#8A847A] mb-4">Só o que o sistema já mede</p>
           <dl className="space-y-3 text-[13px]">
             <div>
               <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">De onde vêm os leads</dt>
               <dd className="mt-0.5">{data.leitura.origem}</dd>
             </div>
             <div>
-              <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">Qual produto gira</dt>
+              <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">Quem está convertendo</dt>
+              <dd className="mt-0.5">{data.leitura.converte}</dd>
+            </div>
+            <div>
+              <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">Qual produto está girando</dt>
               <dd className="mt-0.5">{data.leitura.produto}</dd>
             </div>
             <div>
-              <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">Onde o funil afunila</dt>
+              <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">Onde a venda trava</dt>
               <dd className="mt-0.5">{data.leitura.gargalo}</dd>
             </div>
             <div>
-              <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">Follow-up</dt>
-              <dd className="mt-0.5">{data.leitura.followups}</dd>
-            </div>
-            <div>
-              <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">Recompra</dt>
-              <dd className="mt-0.5">{data.leitura.recompra}</dd>
+              <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">Follow-up e recompra</dt>
+              <dd className="mt-0.5">{data.leitura.followups}. {data.leitura.recompra}</dd>
             </div>
           </dl>
         </section>
@@ -520,15 +521,174 @@ function Dashboard({ data }: { data: Overview }) {
   );
 }
 
-function Placeholder({ id }: { id: ModuloId }) {
-  const nome = NAV.find((n) => n.id === id)?.nome;
+function FunilView({ data }: { data: Overview }) {
+  const maxFunil = Math.max(1, ...data.funil.map((f) => f.n));
   return (
-    <div className="bg-white rounded-[22px] border border-[#E7E1D6] p-8 max-w-xl">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-[#C9A66B] font-semibold">Só o dashboard está ligado</p>
-      <h2 className="text-xl font-semibold mt-2">{nome}</h2>
-      <p className="text-[14px] text-[#6B6560] mt-3 leading-relaxed">
-        O visual desta aba entra depois. Os números reais já alimentam o dashboard executivo.
-      </p>
+    <div className="flex flex-col gap-6">
+      <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
+        <h2 className="text-[15px] font-semibold">Colunas do CRM</h2>
+        <p className="text-[12px] text-[#8A847A] mb-4">
+          Foto do pipeline agora. Diagnóstico e qualificação do PDF ainda não existem como status.
+        </p>
+        <div className="space-y-2.5">
+          {data.funil.map((f) => (
+            <div key={f.key} className="flex items-center gap-3">
+              <span className="w-32 text-[13px] text-[#6B6560] shrink-0">{f.label}</span>
+              <div className="flex-1 h-9 rounded-full bg-[#F3EEE6] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-[#EDE4D4] flex items-center px-3 text-[12px] font-medium"
+                  style={{ width: `${Math.max(f.n ? 10 : 0, (f.n / maxFunil) * 100)}%` }}
+                >
+                  {f.n}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
+        <h2 className="text-[15px] font-semibold">Taxas possíveis hoje</h2>
+        <div className="flex flex-wrap justify-between gap-4 mt-4">
+          {data.gauges.map((g) => (
+            <div key={g.label} className="flex flex-col items-center max-w-[140px]">
+              <Gauge value={g.value} label={g.label} />
+              {g.formula && <p className="text-[10px] text-[#A39C90] text-center mt-1 leading-snug">{g.formula}</p>}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
+        <h2 className="text-[15px] font-semibold mb-3">Diagnóstico rápido</h2>
+        <div className="space-y-3">
+          {data.diagnosticos.map((d) => (
+            <div key={d.problema} className="border border-[#E7E1D6] rounded-2xl p-4">
+              <p className="text-[13px] font-semibold">{d.problema}</p>
+              <p className="text-[13px] text-[#6B6560] mt-1">{d.leitura}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {data.quemConverte.length > 0 && (
+        <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5 overflow-x-auto">
+          <h2 className="text-[15px] font-semibold mb-1">Quem está convertendo</h2>
+          <p className="text-[12px] text-[#8A847A] mb-4">Papel de quem comprou no mês (pedido pago)</p>
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="text-left text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">
+                <th className="font-medium pb-3">Perfil</th>
+                <th className="font-medium pb-3 text-right">Pedidos</th>
+                <th className="font-medium pb-3 text-right">Faturamento</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.quemConverte.map((q) => (
+                <tr key={q.role} className="border-t border-[#F0EBE3]">
+                  <td className="py-3">{q.label}</td>
+                  <td className="py-3 text-right tabular-nums">{q.pedidos}</td>
+                  <td className="py-3 text-right tabular-nums">{moeda(q.faturamento)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function MetasView({
+  data, periodo, onSaved,
+}: {
+  data: Overview;
+  periodo: string;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    leads: String(data.metas.leads || ""),
+    pedidos: String(data.metas.pedidos || ""),
+    receita: String(data.metas.receita || ""),
+    recompras: String(data.metas.recompras || ""),
+  });
+  const [salvando, setSalvando] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  async function salvar() {
+    setSalvando(true);
+    setMsg("");
+    const res = await fetch("/api/admin/comercial/overview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        periodo,
+        metas: {
+          leads: Number(form.leads) || 0,
+          pedidos: Number(form.pedidos) || 0,
+          receita: Number(form.receita) || 0,
+          recompras: Number(form.recompras) || 0,
+        },
+      }),
+    });
+    const json = await res.json().catch(() => null);
+    setSalvando(false);
+    if (!res.ok || !json?.ok) {
+      setMsg(json?.error || "Não foi possível salvar.");
+      return;
+    }
+    setMsg("Metas do ciclo salvas. O semáforo passa a usar estes números.");
+    onSaved();
+  }
+
+  return (
+    <div className="flex flex-col gap-6 max-w-3xl">
+      <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
+        <h2 className="text-[15px] font-semibold">Meta mensal da operação</h2>
+        <p className="text-[12px] text-[#8A847A] mt-1 mb-5">
+          Grava em configuração do sistema, por mês. Zero = semáforo compara com o mês anterior. Não altera pedido, lead nem estoque.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[
+            ["leads", "Leads no mês"],
+            ["pedidos", "Pedidos pagos"],
+            ["receita", "Faturamento (R$)"],
+            ["recompras", "Recompras"],
+          ].map(([key, label]) => (
+            <label key={key} className="text-[12px] text-[#6B6560]">
+              {label}
+              <input
+                type="number"
+                min={0}
+                value={form[key as keyof typeof form]}
+                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                className="mt-1 w-full h-11 px-3 rounded-2xl border border-[#E7E1D6] bg-[#FBF9F6] text-[14px] text-[#2A2723] outline-none focus:border-[#C9A66B]"
+              />
+            </label>
+          ))}
+        </div>
+        <button
+          onClick={salvar}
+          disabled={salvando}
+          className="mt-5 inline-flex items-center gap-2 h-11 px-4 rounded-2xl bg-[#2A2723] text-white text-[13px] disabled:opacity-50"
+        >
+          {salvando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          Salvar metas deste mês
+        </button>
+        {msg && <p className="text-[13px] text-[#4F7A5A] mt-3">{msg}</p>}
+      </section>
+
+      <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
+        <h2 className="text-[15px] font-semibold mb-3">Como o número é lido</h2>
+        <dl className="space-y-3">
+          {data.definicoes.map((d) => (
+            <div key={d.termo}>
+              <dt className="text-[13px] font-semibold">{d.termo}</dt>
+              <dd className="text-[13px] text-[#6B6560] mt-0.5">{d.texto}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
     </div>
   );
 }
