@@ -326,7 +326,29 @@ export async function GET(req: NextRequest) {
   }
 
   const postsPorPessoa = new Map<string, number>();
-  for (const p of pessoas) postsPorPessoa.set(p.id, 0);
+  const provasPorPessoa = new Map<string, number>();
+  for (const p of pessoas) {
+    postsPorPessoa.set(p.id, 0);
+    provasPorPessoa.set(p.id, 0);
+  }
+  if (idsPessoas.length) {
+    const provasCat = await fetchAllRows<{ profile_id: string | null }>(async (from, to) =>
+      supabase
+        .from("comercial_provas")
+        .select("profile_id")
+        .in("profile_id", idsPessoas)
+        .eq("autorizacao", true)
+        .gte("realizado_em", iniMes.slice(0, 10))
+        .lte("realizado_em", fimMes.slice(0, 10))
+        .range(from, to)
+    );
+    if (!provasCat.error) {
+      for (const row of provasCat.rows) {
+        if (!row.profile_id) continue;
+        provasPorPessoa.set(row.profile_id, (provasPorPessoa.get(row.profile_id) || 0) + 1);
+      }
+    }
+  }
   if (papel === "embaixadora" && idsPessoas.length) {
     const posts = await fetchAllRows<{ user_id: string }>(async (from, to) =>
       supabase
@@ -387,9 +409,16 @@ export async function GET(req: NextRequest) {
         compraPropria: compraPropria.get(p.id) || 0,
         leadsMes: base.leads,
         postsComunidade: postsPorPessoa.get(p.id) || 0,
+        provasCatalogo: provasPorPessoa.get(p.id) || 0,
         manual,
       });
-      return { ...base, score, compra_propria: compraPropria.get(p.id) || 0, posts_comunidade: postsPorPessoa.get(p.id) || 0 };
+      return {
+        ...base,
+        score,
+        compra_propria: compraPropria.get(p.id) || 0,
+        posts_comunidade: postsPorPessoa.get(p.id) || 0,
+        provas_catalogo: provasPorPessoa.get(p.id) || 0,
+      };
     }
 
     const visits = visitasPorDist.get(p.id)!;

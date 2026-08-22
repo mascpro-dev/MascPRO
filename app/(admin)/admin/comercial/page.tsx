@@ -5,14 +5,16 @@ import Link from "next/link";
 import {
   LayoutDashboard, Filter, Target, Kanban, ShoppingBag, RefreshCw,
   ChevronDown, Menu, ArrowUpRight, ArrowDownRight, Loader2, Save,
-  Sparkles, Users,
+  Sparkles, Users, Camera, Calendar,
 } from "lucide-react";
 import ComercialHomeCare from "@/componentes/ComercialHomeCare";
 import ComercialPipeline from "@/componentes/ComercialPipeline";
 import ComercialPedidos from "@/componentes/ComercialPedidos";
 import ComercialRede from "@/componentes/ComercialRede";
+import ComercialProvas from "@/componentes/ComercialProvas";
+import ComercialEventos from "@/componentes/ComercialEventos";
 
-type Aba = "dashboard" | "pipeline" | "pedidos" | "funil" | "homecare" | "embaixadoras" | "distribuidores" | "metas";
+type Aba = "dashboard" | "pipeline" | "pedidos" | "funil" | "homecare" | "embaixadoras" | "distribuidores" | "provas" | "eventos" | "metas";
 type Semaforo = "ok" | "atencao" | "risco";
 type Formato = "int" | "moeda";
 
@@ -65,6 +67,8 @@ const ABAS: { id: Aba; nome: string; icon: typeof LayoutDashboard }[] = [
   { id: "homecare", nome: "Home care", icon: RefreshCw },
   { id: "embaixadoras", nome: "Embaixadoras", icon: Sparkles },
   { id: "distribuidores", nome: "Distribuidores", icon: Users },
+  { id: "provas", nome: "Provas", icon: Camera },
+  { id: "eventos", nome: "Eventos", icon: Calendar },
   { id: "metas", nome: "Metas do ciclo", icon: Target },
 ];
 
@@ -318,9 +322,9 @@ export default function PainelComercialPage() {
 
       <aside className={`fixed md:static z-40 h-full w-[248px] shrink-0 bg-[#FBF9F6] border-r border-[#E7E1D6] flex flex-col transition-transform ${menuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="px-5 pt-6 pb-4">
-          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">Masc PRO · Fase 4</p>
+          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">Masc PRO · Fase 5</p>
           <p className="text-[15px] font-semibold mt-1">Controle comercial</p>
-          <p className="text-[11px] text-[#8A847A] mt-0.5">Score da rede · sem apagar nível</p>
+          <p className="text-[11px] text-[#8A847A] mt-0.5">Prova · evento · calendário intacto</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           <p className="text-[10px] uppercase tracking-[0.16em] text-[#A39C90] px-3 mb-2">Este painel</p>
@@ -367,7 +371,11 @@ export default function PainelComercialPage() {
                         ? "Score 0–100 do mês · nível da jornada só se lê"
                         : aba === "distribuidores"
                           ? "Venda, equipe e visita derivados · salão e exclusividade à mão"
-                          : "Pedido fechado = pago, separação, despachado ou entregue"}
+                          : aba === "provas"
+                            ? "Linha, cidade, protocolo e autorização. Post não entra sozinho"
+                            : aba === "eventos"
+                              ? "Resultado comercial · flyer e data ficam no calendário"
+                              : "Pedido fechado = pago, separação, despachado ou entregue"}
               </p>
             </div>
             {aba !== "pipeline" && (
@@ -398,6 +406,10 @@ export default function PainelComercialPage() {
             <ComercialRede periodo={periodo} papel="embaixadora" />
           ) : aba === "distribuidores" ? (
             <ComercialRede periodo={periodo} papel="distribuidor" />
+          ) : aba === "provas" ? (
+            <ComercialProvas periodo={periodo} />
+          ) : aba === "eventos" ? (
+            <ComercialEventos periodo={periodo} />
           ) : loading ? (
             <div className="flex justify-center py-24"><Loader2 className="animate-spin text-[#C9A66B]" size={28} /></div>
           ) : erro || !data ? (

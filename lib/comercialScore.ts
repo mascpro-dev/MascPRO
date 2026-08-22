@@ -83,7 +83,7 @@ export const DEFINICOES_FASE4 = [
   },
   {
     termo: "Prova / conteúdo / treino / postura",
-    texto: "Notas manuais do mês. Post da comunidade só aparece como pista — não vira prova sozinho.",
+    texto: "Prova catalogada (fase 5) pontua sozinha. Sem ela, vale a nota manual. Post da comunidade só é pista.",
   },
   {
     termo: "Distribuidor",
@@ -213,8 +213,23 @@ export function semaforoScore(total: number): SemaforoComercial {
   return "risco";
 }
 
-export function embaixadoraAtiva(params: { pedidosRede: number; prova: number | null; conteudo: number | null }) {
-  return params.pedidosRede > 0 || Number(params.prova || 0) > 0 || Number(params.conteudo || 0) > 0;
+export function embaixadoraAtiva(params: {
+  pedidosRede: number;
+  prova: number | null;
+  conteudo: number | null;
+  provasCatalogo?: number;
+}) {
+  return (
+    params.pedidosRede > 0 ||
+    Number(params.prova || 0) > 0 ||
+    Number(params.conteudo || 0) > 0 ||
+    Number(params.provasCatalogo || 0) > 0
+  );
+}
+
+export function pontosProvaNoScore(catalogadas: number, notaManual: number | null, max = PESOS_EMBAIXADORA.prova) {
+  const derivado = catalogadas <= 0 ? 0 : catalogadas === 1 ? 10 : catalogadas === 2 ? 16 : max;
+  return Math.max(derivado, Number(notaManual || 0));
 }
 
 export function montarScoreEmbaixadora(params: {
@@ -224,9 +239,12 @@ export function montarScoreEmbaixadora(params: {
   compraPropria: number;
   leadsMes: number;
   postsComunidade: number;
+  provasCatalogo?: number;
   manual: ManualScore;
 }) {
   const m = params.manual;
+  const provasCat = Number(params.provasCatalogo || 0);
+  const pontosProva = pontosProvaNoScore(provasCat, m.prova);
   const pilares: PilarScore[] = [
     {
       key: "venda",
@@ -252,10 +270,15 @@ export function montarScoreEmbaixadora(params: {
     {
       key: "prova",
       label: "Prova",
-      pontos: Number(m.prova || 0),
+      pontos: pontosProva,
       max: PESOS_EMBAIXADORA.prova,
-      fonte: "manual",
-      detalhe: m.prova == null ? "Sem nota no mês" : `Nota ${m.prova}/${PESOS_EMBAIXADORA.prova}`,
+      fonte: provasCat > 0 ? "derivado" : "manual",
+      detalhe:
+        provasCat > 0
+          ? `${provasCat} prova(s) no banco`
+          : m.prova == null
+            ? "Sem prova catalogada nem nota"
+            : `Nota manual ${m.prova}/${PESOS_EMBAIXADORA.prova}`,
     },
     {
       key: "conteudo",
@@ -293,13 +316,19 @@ export function montarScoreEmbaixadora(params: {
     total,
     max: 100,
     pilares,
-    ativa: embaixadoraAtiva({ pedidosRede: params.pedidosRede, prova: m.prova, conteudo: m.conteudo }),
+    ativa: embaixadoraAtiva({
+      pedidosRede: params.pedidosRede,
+      prova: m.prova,
+      conteudo: m.conteudo,
+      provasCatalogo: provasCat,
+    }),
     status: semaforoScore(total),
     manuaisVazios,
     extra: {
       leadsMes: params.leadsMes,
       postsComunidade: params.postsComunidade,
       compraPropria: params.compraPropria,
+      provasCatalogo: provasCat,
     },
   };
 }

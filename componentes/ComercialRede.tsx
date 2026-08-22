@@ -20,6 +20,7 @@ type Pessoa = {
   leads: number;
   compra_propria?: number;
   posts_comunidade?: number;
+  provas_catalogo?: number;
   vendedores?: number;
   vendedores_ativos?: number;
   visitas?: number;
@@ -341,6 +342,9 @@ export default function ComercialRede({ periodo, papel }: { periodo: string; pap
                 <p className="text-[12px] text-[#8A847A]">{aberta.pedidos} venda(s) · {aberta.leads} lead(s)</p>
                 {emb && (aberta.compra_propria || 0) > 0 && (
                   <p className="text-[11px] text-[#8A847A]">{aberta.compra_propria} compra(s) própria(s) — fora do score</p>
+                )}
+                {emb && (aberta.provas_catalogo || 0) > 0 && (
+                  <p className="text-[11px] text-[#6F8F78]">{aberta.provas_catalogo} prova(s) no banco neste mês</p>
                 )}
               </div>
             </div>
