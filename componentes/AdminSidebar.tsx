@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { FASE_COMERCIAL, resumoFaseComercial, rotuloFaseComercial } from "@/lib/comercialFase";
 import {
   Users, UserPlus, GitMerge, Zap, Clock, LayoutDashboard,
   ShieldCheck, ArrowDownToLine, ShoppingBag, UsersRound,
@@ -18,7 +19,7 @@ const ADMIN_MENU_ITEMS = [
       { name: "Painel Admin", icon: LayoutDashboard, href: "/admin" },
       {
         name: "Painel Comercial",
-        desc: "Fase 1 · dashboard, funil e metas",
+        desc: `${rotuloFaseComercial()} · ${resumoFaseComercial()}`,
         icon: Target,
         href: "/admin/comercial",
         color: "text-[#C9A66B]",

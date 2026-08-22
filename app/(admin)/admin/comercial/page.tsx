@@ -13,6 +13,7 @@ import ComercialPedidos from "@/componentes/ComercialPedidos";
 import ComercialRede from "@/componentes/ComercialRede";
 import ComercialProvas from "@/componentes/ComercialProvas";
 import ComercialEventos from "@/componentes/ComercialEventos";
+import { FASE_COMERCIAL_TOTAL, resumoFaseComercial, rotuloFaseComercial } from "@/lib/comercialFase";
 
 type Aba = "dashboard" | "pipeline" | "pedidos" | "funil" | "homecare" | "embaixadoras" | "distribuidores" | "provas" | "eventos" | "metas";
 type Semaforo = "ok" | "atencao" | "risco";
@@ -322,9 +323,11 @@ export default function PainelComercialPage() {
 
       <aside className={`fixed md:static z-40 h-full w-[248px] shrink-0 bg-[#FBF9F6] border-r border-[#E7E1D6] flex flex-col transition-transform ${menuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="px-5 pt-6 pb-4">
-          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">Masc PRO · Fase 5</p>
+          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">
+            Masc PRO · {rotuloFaseComercial()} / {FASE_COMERCIAL_TOTAL}
+          </p>
           <p className="text-[15px] font-semibold mt-1">Controle comercial</p>
-          <p className="text-[11px] text-[#8A847A] mt-0.5">Prova · evento · calendário intacto</p>
+          <p className="text-[11px] text-[#8A847A] mt-0.5">{resumoFaseComercial()}</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           <p className="text-[10px] uppercase tracking-[0.16em] text-[#A39C90] px-3 mb-2">Este painel</p>
@@ -357,9 +360,14 @@ export default function PainelComercialPage() {
               <Menu size={18} />
             </button>
             <div className="flex-1 min-w-[160px]">
-              <h1 className="text-lg md:text-xl font-semibold tracking-tight">
-                {ABAS.find((n) => n.id === aba)?.nome}
-              </h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg md:text-xl font-semibold tracking-tight">
+                  {ABAS.find((n) => n.id === aba)?.nome}
+                </h1>
+                <span className="text-[10px] tracking-[0.16em] uppercase font-semibold px-2 py-0.5 rounded-full bg-[#EDE4D4] text-[#8A6A32]">
+                  {rotuloFaseComercial()} / {FASE_COMERCIAL_TOTAL}
+                </span>
+              </div>
               <p className="text-[12px] text-[#8A847A]">
                 {aba === "homecare"
                   ? "Kit é marca manual. Régua 7/15/30 · recompra 30/45/60"

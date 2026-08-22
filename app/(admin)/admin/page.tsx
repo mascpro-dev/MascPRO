@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
+import { FASE_COMERCIAL, resumoFaseComercial } from "@/lib/comercialFase";
 import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import Link from "next/link";
 import {
@@ -168,8 +169,8 @@ export default function AdminDashboard() {
                   <div className="flex items-center gap-3">
                     <Target size={20} className="text-[#C9A66B]" />
                     <div>
-                      <p className="text-[#E8D5A8] font-bold text-sm">Painel comercial — fase 1</p>
-                      <p className="text-[10px] text-zinc-500">Leads, funil, pedidos pagos, semáforo e as 5 perguntas do dia</p>
+                      <p className="text-[#E8D5A8] font-bold text-sm">Painel comercial — fase {FASE_COMERCIAL}</p>
+                      <p className="text-[10px] text-zinc-500">{resumoFaseComercial()} · leads, funil e pedidos pagos</p>
                     </div>
                   </div>
                   <span className="text-[#C9A66B]/70 text-xs font-bold uppercase tracking-widest group-hover:text-[#C9A66B]">Abrir →</span>
