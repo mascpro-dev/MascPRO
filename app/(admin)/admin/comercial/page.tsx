@@ -7,8 +7,10 @@ import {
   ChevronDown, Menu, ArrowUpRight, ArrowDownRight, Loader2, Save,
 } from "lucide-react";
 import ComercialHomeCare from "@/componentes/ComercialHomeCare";
+import ComercialPipeline from "@/componentes/ComercialPipeline";
+import ComercialPedidos from "@/componentes/ComercialPedidos";
 
-type Aba = "dashboard" | "funil" | "homecare" | "metas";
+type Aba = "dashboard" | "pipeline" | "pedidos" | "funil" | "homecare" | "metas";
 type Semaforo = "ok" | "atencao" | "risco";
 type Formato = "int" | "moeda";
 
@@ -55,6 +57,8 @@ type Overview = {
 
 const ABAS: { id: Aba; nome: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", nome: "Dashboard", icon: LayoutDashboard },
+  { id: "pipeline", nome: "Pipeline", icon: Kanban },
+  { id: "pedidos", nome: "Pedidos", icon: ShoppingBag },
   { id: "funil", nome: "Funil", icon: Filter },
   { id: "homecare", nome: "Home care", icon: RefreshCw },
   { id: "metas", nome: "Metas do ciclo", icon: Target },
@@ -332,21 +336,14 @@ export default function PainelComercialPage() {
               </button>
             );
           })}
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#A39C90] px-3 mt-5 mb-2">Já existia</p>
-          <Link href="/admin/crm" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[13px] text-[#6B6560] hover:bg-[#F3EEE6]">
-            <Kanban size={16} strokeWidth={1.6} className="text-[#A39C90]" /> Pipeline de leads
-          </Link>
-          <Link href="/admin/pedidos" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[13px] text-[#6B6560] hover:bg-[#F3EEE6]">
-            <ShoppingBag size={16} strokeWidth={1.6} className="text-[#A39C90]" /> Pedidos
-          </Link>
         </nav>
         <div className="p-4 border-t border-[#E7E1D6]">
           <Link href="/admin" className="text-[12px] text-[#8A847A] hover:text-[#2A2723]">← Admin operacional</Link>
         </div>
       </aside>
 
-      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto">
-        <header className="sticky top-0 z-20 bg-[#F6F3EE]/90 backdrop-blur-sm border-b border-[#E7E1D6]">
+      <main className={`flex-1 min-h-0 min-w-0 flex flex-col ${aba === "pipeline" ? "overflow-hidden" : "overflow-y-auto"}`}>
+        <header className="sticky top-0 z-20 bg-[#F6F3EE]/90 backdrop-blur-sm border-b border-[#E7E1D6] shrink-0">
           <div className="px-4 md:px-8 py-4 flex flex-wrap items-center gap-3">
             <button className="md:hidden p-2 rounded-xl hover:bg-white" onClick={() => setMenuOpen(true)} aria-label="Menu">
               <Menu size={18} />
@@ -358,26 +355,36 @@ export default function PainelComercialPage() {
               <p className="text-[12px] text-[#8A847A]">
                 {aba === "homecare"
                   ? "Kit é marca manual. Régua 7/15/30 · recompra 30/45/60"
-                  : "Pedido fechado = pago, separação, despachado ou entregue"}
+                  : aba === "pipeline"
+                    ? "Mesmos leads do CRM · visual deste painel"
+                    : aba === "pedidos"
+                      ? "Mesmos pedidos da loja · visual deste painel"
+                      : "Pedido fechado = pago, separação, despachado ou entregue"}
               </p>
             </div>
-            <label className="flex items-center gap-1.5 bg-white border border-[#E7E1D6] rounded-2xl px-3 h-10 text-[12px] text-[#6B6560]">
-              <select
-                value={periodo}
-                onChange={(e) => setPeriodo(e.target.value)}
-                className="bg-transparent outline-none capitalize max-w-[180px]"
-              >
-                {periodos.map((p) => (
-                  <option key={p.ym} value={p.ym}>{p.label}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} />
-            </label>
+            {aba !== "pipeline" && (
+              <label className="flex items-center gap-1.5 bg-white border border-[#E7E1D6] rounded-2xl px-3 h-10 text-[12px] text-[#6B6560]">
+                <select
+                  value={periodo}
+                  onChange={(e) => setPeriodo(e.target.value)}
+                  className="bg-transparent outline-none capitalize max-w-[180px]"
+                >
+                  {periodos.map((p) => (
+                    <option key={p.ym} value={p.ym}>{p.label}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} />
+              </label>
+            )}
           </div>
         </header>
 
-        <div className="px-4 md:px-8 py-6 max-w-[1400px]">
-          {aba === "homecare" ? (
+        <div className={aba === "pipeline" ? "flex-1 min-h-0 px-4 md:px-8 py-4" : "px-4 md:px-8 py-6 max-w-[1400px]"}>
+          {aba === "pipeline" ? (
+            <ComercialPipeline />
+          ) : aba === "pedidos" ? (
+            <ComercialPedidos periodo={periodo} />
+          ) : aba === "homecare" ? (
             <ComercialHomeCare periodo={periodo} />
           ) : loading ? (
             <div className="flex justify-center py-24"><Loader2 className="animate-spin text-[#C9A66B]" size={28} /></div>
