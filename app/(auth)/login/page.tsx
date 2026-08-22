@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import { Link as LinkIcon, MessageCircle, ArrowLeft, ArrowRight } from "lucide-react";
+import { CATALOGO_WHATSAPP_PADRAO, montarLinkWhatsApp } from "@/lib/catalogoVendedor";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -143,7 +144,10 @@ export default function LoginPage() {
 
               {/* Botão: PEDIR NO WHATSAPP */}
               <a 
-                href="https://wa.me/5514991570389?text=Olá,%20gostaria%20de%20pedir%20um%20link%20de%20convite%20para%20o%20MASC%20PRO."
+                href={montarLinkWhatsApp(
+                  CATALOGO_WHATSAPP_PADRAO,
+                  "Olá, gostaria de pedir um link de convite para o MASC PRO."
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full border border-[#222] hover:border-[#25D366] hover:bg-[#25D366]/10 text-gray-400 hover:text-[#25D366] py-3 rounded-lg transition-all text-sm font-bold"

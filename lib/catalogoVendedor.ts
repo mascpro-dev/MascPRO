@@ -1,5 +1,5 @@
 /** WhatsApp central MascPRO quando não há distribuidor no link. */
-export const CATALOGO_WHATSAPP_PADRAO = "5514991570389";
+export const CATALOGO_WHATSAPP_PADRAO = "5514997433541";
 
 export const CATALOGO_REF_STORAGE_KEY = "masc_catalog_distribuidor_id";
 
