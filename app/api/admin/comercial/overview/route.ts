@@ -509,7 +509,7 @@ export async function GET(req: NextRequest) {
       if (["qualificado", "diagnostico"].includes(f.key)) return f.n > 0;
       return true;
     });
-  let gargalo = etapasFluxo[0]?.label || "—";
+  let gargalo: string = etapasFluxo[0]?.label || "—";
   let maiorQueda = 0;
   for (let i = 1; i < etapasFluxo.length; i++) {
     const queda = etapasFluxo[i - 1].n - etapasFluxo[i].n;
