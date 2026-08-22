@@ -161,7 +161,7 @@ function LeadCard({
   lead: Lead;
   onMover: (id: string, novoStatus: string) => void;
   onNovoPedido?: (lead: Lead) => void;
-  colunaAtual: (typeof COLUNAS)[0];
+  colunaAtual: (typeof COLUNAS)[number];
   mostrarDistribuidor?: boolean;
 }) {
   const [movendo, setMovendo] = useState(false);

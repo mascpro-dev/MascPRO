@@ -64,7 +64,7 @@ function LeadCard({
   lead: Lead;
   onMover: (id: string, novoStatus: string) => void;
   onNovoPedido?: (lead: Lead) => void;
-  colunaAtual: (typeof COLUNAS)[0];
+  colunaAtual: (typeof COLUNAS)[number];
 }) {
   const [movendo, setMovendo] = useState(false);
   const atrasado = followupAtrasado(lead.data_followup);
