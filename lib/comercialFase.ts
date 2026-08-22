@@ -1,5 +1,5 @@
 /** Único número para o topo do painel. Avance aqui quando a fase seguinte entrar. */
-export const FASE_COMERCIAL = 5;
+export const FASE_COMERCIAL = 6;
 export const FASE_COMERCIAL_TOTAL = 7;
 
 export const FASE_COMERCIAL_LEGENDA: Record<number, string> = {

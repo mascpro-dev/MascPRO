@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, Filter, Target, Kanban, ShoppingBag, RefreshCw,
   ChevronDown, Menu, ArrowUpRight, ArrowDownRight, Loader2, Save,
-  Sparkles, Users, Camera, Calendar,
+  Sparkles, Users, Camera, Calendar, Bell,
 } from "lucide-react";
 import ComercialHomeCare from "@/componentes/ComercialHomeCare";
 import ComercialPipeline from "@/componentes/ComercialPipeline";
@@ -13,9 +13,10 @@ import ComercialPedidos from "@/componentes/ComercialPedidos";
 import ComercialRede from "@/componentes/ComercialRede";
 import ComercialProvas from "@/componentes/ComercialProvas";
 import ComercialEventos from "@/componentes/ComercialEventos";
+import ComercialAlarmes from "@/componentes/ComercialAlarmes";
 import { FASE_COMERCIAL_TOTAL, resumoFaseComercial, rotuloFaseComercial } from "@/lib/comercialFase";
 
-type Aba = "dashboard" | "pipeline" | "pedidos" | "funil" | "homecare" | "embaixadoras" | "distribuidores" | "provas" | "eventos" | "metas";
+type Aba = "dashboard" | "pipeline" | "pedidos" | "funil" | "homecare" | "embaixadoras" | "distribuidores" | "provas" | "eventos" | "alarmes" | "metas";
 type Semaforo = "ok" | "atencao" | "risco";
 type Formato = "int" | "moeda";
 
@@ -70,6 +71,7 @@ const ABAS: { id: Aba; nome: string; icon: typeof LayoutDashboard }[] = [
   { id: "distribuidores", nome: "Distribuidores", icon: Users },
   { id: "provas", nome: "Provas", icon: Camera },
   { id: "eventos", nome: "Eventos", icon: Calendar },
+  { id: "alarmes", nome: "Alarmes", icon: Bell },
   { id: "metas", nome: "Metas do ciclo", icon: Target },
 ];
 
@@ -383,10 +385,12 @@ export default function PainelComercialPage() {
                             ? "Linha, cidade, protocolo e autorização. Post não entra sozinho"
                             : aba === "eventos"
                               ? "Resultado comercial · flyer e data ficam no calendário"
-                              : "Pedido fechado = pago, separação, despachado ou entregue"}
+                              : aba === "alarmes"
+                                ? "Lead parado, proposta parada, recompra vencida — agora"
+                                : "Pedido fechado = pago, separação, despachado ou entregue"}
               </p>
             </div>
-            {aba !== "pipeline" && (
+            {aba !== "pipeline" && aba !== "alarmes" && (
               <label className="flex items-center gap-1.5 bg-white border border-[#E7E1D6] rounded-2xl px-3 h-10 text-[12px] text-[#6B6560]">
                 <select
                   value={periodo}
@@ -418,6 +422,8 @@ export default function PainelComercialPage() {
             <ComercialProvas periodo={periodo} />
           ) : aba === "eventos" ? (
             <ComercialEventos periodo={periodo} />
+          ) : aba === "alarmes" ? (
+            <ComercialAlarmes onNavegar={(destino) => setAba(destino)} />
           ) : loading ? (
             <div className="flex justify-center py-24"><Loader2 className="animate-spin text-[#C9A66B]" size={28} /></div>
           ) : erro || !data ? (
