@@ -133,7 +133,6 @@ export async function GET(req: NextRequest) {
       status: string;
       origem: string | null;
       data_followup: string | null;
-      linha_interesse: string | null;
     }>(async (from, to) =>
       supabase
         .from("crm_leads")
@@ -145,7 +144,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: `leads: ${leadsRes.error}` }, { status: 500 });
     }
     leadsRes = {
-      rows: fallback.rows.map((r) => ({ ...r, linha_interesse: r.linha_interesse ?? null })),
+      rows: fallback.rows.map((r) => ({ ...r, linha_interesse: null })),
       error: null,
     };
   }
