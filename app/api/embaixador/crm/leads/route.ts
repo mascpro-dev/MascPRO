@@ -69,8 +69,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Nome é obrigatório." }, { status: 400 });
   }
 
-  const status = parseStatusLead(body.status, "novo");
-  if (!status.ok) return NextResponse.json({ ok: false, error: status.error }, { status: 400 });
+  const statusLead = parseStatusLead(body.status, "novo");
+  if (!statusLead.ok) return NextResponse.json({ ok: false, error: statusLead.error }, { status: 400 });
   const origem = parseOrigemLead(body.origem, "indicacao");
   if (!origem.ok) return NextResponse.json({ ok: false, error: origem.error }, { status: 400 });
   const classif = pickClassificacaoLead(body);
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
 
   const dataFollowup = body.data_followup || null;
   const avancao = validarProximoPassoProposta({
-    status: status.value,
+    status: statusLead.value,
     data_followup: dataFollowup,
     proximo_passo: classif.campos.proximo_passo ?? null,
   });
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     instagram: body.instagram?.trim() || null,
     cidade: body.cidade?.trim() || null,
     estado: body.estado?.trim() || null,
-    status: status.value,
+    status: statusLead.value,
     origem: origem.value,
     valor_estimado: body.valor_estimado ? Number(body.valor_estimado) : null,
     data_followup: dataFollowup,

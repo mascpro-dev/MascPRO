@@ -93,9 +93,9 @@ export async function PATCH(
     .maybeSingle();
 
   if ("status" in body) {
-    const status = parseStatusLead(body.status, leadAtual?.status || "novo");
-    if (!status.ok) return NextResponse.json({ ok: false, error: status.error }, { status: 400 });
-    body.status = status.value;
+    const statusLead = parseStatusLead(body.status, leadAtual?.status || "novo");
+    if (!statusLead.ok) return NextResponse.json({ ok: false, error: statusLead.error }, { status: 400 });
+    body.status = statusLead.value;
   }
   if ("origem" in body) {
     const origem = parseOrigemLead(body.origem, "indicacao");

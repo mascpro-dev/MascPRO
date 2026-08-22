@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
   const { ini: iniMes, fim: fimMes } = boundsMes(periodo);
   const { ini: iniPrev, fim: fimPrev } = boundsMes(prev);
 
-  const [leadsRes, pedidosRes, embCount, distCount, metasCfg] = await Promise.all([
+  let [leadsRes, pedidosRes, embCount, distCount, metasCfg] = await Promise.all([
     fetchAllRows<{
       id: string;
       created_at: string;
