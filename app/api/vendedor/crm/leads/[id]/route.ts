@@ -4,6 +4,15 @@ import {
   assertVendedorCrmAccess,
   podeAcessarLeadVendedor,
 } from "@/lib/crmVendedorServer";
+import {
+  CAMPOS_PATCH_LEAD,
+  parseOrigemLead,
+  parseStatusLead,
+  pickClassificacaoLead,
+  STATUS_LEAD_LABEL,
+  validarAvancoComercial,
+  erroColunaFase2,
+} from "@/lib/comercialClassificacao";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +41,7 @@ export async function GET(
     .eq("id", params.id)
     .maybeSingle();
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
   if (!lead) return NextResponse.json({ ok: false, error: "Lead não encontrado." }, { status: 404 });
 
   const { data: atividades } = await supabase
@@ -75,22 +84,37 @@ export async function PATCH(
 
   const { data: leadAtual } = await supabase
     .from("crm_leads")
-    .select("status")
+    .select("status, data_followup, proximo_passo")
     .eq("id", params.id)
     .maybeSingle();
 
-  const campos: Record<string, unknown> = {};
-  const permitidos = [
-    "nome", "telefone", "email", "cidade", "estado",
-    "status", "origem", "valor_estimado", "data_followup", "notas",
-  ];
-  for (const k of permitidos) {
+  if ("status" in body) {
+    const status = parseStatusLead(body.status, leadAtual?.status || "novo");
+    if (!status.ok) return NextResponse.json({ ok: false, error: status.error }, { status: 400 });
+    body.status = status.value;
+  }
+  if ("origem" in body) {
+    const origem = parseOrigemLead(body.origem, "manual");
+    if (!origem.ok) return NextResponse.json({ ok: false, error: origem.error }, { status: 400 });
+    body.origem = origem.value;
+  }
+
+  const classif = pickClassificacaoLead(body);
+  if (classif.error) return NextResponse.json({ ok: false, error: classif.error }, { status: 400 });
+
+  const campos: Record<string, unknown> = { ...classif.campos };
+  for (const k of CAMPOS_PATCH_LEAD) {
+    if (k === "responsavel_id") continue;
+    if (k in classif.campos) continue;
     if (k in body) campos[k] = body[k] === "" ? null : body[k];
   }
 
   if (Object.keys(campos).length === 0) {
     return NextResponse.json({ ok: false, error: "Nenhum campo para atualizar." }, { status: 400 });
   }
+
+  const avancao = validarAvancoComercial(leadAtual || {}, campos);
+  if (avancao) return NextResponse.json({ ok: false, error: avancao }, { status: 400 });
 
   const { data: lead, error } = await supabase
     .from("crm_leads")
@@ -99,14 +123,14 @@ export async function PATCH(
     .select()
     .single();
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
 
   if (campos.status && leadAtual && campos.status !== leadAtual.status) {
     await supabase.from("crm_atividades").insert({
       lead_id: params.id,
       autor_id: userId,
       tipo: "status_change",
-      conteudo: `Status alterado para ${campos.status}.`,
+      conteudo: `Status alterado para ${STATUS_LEAD_LABEL[String(campos.status)] || campos.status}.`,
       status_anterior: leadAtual.status,
       status_novo: campos.status,
     });

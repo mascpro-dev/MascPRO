@@ -11,8 +11,9 @@ import {
 type DashData = {
   usuario: { full_name: string; role: string; avatar_url?: string };
   pipeline: {
-    novo: number; contato_feito: number; proposta: number;
-    negociacao: number; fechado: number; perdido: number;
+    novo: number; contato_feito: number; qualificado?: number; diagnostico?: number;
+    proposta: number; negociacao: number; fechado: number; perdido: number;
+    reativar?: number; nao_qualificado?: number;
     total: number; valor_pipeline: number;
     followups_atrasados: number; taxa_conversao: number;
   };
@@ -175,14 +176,18 @@ export default function CrmDashboardPage() {
         </div>
 
         {/* Funil visual */}
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-8">
           {[
-            { key: "novo",          label: "Novo",      value: pipeline.novo,          cor: "text-blue-400",   bg: "bg-blue-500/10",   borda: "border-blue-500/20"   },
-            { key: "contato_feito", label: "Contato",   value: pipeline.contato_feito, cor: "text-yellow-400", bg: "bg-yellow-500/10", borda: "border-yellow-500/20" },
-            { key: "proposta",      label: "Proposta",  value: pipeline.proposta,      cor: "text-orange-400", bg: "bg-orange-500/10", borda: "border-orange-500/20" },
-            { key: "negociacao",    label: "Negoc.",    value: pipeline.negociacao,    cor: "text-purple-400", bg: "bg-purple-500/10", borda: "border-purple-500/20" },
-            { key: "fechado",       label: "Fechado",   value: pipeline.fechado,       cor: "text-green-400",  bg: "bg-green-500/10",  borda: "border-green-500/20"  },
-            { key: "perdido",       label: "Perdido",   value: pipeline.perdido,       cor: "text-red-400",    bg: "bg-red-500/10",    borda: "border-red-500/20"    },
+            { key: "novo", label: "Novo", value: pipeline.novo, cor: "text-blue-400", bg: "bg-blue-500/10", borda: "border-blue-500/20" },
+            { key: "contato_feito", label: "Atend.", value: pipeline.contato_feito, cor: "text-yellow-400", bg: "bg-yellow-500/10", borda: "border-yellow-500/20" },
+            { key: "qualificado", label: "Qualif.", value: pipeline.qualificado || 0, cor: "text-cyan-400", bg: "bg-cyan-500/10", borda: "border-cyan-500/20" },
+            { key: "diagnostico", label: "Diagn.", value: pipeline.diagnostico || 0, cor: "text-amber-400", bg: "bg-amber-500/10", borda: "border-amber-500/20" },
+            { key: "proposta", label: "Proposta", value: pipeline.proposta, cor: "text-orange-400", bg: "bg-orange-500/10", borda: "border-orange-500/20" },
+            { key: "negociacao", label: "Negoc.", value: pipeline.negociacao, cor: "text-purple-400", bg: "bg-purple-500/10", borda: "border-purple-500/20" },
+            { key: "fechado", label: "Fechado", value: pipeline.fechado, cor: "text-green-400", bg: "bg-green-500/10", borda: "border-green-500/20" },
+            { key: "perdido", label: "Perdido", value: pipeline.perdido, cor: "text-red-400", bg: "bg-red-500/10", borda: "border-red-500/20" },
+            { key: "reativar", label: "Reativar", value: pipeline.reativar || 0, cor: "text-pink-400", bg: "bg-pink-500/10", borda: "border-pink-500/20" },
+            { key: "nao_qualificado", label: "Não qual.", value: pipeline.nao_qualificado || 0, cor: "text-zinc-400", bg: "bg-zinc-500/10", borda: "border-zinc-500/20" },
           ].map((col) => (
             <div key={col.key} className={`${col.bg} border ${col.borda} rounded-2xl p-4 text-center`}>
               <p className={`text-2xl font-black ${col.cor}`}>{col.value}</p>

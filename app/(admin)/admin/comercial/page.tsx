@@ -38,6 +38,8 @@ type Overview = {
   funil: { key: string; label: string; n: number }[];
   diagnosticos: { problema: string; leitura: string }[];
   topProdutos: { id: string; title: string; qtd: number; receita: number }[];
+  porLinha: { key: string; label: string; qtd: number; receita: number }[];
+  leadsPorLinha: { key: string; label: string; n: number }[];
   quemConverte: { role: string; label: string; pedidos: number; faturamento: number }[];
   scorecard: {
     area: string; atual: number; anterior: number | null; meta: number | null;
@@ -45,7 +47,7 @@ type Overview = {
   }[];
   definicoes: { termo: string; texto: string }[];
   leitura: {
-    origem: string; converte: string; produto: string;
+    origem: string; converte: string; produto: string; linha?: string;
     gargalo: string; followups: string; recompra: string;
   };
 };
@@ -204,6 +206,37 @@ function Gauge({ value, label }: { value: number; label: string }) {
   );
 }
 
+function BarsReceita({
+  itens,
+}: {
+  itens: { key?: string; id?: string; title?: string; label?: string; qtd?: number; receita: number }[];
+}) {
+  const max = Math.max(1, ...itens.map((p) => p.receita));
+  if (!itens.length || itens.every((p) => p.receita <= 0)) {
+    return <p className="text-[13px] text-[#8A847A] py-10">Nenhum item classificado neste mês.</p>;
+  }
+  return (
+    <div className="flex items-end gap-3 h-44 pt-2">
+      {itens.map((p) => {
+        const nome = p.title || p.label || "—";
+        return (
+          <div key={p.id || p.key || nome} className="flex-1 flex flex-col items-center gap-2 h-full justify-end min-w-0">
+            <span className="text-[10px] font-medium text-[#6B6560] tabular-nums">
+              {p.receita >= 1000 ? `${(p.receita / 1000).toFixed(1)}k` : Math.round(p.receita)}
+            </span>
+            <div
+              className="w-full max-w-[36px] rounded-t-2xl bg-[#C9A66B]"
+              style={{ height: `${Math.max(8, (p.receita / max) * 100)}%`, opacity: 0.45 + (p.receita / max) * 0.55 }}
+              title={`${nome} · ${moeda(p.receita)}`}
+            />
+            <span className="text-[10px] text-[#8A847A] text-center leading-tight line-clamp-2 w-full">{nome}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function BarsProdutos({ itens }: { itens: Overview["topProdutos"] }) {
   const max = Math.max(1, ...itens.map((p) => p.receita));
   if (!itens.length) {
@@ -275,9 +308,9 @@ export default function PainelComercialPage() {
 
       <aside className={`fixed md:static z-40 h-full w-[248px] shrink-0 bg-[#FBF9F6] border-r border-[#E7E1D6] flex flex-col transition-transform ${menuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="px-5 pt-6 pb-4">
-          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">Masc PRO · Fase 1</p>
+          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">Masc PRO · Fase 2</p>
           <p className="text-[15px] font-semibold mt-1">Controle comercial</p>
-          <p className="text-[11px] text-[#8A847A] mt-0.5">Ver · funil · semáforo</p>
+          <p className="text-[11px] text-[#8A847A] mt-0.5">Classificar · funil · linha</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           <p className="text-[10px] uppercase tracking-[0.16em] text-[#A39C90] px-3 mb-2">Este painel</p>
@@ -431,9 +464,43 @@ function Dashboard({ data }: { data: Overview }) {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
+          <h2 className="text-[15px] font-semibold">Receita por linha</h2>
+          <p className="text-[12px] text-[#8A847A] mb-3">Pedidos pagos do mês · products.linha</p>
+          <BarsReceita itens={data.porLinha || []} />
+        </section>
+        <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
           <h2 className="text-[15px] font-semibold">Qual produto gira</h2>
           <p className="text-[12px] text-[#8A847A] mb-3">Itens de pedidos pagos no mês · top 7</p>
           <BarsProdutos itens={data.topProdutos} />
+        </section>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
+          <h2 className="text-[15px] font-semibold">Leads por linha de interesse</h2>
+          <p className="text-[12px] text-[#8A847A] mb-3">Leads criados no mês · campo do CRM</p>
+          {(data.leadsPorLinha || []).every((l) => l.n === 0) ? (
+            <p className="text-[13px] text-[#8A847A] py-8">Nenhum lead do mês com linha preenchida.</p>
+          ) : (
+            <div className="space-y-2.5">
+              {(data.leadsPorLinha || []).map((l) => {
+                const maxL = Math.max(1, ...(data.leadsPorLinha || []).map((x) => x.n));
+                return (
+                  <div key={l.key} className="flex items-center gap-3">
+                    <span className="w-24 text-[12px] text-[#6B6560] shrink-0">{l.label}</span>
+                    <div className="flex-1 h-8 rounded-full bg-[#F3EEE6] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-[#EDE4D4] flex items-center px-3 text-[11px] font-medium"
+                        style={{ width: `${Math.max(l.n ? 12 : 0, (l.n / maxL) * 100)}%` }}
+                      >
+                        {l.n}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
         <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
           <h2 className="text-[15px] font-semibold">Pipeline agora</h2>
@@ -491,7 +558,7 @@ function Dashboard({ data }: { data: Overview }) {
         </section>
 
         <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
-          <h2 className="text-[15px] font-semibold mb-1">Cinco perguntas do dia</h2>
+          <h2 className="text-[15px] font-semibold mb-1">Perguntas do dia</h2>
           <p className="text-[12px] text-[#8A847A] mb-4">Só o que o sistema já mede</p>
           <dl className="space-y-3 text-[13px]">
             <div>
@@ -505,6 +572,10 @@ function Dashboard({ data }: { data: Overview }) {
             <div>
               <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">Qual produto está girando</dt>
               <dd className="mt-0.5">{data.leitura.produto}</dd>
+            </div>
+            <div>
+              <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">Qual linha está girando</dt>
+              <dd className="mt-0.5">{data.leitura.linha || "Classifique products.linha para ler este gráfico"}</dd>
             </div>
             <div>
               <dt className="text-[11px] uppercase tracking-[0.12em] text-[#A39C90]">Onde a venda trava</dt>
@@ -528,7 +599,7 @@ function FunilView({ data }: { data: Overview }) {
       <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
         <h2 className="text-[15px] font-semibold">Colunas do CRM</h2>
         <p className="text-[12px] text-[#8A847A] mb-4">
-          Foto do pipeline agora. Diagnóstico e qualificação do PDF ainda não existem como status.
+          Foto do pipeline agora. Qualificado, diagnóstico, reativar e não qualificado entram na fase 2.
         </p>
         <div className="space-y-2.5">
           {data.funil.map((f) => (
@@ -546,6 +617,14 @@ function FunilView({ data }: { data: Overview }) {
           ))}
         </div>
       </section>
+
+      {(data.porLinha || []).some((l) => l.receita > 0) && (
+        <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
+          <h2 className="text-[15px] font-semibold">Receita por linha</h2>
+          <p className="text-[12px] text-[#8A847A] mb-3">Mesmo recorte do dashboard · products.linha</p>
+          <BarsReceita itens={data.porLinha || []} />
+        </section>
+      )}
 
       <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
         <h2 className="text-[15px] font-semibold">Taxas possíveis hoje</h2>

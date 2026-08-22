@@ -1,14 +1,6 @@
 export const STATUS_PEDIDO_PAGO = ["paid", "separacao", "despachado", "entregue"] as const;
 
-export const ORIGEM_LEAD_LABEL: Record<string, string> = {
-  manual: "Manual",
-  indicacao: "Indicação",
-  instagram: "Instagram",
-  whatsapp: "WhatsApp",
-  email: "E-mail",
-  evento: "Evento",
-  outro: "Outro",
-};
+export { ORIGEM_LEAD_LABEL } from "@/lib/comercialClassificacao";
 
 export const ROLE_LABEL: Record<string, string> = {
   ADMIN: "Admin",
@@ -137,5 +129,13 @@ export const DEFINICOES_FASE1 = [
   {
     termo: "Semáforo",
     texto: "Se houver meta do ciclo: verde ≥100%, amarelo ≥75%, vermelho abaixo. Sem meta, compara com o mês anterior.",
+  },
+  {
+    termo: "Linha",
+    texto: "Campo products.linha. Sem linha no produto, o gráfico por linha cai em “Sem linha”.",
+  },
+  {
+    termo: "Qualificado / Diagnóstico",
+    texto: "Novos status do CRM. contato_feito continua sendo “Em atendimento”. Leads antigos não mudam sozinhos.",
   },
 ];

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import { ShoppingBag, Plus, Loader2, Pencil, Trash2, ToggleLeft, ToggleRight, X, Image as ImageIcon, Video } from "lucide-react";
+import { LINHAS_PRODUTO, LINHA_LABEL } from "@/lib/comercialClassificacao";
 
 type Produto = {
   id: string; title: string; description: string | null; how_to_use: string | null;
@@ -10,13 +11,14 @@ type Produto = {
   custo_unitario?: number | null;
   price_hairdresser: number; price_ambassador: number; price_distributor: number;
   stock: number; ativo: boolean;
+  linha?: string | null;
 };
 
 const EMPTY = {
   title: "", description: "", how_to_use: "", image_url: "", video_url: "",
   volume: "", peso_gramas: "500", custo_unitario: "",
   price_hairdresser: "", price_ambassador: "", price_distributor: "",
-  stock: "0", ativo: true,
+  stock: "0", ativo: true, linha: "",
 };
 
 export default function AdminProdutosPage() {
@@ -52,6 +54,7 @@ export default function AdminProdutosPage() {
       custo_unitario: p.custo_unitario != null ? String(p.custo_unitario) : "",
       price_hairdresser: String(p.price_hairdresser), price_ambassador: String(p.price_ambassador),
       price_distributor: String(p.price_distributor), stock: String(p.stock), ativo: p.ativo,
+      linha: p.linha || "",
     });
     setErro(""); setShowForm(true);
   }
@@ -135,6 +138,7 @@ export default function AdminProdutosPage() {
               <thead>
                 <tr className="text-[10px] text-zinc-500 uppercase tracking-widest border-b border-zinc-800">
                   <th className="text-left pb-3 pr-4">Produto</th>
+                  <th className="text-left pb-3 pr-4">Linha</th>
                   <th className="text-right pb-3 pr-4">Cabeleireiro</th>
                   <th className="text-right pb-3 pr-4">Embaixador</th>
                   <th className="text-right pb-3 pr-4">Distribuidor</th>
@@ -162,6 +166,9 @@ export default function AdminProdutosPage() {
                           {p.video_url && <span className="text-[9px] text-blue-400 flex items-center gap-1"><Video size={9} /> tutorial</span>}
                         </div>
                       </div>
+                    </td>
+                    <td className="py-3 pr-4 text-xs text-zinc-400">
+                      {p.linha ? (LINHA_LABEL[p.linha] || p.linha) : <span className="text-zinc-600">—</span>}
                     </td>
                     <td className="py-3 pr-4 text-right font-bold text-[#C9A66B]">{moeda(p.price_hairdresser)}</td>
                     <td className="py-3 pr-4 text-right text-zinc-300">{moeda(p.price_ambassador)}</td>
@@ -225,6 +232,15 @@ export default function AdminProdutosPage() {
                   <div className="col-span-2">
                     <label className="label">Título do Produto *</label>
                     <input type="text" value={form.title} onChange={e => set("title", e.target.value)} className="input" />
+                  </div>
+                  <div>
+                    <label className="label">Linha comercial</label>
+                    <select value={form.linha} onChange={e => set("linha", e.target.value)} className="input">
+                      <option value="">Sem linha</option>
+                      {LINHAS_PRODUTO.map((l) => (
+                        <option key={l.value} value={l.value}>{l.label}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="label">Volume / Tamanho</label>

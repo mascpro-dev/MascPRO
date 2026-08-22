@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
+import { statusContaFollowup, statusPipelineAberto } from "@/lib/comercialClassificacao";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -56,16 +57,21 @@ export async function GET() {
   const { data: leadsRaw } = await leadsQueryFinal;
   const leads = leadsRaw || [];
 
+  const porStatus = (key: string) => leads.filter((l: any) => l.status === key).length;
   const pipeline = {
-    novo:          leads.filter((l: any) => l.status === "novo").length,
-    contato_feito: leads.filter((l: any) => l.status === "contato_feito").length,
-    proposta:      leads.filter((l: any) => l.status === "proposta").length,
-    negociacao:    leads.filter((l: any) => l.status === "negociacao").length,
-    fechado:       leads.filter((l: any) => l.status === "fechado").length,
-    perdido:       leads.filter((l: any) => l.status === "perdido").length,
-    total:         leads.length,
+    novo:            porStatus("novo"),
+    contato_feito:   porStatus("contato_feito"),
+    qualificado:     porStatus("qualificado"),
+    diagnostico:     porStatus("diagnostico"),
+    proposta:        porStatus("proposta"),
+    negociacao:      porStatus("negociacao"),
+    fechado:         porStatus("fechado"),
+    perdido:         porStatus("perdido"),
+    reativar:        porStatus("reativar"),
+    nao_qualificado: porStatus("nao_qualificado"),
+    total:           leads.length,
     valor_pipeline: leads
-      .filter((l: any) => !["fechado", "perdido"].includes(l.status))
+      .filter((l: any) => statusPipelineAberto(l.status))
       .reduce((s: number, l: any) => s + Number(l.valor_estimado || 0), 0),
   };
 
@@ -73,7 +79,7 @@ export async function GET() {
     (l: any) =>
       l.data_followup &&
       new Date(l.data_followup) < new Date(new Date().toDateString()) &&
-      !["fechado", "perdido"].includes(l.status)
+      statusContaFollowup(l.status)
   ).length;
 
   // Pedidos da rede

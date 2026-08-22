@@ -10,6 +10,17 @@ import {
   Mail, Building2, Calendar, User, DollarSign,
   MessageCircle, Instagram, AlertCircle, Filter,
 } from "lucide-react";
+import {
+  COLUNAS_KANBAN_CRM as COLUNAS,
+  ORIGENS_LEAD as ORIGENS,
+  PERFIS_LEAD,
+  INTERESSES_LEAD,
+  LINHAS_PRODUTO,
+  DORES_LEAD,
+  LINHA_LABEL,
+  PERFIL_LABEL,
+  statusContaFollowup,
+} from "@/lib/comercialClassificacao";
 
 // ─── Tipos ────────────────────────────────────────────────
 type Lead = {
@@ -26,6 +37,11 @@ type Lead = {
   valor_estimado: number | null;
   data_followup: string | null;
   notas: string | null;
+  perfil: string | null;
+  interesse: string | null;
+  linha_interesse: string | null;
+  dor: string | null;
+  proximo_passo: string | null;
   responsavel_id: string | null;
   profile_id: string | null;
   order_id: string | null;
@@ -50,27 +66,12 @@ type NovoLeadForm = {
   valor_estimado: string;
   data_followup: string;
   notas: string;
+  perfil: string;
+  interesse: string;
+  linha_interesse: string;
+  dor: string;
+  proximo_passo: string;
 };
-
-// ─── Colunas do Kanban ────────────────────────────────────
-const COLUNAS = [
-  { key: "novo",          label: "Novo Lead",       cor: "text-blue-400",    bg: "bg-blue-500/10",    borda: "border-blue-500/30"    },
-  { key: "contato_feito", label: "Contato Feito",   cor: "text-yellow-400",  bg: "bg-yellow-500/10",  borda: "border-yellow-500/30"  },
-  { key: "proposta",      label: "Proposta",         cor: "text-orange-400",  bg: "bg-orange-500/10",  borda: "border-orange-500/30"  },
-  { key: "negociacao",    label: "Negociação",       cor: "text-purple-400",  bg: "bg-purple-500/10",  borda: "border-purple-500/30"  },
-  { key: "fechado",       label: "Fechado",          cor: "text-green-400",   bg: "bg-green-500/10",   borda: "border-green-500/30"   },
-  { key: "perdido",       label: "Perdido",          cor: "text-red-400",     bg: "bg-red-500/10",     borda: "border-red-500/30"     },
-];
-
-const ORIGENS = [
-  { value: "manual",     label: "Manual" },
-  { value: "indicacao",  label: "Indicação" },
-  { value: "instagram",  label: "Instagram" },
-  { value: "whatsapp",   label: "WhatsApp" },
-  { value: "email",      label: "E-mail" },
-  { value: "evento",     label: "Evento" },
-  { value: "outro",      label: "Outro" },
-];
 
 function moeda(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -190,6 +191,20 @@ function LeadCard({
           {lead.empresa && (
             <p className="text-[11px] text-zinc-500 flex items-center gap-1 mt-0.5 truncate">
               <Building2 size={10} /> {lead.empresa}
+            </p>
+          )}
+          {(lead.perfil || lead.linha_interesse) && (
+            <p className="flex flex-wrap gap-1 mt-1.5">
+              {lead.perfil && (
+                <span className="text-[9px] font-bold uppercase tracking-wider text-[#C9A66B] bg-[#C9A66B]/10 px-1.5 py-0.5 rounded">
+                  {PERFIL_LABEL[lead.perfil] || lead.perfil}
+                </span>
+              )}
+              {lead.linha_interesse && (
+                <span className="text-[9px] font-bold uppercase tracking-wider text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">
+                  {LINHA_LABEL[lead.linha_interesse] || lead.linha_interesse}
+                </span>
+              )}
             </p>
           )}
         </div>
@@ -314,6 +329,7 @@ function ModalNovoLead({
     nome: "", empresa: "", telefone: "", email: "",
     instagram: "", origem: "manual", valor_estimado: "",
     data_followup: "", notas: "",
+    perfil: "", interesse: "", linha_interesse: "", dor: "", proximo_passo: "",
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
@@ -395,9 +411,41 @@ function ModalNovoLead({
               <label className={labelClass}>Valor Estimado (R$)</label>
               <input value={form.valor_estimado} onChange={(e) => set("valor_estimado", e.target.value)} className={inputClass} placeholder="0,00" />
             </div>
+            <div>
+              <label className={labelClass}>Perfil</label>
+              <select value={form.perfil} onChange={(e) => set("perfil", e.target.value)} className={inputClass}>
+                <option value="">Sem perfil</option>
+                {PERFIS_LEAD.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Interesse</label>
+              <select value={form.interesse} onChange={(e) => set("interesse", e.target.value)} className={inputClass}>
+                <option value="">Sem interesse</option>
+                {INTERESSES_LEAD.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Linha</label>
+              <select value={form.linha_interesse} onChange={(e) => set("linha_interesse", e.target.value)} className={inputClass}>
+                <option value="">Sem linha</option>
+                {LINHAS_PRODUTO.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Dor</label>
+              <select value={form.dor} onChange={(e) => set("dor", e.target.value)} className={inputClass}>
+                <option value="">Sem dor</option>
+                {DORES_LEAD.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
             <div className="col-span-2">
               <label className={labelClass}>Data do Follow-up</label>
               <input type="date" value={form.data_followup} onChange={(e) => set("data_followup", e.target.value)} className={inputClass} />
+            </div>
+            <div className="col-span-2">
+              <label className={labelClass}>Próximo passo</label>
+              <input value={form.proximo_passo} onChange={(e) => set("proximo_passo", e.target.value)} className={inputClass} placeholder="Obrigatório em proposta/negociação se não houver follow-up" />
             </div>
             <div className="col-span-2">
               <label className={labelClass}>Notas iniciais</label>
@@ -515,7 +563,7 @@ export default function CrmKanbanPage() {
 
   const totalPorColuna = (key: string) => leads.filter((l) => l.status === key).length;
   const followupsHoje = leads.filter(
-    (l) => l.data_followup && followupAtrasado(l.data_followup) && !["fechado", "perdido"].includes(l.status)
+    (l) => l.data_followup && followupAtrasado(l.data_followup) && statusContaFollowup(l.status)
   ).length;
 
   return (

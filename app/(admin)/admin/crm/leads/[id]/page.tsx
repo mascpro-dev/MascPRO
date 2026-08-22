@@ -14,6 +14,18 @@ import {
   Link2, ShoppingBag, Users, TrendingUp, AlertTriangle,
   Package, Star, Search,
 } from "lucide-react";
+import {
+  COLUNAS_KANBAN_CRM,
+  PERFIS_LEAD,
+  INTERESSES_LEAD,
+  LINHAS_PRODUTO,
+  DORES_LEAD,
+  PERFIL_LABEL,
+  INTERESSE_LABEL,
+  LINHA_LABEL,
+  DOR_LABEL,
+  ORIGEM_LEAD_LABEL,
+} from "@/lib/comercialClassificacao";
 
 // ─── Tipos ────────────────────────────────────────────────
 type Atividade = {
@@ -59,6 +71,11 @@ type Lead = {
   valor_estimado: number | null;
   data_followup: string | null;
   notas: string | null;
+  perfil: string | null;
+  interesse: string | null;
+  linha_interesse: string | null;
+  dor: string | null;
+  proximo_passo: string | null;
   responsavel: { id: string; full_name: string } | null;
   criador: { id: string; full_name: string } | null;
   profile_id: string | null;
@@ -66,19 +83,10 @@ type Lead = {
 };
 
 // ─── Constantes ───────────────────────────────────────────
-const STATUS_CONFIG: Record<string, { label: string; cor: string; bg: string; borda: string }> = {
-  novo:          { label: "Novo Lead",     cor: "text-blue-400",   bg: "bg-blue-500/10",   borda: "border-blue-500/30"   },
-  contato_feito: { label: "Contato Feito", cor: "text-yellow-400", bg: "bg-yellow-500/10", borda: "border-yellow-500/30" },
-  proposta:      { label: "Proposta",       cor: "text-orange-400", bg: "bg-orange-500/10", borda: "border-orange-500/30" },
-  negociacao:    { label: "Negociação",     cor: "text-purple-400", bg: "bg-purple-500/10", borda: "border-purple-500/30" },
-  fechado:       { label: "Fechado",        cor: "text-green-400",  bg: "bg-green-500/10",  borda: "border-green-500/30"  },
-  perdido:       { label: "Perdido",        cor: "text-red-400",    bg: "bg-red-500/10",    borda: "border-red-500/30"    },
-};
+const STATUS_CONFIG: Record<string, { label: string; cor: string; bg: string; borda: string }> =
+  Object.fromEntries(COLUNAS_KANBAN_CRM.map((c) => [c.key, { label: c.label, cor: c.cor, bg: c.bg, borda: c.borda }]));
 
-const ORIGENS: Record<string, string> = {
-  manual: "Manual", indicacao: "Indicação", instagram: "Instagram",
-  whatsapp: "WhatsApp", email: "E-mail", evento: "Evento", outro: "Outro",
-};
+const ORIGENS = ORIGEM_LEAD_LABEL;
 
 const TIPO_ATIVIDADE: Record<string, { icon: React.ReactNode; cor: string; label: string }> = {
   criacao:       { icon: <Tag size={13} />,         cor: "text-zinc-400",   label: "Criado"        },
@@ -210,6 +218,11 @@ export default function LeadDetalhePage() {
       valor_estimado: lead.valor_estimado != null ? String(lead.valor_estimado) : "",
       data_followup: lead.data_followup || "",
       notas: lead.notas || "",
+      perfil: lead.perfil || "",
+      interesse: lead.interesse || "",
+      linha_interesse: lead.linha_interesse || "",
+      dor: lead.dor || "",
+      proximo_passo: lead.proximo_passo || "",
     });
     setFeedback(null);
     setEditando(true);
@@ -399,6 +412,36 @@ export default function LeadDetalhePage() {
                 <span className="text-xs text-zinc-500 flex items-center gap-2"><Tag size={13} /> Origem</span>
                 <span className="text-sm text-zinc-400">{ORIGENS[lead.origem] || lead.origem}</span>
               </div>
+              {lead.perfil && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">Perfil</span>
+                  <span className="text-sm text-zinc-300">{PERFIL_LABEL[lead.perfil] || lead.perfil}</span>
+                </div>
+              )}
+              {lead.interesse && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">Interesse</span>
+                  <span className="text-sm text-zinc-300">{INTERESSE_LABEL[lead.interesse] || lead.interesse}</span>
+                </div>
+              )}
+              {lead.linha_interesse && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">Linha</span>
+                  <span className="text-sm text-[#C9A66B]">{LINHA_LABEL[lead.linha_interesse] || lead.linha_interesse}</span>
+                </div>
+              )}
+              {lead.dor && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">Dor</span>
+                  <span className="text-sm text-zinc-300">{DOR_LABEL[lead.dor] || lead.dor}</span>
+                </div>
+              )}
+              {lead.proximo_passo && (
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-xs text-zinc-500 shrink-0">Próximo passo</span>
+                  <span className="text-sm text-zinc-300 text-right">{lead.proximo_passo}</span>
+                </div>
+              )}
               {lead.responsavel && (
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-zinc-500 flex items-center gap-2"><User size={13} /> Responsável</span>
@@ -814,6 +857,38 @@ export default function LeadDetalhePage() {
                 <div>
                   <label className={labelClass}>Data Follow-up</label>
                   <input type="date" value={form.data_followup} onChange={(e) => setForm((f: any) => ({ ...f, data_followup: e.target.value }))} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Perfil</label>
+                  <select value={form.perfil || ""} onChange={(e) => setForm((f: any) => ({ ...f, perfil: e.target.value }))} className={inputClass}>
+                    <option value="">Sem perfil</option>
+                    {PERFIS_LEAD.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Interesse</label>
+                  <select value={form.interesse || ""} onChange={(e) => setForm((f: any) => ({ ...f, interesse: e.target.value }))} className={inputClass}>
+                    <option value="">Sem interesse</option>
+                    {INTERESSES_LEAD.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Linha</label>
+                  <select value={form.linha_interesse || ""} onChange={(e) => setForm((f: any) => ({ ...f, linha_interesse: e.target.value }))} className={inputClass}>
+                    <option value="">Sem linha</option>
+                    {LINHAS_PRODUTO.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Dor</label>
+                  <select value={form.dor || ""} onChange={(e) => setForm((f: any) => ({ ...f, dor: e.target.value }))} className={inputClass}>
+                    <option value="">Sem dor</option>
+                    {DORES_LEAD.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className={labelClass}>Próximo passo</label>
+                  <input value={form.proximo_passo || ""} onChange={(e) => setForm((f: any) => ({ ...f, proximo_passo: e.target.value }))} className={inputClass} placeholder="Obrigatório em proposta/negociação se não houver follow-up" />
                 </div>
                 <div className="col-span-2">
                   <label className={labelClass}>Notas</label>

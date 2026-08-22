@@ -10,6 +10,17 @@ import {
   MessageCircle, Instagram, Mail, Calendar,
   FileText, PhoneCall, Clock, Tag, ShoppingBag,
 } from "lucide-react";
+import {
+  PERFIS_LEAD,
+  INTERESSES_LEAD,
+  LINHAS_PRODUTO,
+  DORES_LEAD,
+  PERFIL_LABEL,
+  INTERESSE_LABEL,
+  LINHA_LABEL,
+  DOR_LABEL,
+  STATUS_LEAD_LABEL,
+} from "@/lib/comercialClassificacao";
 
 type Atividade = {
   id: string;
@@ -33,15 +44,17 @@ type Lead = {
   valor_estimado: number | null;
   data_followup: string | null;
   notas: string | null;
+  perfil?: string | null;
+  interesse?: string | null;
+  linha_interesse?: string | null;
+  dor?: string | null;
+  proximo_passo?: string | null;
   profile_id: string | null;
   order_id: string | null;
   updated_at: string;
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  novo: "Novo", contato_feito: "Contato feito", proposta: "Proposta",
-  negociacao: "Negociação", fechado: "Fechado", perdido: "Perdido",
-};
+const STATUS_LABEL = STATUS_LEAD_LABEL;
 
 const TIPO_ATIVIDADE: Record<string, { icon: React.ReactNode; cor: string }> = {
   criacao: { icon: <Tag size={13} />, cor: "text-zinc-400" },
@@ -96,6 +109,11 @@ export default function EmbaixadoraLeadDetalhePage() {
       notas: lead.notas || "",
       data_followup: lead.data_followup ? lead.data_followup.slice(0, 10) : "",
       valor_estimado: lead.valor_estimado != null ? String(lead.valor_estimado) : "",
+      perfil: lead.perfil || "",
+      interesse: lead.interesse || "",
+      linha_interesse: lead.linha_interesse || "",
+      dor: lead.dor || "",
+      proximo_passo: lead.proximo_passo || "",
     });
     setEditando(true);
   }
@@ -236,6 +254,38 @@ export default function EmbaixadoraLeadDetalhePage() {
               <input type="date" value={form.data_followup || ""} onChange={(e) => setForm((f) => ({ ...f, data_followup: e.target.value }))} className={inputClass} />
             </div>
             <div>
+              <label className="text-[10px] uppercase text-zinc-500 font-bold">Perfil</label>
+              <select value={form.perfil || ""} onChange={(e) => setForm((f) => ({ ...f, perfil: e.target.value }))} className={inputClass}>
+                <option value="">Sem perfil</option>
+                {PERFIS_LEAD.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase text-zinc-500 font-bold">Linha</label>
+              <select value={form.linha_interesse || ""} onChange={(e) => setForm((f) => ({ ...f, linha_interesse: e.target.value }))} className={inputClass}>
+                <option value="">Sem linha</option>
+                {LINHAS_PRODUTO.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase text-zinc-500 font-bold">Interesse</label>
+              <select value={form.interesse || ""} onChange={(e) => setForm((f) => ({ ...f, interesse: e.target.value }))} className={inputClass}>
+                <option value="">Sem interesse</option>
+                {INTERESSES_LEAD.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase text-zinc-500 font-bold">Dor</label>
+              <select value={form.dor || ""} onChange={(e) => setForm((f) => ({ ...f, dor: e.target.value }))} className={inputClass}>
+                <option value="">Sem dor</option>
+                {DORES_LEAD.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase text-zinc-500 font-bold">Próximo passo</label>
+              <input value={form.proximo_passo || ""} onChange={(e) => setForm((f) => ({ ...f, proximo_passo: e.target.value }))} className={inputClass} />
+            </div>
+            <div>
               <label className="text-[10px] uppercase text-zinc-500 font-bold">Notas</label>
               <textarea value={form.notas || ""} onChange={(e) => setForm((f) => ({ ...f, notas: e.target.value }))} rows={3} className={`${inputClass} resize-none`} />
             </div>
@@ -262,6 +312,15 @@ export default function EmbaixadoraLeadDetalhePage() {
                 <p className="flex items-center gap-2 text-sm text-zinc-400">
                   <Calendar size={14} /> Follow-up: {new Date(lead.data_followup + "T12:00:00").toLocaleDateString("pt-BR")}
                 </p>
+              )}
+              {(lead.perfil || lead.linha_interesse || lead.interesse || lead.dor || lead.proximo_passo) && (
+                <div className="pt-2 space-y-1 text-sm text-zinc-400">
+                  {lead.perfil && <p>Perfil: {PERFIL_LABEL[lead.perfil] || lead.perfil}</p>}
+                  {lead.linha_interesse && <p>Linha: {LINHA_LABEL[lead.linha_interesse] || lead.linha_interesse}</p>}
+                  {lead.interesse && <p>Interesse: {INTERESSE_LABEL[lead.interesse] || lead.interesse}</p>}
+                  {lead.dor && <p>Dor: {DOR_LABEL[lead.dor] || lead.dor}</p>}
+                  {lead.proximo_passo && <p>Próximo passo: {lead.proximo_passo}</p>}
+                </div>
               )}
             </div>
             {lead.notas && (

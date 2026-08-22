@@ -5,6 +5,14 @@ import {
   filtroLeadsEmbaixadoraOr,
   idsEscopoEmbaixadora,
 } from "@/lib/crmEmbaixadoraServer";
+import {
+  CRM_LEADS_LIST_SELECT,
+  parseOrigemLead,
+  parseStatusLead,
+  pickClassificacaoLead,
+  validarProximoPassoProposta,
+  erroColunaFase2,
+} from "@/lib/comercialClassificacao";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +34,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("crm_leads")
-    .select(`
-      id, created_at, updated_at,
-      nome, empresa, telefone, email, instagram, cidade, estado,
-      status, origem, valor_estimado, data_followup, notas,
-      responsavel_id, created_by, profile_id, order_id,
-      responsavel:profiles!crm_leads_responsavel_id_fkey(id, full_name, avatar_url)
-    `)
+    .select(CRM_LEADS_LIST_SELECT)
     .or(filtroLeadsEmbaixadoraOr(escopo))
     .order("updated_at", { ascending: false });
 
@@ -45,7 +47,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await query;
   if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true, leads: data || [] });
@@ -67,6 +69,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Nome é obrigatório." }, { status: 400 });
   }
 
+  const status = parseStatusLead(body.status, "novo");
+  if (!status.ok) return NextResponse.json({ ok: false, error: status.error }, { status: 400 });
+  const origem = parseOrigemLead(body.origem, "indicacao");
+  if (!origem.ok) return NextResponse.json({ ok: false, error: origem.error }, { status: 400 });
+  const classif = pickClassificacaoLead(body);
+  if (classif.error) return NextResponse.json({ ok: false, error: classif.error }, { status: 400 });
+
+  const dataFollowup = body.data_followup || null;
+  const avancao = validarProximoPassoProposta({
+    status: status.value,
+    data_followup: dataFollowup,
+    proximo_passo: classif.campos.proximo_passo ?? null,
+  });
+  if (avancao) return NextResponse.json({ ok: false, error: avancao }, { status: 400 });
+
   const novo = {
     nome: body.nome.trim(),
     empresa: body.empresa?.trim() || null,
@@ -75,13 +92,14 @@ export async function POST(req: NextRequest) {
     instagram: body.instagram?.trim() || null,
     cidade: body.cidade?.trim() || null,
     estado: body.estado?.trim() || null,
-    status: body.status || "novo",
-    origem: body.origem || "indicacao",
+    status: status.value,
+    origem: origem.value,
     valor_estimado: body.valor_estimado ? Number(body.valor_estimado) : null,
-    data_followup: body.data_followup || null,
+    data_followup: dataFollowup,
     notas: body.notas?.trim() || null,
     responsavel_id: userId,
     created_by: userId,
+    ...classif.campos,
   };
 
   const { data: lead, error } = await supabase
@@ -91,7 +109,7 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
   }
 
   await supabase.from("crm_atividades").insert({

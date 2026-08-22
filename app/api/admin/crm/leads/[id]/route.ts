@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
+import {
+  CAMPOS_PATCH_LEAD,
+  parseOrigemLead,
+  parseStatusLead,
+  pickClassificacaoLead,
+  STATUS_LEAD_LABEL,
+  validarAvancoComercial,
+  erroColunaFase2,
+} from "@/lib/comercialClassificacao";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -76,7 +85,7 @@ export async function GET(
     .eq("id", params.id)
     .maybeSingle();
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
   if (!lead) return NextResponse.json({ ok: false, error: "Lead não encontrado." }, { status: 404 });
 
   const { data: atividades, error: errAtv } = await supabase
@@ -124,22 +133,36 @@ export async function PATCH(
   // Busca o lead atual para registrar mudança de status
   const { data: leadAtual } = await supabase
     .from("crm_leads")
-    .select("status, nome")
+    .select("status, nome, data_followup, proximo_passo")
     .eq("id", params.id)
     .maybeSingle();
 
-  const campos: Record<string, any> = {};
-  const permitidos = [
-    "nome","empresa","telefone","email","instagram","cidade","estado",
-    "status","origem","valor_estimado","data_followup","notas","responsavel_id",
-  ];
-  for (const k of permitidos) {
+  if ("status" in body) {
+    const status = parseStatusLead(body.status, leadAtual?.status || "novo");
+    if (!status.ok) return NextResponse.json({ ok: false, error: status.error }, { status: 400 });
+    body.status = status.value;
+  }
+  if ("origem" in body) {
+    const origem = parseOrigemLead(body.origem, "manual");
+    if (!origem.ok) return NextResponse.json({ ok: false, error: origem.error }, { status: 400 });
+    body.origem = origem.value;
+  }
+
+  const classif = pickClassificacaoLead(body);
+  if (classif.error) return NextResponse.json({ ok: false, error: classif.error }, { status: 400 });
+
+  const campos: Record<string, any> = { ...classif.campos };
+  for (const k of CAMPOS_PATCH_LEAD) {
+    if (k in classif.campos) continue;
     if (k in body) campos[k] = body[k] === "" ? null : body[k];
   }
 
   if (Object.keys(campos).length === 0) {
     return NextResponse.json({ ok: false, error: "Nenhum campo para atualizar." }, { status: 400 });
   }
+
+  const avancao = validarAvancoComercial(leadAtual || {}, campos);
+  if (avancao) return NextResponse.json({ ok: false, error: avancao }, { status: 400 });
 
   if (campos.status === "fechado") {
     const { data: leadCheck } = await supabase
@@ -165,23 +188,15 @@ export async function PATCH(
     .select()
     .single();
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
 
   // Registra atividade se houve mudança de status
   if (campos.status && leadAtual && campos.status !== leadAtual.status) {
-    const LABELS: Record<string, string> = {
-      novo: "Novo",
-      contato_feito: "Contato Feito",
-      proposta: "Proposta Enviada",
-      negociacao: "Em Negociação",
-      fechado: "Fechado",
-      perdido: "Perdido",
-    };
     await supabase.from("crm_atividades").insert({
       lead_id: params.id,
       autor_id: userId,
       tipo: "status_change",
-      conteudo: `Status alterado de "${LABELS[leadAtual.status] || leadAtual.status}" para "${LABELS[campos.status] || campos.status}".`,
+      conteudo: `Status alterado de "${STATUS_LEAD_LABEL[leadAtual.status] || leadAtual.status}" para "${STATUS_LEAD_LABEL[campos.status] || campos.status}".`,
       status_anterior: leadAtual.status,
       status_novo: campos.status,
     });
@@ -218,7 +233,7 @@ export async function DELETE(
   }
 
   const { error } = await supabase.from("crm_leads").delete().eq("id", params.id);
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
 
   return NextResponse.json({ ok: true });
 }

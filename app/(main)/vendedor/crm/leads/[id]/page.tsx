@@ -9,6 +9,13 @@ import {
   ArrowLeft, Loader2, Pencil, Save, X,
   MessageCircle, Mail, Calendar, FileText, PhoneCall, Clock, Tag, ShoppingBag,
 } from "lucide-react";
+import {
+  PERFIS_LEAD,
+  LINHAS_PRODUTO,
+  PERFIL_LABEL,
+  LINHA_LABEL,
+  STATUS_LEAD_LABEL,
+} from "@/lib/comercialClassificacao";
 
 type Atividade = {
   id: string;
@@ -28,14 +35,13 @@ type Lead = {
   status: string;
   data_followup: string | null;
   notas: string | null;
+  perfil?: string | null;
+  linha_interesse?: string | null;
   profile_id: string | null;
   order_id: string | null;
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  novo: "Novo", contato_feito: "Contato", proposta: "Proposta",
-  negociacao: "Negociação", fechado: "Fechado", perdido: "Perdido",
-};
+const STATUS_LABEL = STATUS_LEAD_LABEL;
 
 export default function VendedorLeadDetalhePage() {
   const params = useParams();
@@ -110,7 +116,7 @@ export default function VendedorLeadDetalhePage() {
           )}
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={() => { setForm({ nome: lead.nome, telefone: lead.telefone || "", email: lead.email || "" }); setEditando(true); }} className="px-4 py-2 rounded-xl border border-zinc-700 text-xs font-black uppercase text-zinc-400">
+          <button type="button" onClick={() => { setForm({ nome: lead.nome, telefone: lead.telefone || "", email: lead.email || "", perfil: lead.perfil || "", linha_interesse: lead.linha_interesse || "" }); setEditando(true); }} className="px-4 py-2 rounded-xl border border-zinc-700 text-xs font-black uppercase text-zinc-400">
             <Pencil size={14} className="inline mr-1" /> Editar
           </button>
           <button type="button" onClick={() => setModalPedido(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A66B]/15 border border-[#C9A66B]/30 text-[#C9A66B] text-xs font-black uppercase">
@@ -124,6 +130,14 @@ export default function VendedorLeadDetalhePage() {
           {(["nome", "telefone", "email"] as const).map((k) => (
             <input key={k} value={form[k] || ""} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} className={inputClass} placeholder={k} />
           ))}
+          <select value={form.perfil || ""} onChange={(e) => setForm((f) => ({ ...f, perfil: e.target.value }))} className={inputClass}>
+            <option value="">Sem perfil</option>
+            {PERFIS_LEAD.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <select value={form.linha_interesse || ""} onChange={(e) => setForm((f) => ({ ...f, linha_interesse: e.target.value }))} className={inputClass}>
+            <option value="">Sem linha</option>
+            {LINHAS_PRODUTO.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
           <div className="flex gap-2">
             <button type="button" onClick={() => setEditando(false)} className="px-4 py-2 border border-zinc-700 rounded-xl"><X size={14} /></button>
             <button type="button" onClick={salvar} className="px-4 py-2 bg-[#C9A66B] text-black rounded-xl text-xs font-black uppercase"><Save size={14} className="inline" /> Salvar</button>
@@ -141,6 +155,8 @@ export default function VendedorLeadDetalhePage() {
         {lead.data_followup && (
           <p className="text-sm text-zinc-400"><Calendar size={14} className="inline mr-1" />Follow-up: {new Date(lead.data_followup + "T12:00:00").toLocaleDateString("pt-BR")}</p>
         )}
+        {lead.perfil && <p className="text-sm text-zinc-400">Perfil: {PERFIL_LABEL[lead.perfil] || lead.perfil}</p>}
+        {lead.linha_interesse && <p className="text-sm text-zinc-400">Linha: {LINHA_LABEL[lead.linha_interesse] || lead.linha_interesse}</p>}
       </div>
 
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext, assertAdmin } from "@/lib/adminServer";
+import { parseLinhaProduto } from "@/lib/comercialClassificacao";
 
 /** Erro de configuração no Supabase: rode supabase/fix_products_admin_completo.sql (GRANTs + RLS) ou adicione SUPABASE_SERVICE_ROLE_KEY no Vercel. */
 const MSG_DICA_DB = "Se o erro for permission denied, execute no Supabase o script fix_products_admin_completo.sql (pasta supabase) e adicione SUPABASE_SERVICE_ROLE_KEY no ambiente (API → service_role).";
@@ -45,8 +46,10 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { title, description, how_to_use, image_url, video_url, volume, peso_gramas,
-      price_hairdresser, price_ambassador, price_distributor, stock, ativo } = body;
+      price_hairdresser, price_ambassador, price_distributor, stock, ativo, linha } = body;
     if (!title) return NextResponse.json({ ok: false, error: "Título obrigatório" }, { status: 400 });
+    const linhaOk = parseLinhaProduto(linha);
+    if (!linhaOk.ok) return NextResponse.json({ ok: false, error: linhaOk.error }, { status: 400 });
     const pg = Math.round(Number(peso_gramas));
     const hairdresserPrice = Number(price_hairdresser) || 0;
     const { data, error: ierr } = await supabase
@@ -61,6 +64,7 @@ export async function POST(req: NextRequest) {
         stock: Number(stock) || 0,
         ativo: ativo !== false,
         peso_gramas: Number.isFinite(pg) && pg > 0 ? pg : 500,
+        linha: linhaOk.value,
       })
       .select()
       .single();
@@ -92,6 +96,11 @@ export async function PATCH(req: NextRequest) {
     const { id, ...campos } = body;
     if (!id) return NextResponse.json({ ok: false, error: "id obrigatório" }, { status: 400 });
     const patch = { ...campos } as Record<string, unknown>;
+    if ("linha" in patch) {
+      const linhaOk = parseLinhaProduto(patch.linha);
+      if (!linhaOk.ok) return NextResponse.json({ ok: false, error: linhaOk.error }, { status: 400 });
+      patch.linha = linhaOk.value;
+    }
     ["price_hairdresser", "price_ambassador", "price_distributor", "stock"].forEach((k) => {
       if (patch[k] !== undefined) patch[k] = Number(patch[k]) || 0;
     });

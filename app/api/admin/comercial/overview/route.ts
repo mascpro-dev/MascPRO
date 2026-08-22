@@ -16,6 +16,13 @@ import {
   DEFINICOES_FASE1,
   type MetasCiclo,
 } from "@/lib/comercialMetricas";
+import {
+  COLUNAS_KANBAN_CRM,
+  LINHAS_PRODUTO,
+  STATUS_FUNIL_PRINCIPAL,
+  statusContaFollowup,
+  statusPipelineAberto,
+} from "@/lib/comercialClassificacao";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -91,10 +98,11 @@ export async function GET(req: NextRequest) {
       status: string;
       origem: string | null;
       data_followup: string | null;
+      linha_interesse: string | null;
     }>(async (from, to) =>
       supabase
         .from("crm_leads")
-        .select("id, created_at, status, origem, data_followup")
+        .select("id, created_at, status, origem, data_followup, linha_interesse")
         .order("created_at", { ascending: false })
         .range(from, to)
     ),
@@ -119,7 +127,27 @@ export async function GET(req: NextRequest) {
   ]);
 
   if (leadsRes.error) {
-    return NextResponse.json({ ok: false, error: `leads: ${leadsRes.error}` }, { status: 500 });
+    const fallback = await fetchAllRows<{
+      id: string;
+      created_at: string;
+      status: string;
+      origem: string | null;
+      data_followup: string | null;
+      linha_interesse: string | null;
+    }>(async (from, to) =>
+      supabase
+        .from("crm_leads")
+        .select("id, created_at, status, origem, data_followup")
+        .order("created_at", { ascending: false })
+        .range(from, to)
+    );
+    if (fallback.error) {
+      return NextResponse.json({ ok: false, error: `leads: ${leadsRes.error}` }, { status: 500 });
+    }
+    leadsRes = {
+      rows: fallback.rows.map((r) => ({ ...r, linha_interesse: r.linha_interesse ?? null })),
+      error: null,
+    };
   }
   if (pedidosRes.error) {
     return NextResponse.json({ ok: false, error: `pedidos: ${pedidosRes.error}` }, { status: 500 });
@@ -141,24 +169,28 @@ export async function GET(req: NextRequest) {
   const ticketMes = pedidosMes.length ? fatMes / pedidosMes.length : 0;
   const ticketPrev = pedidosPrev.length ? fatPrev / pedidosPrev.length : 0;
 
+  const porStatus = (key: string) => leads.filter((l) => l.status === key).length;
   const pipeline = {
-    novo: leads.filter((l) => l.status === "novo").length,
-    contato_feito: leads.filter((l) => l.status === "contato_feito").length,
-    proposta: leads.filter((l) => l.status === "proposta").length,
-    negociacao: leads.filter((l) => l.status === "negociacao").length,
-    fechado: leads.filter((l) => l.status === "fechado").length,
-    perdido: leads.filter((l) => l.status === "perdido").length,
+    novo: porStatus("novo"),
+    contato_feito: porStatus("contato_feito"),
+    qualificado: porStatus("qualificado"),
+    diagnostico: porStatus("diagnostico"),
+    proposta: porStatus("proposta"),
+    negociacao: porStatus("negociacao"),
+    fechado: porStatus("fechado"),
+    perdido: porStatus("perdido"),
+    reativar: porStatus("reativar"),
+    nao_qualificado: porStatus("nao_qualificado"),
     total: leads.length,
   };
-  const pipelineAberto =
-    pipeline.novo + pipeline.contato_feito + pipeline.proposta + pipeline.negociacao;
+  const pipelineAberto = leads.filter((l) => statusPipelineAberto(l.status)).length;
 
   const hoje0 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()).getTime();
   const followupsAtrasados = leads.filter(
     (l) =>
       l.data_followup &&
       new Date(l.data_followup).getTime() < hoje0 &&
-      !["fechado", "perdido"].includes(l.status)
+      statusContaFollowup(l.status)
   ).length;
 
   const primeiraCompra = new Map<string, string>();
@@ -184,21 +216,45 @@ export async function GET(req: NextRequest) {
   const repetiram = [...freq.values()].filter((n) => n >= 2).length;
   const taxaRecompra = pctSeguro(repetiram, compradores.size);
 
-  const saidaNovo = pipeline.contato_feito + pipeline.proposta + pipeline.negociacao + pipeline.fechado;
+  const aposNovo =
+    pipeline.contato_feito +
+    pipeline.qualificado +
+    pipeline.diagnostico +
+    pipeline.proposta +
+    pipeline.negociacao +
+    pipeline.fechado;
+  const aposContato =
+    pipeline.qualificado + pipeline.diagnostico + pipeline.proposta + pipeline.negociacao + pipeline.fechado;
+  const aposQualif = pipeline.diagnostico + pipeline.proposta + pipeline.negociacao + pipeline.fechado;
   const emProposta = pipeline.proposta + pipeline.negociacao + pipeline.fechado;
-  const denProposta = pipeline.contato_feito + emProposta;
+  const usaQualif = pipeline.qualificado + pipeline.diagnostico > 0;
+  const denProposta = usaQualif
+    ? pipeline.diagnostico + emProposta
+    : pipeline.contato_feito + emProposta;
   const denFecha = pipeline.proposta + pipeline.negociacao + pipeline.fechado;
 
   const gauges = [
     {
       label: "Contato",
-      value: pctSeguro(saidaNovo, saidaNovo + pipeline.novo),
-      formula: "(contato + proposta + negociação + fechado) ÷ (isso + novos)",
+      value: pctSeguro(aposNovo, aposNovo + pipeline.novo),
+      formula: "saiu de Novo ÷ (isso + ainda em Novo)",
+    },
+    {
+      label: "Qualificação",
+      value: pctSeguro(aposContato, pipeline.contato_feito + aposContato),
+      formula: "(qualificado + diagnóstico + proposta + negociação + fechado) ÷ (contato + esses)",
+    },
+    {
+      label: "Diagnóstico",
+      value: pctSeguro(aposQualif, pipeline.qualificado + aposQualif),
+      formula: "(diagnóstico + proposta + negociação + fechado) ÷ (qualificado + esses)",
     },
     {
       label: "Proposta",
       value: pctSeguro(emProposta, denProposta),
-      formula: "(proposta + negociação + fechado) ÷ (contato + esses)",
+      formula: usaQualif
+        ? "(proposta + negociação + fechado) ÷ (diagnóstico + esses)"
+        : "(proposta + negociação + fechado) ÷ (contato + esses)",
     },
     {
       label: "Fechamento",
@@ -218,10 +274,22 @@ export async function GET(req: NextRequest) {
   ];
 
   const diagnosticos: { problema: string; leitura: string }[] = [];
-  if (pipeline.total >= 8 && pctSeguro(saidaNovo, saidaNovo + pipeline.novo) < 50) {
+  if (pipeline.total >= 8 && pctSeguro(aposNovo, aposNovo + pipeline.novo) < 50) {
     diagnosticos.push({
       problema: "Muito lead parado em Novo",
       leitura: "Atendimento fraco ou lead sem dono. Todo lead precisa de responsável e próximo passo.",
+    });
+  }
+  if (pipeline.contato_feito >= 8 && pctSeguro(aposContato, pipeline.contato_feito + aposContato) < 40) {
+    diagnosticos.push({
+      problema: "Contato sem qualificar",
+      leitura: "A conversa começa e não vira perfil/dor/linha. Classificar o lead é a fase 2.",
+    });
+  }
+  if (pipeline.qualificado >= 5 && pctSeguro(aposQualif, pipeline.qualificado + aposQualif) < 40) {
+    diagnosticos.push({
+      problema: "Qualificado sem diagnóstico",
+      leitura: "Lead entra e não sai oferta de linha. Registrar dor e linha de interesse.",
     });
   }
   if (denProposta >= 8 && pctSeguro(emProposta, denProposta) < 40) {
@@ -298,9 +366,18 @@ export async function GET(req: NextRequest) {
   }
   const prodIds = [...porProduto.keys()].filter((id) => id !== "_sem");
   const titulos = new Map<string, string>();
+  const linhaPorProduto = new Map<string, string | null>();
   for (let i = 0; i < prodIds.length; i += 80) {
-    const { data } = await supabase.from("products").select("id, title").in("id", prodIds.slice(i, i + 80));
-    for (const p of data || []) titulos.set(p.id, p.title);
+    const chunkIds = prodIds.slice(i, i + 80);
+    let { data, error } = await supabase.from("products").select("id, title, linha").in("id", chunkIds);
+    if (error) {
+      const retry = await supabase.from("products").select("id, title").in("id", chunkIds);
+      data = retry.data as typeof data;
+    }
+    for (const p of data || []) {
+      titulos.set(p.id, p.title);
+      linhaPorProduto.set(p.id, (p as { linha?: string | null }).linha || null);
+    }
   }
   const topProdutos = [...porProduto.entries()]
     .map(([id, v]) => ({
@@ -311,6 +388,35 @@ export async function GET(req: NextRequest) {
     }))
     .sort((a, b) => b.receita - a.receita)
     .slice(0, 7);
+
+  const porLinhaMap = new Map<string, { qtd: number; receita: number }>();
+  for (const [id, v] of porProduto.entries()) {
+    const key = id === "_sem" ? "_sem" : linhaPorProduto.get(id) || "_sem";
+    const cur = porLinhaMap.get(key) || { qtd: 0, receita: 0 };
+    cur.qtd += v.qtd;
+    cur.receita += v.receita;
+    porLinhaMap.set(key, cur);
+  }
+  const porLinha = LINHAS_PRODUTO.map((l) => {
+    const v = porLinhaMap.get(l.value) || { qtd: 0, receita: 0 };
+    return { key: l.value, label: l.label, qtd: v.qtd, receita: v.receita };
+  }).concat(
+    porLinhaMap.has("_sem")
+      ? [{ key: "_sem", label: "Sem linha", qtd: porLinhaMap.get("_sem")!.qtd, receita: porLinhaMap.get("_sem")!.receita }]
+      : []
+  );
+
+  const leadsLinhaBase = leadsMes.reduce((acc, l) => {
+    const k = l.linha_interesse || "_sem";
+    acc[k] = (acc[k] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const leadsPorLinha = [
+    ...LINHAS_PRODUTO.map((l) => ({ key: l.value, label: l.label, n: leadsLinhaBase[l.value] || 0 })),
+    ...(leadsLinhaBase._sem
+      ? [{ key: "_sem", label: "Sem linha", n: leadsLinhaBase._sem }]
+      : []),
+  ];
 
   const buyerIds = [...new Set(pedidosMes.map((p) => p.profile_id).filter(Boolean) as string[])];
   const roleMap = new Map<string, string>();
@@ -335,14 +441,11 @@ export async function GET(req: NextRequest) {
     }))
     .sort((a, b) => b.faturamento - a.faturamento);
 
-  const funil = [
-    { key: "novo", label: "Novo", n: pipeline.novo },
-    { key: "contato_feito", label: "Contato feito", n: pipeline.contato_feito },
-    { key: "proposta", label: "Proposta", n: pipeline.proposta },
-    { key: "negociacao", label: "Negociação", n: pipeline.negociacao },
-    { key: "fechado", label: "Fechado", n: pipeline.fechado },
-    { key: "perdido", label: "Perdido", n: pipeline.perdido },
-  ];
+  const funil = COLUNAS_KANBAN_CRM.map((c) => ({
+    key: c.key,
+    label: c.label,
+    n: pipeline[c.key as keyof typeof pipeline] as number,
+  }));
 
   function kpi(
     key: string,
@@ -398,7 +501,13 @@ export async function GET(req: NextRequest) {
   const origemTop = origens[0];
   const produtoTop = topProdutos[0];
   const converteTop = quemConverte[0];
-  const etapasFluxo = funil.filter((f) => f.key !== "perdido");
+  const linhaTop = [...porLinha].filter((l) => l.key !== "_sem").sort((a, b) => b.receita - a.receita)[0];
+  const etapasFluxo = STATUS_FUNIL_PRINCIPAL
+    .map((key) => funil.find((f) => f.key === key)!)
+    .filter((f) => {
+      if (["qualificado", "diagnostico"].includes(f.key)) return f.n > 0;
+      return true;
+    });
   let gargalo = etapasFluxo[0]?.label || "—";
   let maiorQueda = 0;
   for (let i = 1; i < etapasFluxo.length; i++) {
@@ -411,7 +520,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    fase: 1,
+    fase: 2,
     periodo,
     periodoAnterior: prev,
     metas,
@@ -422,6 +531,8 @@ export async function GET(req: NextRequest) {
     funil,
     diagnosticos,
     topProdutos,
+    porLinha,
+    leadsPorLinha,
     quemConverte,
     scorecard,
     definicoes: DEFINICOES_FASE1,
@@ -435,6 +546,11 @@ export async function GET(req: NextRequest) {
       produto: produtoTop
         ? `${produtoTop.title} · ${produtoTop.qtd} un.`
         : "Sem itens vendidos neste mês",
+      linha: linhaTop && linhaTop.receita > 0
+        ? `${linhaTop.label} puxa a receita`
+        : porLinha.some((l) => l.key === "_sem" && l.receita > 0)
+          ? "Há venda sem linha no produto — classifique em Produtos"
+          : "Sem receita por linha neste mês",
       gargalo: pipeline.total ? gargalo : "Sem pipeline para ler",
       followups: followupsAtrasados
         ? `${followupsAtrasados} follow-up(s) atrasado(s)`
