@@ -396,26 +396,28 @@ export async function GET(req: NextRequest) {
     cur.receita += v.receita;
     porLinhaMap.set(key, cur);
   }
-  const porLinha = LINHAS_PRODUTO.map((l) => {
+  const porLinha: { key: string; label: string; qtd: number; receita: number }[] = LINHAS_PRODUTO.map((l) => {
     const v = porLinhaMap.get(l.value) || { qtd: 0, receita: 0 };
     return { key: l.value, label: l.label, qtd: v.qtd, receita: v.receita };
-  }).concat(
-    porLinhaMap.has("_sem")
-      ? [{ key: "_sem", label: "Sem linha", qtd: porLinhaMap.get("_sem")!.qtd, receita: porLinhaMap.get("_sem")!.receita }]
-      : []
-  );
+  });
+  const semLinha = porLinhaMap.get("_sem");
+  if (semLinha) {
+    porLinha.push({ key: "_sem", label: "Sem linha", qtd: semLinha.qtd, receita: semLinha.receita });
+  }
 
   const leadsLinhaBase = leadsMes.reduce((acc, l) => {
     const k = l.linha_interesse || "_sem";
     acc[k] = (acc[k] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-  const leadsPorLinha = [
-    ...LINHAS_PRODUTO.map((l) => ({ key: l.value, label: l.label, n: leadsLinhaBase[l.value] || 0 })),
-    ...(leadsLinhaBase._sem
-      ? [{ key: "_sem", label: "Sem linha", n: leadsLinhaBase._sem }]
-      : []),
-  ];
+  const leadsPorLinha: { key: string; label: string; n: number }[] = LINHAS_PRODUTO.map((l) => ({
+    key: l.value,
+    label: l.label,
+    n: leadsLinhaBase[l.value] || 0,
+  }));
+  if (leadsLinhaBase._sem) {
+    leadsPorLinha.push({ key: "_sem", label: "Sem linha", n: leadsLinhaBase._sem });
+  }
 
   const buyerIds = [...new Set(pedidosMes.map((p) => p.profile_id).filter(Boolean) as string[])];
   const roleMap = new Map<string, string>();
