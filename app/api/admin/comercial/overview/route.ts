@@ -307,7 +307,7 @@ export async function GET(req: NextRequest) {
   if (pedidosMes.length >= 5 && pctSeguro(recomprasMes, pedidosMes.length) < 20) {
     diagnosticos.push({
       problema: "Venda sem recompra",
-      leitura: "Pós-venda fraco. A régua 7/15/30 entra na fase 3; por ora cobrar follow-up no CRM.",
+      leitura: "Pós-venda fraco. Marque o kit em Pedidos e cumpra a régua 7/15/30 na aba Home care.",
     });
   }
   if (!diagnosticos.length && pipeline.total > 0) {

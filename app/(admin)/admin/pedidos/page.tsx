@@ -26,6 +26,7 @@ type Pedido = {
   data_previsao?: string | null;
   parcelas?: number | null;
   created_at: string;
+  eh_kit_home_care?: boolean | null;
   profiles: { full_name: string; nivel: string; avatar_url?: string | null } | null;
   order_items: { quantidade: number; preco_unitario: number; products: { title: string } | null }[];
 };
@@ -415,6 +416,25 @@ export default function AdminPedidosPage() {
     await carregarPedidos();
   }
 
+  async function marcarKit(id: string, valor: boolean) {
+    setProcessando(id);
+    try {
+      const res = await fetch("/api/admin/comercial/regua", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: id, eh_kit_home_care: valor }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        alert(data?.error || "Não foi possível marcar o kit home care.");
+        return;
+      }
+      await carregarPedidos();
+    } finally {
+      setProcessando(null);
+    }
+  }
+
   const totalFiltrado = pedidos.reduce((acc, p) => acc + Number(p.total), 0);
 
   const FILTROS: { key: Filtro; label: string }[] = [
@@ -754,7 +774,14 @@ export default function AdminPedidosPage() {
                         className="rounded-lg border-[#C9A66B]/25 bg-[#C9A66B]/15 text-[#C9A66B]"
                       />
                       <div>
-                        <p className="font-bold text-white">{pedido.profiles?.full_name || "—"}</p>
+                        <p className="font-bold text-white">
+                          {pedido.profiles?.full_name || "—"}
+                          {pedido.eh_kit_home_care && (
+                            <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-[#C9A66B] bg-[#C9A66B]/10 px-1.5 py-0.5 rounded">
+                              Kit home care
+                            </span>
+                          )}
+                        </p>
                         <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
                           {pedido.profiles?.nivel || "cabeleireiro"} · {new Date(pedido.created_at).toLocaleDateString("pt-BR")}
                         </p>
@@ -813,6 +840,17 @@ export default function AdminPedidosPage() {
                     >
                       <Pencil size={14} /> Editar pedido
                     </button>
+
+                    {["paid", "separacao", "despachado", "entregue"].includes(pedido.status) && (
+                      <button
+                        type="button"
+                        onClick={() => void marcarKit(pedido.id, !pedido.eh_kit_home_care)}
+                        disabled={isProcessando}
+                        className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all disabled:opacity-50 border border-zinc-700"
+                      >
+                        {pedido.eh_kit_home_care ? "Tirar kit home care" : "É kit home care"}
+                      </button>
+                    )}
 
                     <button
                       type="button"

@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  LayoutDashboard, Filter, Target, Kanban, ShoppingBag,
+  LayoutDashboard, Filter, Target, Kanban, ShoppingBag, RefreshCw,
   ChevronDown, Menu, ArrowUpRight, ArrowDownRight, Loader2, Save,
 } from "lucide-react";
+import ComercialHomeCare from "@/componentes/ComercialHomeCare";
 
-type Aba = "dashboard" | "funil" | "metas";
+type Aba = "dashboard" | "funil" | "homecare" | "metas";
 type Semaforo = "ok" | "atencao" | "risco";
 type Formato = "int" | "moeda";
 
@@ -55,6 +56,7 @@ type Overview = {
 const ABAS: { id: Aba; nome: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", nome: "Dashboard", icon: LayoutDashboard },
   { id: "funil", nome: "Funil", icon: Filter },
+  { id: "homecare", nome: "Home care", icon: RefreshCw },
   { id: "metas", nome: "Metas do ciclo", icon: Target },
 ];
 
@@ -308,9 +310,9 @@ export default function PainelComercialPage() {
 
       <aside className={`fixed md:static z-40 h-full w-[248px] shrink-0 bg-[#FBF9F6] border-r border-[#E7E1D6] flex flex-col transition-transform ${menuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="px-5 pt-6 pb-4">
-          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">Masc PRO · Fase 2</p>
+          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">Masc PRO · Fase 3</p>
           <p className="text-[15px] font-semibold mt-1">Controle comercial</p>
-          <p className="text-[11px] text-[#8A847A] mt-0.5">Classificar · funil · linha</p>
+          <p className="text-[11px] text-[#8A847A] mt-0.5">Régua · kit · recompra</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           <p className="text-[10px] uppercase tracking-[0.16em] text-[#A39C90] px-3 mb-2">Este painel</p>
@@ -354,7 +356,9 @@ export default function PainelComercialPage() {
                 {ABAS.find((n) => n.id === aba)?.nome}
               </h1>
               <p className="text-[12px] text-[#8A847A]">
-                Pedido fechado = pago, separação, despachado ou entregue
+                {aba === "homecare"
+                  ? "Kit é marca manual. Régua 7/15/30 · recompra 30/45/60"
+                  : "Pedido fechado = pago, separação, despachado ou entregue"}
               </p>
             </div>
             <label className="flex items-center gap-1.5 bg-white border border-[#E7E1D6] rounded-2xl px-3 h-10 text-[12px] text-[#6B6560]">
@@ -373,7 +377,9 @@ export default function PainelComercialPage() {
         </header>
 
         <div className="px-4 md:px-8 py-6 max-w-[1400px]">
-          {loading ? (
+          {aba === "homecare" ? (
+            <ComercialHomeCare periodo={periodo} />
+          ) : loading ? (
             <div className="flex justify-center py-24"><Loader2 className="animate-spin text-[#C9A66B]" size={28} /></div>
           ) : erro || !data ? (
             <p className="text-[#9A4338] text-sm">{erro || "Sem dados."}</p>

@@ -138,4 +138,8 @@ export const DEFINICOES_FASE1 = [
     termo: "Qualificado / Diagnóstico",
     texto: "Novos status do CRM. contato_feito continua sendo “Em atendimento”. Leads antigos não mudam sozinhos.",
   },
+  {
+    termo: "Kit home care",
+    texto: "Pedido pago marcado à mão. Não é o mesmo que “recompra” do semáforo (quem já comprava antes do mês).",
+  },
 ];
