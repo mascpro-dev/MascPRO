@@ -17,6 +17,13 @@ const ADMIN_MENU_ITEMS = [
     items: [
       { name: "Painel Admin", icon: LayoutDashboard, href: "/admin" },
       {
+        name: "Painel Comercial",
+        desc: "Layout claro · dados reais",
+        icon: Target,
+        href: "/admin/comercial",
+        color: "text-[#C9A66B]",
+      },
+      {
         name: "Gestão PRO (Master)",
         desc: "Agenda, clientes, loja e financeiro por membro",
         icon: Eye,
