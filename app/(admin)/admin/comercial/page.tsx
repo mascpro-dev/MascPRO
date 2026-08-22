@@ -5,12 +5,14 @@ import Link from "next/link";
 import {
   LayoutDashboard, Filter, Target, Kanban, ShoppingBag, RefreshCw,
   ChevronDown, Menu, ArrowUpRight, ArrowDownRight, Loader2, Save,
+  Sparkles, Users,
 } from "lucide-react";
 import ComercialHomeCare from "@/componentes/ComercialHomeCare";
 import ComercialPipeline from "@/componentes/ComercialPipeline";
 import ComercialPedidos from "@/componentes/ComercialPedidos";
+import ComercialRede from "@/componentes/ComercialRede";
 
-type Aba = "dashboard" | "pipeline" | "pedidos" | "funil" | "homecare" | "metas";
+type Aba = "dashboard" | "pipeline" | "pedidos" | "funil" | "homecare" | "embaixadoras" | "distribuidores" | "metas";
 type Semaforo = "ok" | "atencao" | "risco";
 type Formato = "int" | "moeda";
 
@@ -61,6 +63,8 @@ const ABAS: { id: Aba; nome: string; icon: typeof LayoutDashboard }[] = [
   { id: "pedidos", nome: "Pedidos", icon: ShoppingBag },
   { id: "funil", nome: "Funil", icon: Filter },
   { id: "homecare", nome: "Home care", icon: RefreshCw },
+  { id: "embaixadoras", nome: "Embaixadoras", icon: Sparkles },
+  { id: "distribuidores", nome: "Distribuidores", icon: Users },
   { id: "metas", nome: "Metas do ciclo", icon: Target },
 ];
 
@@ -314,9 +318,9 @@ export default function PainelComercialPage() {
 
       <aside className={`fixed md:static z-40 h-full w-[248px] shrink-0 bg-[#FBF9F6] border-r border-[#E7E1D6] flex flex-col transition-transform ${menuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="px-5 pt-6 pb-4">
-          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">Masc PRO · Fase 3</p>
+          <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">Masc PRO · Fase 4</p>
           <p className="text-[15px] font-semibold mt-1">Controle comercial</p>
-          <p className="text-[11px] text-[#8A847A] mt-0.5">Régua · kit · recompra</p>
+          <p className="text-[11px] text-[#8A847A] mt-0.5">Score da rede · sem apagar nível</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           <p className="text-[10px] uppercase tracking-[0.16em] text-[#A39C90] px-3 mb-2">Este painel</p>
@@ -359,7 +363,11 @@ export default function PainelComercialPage() {
                     ? "Mesmos leads do CRM · visual deste painel"
                     : aba === "pedidos"
                       ? "Mesmos pedidos da loja · visual deste painel"
-                      : "Pedido fechado = pago, separação, despachado ou entregue"}
+                      : aba === "embaixadoras"
+                        ? "Score 0–100 do mês · nível da jornada só se lê"
+                        : aba === "distribuidores"
+                          ? "Venda, equipe e visita derivados · salão e exclusividade à mão"
+                          : "Pedido fechado = pago, separação, despachado ou entregue"}
               </p>
             </div>
             {aba !== "pipeline" && (
@@ -386,6 +394,10 @@ export default function PainelComercialPage() {
             <ComercialPedidos periodo={periodo} />
           ) : aba === "homecare" ? (
             <ComercialHomeCare periodo={periodo} />
+          ) : aba === "embaixadoras" ? (
+            <ComercialRede periodo={periodo} papel="embaixadora" />
+          ) : aba === "distribuidores" ? (
+            <ComercialRede periodo={periodo} papel="distribuidor" />
           ) : loading ? (
             <div className="flex justify-center py-24"><Loader2 className="animate-spin text-[#C9A66B]" size={28} /></div>
           ) : erro || !data ? (
