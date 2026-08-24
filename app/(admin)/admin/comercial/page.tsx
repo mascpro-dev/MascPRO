@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, Filter, Target, Kanban, ShoppingBag, RefreshCw,
   ChevronDown, Menu, ArrowUpRight, ArrowDownRight, Loader2, Save,
-  Sparkles, Users, Camera, Calendar, Bell,
+  Sparkles, Users, Camera, Calendar, Bell, ArrowLeft,
 } from "lucide-react";
 import ComercialHomeCare from "@/componentes/ComercialHomeCare";
 import ComercialPipeline from "@/componentes/ComercialPipeline";
@@ -323,7 +323,7 @@ export default function PainelComercialPage() {
         <button className="fixed inset-0 z-30 bg-[#2A2723]/20 md:hidden" aria-label="Fechar menu" onClick={() => setMenuOpen(false)} />
       )}
 
-      <aside className={`fixed md:static z-40 h-full w-[248px] shrink-0 bg-[#FBF9F6] border-r border-[#E7E1D6] flex flex-col transition-transform ${menuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
+      <aside className={`fixed md:static z-40 top-14 bottom-0 left-0 md:inset-auto h-auto md:h-full w-[248px] shrink-0 bg-[#FBF9F6] border-r border-[#E7E1D6] flex flex-col transition-transform ${menuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="px-5 pt-6 pb-4">
           <p className="text-[10px] tracking-[0.22em] uppercase text-[#C9A66B] font-semibold">
             Masc PRO · {rotuloFaseComercial()} / {FASE_COMERCIAL_TOTAL}
@@ -350,8 +350,11 @@ export default function PainelComercialPage() {
             );
           })}
         </nav>
-        <div className="p-4 border-t border-[#E7E1D6]">
-          <Link href="/admin" className="text-[12px] text-[#8A847A] hover:text-[#2A2723]">← Admin operacional</Link>
+        <div className="p-4 border-t border-[#E7E1D6] pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <Link href="/admin" className="flex items-center gap-2 text-[13px] font-medium text-[#2A2723]">
+            <ArrowLeft size={15} strokeWidth={1.8} />
+            Admin operacional
+          </Link>
         </div>
       </aside>
 
@@ -361,6 +364,13 @@ export default function PainelComercialPage() {
             <button className="md:hidden p-2 rounded-xl hover:bg-white" onClick={() => setMenuOpen(true)} aria-label="Menu">
               <Menu size={18} />
             </button>
+            <Link
+              href="/admin"
+              className="md:hidden flex items-center gap-1 shrink-0 h-9 px-2.5 rounded-xl text-[12px] text-[#6B6560] hover:bg-white border border-[#E7E1D6] bg-white"
+            >
+              <ArrowLeft size={14} strokeWidth={1.8} />
+              Admin
+            </Link>
             <div className="flex-1 min-w-[160px]">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-lg md:text-xl font-semibold tracking-tight">
