@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { getProBreakdown } from "@/lib/proScore";
+import { compressCommunityImage } from "@/lib/comunidadeMedia";
 
 export default function ComunidadePage() {
   const supabase = createClientComponentClient();
@@ -346,15 +347,56 @@ export default function ComunidadePage() {
     kind: "image" | "video" | null
   ): Promise<{ url: string; media_type: "image" | "video" } | null> => {
     if (!file) return null;
-    const fd = new FormData();
-    fd.append("file", file, file.name || (kind === "video" ? "video.mp4" : "foto.jpg"));
-    const res = await fetch("/api/comunidade/upload", { method: "POST", body: fd });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data?.ok || !data?.url) {
-      setUploadErro(data?.error || "Falha ao enviar mídia. Tente outra foto/vídeo.");
+
+    const toSend =
+      kind === "video" ? file : await compressCommunityImage(file);
+
+    const signRes = await fetch("/api/comunidade/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: toSend.name || (kind === "video" ? "video.mp4" : "foto.jpg"),
+        contentType: toSend.type || "",
+        size: toSend.size,
+      }),
+    });
+    const signData = await signRes.json().catch(() => null);
+    if (!signRes.ok || !signData?.ok || !signData?.path || !signData?.token || !signData?.url) {
+      const hint =
+        signRes.status === 413
+          ? "Arquivo grande demais. Tente uma foto menor."
+          : signData?.error || "Falha ao enviar mídia. Tente outra foto/vídeo.";
+      setUploadErro(hint);
       return null;
     }
-    return { url: data.url, media_type: data.media_type === "video" ? "video" : "image" };
+
+    const contentType = signData.contentType || toSend.type || "application/octet-stream";
+    const { error: signedErr } = await supabase.storage
+      .from("community-media")
+      .uploadToSignedUrl(signData.path, signData.token, toSend, { contentType });
+
+    if (signedErr) {
+      if (!signData.signedUrl) {
+        setUploadErro(signedErr.message || "Falha ao enviar mídia. Tente outra foto/vídeo.");
+        return null;
+      }
+      const put = await fetch(signData.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        body: toSend,
+      });
+      if (!put.ok) {
+        setUploadErro(
+          signedErr.message || "Falha ao enviar mídia. Tente outra foto/vídeo."
+        );
+        return null;
+      }
+    }
+
+    return {
+      url: signData.url,
+      media_type: signData.media_type === "video" ? "video" : "image",
+    };
   };
 
   const handlePublish = async () => {
@@ -367,12 +409,9 @@ export default function ComunidadePage() {
 
       if (arquivo) {
         const uploaded = await uploadMedia(arquivo, mediaKind);
-        if (!uploaded) {
-          if (!newPostText.trim()) return;
-        } else {
-          mediaUrl = uploaded.url;
-          mediaType = uploaded.media_type;
-        }
+        if (!uploaded) return;
+        mediaUrl = uploaded.url;
+        mediaType = uploaded.media_type;
       }
 
       const { error } = await supabase.from("community_posts").insert({
