@@ -6,6 +6,11 @@
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS pago_em TIMESTAMPTZ;
 
+-- Compatibilidade: o app antigo pedia esta coluna. Ativo no mês NÃO usa ela
+-- (só pago_em / created_at). Sem isto, /admin/ativos quebra.
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
 COMMENT ON COLUMN public.orders.pago_em IS
   'Momento em que o pedido entrou em paid/separacao/despachado/entregue. Quem está Ativo usa esta data.';
 

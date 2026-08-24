@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
         ? await atualizarComoPago(supabase, orderId, { status: novoStatus }, jaEstavaPago)
         : await supabase
             .from("orders")
-            .update({ status: novoStatus, updated_at: new Date().toISOString() })
+            .update({ status: novoStatus })
             .eq("id", orderId);
 
       if (updateError) {

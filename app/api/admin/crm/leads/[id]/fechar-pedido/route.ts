@@ -369,7 +369,7 @@ export async function PATCH(
     ? await atualizarComoPago(supabase, order.id, { status: novoStatus }, true)
     : await supabase
         .from("orders")
-        .update({ status: novoStatus, updated_at: new Date().toISOString() })
+        .update({ status: novoStatus })
         .eq("id", order.id);
 
   if (error) {

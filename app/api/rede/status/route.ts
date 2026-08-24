@@ -3,7 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { boundsMesBrasil, ymSaoPaulo } from "@/lib/comercialRegua";
-import { pedidosAtivosNoPeriodo } from "@/lib/pedidoAtivo";
+import { pedidosAtivosDosPerfis } from "@/lib/pedidoAtivo";
 
 export async function POST(req: NextRequest) {
   const supabaseAuth = createRouteHandlerClient({ cookies });
@@ -22,16 +22,16 @@ export async function POST(req: NextRequest) {
   const periodo = ymSaoPaulo();
   const { ini, fim } = boundsMesBrasil(periodo);
 
-  const pedidos = await pedidosAtivosNoPeriodo(supabase, ini, fim);
+  const ids = (equipeIds as unknown[]).map((id) => String(id)).filter(Boolean);
+  const pedidos = await pedidosAtivosDosPerfis(supabase, ids, ini, fim);
   if (pedidos.error) {
     console.error("[api/rede/status] erro:", pedidos.error);
     return NextResponse.json({ ativos: {}, error: pedidos.error, periodo }, { status: 500 });
   }
 
-  const equipe = new Set((equipeIds as unknown[]).map((id) => String(id)));
   const ativos: Record<string, boolean> = {};
   for (const p of pedidos.rows) {
-    if (p.profile_id && equipe.has(p.profile_id)) ativos[p.profile_id] = true;
+    if (p.profile_id) ativos[p.profile_id] = true;
   }
 
   return NextResponse.json({ ativos, periodo });

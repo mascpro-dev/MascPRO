@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       ? await atualizarComoPago(supabase, orderId, { status: statusNormalizado }, jaEstavaPago)
       : await supabase
           .from("orders")
-          .update({ status: statusNormalizado, updated_at: new Date().toISOString() })
+          .update({ status: statusNormalizado })
           .eq("id", orderId);
 
     if (error) {

@@ -105,19 +105,30 @@ export async function GET(req: NextRequest) {
         .in("status", ["paid", "separacao"]),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "despachado"),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "entregue"),
-      fetchAllRows<{
-        total: unknown;
-        profile_id: unknown;
-        created_at: string;
-        updated_at?: string | null;
-        pago_em?: string | null;
-      }>(async (from, to) => {
-        return await supabase
-          .from("orders")
-          .select("total, profile_id, created_at, updated_at")
-          .in("status", STATUS_CONFIRMADOS)
-          .range(from, to);
-      }),
+      (async () => {
+        type PedidoResumo = {
+          total: unknown;
+          profile_id: unknown;
+          created_at: string;
+          pago_em?: string | null;
+        };
+        let r = await fetchAllRows<PedidoResumo>(async (from, to) =>
+          (supabase.from("orders") as any)
+            .select("total, profile_id, created_at, pago_em")
+            .in("status", STATUS_CONFIRMADOS)
+            .range(from, to)
+        );
+        if (r.error) {
+          r = await fetchAllRows<PedidoResumo>(async (from, to) =>
+            supabase
+              .from("orders")
+              .select("total, profile_id, created_at")
+              .in("status", STATUS_CONFIRMADOS)
+              .range(from, to)
+          );
+        }
+        return r;
+      })(),
       supabase.from("withdrawal_requests").select("valor_liquido, status").eq("status", "aguardando"),
       supabase
         .from("profiles")

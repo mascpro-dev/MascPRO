@@ -52,6 +52,7 @@ export default function RedePage() {
   // Lista da Equipe
   const [listaEquipe, setListaEquipe] = useState<any[]>([]);
   const [membrosComPedidoNoMes, setMembrosComPedidoNoMes] = useState<Record<string, boolean>>({});
+  const [erroAtivos, setErroAtivos] = useState("");
 
   useEffect(() => {
     async function carregarDados() {
@@ -121,6 +122,7 @@ export default function RedePage() {
 
             const equipeIds = equipe.map((m: any) => m.id);
             let mapAtivos: Record<string, boolean> = {};
+            setErroAtivos("");
 
             if (equipeIds.length > 0) {
               // Usa API com service role para contornar RLS nos pedidos dos membros
@@ -130,12 +132,15 @@ export default function RedePage() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ equipeIds }),
                 });
+                const json = await res.json().catch(() => null);
                 if (res.ok) {
-                  const json = await res.json();
-                  mapAtivos = json.ativos || {};
+                  mapAtivos = json?.ativos || {};
+                } else {
+                  setErroAtivos(json?.error || "Não foi possível carregar quem está ativo neste mês.");
                 }
               } catch (e) {
                 console.error("Erro ao buscar status da equipe:", e);
+                setErroAtivos("Falha de rede ao carregar membros ativos.");
               }
             }
 
@@ -266,6 +271,9 @@ export default function RedePage() {
                 <p className="text-[10px] text-gray-600">
                   {new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" })} · zera no dia 1º
                 </p>
+                {erroAtivos && (
+                  <p className="text-[10px] text-red-400 mt-1 max-w-[14rem]">{erroAtivos}</p>
+                )}
             </div>
         </div>
 
