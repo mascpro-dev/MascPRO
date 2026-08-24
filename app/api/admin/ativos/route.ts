@@ -1,43 +1,56 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminServiceClient } from "@/lib/adminServer";
+import { boundsMesBrasil, parsePeriodoYm } from "@/lib/comercialRegua";
+import { idsUnicos, pedidosAtivosNoPeriodo } from "@/lib/pedidoAtivo";
 
-function getSupabase() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
-}
-
-export async function GET() {
-  try {
-    const supabase = getSupabase();
-
-    const agora = new Date();
-    const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString();
-
-    // Pedidos confirmados este mês
-    const { data: pedidos, error: errPedidos } = await supabase
-      .from("orders")
-      .select("profile_id")
-      .in("status", ["paid", "separacao", "despachado", "entregue"])
-      .gte("created_at", inicioMes);
-
-    if (errPedidos) return NextResponse.json({ ok: false, error: errPedidos.message }, { status: 500 });
-
-    const idsAtivos = [...new Set((pedidos || []).map((p: any) => p.profile_id).filter(Boolean))];
-
-    if (idsAtivos.length === 0) {
-      return NextResponse.json({ ok: true, membros: [] });
-    }
-
-    const { data: profiles, error: errProfiles } = await supabase
+async function fetchProfiles(
+  supabase: Awaited<ReturnType<typeof getAdminServiceClient>>["supabase"],
+  ids: string[]
+) {
+  if (!supabase || ids.length === 0) return { data: [] as any[], error: null as { message: string } | null };
+  const all: any[] = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const { data, error } = await supabase
       .from("profiles")
       .select("id, full_name, email, whatsapp, role, created_at, personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total, avatar_url")
-      .in("id", idsAtivos)
+      .in("id", chunk)
       .order("full_name");
+    if (error) return { data: [], error };
+    all.push(...(data || []));
+  }
+  all.sort((a, b) => String(a.full_name || "").localeCompare(String(b.full_name || ""), "pt-BR"));
+  return { data: all, error: null };
+}
 
-    if (errProfiles) return NextResponse.json({ ok: false, error: errProfiles.message }, { status: 500 });
+export async function GET(req: NextRequest) {
+  try {
+    const { supabase, error: authErr, status } = await getAdminServiceClient();
+    if (!supabase) {
+      return NextResponse.json({ ok: false, error: authErr || "Não autorizado." }, { status });
+    }
 
-    return NextResponse.json({ ok: true, membros: profiles || [] });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+    const periodo = parsePeriodoYm(new URL(req.url).searchParams.get("periodo"));
+    const { ini, fim } = boundsMesBrasil(periodo);
+
+    const pedidos = await pedidosAtivosNoPeriodo(supabase, ini, fim);
+    if (pedidos.error) {
+      return NextResponse.json({ ok: false, error: pedidos.error }, { status: 500 });
+    }
+
+    const idsAtivos = idsUnicos(pedidos.rows);
+    if (idsAtivos.length === 0) {
+      return NextResponse.json({ ok: true, periodo, membros: [] });
+    }
+
+    const { data: profiles, error: errProfiles } = await fetchProfiles(supabase, idsAtivos);
+    if (errProfiles) {
+      return NextResponse.json({ ok: false, error: errProfiles.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, periodo, membros: profiles || [] });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Erro interno.";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

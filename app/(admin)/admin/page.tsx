@@ -7,19 +7,33 @@ import Link from "next/link";
 import {
   Users, Activity, ShoppingBag, DollarSign,
   ArrowDownToLine, AlertTriangle, PackageCheck,
-  UserPlus, TrendingUp, Truck, PackageOpen, Clock,
-  BadgeDollarSign, Loader2, Eye, Kanban, HeartPulse, Target,
+  UserPlus, TrendingUp, Truck, PackageOpen,   Clock,
+  BadgeDollarSign, Loader2, Eye, Kanban, HeartPulse, Target, CalendarDays,
 } from "lucide-react";
 
+type MesResumo = {
+  mes: string;
+  label: string;
+  vendas: number;
+  pedidos: number;
+  ativos: number;
+  cadastros: number;
+  comissoes: number;
+};
+
 type Resumo = {
+  periodo: string;
+  periodoLabel: string;
   membros: number;
   acessosHoje: number;
   cadastrosHoje: number;
   cadastrosSemana: number;
+  cadastrosMes: number;
   ativosNoMes: number;
   totalVendas: number;
   vendasMes: number;
   pedidosPagos: number;
+  pedidosPagosMes: number;
   pedidosPendentes: number;
   pedidosDespachados: number;
   pedidosEntregues: number;
@@ -27,8 +41,10 @@ type Resumo = {
   saquesAbertos: number;
   valorSaquesAbertos: number;
   comissoesTotais: number;
+  comissoesMes: number;
   ultimosMembros: any[];
   ultimosPedidos: any[];
+  porMes: MesResumo[];
 };
 
 const STATUS_LABEL: Record<string, { label: string; cor: string }> = {
@@ -62,6 +78,9 @@ function Card({ icon, label, value, sub, href, color = "text-[#C9A66B]", bg = "b
 }
 
 export default function AdminDashboard() {
+  const agora = new Date();
+  const ymAtual = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}`;
+  const [periodo, setPeriodo] = useState(ymAtual);
   const [resumo, setResumo] = useState<Resumo | null>(null);
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
@@ -71,7 +90,7 @@ export default function AdminDashboard() {
 
     async function carregar() {
       setErro("");
-      const res = await fetch(`/api/admin/summary?ts=${Date.now()}`, { cache: "no-store" });
+      const res = await fetch(`/api/admin/summary?periodo=${periodo}&ts=${Date.now()}`, { cache: "no-store" });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok || !data?.resumo) {
         if (!ativo) return;
@@ -91,19 +110,30 @@ export default function AdminDashboard() {
       ativo = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [periodo]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
       <AdminSidebar />
       <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 gap-3 flex-wrap">
           <h1 className="text-2xl font-black italic uppercase">
             Painel <span className="text-[#C9A66B]">Admin</span>
           </h1>
-          <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
-            {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
-          </span>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 bg-zinc-900 border border-white/10 rounded-xl px-3 py-2">
+              <CalendarDays size={14} className="text-[#C9A66B]" />
+              <input
+                type="month"
+                value={periodo}
+                onChange={(e) => { setPeriodo(e.target.value); setLoading(true); }}
+                className="bg-transparent text-xs font-bold uppercase tracking-widest text-white outline-none"
+              />
+            </label>
+            <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest hidden sm:inline">
+              {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+            </span>
+          </div>
         </div>
 
         {erro && (
@@ -229,28 +259,28 @@ export default function AdminDashboard() {
                 icon={<UserPlus className="text-green-400" size={22} />}
                 label="Novos Hoje"
                 value={resumo.cadastrosHoje}
-                sub={`${resumo.cadastrosSemana} nos últimos 7 dias`}
+                sub={`${resumo.cadastrosMes} cadastros em ${resumo.periodoLabel}`}
                 color="text-green-400"
                 bg="bg-green-900/20"
                 href="/admin/novos"
               />
               <Card
                 icon={<Activity className="text-blue-400" size={22} />}
-                label="Ativos este mês"
+                label="Ativos no mês"
                 value={resumo.ativosNoMes}
-                sub="Ver termômetro →"
+                sub={resumo.periodoLabel}
                 color="text-blue-400"
                 bg="bg-blue-900/20"
-                href="/admin/ativos"
+                href={`/admin/ativos?periodo=${periodo}`}
               />
               <Card
                 icon={<Users className="text-red-400" size={22} />}
                 label="Inativos"
                 value={resumo.membros - resumo.ativosNoMes}
-                sub="Ver quem está parado →"
+                sub={`Sem compra em ${resumo.periodoLabel}`}
                 color="text-red-400"
                 bg="bg-red-900/20"
-                href="/admin/inativos"
+                href={`/admin/inativos?periodo=${periodo}`}
               />
             </div>
 
@@ -267,16 +297,17 @@ export default function AdminDashboard() {
               />
               <Card
                 icon={<TrendingUp className="text-emerald-300" size={22} />}
-                label="Vendas este Mês"
+                label={`Vendas · ${resumo.periodoLabel}`}
                 value={moeda(resumo.vendasMes)}
+                sub={`${resumo.pedidosPagosMes} pedidos no mês`}
                 color="text-emerald-300"
                 bg="bg-emerald-900/10"
               />
               <Card
                 icon={<BadgeDollarSign className="text-yellow-400" size={22} />}
-                label="Comissões Geradas"
-                value={moeda(resumo.comissoesTotais)}
-                sub="Total pago a embaixadores"
+                label="Comissões no mês"
+                value={moeda(resumo.comissoesMes)}
+                sub={`Total gerado: ${moeda(resumo.comissoesTotais)}`}
                 color="text-yellow-400"
                 bg="bg-yellow-900/20"
                 href="/admin/saques"
@@ -291,6 +322,62 @@ export default function AdminDashboard() {
                 href="/admin/saques"
               />
             </div>
+
+            {/* MÊS A MÊS */}
+            {resumo.porMes?.length > 0 && (
+              <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5 mb-8">
+                <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                    Mês a mês · últimos 12 meses
+                  </p>
+                  <p className="text-[10px] text-zinc-600">Clique no mês para ver os cards acima</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left min-w-[640px]">
+                    <thead>
+                      <tr className="text-[10px] font-black uppercase tracking-widest text-zinc-600">
+                        <th className="pb-3 pr-3 font-black">Mês</th>
+                        <th className="pb-3 pr-3 font-black text-right">Vendas</th>
+                        <th className="pb-3 pr-3 font-black text-right">Pedidos</th>
+                        <th className="pb-3 pr-3 font-black text-right">Ativos</th>
+                        <th className="pb-3 pr-3 font-black text-right">Cadastros</th>
+                        <th className="pb-3 font-black text-right">Comissões</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...resumo.porMes].reverse().map((m) => {
+                        const ativo = m.mes === periodo;
+                        const maxVendas = Math.max(...resumo.porMes.map((x) => x.vendas), 1);
+                        return (
+                          <tr
+                            key={m.mes}
+                            onClick={() => { setPeriodo(m.mes); setLoading(true); }}
+                            className={`cursor-pointer border-t border-white/5 ${ativo ? "bg-[#C9A66B]/10" : "hover:bg-white/5"}`}
+                          >
+                            <td className="py-2.5 pr-3">
+                              <span className={`text-xs font-bold ${ativo ? "text-[#C9A66B]" : "text-white"}`}>
+                                {m.label}
+                              </span>
+                              <div className="mt-1 h-1 rounded-full bg-zinc-800 max-w-[140px]">
+                                <div
+                                  className="h-1 rounded-full bg-[#C9A66B]"
+                                  style={{ width: `${Math.round((m.vendas / maxVendas) * 100)}%` }}
+                                />
+                              </div>
+                            </td>
+                            <td className="py-2.5 pr-3 text-right text-xs font-black tabular-nums">{moeda(m.vendas)}</td>
+                            <td className="py-2.5 pr-3 text-right text-xs tabular-nums text-zinc-300">{m.pedidos}</td>
+                            <td className="py-2.5 pr-3 text-right text-xs tabular-nums text-zinc-300">{m.ativos}</td>
+                            <td className="py-2.5 pr-3 text-right text-xs tabular-nums text-zinc-300">{m.cadastros}</td>
+                            <td className="py-2.5 text-right text-xs tabular-nums text-zinc-300">{moeda(m.comissoes)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* LINHA 3 — PEDIDOS */}
             <p className="text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-3">Pedidos por Status</p>

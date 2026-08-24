@@ -414,16 +414,20 @@ export default function ComunidadePage() {
         mediaType = uploaded.media_type;
       }
 
-      const { error } = await supabase.from("community_posts").insert({
-        user_id: currentUser.id,
-        content: newPostText.trim() || null,
-        media_url: mediaUrl,
-        media_type: mediaType,
+      const res = await fetch("/api/comunidade/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: newPostText.trim(),
+          media_url: mediaUrl,
+          media_type: mediaType,
+        }),
       });
-
-      if (error) {
-        console.error("Erro ao publicar post no Supabase:", error);
-        alert("Não foi possível publicar seu post. Veja o console (F12) para detalhes.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        const msg = data?.error || "Não foi possível publicar seu post.";
+        setUploadErro(msg);
+        console.error("Erro ao publicar post:", data || res.status);
         return;
       }
 
@@ -619,23 +623,22 @@ export default function ComunidadePage() {
                         </button>
                       )}
                     </div>
-                    {post.content && (
+                    {post.content?.trim() && (
                       <p className="text-sm text-zinc-300 mb-4 leading-relaxed">
                         {post.content.split(" ").map((word: string, i: number) => 
                           word.startsWith("@") ? <span key={i} className="text-[#C9A66B] font-bold">{word} </span> : word + " "
                         )}
                       </p>
                     )}
-                    {post.media_url && post.media_type === "image" && (
-                      <div className="mb-4 rounded-xl overflow-hidden border border-white/10">
-                        <img src={post.media_url} className="w-full max-h-[420px] object-cover" />
-                      </div>
-                    )}
-                    {post.media_url && post.media_type === "video" && (
+                    {post.media_url && (post.media_type === "video" ? (
                       <div className="mb-4 rounded-xl overflow-hidden border border-white/10">
                         <video src={post.media_url} controls className="w-full max-h-[420px] object-contain bg-black" />
                       </div>
-                    )}
+                    ) : (
+                      <div className="mb-4 rounded-xl overflow-hidden border border-white/10">
+                        <img src={post.media_url} className="w-full max-h-[420px] object-cover" alt="" />
+                      </div>
+                    ))}
                     <div className="flex gap-8 border-t border-white/5 pt-4">
                       <button onClick={() => handleLike(post.id)} className={`flex items-center gap-2 text-[10px] font-black uppercase transition-all ${isLiked ? "text-red-500 scale-110" : "text-zinc-500"}`}>
                         <Heart size={20} fill={isLiked ? "currentColor" : "none"} /> {post.likes_count || 0}

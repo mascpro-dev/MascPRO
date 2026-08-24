@@ -65,6 +65,33 @@ export function ymdDeIso(iso: string) {
   return ymdSaoPaulo(new Date(iso));
 }
 
+export function ymSaoPaulo(d = new Date()) {
+  return ymdSaoPaulo(d).slice(0, 7);
+}
+
+export function parsePeriodoYm(raw: string | null | undefined, fallback = ymSaoPaulo()) {
+  const s = String(raw || fallback).slice(0, 7);
+  const y = Number(s.slice(0, 4));
+  const m = Number(s.slice(5, 7));
+  if (!y || m < 1 || m > 12) return fallback;
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+/** Início e fim do mês civil em Brasília (sem horário de verão). */
+export function boundsMesBrasil(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const ini = new Date(`${ym}-01T00:00:00.000-03:00`);
+  const fim = new Date(`${ym}-${String(last).padStart(2, "0")}T23:59:59.999-03:00`);
+  return { ini: ini.toISOString(), fim: fim.toISOString() };
+}
+
+export function labelMesYm(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  const label = new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export function somarDiasYmd(ymd: string, dias: number) {
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + dias));

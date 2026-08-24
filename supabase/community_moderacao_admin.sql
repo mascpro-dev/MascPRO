@@ -37,3 +37,7 @@ CREATE POLICY comments_admin_delete ON public.comments
 
 -- Storage community-media: uploads em posts/{user_id}/...
 -- Se upload falhar no celular, confira políticas do bucket no painel Storage.
+
+-- =============================================================================
+-- Também rode supabase/community_posts.sql se o post com foto der erro 400.
+-- =============================================================================
