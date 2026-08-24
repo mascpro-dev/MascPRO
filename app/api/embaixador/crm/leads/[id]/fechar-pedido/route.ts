@@ -7,6 +7,7 @@ import {
 } from "@/lib/crmEmbaixadoraServer";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { applyOrderRewards } from "@/lib/applyOrderRewards";
+import { atualizarComoPago } from "@/lib/pedidoAtivo";
 
 export const dynamic = "force-dynamic";
 
@@ -212,6 +213,7 @@ export async function POST(
 
   let recompensas = null;
   if (STATUS_PAGO.has(statusInicial)) {
+    await atualizarComoPago(supabase, order.id, {}, false);
     recompensas = await applyOrderRewards(supabase, order.id);
     await applyOrderCatalogStock(supabase, order.id);
   }
@@ -280,10 +282,7 @@ export async function PATCH(
     return NextResponse.json({ ok: true, order_id: order.id, status: order.status });
   }
 
-  const { error } = await supabase
-    .from("orders")
-    .update({ status: "paid" })
-    .eq("id", order.id);
+  const { error } = await atualizarComoPago(supabase, order.id, { status: "paid" }, false);
 
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

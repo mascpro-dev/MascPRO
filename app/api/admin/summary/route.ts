@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminServiceClient } from "@/lib/adminServer";
 import { boundsMesBrasil, labelMesYm, parsePeriodoYm, ymdSaoPaulo, ymSaoPaulo } from "@/lib/comercialRegua";
+import { pedidoAtivoNoPeriodo } from "@/lib/pedidoAtivo";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -104,10 +105,16 @@ export async function GET(req: NextRequest) {
         .in("status", ["paid", "separacao"]),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "despachado"),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "entregue"),
-      fetchAllRows<{ total: unknown; profile_id: unknown; created_at: string }>(async (from, to) => {
+      fetchAllRows<{
+        total: unknown;
+        profile_id: unknown;
+        created_at: string;
+        updated_at?: string | null;
+        pago_em?: string | null;
+      }>(async (from, to) => {
         return await supabase
           .from("orders")
-          .select("total, profile_id, created_at")
+          .select("total, profile_id, created_at, updated_at")
           .in("status", STATUS_CONFIRMADOS)
           .range(from, to);
       }),
@@ -178,7 +185,10 @@ export async function GET(req: NextRequest) {
     });
     const vendasMes = pedidosDoMes.reduce((acc, p) => acc + Number(p.total || 0), 0);
     const ativosNoMes = new Set(
-      pedidosDoMes.map((p) => p.profile_id).filter(Boolean) as string[]
+      pedidos
+        .filter((p) => pedidoAtivoNoPeriodo(p, iniMes, fimMes))
+        .map((p) => p.profile_id)
+        .filter(Boolean) as string[]
     ).size;
 
     const comissoes = comissoesRes.rows;
@@ -209,7 +219,12 @@ export async function GET(req: NextRequest) {
         label: labelMesYm(ym),
         vendas: pMes.reduce((acc, p) => acc + Number(p.total || 0), 0),
         pedidos: pMes.length,
-        ativos: new Set(pMes.map((p) => p.profile_id).filter(Boolean)).size,
+        ativos: new Set(
+          pedidos
+            .filter((p) => pedidoAtivoNoPeriodo(p, b.ini, b.fim))
+            .map((p) => p.profile_id)
+            .filter(Boolean)
+        ).size,
         cadastros: cad,
         comissoes: cMes.reduce((acc, c) => acc + Number(c.valor_comissao || 0), 0),
       };

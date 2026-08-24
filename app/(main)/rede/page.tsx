@@ -142,6 +142,13 @@ export default function RedePage() {
             setMembrosComPedidoNoMes(mapAtivos);
             const totalAtivos = equipe.filter((m: any) => !!mapAtivos[m.id]).length;
             setMembrosAtivosCount(totalAtivos);
+            const ordenada = [...equipe].sort((a: any, b: any) => {
+              const aa = mapAtivos[a.id] ? 0 : 1;
+              const ba = mapAtivos[b.id] ? 0 : 1;
+              if (aa !== ba) return aa - ba;
+              return String(a.full_name || "").localeCompare(String(b.full_name || ""), "pt-BR");
+            });
+            setListaEquipe(ordenada);
         }
       }
       setLoading(false);
@@ -204,7 +211,7 @@ export default function RedePage() {
     }
   };
 
-  // ATIVO = tem pedido pago/em separação/despachado atualizado este mês
+  // ATIVO = pedido pago neste mês (mesma regra do /admin/ativos)
   const verificarStatus = (memberId: string) => {
     return !!membrosComPedidoNoMes[memberId];
   };
@@ -256,7 +263,9 @@ export default function RedePage() {
             <div>
                 <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">MEMBROS ATIVOS</p>
                 <p className="text-3xl font-black text-white">{membrosAtivosCount}</p>
-                <p className="text-[10px] text-gray-600">No mês atual</p>
+                <p className="text-[10px] text-gray-600">
+                  {new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" })} · zera no dia 1º
+                </p>
             </div>
         </div>
 

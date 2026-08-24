@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { applyOrderToProInventory } from "@/lib/applyOrderToProInventory";
+import { atualizarComoPago } from "@/lib/pedidoAtivo";
 
 function getServiceSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -41,10 +42,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Só é possível confirmar recebimento de pedidos despachados" }, { status: 400 });
     }
 
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: "entregue" })
-      .eq("id", orderId);
+    const { error } = await atualizarComoPago(supabase, orderId, { status: "entregue" }, true);
 
     if (error) {
       console.error("[confirmar-recebimento] erro:", error.message);

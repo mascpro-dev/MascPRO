@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import { Clock, Loader2, CalendarDays } from "lucide-react";
@@ -16,17 +15,7 @@ function labelMes(ym: string) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-function boundsMes(ym: string) {
-  const [y, m] = ym.split("-").map(Number);
-  const last = new Date(y, m, 0).getDate();
-  return {
-    ini: `${ym}-01T00:00:00.000-03:00`,
-    fim: `${ym}-${String(last).padStart(2, "0")}T23:59:59.999-03:00`,
-  };
-}
-
 export default function AdminInativosPage() {
-  const supabase = createClientComponentClient();
   const [periodo, setPeriodo] = useState(ymAtual);
   const [membros, setMembros] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,25 +29,15 @@ export default function AdminInativosPage() {
 
     async function carregar() {
       setLoading(true);
-      const { ini, fim } = boundsMes(periodo);
-
-      const { data: pedidos } = await supabase
-        .from("orders")
-        .select("profile_id")
-        .in("status", ["paid", "separacao", "despachado", "entregue"])
-        .gte("created_at", ini)
-        .lte("created_at", fim);
-
-      const idsAtivos = new Set((pedidos || []).map((p: { profile_id: string | null }) => p.profile_id).filter(Boolean));
-
-      const { data: todos } = await supabase
-        .from("profiles")
-        .select("id, full_name, email, whatsapp, role, created_at, avatar_url")
-        .eq("role", "CABELEIREIRO")
-        .order("full_name");
-
-      const inativos = (todos || []).filter((p: { id: string }) => !idsAtivos.has(p.id));
-      setMembros(inativos);
+      const [ativosRes, membrosRes] = await Promise.all([
+        fetch(`/api/admin/ativos?periodo=${periodo}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null),
+        fetch("/api/admin/membros", { cache: "no-store" }).then((r) => r.json()).catch(() => null),
+      ]);
+      const idsAtivos = new Set((ativosRes?.membros || []).map((m: { id: string }) => m.id));
+      const todos = (membrosRes?.membros || []).filter((p: { role?: string }) =>
+        String(p.role || "").toUpperCase() === "CABELEIREIRO"
+      );
+      setMembros(todos.filter((p: { id: string }) => !idsAtivos.has(p.id)));
       setLoading(false);
     }
     carregar();
@@ -73,7 +52,7 @@ export default function AdminInativosPage() {
             <Clock className="text-red-500" size={28} />
             <div>
               <h1 className="text-2xl font-black uppercase italic">Quem está <span className="text-red-500">Parado</span></h1>
-              <p className="text-zinc-500 text-xs">Sem compra confirmada em {labelMes(periodo)}</p>
+              <p className="text-zinc-500 text-xs">Sem compra paga em {labelMes(periodo)}</p>
             </div>
           </div>
           <label className="flex items-center gap-2 bg-zinc-900 border border-white/10 rounded-xl px-3 py-2">
@@ -93,7 +72,7 @@ export default function AdminInativosPage() {
           <p className="text-zinc-500 text-center mt-20">Todos os membros compraram em {labelMes(periodo)}.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            <p className="text-xs text-zinc-500 mb-2">{membros.length} membro(s) sem compra em {labelMes(periodo)}</p>
+            <p className="text-xs text-zinc-500 mb-2">{membros.length} membro(s) sem compra paga em {labelMes(periodo)}</p>
             {membros.map((m) => (
               <div key={m.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">

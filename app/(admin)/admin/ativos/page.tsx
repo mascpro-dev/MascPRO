@@ -51,8 +51,8 @@ export default function AdminAtivosPage() {
               <h1 className="text-2xl font-black uppercase italic">
                 Quem está <span className="text-yellow-500">Ativo</span>
               </h1>
-              <p className="text-zinc-500 text-xs capitalize">
-                Compra confirmada em {labelMes(periodo)}
+              <p className="text-zinc-500 text-xs">
+                Compra paga em {labelMes(periodo)} · entra na lista no momento do pagamento
               </p>
             </div>
           </div>
@@ -74,11 +74,11 @@ export default function AdminAtivosPage() {
         ) : erro ? (
           <p className="text-red-400 text-sm text-center mt-20">{erro}</p>
         ) : membros.length === 0 ? (
-          <p className="text-zinc-500 text-center mt-20">Nenhum membro com compra confirmada em {labelMes(periodo)}.</p>
+          <p className="text-zinc-500 text-center mt-20">Nenhum membro com compra paga em {labelMes(periodo)}.</p>
         ) : (
           <div className="flex flex-col gap-3">
             <p className="text-xs text-zinc-500 mb-2 font-bold">
-              {membros.length} membro(s) com compra confirmada em {labelMes(periodo)}
+              {membros.length} membro(s) com compra paga em {labelMes(periodo)}
             </p>
             {membros.map((m) => (
               <div key={m.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">

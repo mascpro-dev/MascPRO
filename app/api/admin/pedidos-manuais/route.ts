@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext, assertAdmin } from "@/lib/adminServer";
 import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
+import { atualizarComoPago } from "@/lib/pedidoAtivo";
 import { fetchIndicadorRole, resolveOrderGestor } from "@/lib/orderGestor";
 
 export const dynamic = "force-dynamic";
@@ -191,6 +192,7 @@ export async function POST(req: NextRequest) {
     let estoque: Awaited<ReturnType<typeof applyOrderCatalogStock>> | null = null;
 
     if (STATUS_PAGO.has(statusInicial)) {
+      await atualizarComoPago(supabase, order.id, {}, false);
       recompensas = await applyOrderRewards(supabase, order.id);
       estoque = await applyOrderCatalogStock(supabase, order.id);
     }

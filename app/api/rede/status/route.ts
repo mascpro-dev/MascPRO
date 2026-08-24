@@ -2,36 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { boundsMesBrasil, ymSaoPaulo } from "@/lib/comercialRegua";
+import { pedidosAtivosNoPeriodo } from "@/lib/pedidoAtivo";
 
 export async function POST(req: NextRequest) {
   const supabaseAuth = createRouteHandlerClient({ cookies });
-  const { data: { session } } = await supabaseAuth.auth.getSession();
+  const {
+    data: { session },
+  } = await supabaseAuth.auth.getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
   const { equipeIds } = await req.json();
-  if (!equipeIds?.length) return NextResponse.json({ ativos: {} });
+  if (!equipeIds?.length) return NextResponse.json({ ativos: {}, periodo: ymSaoPaulo() });
 
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) return NextResponse.json({ error: "Config error" }, { status: 500 });
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
+  const periodo = ymSaoPaulo();
+  const { ini, fim } = boundsMesBrasil(periodo);
 
-  // ATIVO = tem qualquer pedido confirmado/pago (sem filtro de data)
-  const { data: pedidos, error } = await supabase
-    .from("orders")
-    .select("profile_id")
-    .in("profile_id", equipeIds)
-    .in("status", ["paid", "separacao", "despachado", "entregue"]);
-
-  if (error) {
-    console.error("[api/rede/status] erro:", error.message);
-    return NextResponse.json({ ativos: {}, error: error.message }, { status: 500 });
+  const pedidos = await pedidosAtivosNoPeriodo(supabase, ini, fim);
+  if (pedidos.error) {
+    console.error("[api/rede/status] erro:", pedidos.error);
+    return NextResponse.json({ ativos: {}, error: pedidos.error, periodo }, { status: 500 });
   }
 
+  const equipe = new Set((equipeIds as unknown[]).map((id) => String(id)));
   const ativos: Record<string, boolean> = {};
-  for (const p of pedidos || []) {
-    if (p.profile_id) ativos[p.profile_id] = true;
+  for (const p of pedidos.rows) {
+    if (p.profile_id && equipe.has(p.profile_id)) ativos[p.profile_id] = true;
   }
 
-  return NextResponse.json({ ativos });
+  return NextResponse.json({ ativos, periodo });
 }

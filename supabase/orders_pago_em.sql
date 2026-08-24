@@ -10,7 +10,7 @@ COMMENT ON COLUMN public.orders.pago_em IS
   'Momento em que o pedido entrou em paid/separacao/despachado/entregue. Quem está Ativo usa esta data.';
 
 UPDATE public.orders
-SET pago_em = COALESCE(pago_em, updated_at, created_at)
+SET pago_em = COALESCE(pago_em, created_at)
 WHERE status IN ('paid', 'separacao', 'despachado', 'entregue')
   AND pago_em IS NULL;
 

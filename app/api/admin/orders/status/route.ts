@@ -5,6 +5,7 @@ import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { registrarAudit } from "@/lib/auditLog";
 import { getAdminContext } from "@/lib/adminServer";
 import { assertCanChangeOrderStatus } from "@/lib/orderGestor";
+import { atualizarComoPago } from "@/lib/pedidoAtivo";
 
 export const dynamic = "force-dynamic";
 
@@ -59,10 +60,12 @@ export async function POST(req: NextRequest) {
     }
     const jaEstavaPago = STATUS_PAGO.has(normalizeOrderStatus(orderAtual?.status));
 
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: statusNormalizado })
-      .eq("id", orderId);
+    const { error } = STATUS_PAGO.has(statusNormalizado)
+      ? await atualizarComoPago(supabase, orderId, { status: statusNormalizado }, jaEstavaPago)
+      : await supabase
+          .from("orders")
+          .update({ status: statusNormalizado, updated_at: new Date().toISOString() })
+          .eq("id", orderId);
 
     if (error) {
       console.error("[admin/orders/status] erro update:", error.message);

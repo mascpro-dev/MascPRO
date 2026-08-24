@@ -8,6 +8,7 @@ import {
 } from "@/lib/orderGestor";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { applyOrderRewards } from "@/lib/applyOrderRewards";
+import { atualizarComoPago } from "@/lib/pedidoAtivo";
 
 export const dynamic = "force-dynamic";
 
@@ -256,6 +257,7 @@ export async function POST(
   let recompensas = null;
   let estoque = null;
   if (STATUS_PAGO.has(statusInicial)) {
+    await atualizarComoPago(supabase, order.id, {}, false);
     recompensas = await applyOrderRewards(supabase, order.id);
     estoque = await applyOrderCatalogStock(supabase, order.id);
   }
@@ -327,10 +329,7 @@ export async function PATCH(
       return NextResponse.json({ ok: true, order_id: order.id, status: order.status });
     }
 
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: "paid" })
-      .eq("id", order.id);
+    const { error } = await atualizarComoPago(supabase, order.id, { status: "paid" }, false);
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
@@ -366,10 +365,12 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "Status inválido." }, { status: 400 });
   }
 
-  const { error } = await supabase
-    .from("orders")
-    .update({ status: novoStatus })
-    .eq("id", order.id);
+  const { error } = STATUS_PAGO.has(novoStatus)
+    ? await atualizarComoPago(supabase, order.id, { status: novoStatus }, true)
+    : await supabase
+        .from("orders")
+        .update({ status: novoStatus, updated_at: new Date().toISOString() })
+        .eq("id", order.id);
 
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

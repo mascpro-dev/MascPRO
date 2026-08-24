@@ -14,7 +14,8 @@ export function instanteAtivoPedido(p: {
   updated_at?: string | null;
   created_at?: string | null;
 }) {
-  return p.pago_em || p.updated_at || p.created_at || "";
+  // Só pagamento: zera no dia 1º. Envio/atualização não reconta o mês.
+  return p.pago_em || p.created_at || "";
 }
 
 export function pedidoAtivoNoPeriodo(
@@ -65,19 +66,25 @@ export async function pedidosAtivosNoPeriodo(
   iniIso: string,
   fimIso: string
 ): Promise<{ rows: PedidoAtivoRow[]; error: string | null }> {
-  const tentar = async (select: string) =>
+  const tentar = async (comPagoEm: boolean) =>
     fetchAllRows<PedidoAtivoRow>(async (from, to) => {
-      return await supabase
-        .from("orders")
-        .select(select)
-        .in("status", [...STATUS_PEDIDO_PAGO])
-        .range(from, to);
+      const q = comPagoEm
+        ? supabase
+            .from("orders")
+            .select("profile_id, created_at, updated_at, pago_em, status")
+            .in("status", [...STATUS_PEDIDO_PAGO])
+            .range(from, to)
+        : supabase
+            .from("orders")
+            .select("profile_id, created_at, updated_at, status")
+            .in("status", [...STATUS_PEDIDO_PAGO])
+            .range(from, to);
+      const res = await q;
+      return { data: (res.data || null) as PedidoAtivoRow[] | null, error: res.error };
     });
 
-  let fetched = await tentar("profile_id, created_at, updated_at, pago_em, status");
-  if (fetched.error) {
-    fetched = await tentar("profile_id, created_at, updated_at, status");
-  }
+  let fetched = await tentar(true);
+  if (fetched.error) fetched = await tentar(false);
   if (fetched.error) return fetched;
 
   return {
@@ -93,14 +100,16 @@ export function idsUnicos(rows: PedidoAtivoRow[]) {
 export async function atualizarComoPago(
   supabase: SupabaseClient,
   orderId: string,
-  campos: Record<string, unknown> = {}
+  campos: Record<string, unknown> = {},
+  jaEstavaPago = false
 ) {
   const now = new Date().toISOString();
-  const full = { ...campos, pago_em: campos.pago_em || now, updated_at: now };
+  const full: Record<string, unknown> = { ...campos, updated_at: now };
+  if (!jaEstavaPago && full.pago_em == null) full.pago_em = now;
   const { error } = await supabase.from("orders").update(full).eq("id", orderId);
   if (error && /pago_em|schema cache/i.test(error.message)) {
-    const rest = { ...campos, updated_at: now };
-    delete (rest as { pago_em?: unknown }).pago_em;
+    const rest = { ...full };
+    delete rest.pago_em;
     return await supabase.from("orders").update(rest).eq("id", orderId);
   }
   return { error };

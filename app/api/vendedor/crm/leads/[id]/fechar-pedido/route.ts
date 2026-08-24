@@ -12,6 +12,7 @@ import {
 } from "@/lib/vendedorPrecos";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { applyOrderRewards } from "@/lib/applyOrderRewards";
+import { atualizarComoPago } from "@/lib/pedidoAtivo";
 import { calcularPercentualComissaoVendedor } from "@/lib/vendedorPrecos";
 import { notificarPedidoAguardandoAprovacao } from "@/lib/notificarCrm";
 
@@ -271,6 +272,7 @@ export async function POST(
   let recompensas = null;
   let estoque = null;
   if (STATUS_PAGO.has(statusInicial)) {
+    await atualizarComoPago(supabase, order.id, {}, false);
     if (!avaliacao.excluir_comissao) {
       recompensas = await applyOrderRewards(supabase, order.id);
     }

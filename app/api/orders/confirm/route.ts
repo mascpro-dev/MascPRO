@@ -3,6 +3,7 @@ import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { percentualComissaoDoIndicador, calcularValorComissao } from "@/lib/comissaoIndicacao";
+import { atualizarComoPago, statusPedidoPago } from "@/lib/pedidoAtivo";
 
 function getSupabase() {
   const key =
@@ -175,10 +176,13 @@ export async function POST(req: NextRequest) {
 
     // Só atualiza no banco se o status realmente mudou (evita acionar triggers desnecessariamente)
     if (novoStatus !== orderAtual?.status) {
-      const { error: updateError } = await supabase
-        .from("orders")
-        .update({ status: novoStatus })
-        .eq("id", orderId);
+      const jaEstavaPago = statusPedidoPago(orderAtual?.status);
+      const { error: updateError } = statusPedidoPago(novoStatus)
+        ? await atualizarComoPago(supabase, orderId, { status: novoStatus }, jaEstavaPago)
+        : await supabase
+            .from("orders")
+            .update({ status: novoStatus, updated_at: new Date().toISOString() })
+            .eq("id", orderId);
 
       if (updateError) {
         console.error("[confirm] Erro ao atualizar order:", updateError.message);

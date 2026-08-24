@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { rateLimit, LIMITS } from "@/lib/rateLimit";
 import { percentualComissaoDoIndicador, calcularValorComissao } from "@/lib/comissaoIndicacao";
+import { atualizarComoPago } from "@/lib/pedidoAtivo";
 
 function getSupabase() {
   // Usa service_role se disponível (bypassa RLS), senão anon key com grants manuais
@@ -239,13 +240,21 @@ export async function POST(req: NextRequest) {
       .single();
     const jaEstavaPago = STATUS_PAGO.has(String(orderAtual?.status || "").toLowerCase());
 
-    const { error } = await supabase
-      .from("orders")
-      .update({
-        status: newStatus,
-        mp_payment_id: String(paymentId),
-      })
-      .eq("id", orderId);
+    const { error } = STATUS_PAGO.has(newStatus)
+      ? await atualizarComoPago(
+          supabase,
+          String(orderId),
+          { status: newStatus, mp_payment_id: String(paymentId) },
+          jaEstavaPago
+        )
+      : await supabase
+          .from("orders")
+          .update({
+            status: newStatus,
+            mp_payment_id: String(paymentId),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", orderId);
 
     if (error) {
       console.error("Supabase update error:", error);
