@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { camposLocalizacaoSync } from "@/lib/profileLocalizacao";
 
 function sb() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -21,8 +22,9 @@ export async function POST(req: NextRequest) {
     if (full_name !== undefined) camposProfile.full_name = full_name;
     if (whatsapp !== undefined) camposProfile.whatsapp = whatsapp;
     if (instagram !== undefined) camposProfile.instagram = instagram;
-    if (city !== undefined) camposProfile.city = city;
-    if (state !== undefined) camposProfile.state = state;
+    if (city !== undefined || state !== undefined) {
+      Object.assign(camposProfile, camposLocalizacaoSync(city, state));
+    }
     if (role !== undefined) camposProfile.role = role;
     if (nivel !== undefined) camposProfile.nivel = nivel;
     if (indicado_por !== undefined) camposProfile.indicado_por = indicado_por || null;

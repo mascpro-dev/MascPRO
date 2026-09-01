@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
 import { assertCrmAccess, podeAcessarLead } from "@/lib/crmServer";
 import { criarMembroDeLead } from "@/lib/crmCadastroMembro";
+import {
+  parseIndicadorIdBody,
+  resolverIndicadorId,
+  salvarIndicadorNoLead,
+  indicadorPermitidoParaContexto,
+} from "@/lib/crmIndicadorLead";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +46,7 @@ export async function POST(
   const { data: lead, error: errLead } = await supabase
     .from("crm_leads")
     .select(
-      "id, nome, email, telefone, instagram, cidade, estado, responsavel_id, profile_id"
+      "id, nome, email, telefone, instagram, cidade, estado, responsavel_id, indicador_id, profile_id"
     )
     .eq("id", params.id)
     .maybeSingle();
@@ -52,9 +58,27 @@ export async function POST(
     );
   }
 
+  const bodyIndicadorId = parseIndicadorIdBody(body);
+  const indicadorId = resolverIndicadorId(lead, bodyIndicadorId, userId);
+
+  if (indicadorId) {
+    const permitido = await indicadorPermitidoParaContexto(supabase, indicadorId, {
+      viewerRole: access.role,
+      viewerId: userId,
+    });
+    if (!permitido) {
+      return NextResponse.json(
+        { ok: false, error: "Indicador selecionado não permitido." },
+        { status: 400 }
+      );
+    }
+    await salvarIndicadorNoLead(supabase, lead.id, indicadorId);
+  }
+
   const resultado = await criarMembroDeLead(supabase, {
-    lead,
+    lead: { ...lead, indicador_id: indicadorId ?? lead.indicador_id },
     email: body.email ? String(body.email) : undefined,
+    indicadoPor: indicadorId,
     closingUserId: userId,
     vincularLead: true,
   });

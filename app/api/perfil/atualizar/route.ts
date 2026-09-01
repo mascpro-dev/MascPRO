@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { validateBookingSlugInput } from "@/lib/bookingSlug";
+import { camposLocalizacaoSync } from "@/lib/profileLocalizacao";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,11 +17,10 @@ export async function POST(req: NextRequest) {
       full_name: body.full_name,
       whatsapp: body.whatsapp,
       instagram: body.instagram,
-      city: body.city,
-      state: body.state,
       work_type: body.work_type,
       experience: body.experience,
       updated_at: new Date().toISOString(),
+      ...camposLocalizacaoSync(body.city, body.state),
     };
 
     // Campos opcionais (podem não existir no banco ainda — ignorar erro de coluna)
@@ -64,11 +64,10 @@ export async function POST(req: NextRequest) {
           full_name: body.full_name,
           whatsapp: body.whatsapp,
           instagram: body.instagram,
-          city: body.city,
-          state: body.state,
           work_type: body.work_type,
           experience: body.experience,
           updated_at: new Date().toISOString(),
+          ...camposLocalizacaoSync(body.city, body.state),
         };
         if (body.avatar_url !== undefined && typeof body.avatar_url === "string") {
           camposBase.avatar_url = body.avatar_url.trim() || null;

@@ -24,6 +24,8 @@ type Props = {
   emailInicial?: string | null;
   jaTemCadastro?: boolean;
   onCadastrado: (perfil: PerfilCriado, info?: { senha?: string; email?: string }) => void;
+  /** ID de quem indicou o lead (comissão / PRO de rede) */
+  indicadorId?: string | null;
   apiBase?: string;
   /** Exibe seletor Cabeleireira / Embaixadora (CRM da rede) */
   permitirTipoMembro?: boolean;
@@ -39,6 +41,7 @@ export default function CrmCadastrarMembroPanel({
   apiBase = "/api/admin/crm",
   permitirTipoMembro = false,
   accent = "gold",
+  indicadorId = null,
 }: Props) {
   const [email, setEmail] = useState(emailInicial || "");
   const [tipoMembro, setTipoMembro] = useState<"CABELEIREIRO" | "EMBAIXADOR">("CABELEIREIRO");
@@ -63,6 +66,7 @@ export default function CrmCadastrarMembroPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: email.trim(),
+          indicador_id: indicadorId,
           ...(permitirTipoMembro ? { role_membro: tipoMembro } : {}),
         }),
       });

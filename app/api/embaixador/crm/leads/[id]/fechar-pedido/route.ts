@@ -9,6 +9,8 @@ import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { atualizarComoPago } from "@/lib/pedidoAtivo";
 import { calcularTotalPedidoCrm, parseDescontoFinalBody } from "@/lib/crmPedidoTotal";
+import { processarIndicadorNoFechamento } from "@/lib/crmIndicadorLead";
+import { salvarEnderecoProfileCrm } from "@/lib/profileEnderecoCrm";
 
 export const dynamic = "force-dynamic";
 
@@ -56,23 +58,7 @@ async function salvarEnderecoProfile(
   profileId: string,
   body: Record<string, unknown>
 ) {
-  const update: Record<string, string | null> = {};
-  const map: Record<string, string> = {
-    cep: "cep",
-    logradouro: "logradouro",
-    numero: "numero",
-    complemento: "complemento",
-    bairro: "bairro",
-    municipio: "municipio",
-    uf: "uf",
-  };
-  for (const [k, col] of Object.entries(map)) {
-    if (body[k] !== undefined && body[k] !== null && String(body[k]).trim() !== "") {
-      update[col] = String(body[k]).trim();
-    }
-  }
-  if (Object.keys(update).length === 0) return;
-  await supabase.from("profiles").update(update).eq("id", profileId);
+  await salvarEnderecoProfileCrm(supabase, profileId, body);
 }
 
 /** Pedido da rede embaixadora — sempre gerido pela MascPRO (empresa). */
@@ -105,7 +91,7 @@ export async function POST(
 
   const { data: lead, error: errLead } = await supabase
     .from("crm_leads")
-    .select("id, nome, email, status, profile_id, order_id")
+    .select("id, nome, email, status, profile_id, order_id, responsavel_id, indicador_id")
     .eq("id", params.id)
     .maybeSingle();
 
@@ -142,6 +128,17 @@ export async function POST(
   }
 
   await salvarEnderecoProfile(supabase, profileId, body);
+
+  const indicadorProc = await processarIndicadorNoFechamento(supabase, {
+    lead,
+    body,
+    profileId,
+    closingUserId: userId,
+    ctx: { viewerRole: "EMBAIXADOR", viewerId: userId },
+  });
+  if (!indicadorProc.ok) {
+    return NextResponse.json({ ok: false, error: indicadorProc.error }, { status: 400 });
+  }
 
   const subtotal = itensLimpos.reduce(
     (acc, i) => acc + i.quantidade * i.preco_unitario,
@@ -232,6 +229,8 @@ export async function POST(
     status: statusInicial,
     gestor_tipo: "empresa",
     recompensas,
+    indicador_id: indicadorProc.indicadorId,
+    aviso_indicador: indicadorProc.aviso,
   });
 }
 

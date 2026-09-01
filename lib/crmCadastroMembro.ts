@@ -11,6 +11,7 @@ export type LeadParaCadastro = {
   cidade: string | null;
   estado: string | null;
   responsavel_id: string | null;
+  indicador_id?: string | null;
   profile_id: string | null;
 };
 
@@ -102,7 +103,10 @@ export async function criarMembroDeLead(
 
   const userId = authData.user.id;
   const indicado =
-    params.indicadoPor ?? lead.responsavel_id ?? closingUserId;
+    params.indicadoPor ??
+    lead.indicador_id ??
+    lead.responsavel_id ??
+    closingUserId;
 
   const profileRow: Record<string, unknown> = {
     id: userId,

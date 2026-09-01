@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminServiceClient } from "@/lib/adminServer";
+import { lerCidadeEstado } from "@/lib/profileLocalizacao";
 
 export async function GET() {
   try {
@@ -8,7 +9,7 @@ export async function GET() {
 
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, full_name, email, whatsapp, instagram, role, nivel, city, state, created_at, indicado_por, personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total, avatar_url")
+      .select("id, full_name, email, whatsapp, instagram, role, nivel, city, state, municipio, uf, created_at, indicado_por, personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total, avatar_url")
       .order("pro_total", { ascending: false });
 
     const idsComCompra = new Set<string>();
@@ -32,11 +33,20 @@ export async function GET() {
     // Mapa de perfis para lookup de indicador
     const perfilMap = new Map(profiles.map((p: any) => [p.id, p]));
 
-    const membros = profiles.map((m: any) => ({
-      ...m,
-      tem_compra: idsComCompra.has(m.id),
-      indicador: m.indicado_por ? (perfilMap.get(m.indicado_por) ? { full_name: perfilMap.get(m.indicado_por).full_name } : null) : null,
-    }));
+    const membros = profiles.map((m: any) => {
+      const loc = lerCidadeEstado(m);
+      return {
+        ...m,
+        city: loc.city || m.city,
+        state: loc.state || m.state,
+        tem_compra: idsComCompra.has(m.id),
+        indicador: m.indicado_por
+          ? perfilMap.get(m.indicado_por)
+            ? { full_name: perfilMap.get(m.indicado_por).full_name }
+            : null
+          : null,
+      };
+    });
 
     return NextResponse.json({ ok: true, membros });
   } catch (e: any) {

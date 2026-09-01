@@ -5,7 +5,7 @@ import ErroComVoltar from "@/componentes/ErroComVoltar";
 import {
   X, Loader2, Plus, Minus, Trash2, Search, Package,
   MapPin, CreditCard, CheckCircle2, Truck,
-  Kanban, RotateCcw, ExternalLink,
+  Kanban, RotateCcw, ExternalLink, UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
@@ -18,7 +18,25 @@ type LeadResumo = {
   cidade: string | null;
   estado: string | null;
   profile_id: string | null;
+  indicador_id?: string | null;
+  responsavel_id?: string | null;
 };
+
+type IndicadorOpcao = {
+  id: string;
+  full_name: string;
+  role: string;
+  email: string | null;
+};
+
+function rotuloRoleIndicador(role: string): string {
+  const r = role.toUpperCase();
+  if (r === "CABELEIREIRO") return "Cabeleireiro(a)";
+  if (r === "EMBAIXADOR") return "Embaixador(a)";
+  if (r === "DISTRIBUIDOR") return "Distribuidor";
+  if (r === "VENDEDOR") return "Vendedor";
+  return role;
+}
 
 type Produto = {
   id: string;
@@ -126,10 +144,37 @@ export default function CrmFechamentoPedidoModal({
     status: string;
     gestor_tipo?: string;
     precisa_aprovacao?: boolean;
+    aviso_indicador?: string;
   } | null>(null);
   const [statusPedido, setStatusPedido] = useState("paid");
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
   const [criandoNovaCompra, setCriandoNovaCompra] = useState(false);
+
+  const [indicadores, setIndicadores] = useState<IndicadorOpcao[]>([]);
+  const [indicadorId, setIndicadorId] = useState(lead.indicador_id || "");
+  const [buscaIndicador, setBuscaIndicador] = useState("");
+  const [podeAlterarIndicador, setPodeAlterarIndicador] = useState(true);
+  const [carregandoIndicadores, setCarregandoIndicadores] = useState(false);
+
+  const carregarIndicadores = useCallback(async (q: string) => {
+    setCarregandoIndicadores(true);
+    try {
+      const url = `${api}/indicadores?lead_id=${encodeURIComponent(lead.id)}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const d = await res.json().catch(() => null);
+      if (d?.ok) {
+        setIndicadores(d.indicadores || []);
+        if (d.sugestao) {
+          setPodeAlterarIndicador(d.sugestao.pode_alterar_indicador !== false);
+          if (d.sugestao.indicador_id) {
+            setIndicadorId((atual) => atual || d.sugestao.indicador_id);
+          }
+        }
+      }
+    } finally {
+      setCarregandoIndicadores(false);
+    }
+  }, [api, lead.id]);
 
   const carregarProdutos = useCallback(async (q: string) => {
     const url = `${api}/produtos${q ? `?q=${encodeURIComponent(q)}` : ""}`;
@@ -139,6 +184,15 @@ export default function CrmFechamentoPedidoModal({
   }, [api]);
 
   useEffect(() => { void carregarProdutos(""); }, [carregarProdutos]);
+
+  useEffect(() => {
+    void carregarIndicadores("");
+  }, [carregarIndicadores]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { void carregarIndicadores(buscaIndicador); }, 300);
+    return () => clearTimeout(t);
+  }, [buscaIndicador, carregarIndicadores]);
 
   useEffect(() => {
     const t = setTimeout(() => { void carregarProdutos(buscaProduto); }, 300);
@@ -288,6 +342,7 @@ export default function CrmFechamentoPedidoModal({
           shipping_cost: freteNum,
           desconto_final: descontoNum,
           confirmar_pagamento: confirmarPagamento,
+          indicador_id: indicadorId || null,
           cep,
           logradouro,
           numero,
@@ -307,6 +362,7 @@ export default function CrmFechamentoPedidoModal({
         status: d.status,
         gestor_tipo: d.gestor_tipo || "distribuidor",
         precisa_aprovacao: d.precisa_aprovacao,
+        aviso_indicador: d.aviso_indicador,
       });
       setStatusPedido(d.status === "pending" ? "pending" : "paid");
     } finally {
@@ -417,6 +473,9 @@ export default function CrmFechamentoPedidoModal({
                         ? "A MascPRO fará separação e envio"
                         : `Gestão: ${sucesso.gestor_tipo === "empresa" ? "MascPRO (empresa)" : "Distribuidor"}`}
                   </p>
+                  {sucesso.aviso_indicador && (
+                    <p className="text-[11px] text-amber-400/90 mt-2">{sucesso.aviso_indicador}</p>
+                  )}
                 </div>
               </div>
 
@@ -496,6 +555,68 @@ export default function CrmFechamentoPedidoModal({
             </div>
           ) : (
             <>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+                <p className={labelClass}>
+                  <UserRound size={12} className="inline mr-1" />
+                  Quem indicou o lead
+                </p>
+                <p className="text-[11px] text-zinc-500">
+                  Comissão e pontos PRO de rede do 1º pedido vão para esta pessoa.
+                  {!podeAlterarIndicador && (
+                    <span className="text-amber-400/90"> Já existe pedido pago — indicação bloqueada no cadastro.</span>
+                  )}
+                </p>
+                {indicadorId && (
+                  <p className="text-xs text-[#C9A66B]">
+                    Selecionado:{" "}
+                    <strong>
+                      {indicadores.find((i) => i.id === indicadorId)?.full_name || "—"}
+                    </strong>
+                    {indicadores.find((i) => i.id === indicadorId)?.role && (
+                      <span className="text-zinc-500 ml-1">
+                        ({rotuloRoleIndicador(indicadores.find((i) => i.id === indicadorId)!.role)})
+                      </span>
+                    )}
+                  </p>
+                )}
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    value={buscaIndicador}
+                    onChange={(e) => setBuscaIndicador(e.target.value)}
+                    placeholder="Buscar vendedor, embaixador, cabeleireiro..."
+                    disabled={!podeAlterarIndicador}
+                    className={`${inputClass} pl-9 disabled:opacity-50`}
+                  />
+                </div>
+                <div className="max-h-28 overflow-y-auto border border-zinc-800 rounded-xl divide-y divide-zinc-800">
+                  {carregandoIndicadores && indicadores.length === 0 ? (
+                    <p className="text-xs text-zinc-500 px-3 py-2 flex items-center gap-2">
+                      <Loader2 size={12} className="animate-spin" /> Carregando...
+                    </p>
+                  ) : indicadores.length === 0 ? (
+                    <p className="text-xs text-zinc-500 px-3 py-2">Nenhum indicador encontrado.</p>
+                  ) : (
+                    indicadores.map((ind) => (
+                      <button
+                        key={ind.id}
+                        type="button"
+                        disabled={!podeAlterarIndicador}
+                        onClick={() => setIndicadorId(ind.id)}
+                        className={`w-full text-left px-3 py-2 hover:bg-zinc-900 flex justify-between items-center disabled:opacity-50 ${
+                          indicadorId === ind.id ? "bg-[#C9A66B]/10" : ""
+                        }`}
+                      >
+                        <span className="text-sm truncate">{ind.full_name}</span>
+                        <span className="text-[10px] text-zinc-500 shrink-0 ml-2">
+                          {rotuloRoleIndicador(ind.role)}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
               <CrmCadastrarMembroPanel
                 leadId={lead.id}
                 nome={lead.nome}
@@ -505,6 +626,7 @@ export default function CrmFechamentoPedidoModal({
                 apiBase={api}
                 permitirTipoMembro={isRede}
                 accent="gold"
+                indicadorId={indicadorId || null}
               />
 
               {perfilVinculado && (

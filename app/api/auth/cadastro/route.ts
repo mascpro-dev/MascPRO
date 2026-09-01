@@ -94,6 +94,8 @@ export async function POST(req: NextRequest) {
     neighborhood: String(body.neighborhood || "").trim() || null,
     city: String(body.city || "").trim(),
     state: String(body.state || "").trim().toUpperCase().slice(0, 2),
+    municipio: String(body.city || "").trim(),
+    uf: String(body.state || "").trim().toUpperCase().slice(0, 2),
     indicado_por: indicadoPor && String(indicadoPor).length > 10 ? indicadoPor : null,
     role: "CABELEIREIRO",
     nivel: "cabeleireiro",

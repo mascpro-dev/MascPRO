@@ -16,6 +16,10 @@ import { atualizarComoPago } from "@/lib/pedidoAtivo";
 import { calcularPercentualComissaoVendedor } from "@/lib/vendedorPrecos";
 import { notificarPedidoAguardandoAprovacao } from "@/lib/notificarCrm";
 import { calcularTotalPedidoCrm, parseDescontoFinalBody } from "@/lib/crmPedidoTotal";
+import {
+  buscarPerfilComprador,
+  processarIndicadorNoFechamento,
+} from "@/lib/crmIndicadorLead";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +92,7 @@ export async function POST(
 
   const { data: lead, error: errLead } = await supabase
     .from("crm_leads")
-    .select("id, nome, email, status, profile_id, order_id")
+    .select("id, nome, email, status, profile_id, order_id, responsavel_id, indicador_id")
     .eq("id", params.id)
     .maybeSingle();
 
@@ -131,18 +135,31 @@ export async function POST(
   }, 0);
 
   let buyer: { id: string; role: string | null; indicado_por: string | null } | null = null;
+  let avisoIndicador: string | undefined;
   const profileId = await resolverProfileId(
     supabase,
     lead,
     body.profile_id ? String(body.profile_id) : null
   );
+
+  const indicadorProc = await processarIndicadorNoFechamento(supabase, {
+    lead,
+    body,
+    profileId,
+    closingUserId: userId,
+    ctx: {
+      viewerRole: "VENDEDOR",
+      viewerId: userId,
+      distribuidorId: access.distribuidor_id,
+    },
+  });
+  if (!indicadorProc.ok) {
+    return NextResponse.json({ ok: false, error: indicadorProc.error }, { status: 400 });
+  }
+  avisoIndicador = indicadorProc.aviso;
+
   if (profileId) {
-    const { data: perfil } = await supabase
-      .from("profiles")
-      .select("id, role, indicado_por")
-      .eq("id", profileId)
-      .maybeSingle();
-    if (perfil) buyer = perfil;
+    buyer = await buscarPerfilComprador(supabase, profileId);
   }
 
   const indicadorRole = buyer?.indicado_por
@@ -295,5 +312,7 @@ export async function POST(
     excluir_meta: avaliacao.excluir_meta,
     recompensas,
     estoque,
+    indicador_id: indicadorProc.indicadorId,
+    aviso_indicador: avisoIndicador,
   });
 }
