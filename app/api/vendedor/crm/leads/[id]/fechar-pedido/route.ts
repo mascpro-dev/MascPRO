@@ -15,6 +15,7 @@ import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { atualizarComoPago } from "@/lib/pedidoAtivo";
 import { calcularPercentualComissaoVendedor } from "@/lib/vendedorPrecos";
 import { notificarPedidoAguardandoAprovacao } from "@/lib/notificarCrm";
+import { calcularTotalPedidoCrm, parseDescontoFinalBody } from "@/lib/crmPedidoTotal";
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +117,12 @@ export async function POST(
     0
   );
   const frete = Math.max(0, Number(body.shipping_cost) || 0);
-  const total = Number((subtotal + frete).toFixed(2));
+  const descontoExtra = parseDescontoFinalBody(body);
+  const { total, descontoFinal } = calcularTotalPedidoCrm({
+    subtotal,
+    frete,
+    descontoFinal: descontoExtra,
+  });
 
   const descontoTabela = avaliacao.itens.reduce((acc, item, idx) => {
     const qtd = itensLimpos[idx]?.quantidade || 1;
@@ -176,7 +182,7 @@ export async function POST(
     aprovacao_motivo: avaliacao.precisa_aprovacao ? avaliacao.motivos.join(", ") : null,
     excluir_meta: avaliacao.excluir_meta,
     excluir_comissao: avaliacao.excluir_comissao,
-    desconto_total: Number(descontoTabela.toFixed(2)),
+    desconto_total: Number((descontoTabela + descontoFinal).toFixed(2)),
   };
 
   const { data: order, error: errOrder } = await supabase

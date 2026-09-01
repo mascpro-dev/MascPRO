@@ -13,6 +13,9 @@ ALTER TABLE orders
 ALTER TABLE crm_leads
   ADD COLUMN IF NOT EXISTS order_id UUID REFERENCES orders(id) ON DELETE SET NULL;
 
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS desconto_total NUMERIC(12,2) NOT NULL DEFAULT 0;
+
 CREATE INDEX IF NOT EXISTS orders_gestor_idx ON orders(gestor_tipo, distribuidor_gestor_id);
 CREATE INDEX IF NOT EXISTS orders_crm_lead_idx ON orders(crm_lead_id);
 CREATE INDEX IF NOT EXISTS crm_leads_order_id_idx ON crm_leads(order_id);

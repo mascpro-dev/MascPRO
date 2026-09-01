@@ -105,6 +105,8 @@ export default function CrmFechamentoPedidoModal({
   const [buscaProduto, setBuscaProduto] = useState("");
   const [itens, setItens] = useState<ItemPedido[]>([]);
   const [frete, setFrete] = useState("0");
+  const [descontoFinal, setDescontoFinal] = useState("0");
+  const [totalFechado, setTotalFechado] = useState("");
   const [pagamento, setPagamento] = useState("pix");
   const [confirmarPagamento, setConfirmarPagamento] = useState(false);
 
@@ -231,7 +233,32 @@ export default function CrmFechamentoPedidoModal({
     [itens]
   );
   const freteNum = Number(String(frete).replace(",", ".")) || 0;
-  const total = subtotal + freteNum;
+  const bruto = subtotal + freteNum;
+  const descontoNum = Math.min(
+    bruto,
+    Math.max(0, Number(String(descontoFinal).replace(",", ".")) || 0)
+  );
+  const total = Math.max(0, bruto - descontoNum);
+
+  function aplicarTotalFechado(valor: string) {
+    setTotalFechado(valor);
+    const alvo = Number(String(valor).replace(",", "."));
+    if (!Number.isFinite(alvo) || valor.trim() === "") {
+      setDescontoFinal("0");
+      return;
+    }
+    const desconto = Math.max(0, bruto - alvo);
+    setDescontoFinal(desconto.toFixed(2));
+  }
+
+  function aplicarDescontoFinal(valor: string) {
+    setDescontoFinal(valor);
+    const desc = Math.min(
+      bruto,
+      Math.max(0, Number(String(valor).replace(",", ".")) || 0)
+    );
+    setTotalFechado(bruto > 0 ? Math.max(0, bruto - desc).toFixed(2) : "");
+  }
 
   async function criarPedido() {
     if (itens.length === 0) {
@@ -259,6 +286,7 @@ export default function CrmFechamentoPedidoModal({
           })),
           payment_method: pagamento,
           shipping_cost: freteNum,
+          desconto_final: descontoNum,
           confirmar_pagamento: confirmarPagamento,
           cep,
           logradouro,
@@ -568,6 +596,25 @@ export default function CrmFechamentoPedidoModal({
                             )}
                           </>
                         )}
+                        {!isVendedor && !i.bonificado && (
+                          <input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={i.preco_unitario}
+                            onChange={(e) =>
+                              setItens((arr) =>
+                                arr.map((x) =>
+                                  x.product_id === i.product_id
+                                    ? { ...x, preco_unitario: Math.max(0, Number(e.target.value) || 0) }
+                                    : x
+                                )
+                              )
+                            }
+                            className="w-20 bg-zinc-950 border border-zinc-700 rounded px-1 py-0.5 text-[10px] text-white"
+                            title="Preço unitário"
+                          />
+                        )}
                         <div className="flex items-center gap-1">
                           <button type="button" onClick={() => alterarQtd(i.product_id, -1)}>
                             <Minus size={12} />
@@ -665,11 +712,46 @@ export default function CrmFechamentoPedidoModal({
                 </div>
               </div>
 
-              <div className="flex justify-between items-center border-t border-zinc-800 pt-4">
-                <span className="text-zinc-500 text-sm">Total</span>
-                <span className="text-2xl font-black text-[#C9A66B]">
-                  R$ {total.toFixed(2)}
-                </span>
+              <div className="border-t border-zinc-800 pt-4 space-y-2">
+                <div className="flex justify-between text-sm text-zinc-400">
+                  <span>Subtotal produtos</span>
+                  <span>R$ {subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-zinc-400">
+                  <span>Frete</span>
+                  <span>R$ {freteNum.toFixed(2)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>Desconto final (R$)</label>
+                    <input
+                      value={descontoFinal}
+                      onChange={(e) => aplicarDescontoFinal(e.target.value)}
+                      className={inputClass}
+                      placeholder="0,00"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Total a cobrar (R$)</label>
+                    <input
+                      value={totalFechado || (bruto > 0 ? total.toFixed(2) : "")}
+                      onChange={(e) => aplicarTotalFechado(e.target.value)}
+                      className={inputClass}
+                      placeholder={bruto > 0 ? bruto.toFixed(2) : "0,00"}
+                    />
+                  </div>
+                </div>
+                {descontoNum > 0 && (
+                  <p className="text-[10px] text-amber-400/90">
+                    Desconto de R$ {descontoNum.toFixed(2)} aplicado no fechamento.
+                  </p>
+                )}
+                <div className="flex justify-between items-center pt-1">
+                  <span className="text-zinc-500 text-sm font-bold uppercase tracking-widest">Total</span>
+                  <span className="text-2xl font-black text-[#C9A66B]">
+                    R$ {total.toFixed(2)}
+                  </span>
+                </div>
               </div>
 
               <button

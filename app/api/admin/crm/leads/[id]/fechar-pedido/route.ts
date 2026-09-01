@@ -9,6 +9,7 @@ import {
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { atualizarComoPago } from "@/lib/pedidoAtivo";
+import { calcularTotalPedidoCrm, parseDescontoFinalBody } from "@/lib/crmPedidoTotal";
 
 export const dynamic = "force-dynamic";
 
@@ -169,7 +170,12 @@ export async function POST(
     0
   );
   const frete = Math.max(0, Number(body.shipping_cost) || 0);
-  const total = Number((subtotal + frete).toFixed(2));
+  const descontoExtra = parseDescontoFinalBody(body);
+  const { total, descontoFinal } = calcularTotalPedidoCrm({
+    subtotal,
+    frete,
+    descontoFinal: descontoExtra,
+  });
   const enderecoCompleto = montarEnderecoCompleto(body);
   const confirmarPagamento = Boolean(body.confirmar_pagamento);
   const statusInicial = confirmarPagamento ? "paid" : "pending";
@@ -185,6 +191,7 @@ export async function POST(
     gestor_tipo: gestor.gestor_tipo,
     distribuidor_gestor_id: gestor.distribuidor_gestor_id,
     crm_lead_id: lead.id,
+    desconto_total: descontoFinal,
   };
 
   const { data: order, error: errOrder } = await supabase
