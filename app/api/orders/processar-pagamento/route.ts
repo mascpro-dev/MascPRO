@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
-import { percentualComissaoDoIndicador, calcularValorComissao } from "@/lib/comissaoIndicacao";
+import { applyOrderRewards } from "@/lib/applyOrderRewards";
 
 function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -9,7 +9,7 @@ function getSupabase() {
 }
 
 // Chamado pelo admin ao marcar pedido como "paid" manualmente.
-// Garante comissão em R$ e incrementa total_compras_rede (PRO) do embaixador.
+// Garante comissão em R$ e incrementa total_compras_rede (PRO) do indicador.
 export async function POST(req: NextRequest) {
   try {
     const { orderId } = await req.json();
@@ -17,95 +17,31 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabase();
 
-    // Checa se comissão já existe
-    const { data: existente } = await supabase
-      .from("commissions")
-      .select("id")
-      .eq("order_id", orderId)
-      .maybeSingle();
-
-    if (existente) return NextResponse.json({ ok: true, msg: "comissão já existia" });
-
-    // Busca pedido
-    const { data: order } = await supabase
-      .from("orders")
-      .select("id, profile_id, total")
-      .eq("id", orderId)
-      .single();
-
-    if (!order?.profile_id) return NextResponse.json({ ok: false, error: "pedido não encontrado" }, { status: 404 });
-
-    // Busca comprador e embaixador
-    const { data: comprador } = await supabase
-      .from("profiles")
-      .select("id, indicado_por")
-      .eq("id", order.profile_id)
-      .single();
-
-    let percentual: number | null = null;
-    if (comprador?.indicado_por) {
-      const { data: indicador } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", comprador.indicado_por)
-        .maybeSingle();
-      percentual = await percentualComissaoDoIndicador(String(indicador?.role || ""));
-    }
-
-    const valorPedido = Number(order.total || 0);
-    const valorComissao =
-      percentual != null ? calcularValorComissao(valorPedido, percentual) : 0;
-    const proBonus = Math.round(valorPedido);
-
-    // Compra própria: comprador sempre ganha PRO da loja
-    if (proBonus > 0) {
-      const { data: compradorProfile } = await supabase
-        .from("profiles")
-        .select("total_compras_proprias")
-        .eq("id", order.profile_id)
-        .single();
-      await supabase
-        .from("profiles")
-        .update({ total_compras_proprias: Number(compradorProfile?.total_compras_proprias || 0) + proBonus })
-        .eq("id", order.profile_id);
-    }
-
-    if (!comprador?.indicado_por) return NextResponse.json({ ok: true, msg: "sem indicador", proBonus });
-
-    // Cria comissão em R$ (distribuidor não recebe)
-    if (valorComissao > 0 && percentual != null) {
-      await supabase.from("commissions").insert({
-        embaixador_id: comprador.indicado_por,
-        cabeleireiro_id: comprador.id,
-        order_id: order.id,
-        valor_pedido: valorPedido,
-        percentual,
-        valor_comissao: valorComissao,
-        status: "disponivel",
-      });
-    }
-
-    // Incrementa total_compras_rede para o indicador direto
-    if (proBonus > 0) {
-      const { data: embaixador } = await supabase
-        .from("profiles")
-        .select("total_compras_rede")
-        .eq("id", comprador.indicado_por)
-        .single();
-
-      await supabase
-        .from("profiles")
-        .update({ total_compras_rede: (embaixador?.total_compras_rede || 0) + proBonus })
-        .eq("id", comprador.indicado_por);
+    const rewards = await applyOrderRewards(supabase, orderId);
+    if (!rewards.ok) {
+      return NextResponse.json({ ok: false, error: rewards.error }, { status: 500 });
     }
 
     const baixa = await applyOrderCatalogStock(supabase, orderId);
     if (!baixa.ok) {
-      return NextResponse.json({ ok: true, valorComissao, proBonus, estoqueCatalogoErro: baixa.error });
+      return NextResponse.json({
+        ok: true,
+        valorComissao: rewards.valorComissao,
+        proBonus: rewards.proPropria,
+        proRede: rewards.proRede,
+        estoqueCatalogoErro: baixa.error,
+      });
     }
 
-    return NextResponse.json({ ok: true, valorComissao, proBonus, estoqueCatalogo: baixa });
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+    return NextResponse.json({
+      ok: true,
+      valorComissao: rewards.valorComissao,
+      proBonus: rewards.proPropria,
+      proRede: rewards.proRede,
+      estoqueCatalogo: baixa,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Erro interno.";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

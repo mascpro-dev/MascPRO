@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
+import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { rateLimit, LIMITS } from "@/lib/rateLimit";
-import { percentualComissaoDoIndicador, calcularValorComissao } from "@/lib/comissaoIndicacao";
 import { atualizarComoPago } from "@/lib/pedidoAtivo";
 
 function getSupabase() {
@@ -15,106 +15,6 @@ function getSupabase() {
 }
 
 const STATUS_PAGO = new Set(["paid", "separacao", "despachado", "entregue"]);
-
-async function creditarCompraPropria(supabase: any, orderId: string) {
-  // Verifica flag de idempotência — evita dupla contagem
-  const { data: order } = await supabase
-    .from("orders")
-    .select("id, profile_id, total, pro_aplicado")
-    .eq("id", orderId)
-    .single();
-  if (!order?.profile_id || order?.pro_aplicado) return;
-
-  const proBonus = Math.round(Number(order.total || 0));
-  if (proBonus <= 0) return;
-
-  const { data: comprador } = await supabase
-    .from("profiles")
-    .select("total_compras_proprias")
-    .eq("id", order.profile_id)
-    .single();
-
-  await supabase
-    .from("profiles")
-    .update({ total_compras_proprias: Number(comprador?.total_compras_proprias || 0) + proBonus })
-    .eq("id", order.profile_id);
-
-  // Marca como aplicado para evitar duplicação em chamadas futuras
-  await supabase
-    .from("orders")
-    .update({ pro_aplicado: true })
-    .eq("id", orderId);
-}
-
-async function garantirComissao(supabase: any, orderId: string) {
-  // Dupla proteção: flag no pedido + unicidade na tabela commissions
-  const { data: order } = await supabase
-    .from("orders")
-    .select("id, profile_id, total, comissao_aplicada")
-    .eq("id", orderId)
-    .single();
-  if (!order?.profile_id || order?.comissao_aplicada) return;
-
-  // Verifica também se já existe comissão para este pedido
-  const { data: existente } = await supabase
-    .from("commissions")
-    .select("id")
-    .eq("order_id", orderId)
-    .maybeSingle();
-  if (existente) {
-    // Sincroniza a flag se já havia registro
-    await supabase.from("orders").update({ comissao_aplicada: true }).eq("id", orderId);
-    return;
-  }
-
-  const { data: comprador } = await supabase
-    .from("profiles")
-    .select("id, indicado_por")
-    .eq("id", order.profile_id)
-    .single();
-  if (!comprador?.indicado_por) return;
-
-  const { data: indicador } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", comprador.indicado_por)
-    .maybeSingle();
-
-  const valorPedido = Number(order.total || 0);
-  const percentual = await percentualComissaoDoIndicador(String(indicador?.role || ""));
-
-  if (percentual != null) {
-    const valorComissao = calcularValorComissao(valorPedido, percentual);
-    if (valorComissao > 0) {
-      await supabase.from("commissions").insert({
-        embaixador_id: comprador.indicado_por,
-        cabeleireiro_id: comprador.id,
-        order_id: order.id,
-        valor_pedido: valorPedido,
-        percentual,
-        valor_comissao: valorComissao,
-        status: "disponivel",
-      });
-    }
-  }
-
-  // Credita PRO (rede) ao indicador direto — mesmo se não houver comissão em R$
-  const proBonus = Math.round(valorPedido);
-  if (proBonus > 0) {
-    const { data: emb } = await supabase
-      .from("profiles")
-      .select("total_compras_rede")
-      .eq("id", comprador.indicado_por)
-      .single();
-    await supabase
-      .from("profiles")
-      .update({ total_compras_rede: (emb?.total_compras_rede || 0) + proBonus })
-      .eq("id", comprador.indicado_por);
-  }
-
-  // Marca pedido com flag de comissão aplicada
-  await supabase.from("orders").update({ comissao_aplicada: true }).eq("id", orderId);
-}
 
 /** Verifica assinatura HMAC-SHA256 do Mercado Pago */
 async function verificarAssinaturaMP(req: NextRequest, body: any): Promise<boolean> {
@@ -261,11 +161,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (STATUS_PAGO.has(newStatus) && !jaEstavaPago) {
-      await creditarCompraPropria(supabase, String(orderId));
+      const rewards = await applyOrderRewards(supabase, String(orderId));
+      if (!rewards.ok) {
+        console.error("[mp-webhook] recompensas:", rewards.error);
+      }
     }
 
-    if (newStatus === "paid") {
-      await garantirComissao(supabase, String(orderId));
+    if (STATUS_PAGO.has(newStatus)) {
       const baixa = await applyOrderCatalogStock(supabase, String(orderId));
       if (!baixa.ok) {
         console.error("[mp-webhook] baixa estoque catálogo:", baixa.error);

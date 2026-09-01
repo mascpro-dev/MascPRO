@@ -1,9 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { percentualComissaoDoIndicador, calcularValorComissao } from "@/lib/comissaoIndicacao";
 
+type OrderRewardsRow = {
+  id: string;
+  profile_id: string | null;
+  total: number | null;
+  comissao_aplicada: boolean | null;
+  pro_aplicado: boolean | null;
+  pro_rede_aplicado?: boolean | null;
+  excluir_comissao: boolean | null;
+};
+
 /**
  * Aplica comissão em R$ + bônus PRO (próprio e da rede) para um pedido.
- * Idempotente: usa orders.comissao_aplicada e orders.pro_aplicado.
+ * Idempotente: orders.pro_aplicado, orders.pro_rede_aplicado, orders.comissao_aplicada.
  *
  * Use sempre que o pedido entrar em status pago (manual, MP webhook, admin).
  */
@@ -20,14 +30,50 @@ export async function applyOrderRewards(
     }
   | { ok: false; error: string }
 > {
-  const { data: order, error: eOrder } = await supabase
+  const { data: orderRaw, error: eOrder } = await supabase
     .from("orders")
-    .select("id, profile_id, total, comissao_aplicada, pro_aplicado, excluir_comissao")
+    .select(
+      "id, profile_id, total, comissao_aplicada, pro_aplicado, pro_rede_aplicado, excluir_comissao"
+    )
     .eq("id", orderId)
     .maybeSingle();
 
-  if (eOrder) return { ok: false, error: eOrder.message };
-  if (!order) return { ok: false, error: "Pedido não encontrado." };
+  if (eOrder) {
+    // Compat: ambiente sem coluna pro_rede_aplicado ainda
+    if (eOrder.message?.includes("pro_rede_aplicado")) {
+      const { data: orderFallback, error: eFallback } = await supabase
+        .from("orders")
+        .select("id, profile_id, total, comissao_aplicada, pro_aplicado, excluir_comissao")
+        .eq("id", orderId)
+        .maybeSingle();
+      if (eFallback) return { ok: false, error: eFallback.message };
+      if (!orderFallback) return { ok: false, error: "Pedido não encontrado." };
+      return applyOrderRewardsInner(supabase, orderId, {
+        ...orderFallback,
+        pro_rede_aplicado: orderFallback.comissao_aplicada,
+      });
+    }
+    return { ok: false, error: eOrder.message };
+  }
+
+  if (!orderRaw) return { ok: false, error: "Pedido não encontrado." };
+  return applyOrderRewardsInner(supabase, orderId, orderRaw as OrderRewardsRow);
+}
+
+async function applyOrderRewardsInner(
+  supabase: SupabaseClient,
+  orderId: string,
+  order: OrderRewardsRow
+): Promise<
+  | {
+      ok: true;
+      valorComissao: number;
+      proPropria: number;
+      proRede: number;
+      skipped?: string;
+    }
+  | { ok: false; error: string }
+> {
   if (order.excluir_comissao) {
     return { ok: true, valorComissao: 0, proPropria: 0, proRede: 0, skipped: "excluir_comissao" };
   }
@@ -38,7 +84,10 @@ export async function applyOrderRewards(
   const valorPedido = Number(order.total || 0);
   const proBonus = Math.max(0, Math.round(valorPedido));
   let valorComissao = 0;
+  let proPropriaAplicado = 0;
+  let proRedeAplicado = 0;
 
+  // 1) PRO do comprador (compras próprias)
   if (!order.pro_aplicado && proBonus > 0) {
     const { data: comp, error: eComp } = await supabase
       .from("profiles")
@@ -60,8 +109,51 @@ export async function applyOrderRewards(
       .update({ pro_aplicado: true })
       .eq("id", orderId);
     if (eFlagPro) return { ok: false, error: eFlagPro.message };
+
+    proPropriaAplicado = proBonus;
   }
 
+  // 2) PRO da rede (compras dos indicados) — independente da comissão em R$
+  if (!order.pro_rede_aplicado && proBonus > 0) {
+    const { data: comprador, error: eComprador } = await supabase
+      .from("profiles")
+      .select("id, indicado_por")
+      .eq("id", order.profile_id)
+      .single();
+    if (eComprador) return { ok: false, error: eComprador.message };
+
+    if (comprador?.indicado_por) {
+      const { data: emb, error: eEmb } = await supabase
+        .from("profiles")
+        .select("total_compras_rede")
+        .eq("id", comprador.indicado_por)
+        .single();
+      if (eEmb) return { ok: false, error: eEmb.message };
+
+      const { error: eUpRede } = await supabase
+        .from("profiles")
+        .update({
+          total_compras_rede: Number(emb?.total_compras_rede || 0) + proBonus,
+        })
+        .eq("id", comprador.indicado_por);
+      if (eUpRede) return { ok: false, error: eUpRede.message };
+
+      const { error: eFlagRede } = await supabase
+        .from("orders")
+        .update({ pro_rede_aplicado: true })
+        .eq("id", orderId);
+      if (eFlagRede && !eFlagRede.message?.includes("pro_rede_aplicado")) {
+        return { ok: false, error: eFlagRede.message };
+      }
+
+      proRedeAplicado = proBonus;
+    } else {
+      // Sem indicador: marca como processado para não reprocessar
+      await supabase.from("orders").update({ pro_rede_aplicado: true }).eq("id", orderId);
+    }
+  }
+
+  // 3) Comissão em R$ para o indicador
   if (!order.comissao_aplicada) {
     const { data: existente } = await supabase
       .from("commissions")
@@ -103,23 +195,6 @@ export async function applyOrderRewards(
             if (eIns) return { ok: false, error: eIns.message };
           }
         }
-
-        if (proBonus > 0) {
-          const { data: emb, error: eEmb } = await supabase
-            .from("profiles")
-            .select("total_compras_rede")
-            .eq("id", comprador.indicado_por)
-            .single();
-          if (eEmb) return { ok: false, error: eEmb.message };
-
-          const { error: eUpRede } = await supabase
-            .from("profiles")
-            .update({
-              total_compras_rede: Number(emb?.total_compras_rede || 0) + proBonus,
-            })
-            .eq("id", comprador.indicado_por);
-          if (eUpRede) return { ok: false, error: eUpRede.message };
-        }
       }
     }
 
@@ -133,7 +208,7 @@ export async function applyOrderRewards(
   return {
     ok: true,
     valorComissao,
-    proPropria: proBonus,
-    proRede: proBonus,
+    proPropria: proPropriaAplicado,
+    proRede: proRedeAplicado,
   };
 }

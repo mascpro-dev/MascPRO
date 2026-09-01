@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
-import { percentualComissaoDoIndicador, calcularValorComissao } from "@/lib/comissaoIndicacao";
+import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { atualizarComoPago, statusPedidoPago } from "@/lib/pedidoAtivo";
 
 function getSupabase() {
@@ -13,90 +13,6 @@ function getSupabase() {
 }
 
 const STATUS_PAGO = new Set(["paid", "separacao", "despachado", "entregue"]);
-
-async function creditarCompraPropria(supabase: any, orderId: string) {
-  const { data: order } = await supabase
-    .from("orders")
-    .select("id, profile_id, total")
-    .eq("id", orderId)
-    .single();
-  if (!order?.profile_id) return;
-
-  const proBonus = Math.round(Number(order.total || 0));
-  if (proBonus <= 0) return;
-
-  const { data: comprador } = await supabase
-    .from("profiles")
-    .select("total_compras_proprias")
-    .eq("id", order.profile_id)
-    .single();
-
-  await supabase
-    .from("profiles")
-    .update({ total_compras_proprias: Number(comprador?.total_compras_proprias || 0) + proBonus })
-    .eq("id", order.profile_id);
-}
-
-async function garantirComissao(supabase: any, orderId: string) {
-  const { data: existente } = await supabase
-    .from("commissions")
-    .select("id")
-    .eq("order_id", orderId)
-    .maybeSingle();
-  if (existente) return;
-
-  const { data: order } = await supabase
-    .from("orders")
-    .select("id, profile_id, total")
-    .eq("id", orderId)
-    .single();
-  if (!order?.profile_id) return;
-
-  const { data: comprador } = await supabase
-    .from("profiles")
-    .select("id, indicado_por")
-    .eq("id", order.profile_id)
-    .single();
-  if (!comprador?.indicado_por) return;
-
-  const { data: indicador } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", comprador.indicado_por)
-    .maybeSingle();
-
-  const valorPedido = Number(order.total || 0);
-  const percentual = await percentualComissaoDoIndicador(String(indicador?.role || ""));
-
-  if (percentual != null) {
-    const valorComissao = calcularValorComissao(valorPedido, percentual);
-    if (valorComissao > 0) {
-      await supabase.from("commissions").insert({
-        embaixador_id: comprador.indicado_por,
-        cabeleireiro_id: comprador.id,
-        order_id: order.id,
-        valor_pedido: valorPedido,
-        percentual,
-        valor_comissao: valorComissao,
-        status: "disponivel",
-      });
-    }
-  }
-
-  const proBonus = Math.round(valorPedido);
-  const { data: embaixadorProfile } = await supabase
-    .from("profiles")
-    .select("total_compras_rede")
-    .eq("id", comprador.indicado_por)
-    .single();
-
-  if (embaixadorProfile !== null) {
-    await supabase
-      .from("profiles")
-      .update({ total_compras_rede: (embaixadorProfile?.total_compras_rede || 0) + proBonus })
-      .eq("id", comprador.indicado_por);
-  }
-}
 
 async function obterStatusNoMercadoPago(orderId: string, paymentId?: string) {
   const mpToken = process.env.MP_ACCESS_TOKEN;
@@ -152,8 +68,19 @@ export async function POST(req: NextRequest) {
       .eq("id", orderId)
       .single();
 
-    // Se já foi pago/cancelado, não consulta MP nem atualiza
+    const jaEstavaPago = statusPedidoPago(orderAtual?.status);
+
+    // Se já foi pago/cancelado, tenta aplicar recompensas pendentes e retorna
     if (orderAtual?.status && ["paid", "separacao", "despachado", "entregue", "cancelled"].includes(orderAtual.status)) {
+      if (STATUS_PAGO.has(orderAtual.status)) {
+        try {
+          await applyOrderRewards(supabase, orderId);
+        } catch (rewardErr: unknown) {
+          const msg = rewardErr instanceof Error ? rewardErr.message : "erro recompensas";
+          console.error("[confirm] recompensas (pedido já pago):", msg);
+        }
+      }
+
       const { data: order } = await supabase
         .from("orders")
         .select("id, total, status, created_at, shipping_address, shipping_cost")
@@ -166,17 +93,15 @@ export async function POST(req: NextRequest) {
     let mpCheck = { status: "pending", paymentId: paymentId || null };
     try {
       mpCheck = await obterStatusNoMercadoPago(orderId, paymentId || undefined);
-    } catch (mpErr: any) {
-      console.error("[confirm] Erro ao consultar MP:", mpErr.message);
-      // Continua com status atual — não quebra o fluxo
+    } catch (mpErr: unknown) {
+      const msg = mpErr instanceof Error ? mpErr.message : "erro MP";
+      console.error("[confirm] Erro ao consultar MP:", msg);
     }
 
     const novoStatus = mpCheck.status;
-    const paymentIdFinal = mpCheck.paymentId;
 
-    // Só atualiza no banco se o status realmente mudou (evita acionar triggers desnecessariamente)
+    // Só atualiza no banco se o status realmente mudou
     if (novoStatus !== orderAtual?.status) {
-      const jaEstavaPago = statusPedidoPago(orderAtual?.status);
       const { error: updateError } = statusPedidoPago(novoStatus)
         ? await atualizarComoPago(supabase, orderId, { status: novoStatus }, jaEstavaPago)
         : await supabase
@@ -190,29 +115,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Processa comissão e baixa de estoque catálogo para estados já pagos
-    if (STATUS_PAGO.has(novoStatus)) {
+    if (STATUS_PAGO.has(novoStatus) && !jaEstavaPago) {
       try {
-        await creditarCompraPropria(supabase, orderId);
-      } catch (ownErr: any) {
-        console.error("[confirm] Erro ao creditar compra própria:", ownErr.message);
+        const rewards = await applyOrderRewards(supabase, orderId);
+        if (!rewards.ok) {
+          console.error("[confirm] recompensas:", rewards.error);
+        }
+      } catch (rewardErr: unknown) {
+        const msg = rewardErr instanceof Error ? rewardErr.message : "erro recompensas";
+        console.error("[confirm] Erro ao aplicar recompensas:", msg);
       }
-    }
 
-    if (STATUS_PAGO.has(novoStatus)) {
-      try {
-        await garantirComissao(supabase, orderId);
-      } catch (comErr: any) {
-        console.error("[confirm] Erro ao processar comissão:", comErr.message);
-        // Não bloqueia — status já foi atualizado
-      }
       try {
         const baixa = await applyOrderCatalogStock(supabase, orderId);
         if (!baixa.ok) {
           console.error("[confirm] Erro na baixa de estoque catálogo:", baixa.error);
         }
-      } catch (stErr: any) {
-        console.error("[confirm] Exceção na baixa de estoque catálogo:", stErr.message);
+      } catch (stErr: unknown) {
+        const msg = stErr instanceof Error ? stErr.message : "erro estoque";
+        console.error("[confirm] Exceção na baixa de estoque catálogo:", msg);
       }
     }
 
@@ -223,9 +144,9 @@ export async function POST(req: NextRequest) {
       .single();
 
     return NextResponse.json({ ok: true, order, status: novoStatus });
-  } catch (err: any) {
-    console.error("[confirm] Erro geral:", err.message);
-    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Erro interno.";
+    console.error("[confirm] Erro geral:", msg);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
-
