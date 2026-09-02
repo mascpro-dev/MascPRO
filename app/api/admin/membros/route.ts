@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getAdminServiceClient } from "@/lib/adminServer";
 import { lerCidadeEstado } from "@/lib/profileLocalizacao";
+import {
+  contarIndicadosDiretos,
+  enriquecerProRedeMembro,
+  sincronizarNetworkCoinsLote,
+} from "@/lib/syncProRedeMembro";
 
 export async function GET() {
   try {
@@ -11,6 +16,11 @@ export async function GET() {
       .from("profiles")
       .select("id, full_name, email, whatsapp, instagram, role, nivel, city, state, municipio, uf, created_at, indicado_por, personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total, avatar_url")
       .order("pro_total", { ascending: false });
+
+    if (!profiles) return NextResponse.json({ ok: false, error: "Erro ao buscar perfis" }, { status: 500 });
+
+    const indicadosCount = contarIndicadosDiretos(profiles);
+    await sincronizarNetworkCoinsLote(supabase, profiles, indicadosCount);
 
     const idsComCompra = new Set<string>();
     for (let from = 0; from < 200_000; from += 1000) {
@@ -28,18 +38,22 @@ export async function GET() {
       if (!pedidos || pedidos.length < 1000) break;
     }
 
-    if (!profiles) return NextResponse.json({ ok: false, error: "Erro ao buscar perfis" }, { status: 500 });
-
     // Mapa de perfis para lookup de indicador
     const perfilMap = new Map(profiles.map((p: any) => [p.id, p]));
 
     const membros = profiles.map((m: any) => {
       const loc = lerCidadeEstado(m);
+      const qtd = indicadosCount.get(m.id) || 0;
+      const proRede = enriquecerProRedeMembro(m, qtd);
       return {
         ...m,
         city: loc.city || m.city,
         state: loc.state || m.state,
         tem_compra: idsComCompra.has(m.id),
+        qtd_indicados: qtd,
+        pro_indicacao: proRede.pro_indicacao,
+        pro_compras_rede: proRede.pro_compras_rede,
+        pro_rede_total: proRede.pro_rede_total,
         indicador: m.indicado_por
           ? perfilMap.get(m.indicado_por)
             ? { full_name: perfilMap.get(m.indicado_por).full_name }

@@ -53,18 +53,28 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name, network_coins, personal_coins, total_compras_proprias, total_compras_rede, pro_total")
-          .eq("id", user.id)
-          .single();
+        const res = await fetch("/api/perfil/pro-score", { cache: "no-store" });
+        const dados = await res.json().catch(() => null);
 
-        if (profile) {
-          const pro = getProBreakdown(profile);
-          setNome(profile.full_name || "Membro");
-          setScoreTotal(pro.total);
-          setScoreRede(pro.redeIndicacao + pro.comprasIndicados);
-          setScorePessoal(pro.pessoal + pro.comprasProprias);
+        if (res.ok && dados?.ok) {
+          setNome(dados.perfil?.full_name || "Membro");
+          setScoreTotal(Number(dados.score_total || 0));
+          setScoreRede(Number(dados.score_rede || 0));
+          setScorePessoal(Number(dados.score_pessoal || 0));
+        } else {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name, network_coins, personal_coins, total_compras_proprias, total_compras_rede, pro_total")
+            .eq("id", user.id)
+            .single();
+
+          if (profile) {
+            const pro = getProBreakdown(profile);
+            setNome(profile.full_name || "Membro");
+            setScoreTotal(pro.total);
+            setScoreRede(pro.redeIndicacao + pro.comprasIndicados);
+            setScorePessoal(pro.pessoal + pro.comprasProprias);
+          }
         }
 
         const { data: pedidos } = await supabase
@@ -155,8 +165,8 @@ export default function DashboardPage() {
                 <Users className="text-purple-500" size={24} />
             </div>
             <div>
-                <h2 className="text-4xl font-black text-white mb-1">{scoreRede}</h2>
-                <p className="text-gray-500 text-xs font-bold uppercase">Ganhos por indicação</p>
+                <h2 className="text-4xl font-black text-white mb-1">{scoreRede.toLocaleString("pt-BR")}</h2>
+                <p className="text-gray-500 text-xs font-bold uppercase">Indicação + compras da rede</p>
                 <div className="w-full h-1 bg-zinc-800 rounded-full mt-6">
                     <div className="h-full bg-purple-500 w-[10%]"></div> 
                 </div>

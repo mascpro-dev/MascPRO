@@ -14,6 +14,10 @@ type Membro = {
   instagram: string | null; role: string; city: string | null; state: string | null;
   created_at: string; indicado_por: string | null;
   personal_coins: number; network_coins: number; total_compras_proprias: number; total_compras_rede: number; pro_total: number;
+  qtd_indicados?: number;
+  pro_indicacao?: number;
+  pro_compras_rede?: number;
+  pro_rede_total?: number;
   indicador?: { full_name: string } | null;
   tem_compra?: boolean; nivel?: string | null;
 };
@@ -207,12 +211,12 @@ export default function AdminMembrosPage() {
           <p className="text-zinc-500 text-center mt-20">Nenhum membro encontrado.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            <div className="hidden lg:grid lg:grid-cols-[2rem_2.75rem_minmax(12rem,1fr)_4.75rem_6.25rem_4rem_9.5rem_2.75rem] lg:items-center lg:gap-x-4 lg:px-4 lg:pb-2 lg:pt-1 text-[9px] font-black uppercase tracking-widest text-zinc-600 border-b border-zinc-800/80">
+            <div className="hidden lg:grid lg:grid-cols-[2rem_2.75rem_minmax(12rem,1fr)_4.75rem_8rem_4rem_9.5rem_2.75rem] lg:items-center lg:gap-x-4 lg:px-4 lg:pb-2 lg:pt-1 text-[9px] font-black uppercase tracking-widest text-zinc-600 border-b border-zinc-800/80">
               <span className="text-right tabular-nums">#</span>
               <span aria-hidden className="block min-w-[2.75rem]" />
               <span>Membro</span>
               <span className="text-right">PRO</span>
-              <span className="text-right">Compras rede (PRO)</span>
+              <span className="text-right">PRO rede</span>
               <span className="text-center">Redes</span>
               <span className="text-center">Função / status</span>
               <span className="sr-only">Editar</span>
@@ -220,7 +224,10 @@ export default function AdminMembrosPage() {
 
             {filtrado.map((m, idx) => {
               const proTotal = getProBreakdown(m).total;
-              const redeFmt = `${Number(m.total_compras_rede || 0).toLocaleString("pt-BR", { minimumFractionDigits: 0 })} PRO`;
+              const proIndicacao = Number(m.pro_indicacao ?? m.network_coins ?? 0);
+              const proComprasRede = Number(m.pro_compras_rede ?? m.total_compras_rede ?? 0);
+              const proRedeTotal = Number(m.pro_rede_total ?? proIndicacao + proComprasRede);
+              const qtdIndicados = m.qtd_indicados ?? 0;
 
               const blocoMembro = (
                 <div className="min-w-0 space-y-1">
@@ -314,9 +321,18 @@ export default function AdminMembrosPage() {
                       </div>
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">
-                          Compras rede
+                          PRO rede
                         </span>
-                        <span className="text-sm font-black tabular-nums text-emerald-400">{redeFmt}</span>
+                        <span className="text-sm font-black tabular-nums text-emerald-400">
+                          {proRedeTotal.toLocaleString("pt-BR")} PRO
+                        </span>
+                        <span className="text-[9px] tabular-nums text-zinc-500">
+                          Ind: {proIndicacao.toLocaleString("pt-BR")}
+                          {qtdIndicados > 0 ? ` (${qtdIndicados})` : ""}
+                        </span>
+                        <span className="text-[9px] tabular-nums text-zinc-500">
+                          Compras: {proComprasRede.toLocaleString("pt-BR")}
+                        </span>
                       </div>
                       <div className="flex items-center justify-center">{icones}</div>
                       <div className="flex flex-col justify-center gap-2">{pills}</div>
@@ -334,7 +350,7 @@ export default function AdminMembrosPage() {
                   </div>
 
                   {/* Desktop — colunas alinhadas */}
-                  <div className="hidden min-h-[4.25rem] lg:grid lg:grid-cols-[2rem_2.75rem_minmax(12rem,1fr)_4.75rem_6.25rem_4rem_9.5rem_2.75rem] lg:items-center lg:gap-x-4 lg:px-4 lg:py-3">
+                  <div className="hidden min-h-[4.25rem] lg:grid lg:grid-cols-[2rem_2.75rem_minmax(12rem,1fr)_4.75rem_8rem_4rem_9.5rem_2.75rem] lg:items-center lg:gap-x-4 lg:px-4 lg:py-3">
                     <span className="text-right text-[11px] font-black tabular-nums text-zinc-500">{idx + 1}</span>
                     <div className="flex justify-center">
                       <AdminMemberAvatar avatarUrl={m.avatar_url} name={m.full_name} />
@@ -347,8 +363,17 @@ export default function AdminMembrosPage() {
                       </span>
                     </div>
                     <div className="flex flex-col items-end justify-center gap-0.5 text-right">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Rede</span>
-                      <span className="text-sm font-black tabular-nums leading-tight text-emerald-400">{redeFmt}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">PRO rede</span>
+                      <span className="text-sm font-black tabular-nums leading-tight text-emerald-400">
+                        {proRedeTotal.toLocaleString("pt-BR")} PRO
+                      </span>
+                      <span className="text-[9px] tabular-nums leading-tight text-[#C9A66B]/80">
+                        Ind {proIndicacao.toLocaleString("pt-BR")}
+                        {qtdIndicados > 0 ? ` · ${qtdIndicados}p` : ""}
+                      </span>
+                      <span className="text-[9px] tabular-nums leading-tight text-zinc-500">
+                        Compras {proComprasRede.toLocaleString("pt-BR")}
+                      </span>
                     </div>
                     {icones}
                     <div className="flex min-w-0 justify-center">{pills}</div>

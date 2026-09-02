@@ -65,19 +65,25 @@ export default function RedePage() {
             setLinkConvite(`${origem}/cadastro?ref=${user.id}`);
         }
 
-        // 2. Financeiro (Seu Perfil)
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("network_coins, total_compras_rede") 
-          .eq("id", user.id)
-          .single();
+        // 2. Financeiro (sincroniza PRO de indicação + compras da rede)
+        const resPro = await fetch("/api/perfil/pro-score", { cache: "no-store" });
+        const dadosPro = await resPro.json().catch(() => null);
+        if (resPro.ok && dadosPro?.ok) {
+          setBonusDireto(Number(dadosPro.pro_indicacao || 0));
+          setSaldoTotal(Number(dadosPro.pro_rede_total || 0));
+        } else {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("network_coins, total_compras_rede") 
+            .eq("id", user.id)
+            .single();
 
-        if (profile) {
+          if (profile) {
             const direto = profile.network_coins || 0;
             const comprasRede = profile.total_compras_rede || 0;
-            
             setBonusDireto(direto);
             setSaldoTotal(direto + comprasRede);
+          }
         }
 
         // 3. Equipe (Busca TODOS que você indicou)
