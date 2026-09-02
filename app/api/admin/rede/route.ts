@@ -8,7 +8,7 @@ export async function GET() {
 
     const { data: todos, error: qErr } = await supabase
       .from("profiles")
-      .select("id, full_name, avatar_url, indicado_por");
+      .select("id, full_name, avatar_url, indicado_por, network_coins, total_compras_rede, pro_total");
 
     if (qErr) return NextResponse.json({ ok: false, error: qErr.message }, { status: 500 });
 
@@ -19,11 +19,22 @@ export async function GET() {
 
     const lideres = (todos || [])
       .filter((u: any) => mapa[u.id] > 0)
-      .map((lider: any) => ({
-        ...lider,
-        count: mapa[lider.id],
-        indicados: (todos || []).filter((i: any) => i.indicado_por === lider.id),
-      }))
+      .map((lider: any) => {
+        const indicados = (todos || []).filter((i: any) => i.indicado_por === lider.id);
+        const networkCoins = Number(lider.network_coins || 0);
+        const comprasRede = Number(lider.total_compras_rede || 0);
+        const esperadoIndicacao = mapa[lider.id] * 50;
+        return {
+          ...lider,
+          count: mapa[lider.id],
+          indicados,
+          network_coins: networkCoins,
+          total_compras_rede: comprasRede,
+          pro_rede_total: networkCoins + comprasRede,
+          network_coins_esperado: esperadoIndicacao,
+          network_coins_ok: networkCoins === esperadoIndicacao,
+        };
+      })
       .sort((a: any, b: any) => b.count - a.count);
 
     return NextResponse.json({ ok: true, lideres });
