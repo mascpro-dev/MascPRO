@@ -40,10 +40,14 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await query;
   if (error) {
-    return NextResponse.json(
-      { ok: false, error: error.message.includes("crm_visitas") ? "Rode supabase/crm_vendedor_visitas_metas.sql" : error.message },
-      { status: 500 }
-    );
+    const msg = error.message || "Falha ao carregar visitas.";
+    const dica =
+      /permission denied|crm_visitas/i.test(msg)
+        ? " Rode supabase/fix_crm_visitas_grants.sql no SQL Editor do Supabase."
+        : msg.includes("crm_visitas")
+          ? " Rode supabase/crm_vendedor_visitas_metas.sql"
+          : "";
+    return NextResponse.json({ ok: false, error: msg + dica }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true, visitas: data || [] });
@@ -93,7 +97,12 @@ export async function POST(req: NextRequest) {
 
   const { data: visita, error } = await supabase.from("crm_visitas").insert(row).select().single();
   if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    const msg = error.message || "Falha ao registrar visita.";
+    const dica =
+      /permission denied|crm_visitas/i.test(msg)
+        ? " Rode supabase/fix_crm_visitas_grants.sql no SQL Editor do Supabase."
+        : "";
+    return NextResponse.json({ ok: false, error: msg + dica }, { status: 500 });
   }
 
   if (body?.crm_lead_id) {

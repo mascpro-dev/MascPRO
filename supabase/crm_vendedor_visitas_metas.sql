@@ -24,6 +24,13 @@ CREATE TABLE IF NOT EXISTS crm_visitas (
 CREATE INDEX IF NOT EXISTS idx_crm_visitas_vendedor ON crm_visitas(vendedor_id, data_visita DESC);
 CREATE INDEX IF NOT EXISTS idx_crm_visitas_distribuidor ON crm_visitas(distribuidor_id, data_visita DESC);
 
+-- Permissões (evita "permission denied for table crm_visitas")
+GRANT ALL ON TABLE public.crm_visitas TO authenticated, service_role, anon;
+GRANT ALL ON TABLE public.vendedor_metas TO authenticated, service_role, anon;
+
+ALTER TABLE public.crm_visitas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vendedor_metas ENABLE ROW LEVEL SECURITY;
+
 -- Metas individuais por vendedor (definidas pelo distribuidor)
 CREATE TABLE IF NOT EXISTS vendedor_metas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
