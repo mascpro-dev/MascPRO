@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
       .select(
         `*,
         profiles!orders_profile_id_fkey(full_name, nivel, avatar_url, email),
-        order_items(quantidade, preco_unitario, products(title))`
+        order_items(quantidade, preco_unitario, products(title, linha))`
       )
       .order("created_at", { ascending: false })
       .limit(limit);

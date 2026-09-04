@@ -18,6 +18,7 @@ import {
   ymdDeIso,
   ymdSaoPaulo,
 } from "@/lib/comercialRegua";
+import { sincronizarKitsHomeCarePorItens } from "@/lib/comercialHomeCare";
 import { erroColunaFase5, eventoSemFollowup } from "@/lib/comercialProvas";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +68,8 @@ export async function GET() {
   const hoje = ymdSaoPaulo();
   const avisos: string[] = [];
   const itens: Alarme[] = [];
+
+  await sincronizarKitsHomeCarePorItens(supabase, { limitPedidos: 400 });
 
   const leadsRes = await fetchAllRows<{
     id: string;

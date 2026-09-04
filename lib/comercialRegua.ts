@@ -33,20 +33,21 @@ export const MOTIVO_LABEL: Record<string, string> = Object.fromEntries(
 
 export const DEFINICOES_FASE3 = [
   {
-    termo: "Kit home care",
-    texto: "Pedido pago marcado à mão. Shampoo avulso ou reposição pontual não é kit.",
+    termo: "Home care (por item)",
+    texto:
+      "Pedido pago com pelo menos 1 item das linhas Daily, Nutri, Repair, Scalp, Curls ou Blond. Align³ e produto sem linha não entram. O pedido pode misturar profissional + home care.",
   },
   {
     termo: "Régua 7 / 15 / 30",
-    texto: "Três toques depois da data do pedido-kit. Não dispara em pedido sem a marca.",
+    texto: "Três toques depois da data do pedido que tem home care. Não dispara só em Align³ ou item sem linha.",
   },
   {
     termo: "Recompra 30 / 45 / 60",
-    texto: "Outro pedido pago do mesmo perfil depois do kit, dentro da janela. Dois itens no mesmo pedido não contam.",
+    texto: "Outro pedido pago do mesmo perfil depois do home care, dentro da janela. Dois itens no mesmo pedido não contam.",
   },
   {
     termo: "Motivo de não recompra",
-    texto: "Preenchido no kit cuja janela de 60 dias já fechou sem segundo pedido.",
+    texto: "Preenchido no pedido home care cuja janela de 60 dias já fechou sem segundo pedido.",
   },
 ];
 

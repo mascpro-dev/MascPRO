@@ -10,6 +10,11 @@ import {
   Loader2, RefreshCw, PackageCheck, PackageOpen, Truck, Trash2,
   FileText, ExternalLink, Plus, AlertTriangle, Mail, Search, UserSearch, Pencil,
 } from "lucide-react";
+import {
+  analisarItensHomeCare,
+  formatarResumoHomeCare,
+  linhaEhHomeCare,
+} from "@/lib/comercialHomeCare";
 
 type Pedido = {
   id: string;
@@ -28,7 +33,11 @@ type Pedido = {
   created_at: string;
   eh_kit_home_care?: boolean | null;
   profiles: { full_name: string; nivel: string; avatar_url?: string | null } | null;
-  order_items: { quantidade: number; preco_unitario: number; products: { title: string } | null }[];
+  order_items: {
+    quantidade: number;
+    preco_unitario: number;
+    products: { title: string; linha?: string | null } | null;
+  }[];
 };
 
 type StatusInfo = { label: string; style: string; icon: React.ReactNode };
@@ -416,25 +425,6 @@ export default function AdminPedidosPage() {
     await carregarPedidos();
   }
 
-  async function marcarKit(id: string, valor: boolean) {
-    setProcessando(id);
-    try {
-      const res = await fetch("/api/admin/comercial/regua", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: id, eh_kit_home_care: valor }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.ok) {
-        alert(data?.error || "Não foi possível marcar o kit home care.");
-        return;
-      }
-      await carregarPedidos();
-    } finally {
-      setProcessando(null);
-    }
-  }
-
   const totalFiltrado = pedidos.reduce((acc, p) => acc + Number(p.total), 0);
 
   const FILTROS: { key: Filtro; label: string }[] = [
@@ -757,6 +747,7 @@ export default function AdminPedidosPage() {
             {pedidos.map(pedido => {
               const statusInfo = STATUS[pedido.status] || STATUS.pending;
               const isProcessando = processando === pedido.id;
+              const homeCare = analisarItensHomeCare(pedido.order_items);
 
               return (
                 <div
@@ -776,9 +767,9 @@ export default function AdminPedidosPage() {
                       <div>
                         <p className="font-bold text-white">
                           {pedido.profiles?.full_name || "—"}
-                          {pedido.eh_kit_home_care && (
-                            <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-[#C9A66B] bg-[#C9A66B]/10 px-1.5 py-0.5 rounded">
-                              Kit home care
+                          {homeCare.temHomeCare && (
+                            <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-emerald-300 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                              Home care · {homeCare.qtdUnidades} un.
                             </span>
                           )}
                         </p>
@@ -817,14 +808,34 @@ export default function AdminPedidosPage() {
                   {/* Itens do pedido */}
                   {pedido.order_items?.length > 0 && (
                     <div className="border-t border-zinc-800 pt-3">
-                      <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mb-2">Itens</p>
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Itens</p>
+                        {homeCare.temHomeCare && (
+                          <p className="text-[10px] text-emerald-400/90 font-bold">
+                            Home care: {formatarResumoHomeCare(homeCare)}
+                          </p>
+                        )}
+                      </div>
                       <div className="flex flex-col gap-1">
-                        {pedido.order_items.map((item, i) => (
-                          <div key={i} className="flex justify-between text-xs text-zinc-400">
-                            <span>{item.products?.title || "Produto"} × {item.quantidade}</span>
-                            <span>R$ {(Number(item.preco_unitario) * item.quantidade).toFixed(2)}</span>
-                          </div>
-                        ))}
+                        {pedido.order_items.map((item, i) => {
+                          const ehHc = linhaEhHomeCare(item.products?.linha);
+                          return (
+                            <div
+                              key={i}
+                              className={`flex justify-between text-xs ${ehHc ? "text-emerald-300" : "text-zinc-400"}`}
+                            >
+                              <span>
+                                {item.products?.title || "Produto"} × {item.quantidade}
+                                {ehHc && (
+                                  <span className="ml-1 text-[9px] uppercase tracking-wider text-emerald-500/80">
+                                    home care
+                                  </span>
+                                )}
+                              </span>
+                              <span>R$ {(Number(item.preco_unitario) * item.quantidade).toFixed(2)}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -840,17 +851,6 @@ export default function AdminPedidosPage() {
                     >
                       <Pencil size={14} /> Editar pedido
                     </button>
-
-                    {["paid", "separacao", "despachado", "entregue"].includes(pedido.status) && (
-                      <button
-                        type="button"
-                        onClick={() => void marcarKit(pedido.id, !pedido.eh_kit_home_care)}
-                        disabled={isProcessando}
-                        className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-black uppercase text-[10px] tracking-widest px-4 py-2 rounded-xl transition-all disabled:opacity-50 border border-zinc-700"
-                      >
-                        {pedido.eh_kit_home_care ? "Tirar kit home care" : "É kit home care"}
-                      </button>
-                    )}
 
                     <button
                       type="button"

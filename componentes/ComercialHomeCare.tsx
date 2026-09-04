@@ -81,7 +81,7 @@ export default function ComercialHomeCare({ periodo }: { periodo: string }) {
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [filtro, setFiltro] = useState<"atrasados" | "hoje" | "kits" | "marcar">("atrasados");
+  const [filtro, setFiltro] = useState<"atrasados" | "hoje" | "kits">("atrasados");
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -103,22 +103,6 @@ export default function ComercialHomeCare({ periodo }: { periodo: string }) {
   }, [periodo]);
 
   useEffect(() => { void carregar(); }, [carregar]);
-
-  async function marcarKit(orderId: string, valor: boolean) {
-    setBusy(orderId);
-    const res = await fetch("/api/admin/comercial/regua", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, eh_kit_home_care: valor }),
-    });
-    const json = await res.json().catch(() => null);
-    setBusy(null);
-    if (!res.ok || !json?.ok) {
-      setErro(json?.error || "Não foi possível marcar o kit.");
-      return;
-    }
-    await carregar();
-  }
 
   async function concluir(etapaId: string, status: "feito" | "pulado") {
     setBusy(etapaId);
@@ -173,7 +157,7 @@ export default function ComercialHomeCare({ periodo }: { periodo: string }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <Kpi label="Kits no mês" value={String(kpis.kitsMes)} sub={`mês anterior: ${kpis.kitsPrev}`} />
+        <Kpi label="Pedidos c/ home care" value={String(kpis.kitsMes)} sub={`mês anterior: ${kpis.kitsPrev}`} />
         <Kpi label="Régua em dia" value={`${kpis.taxaEmDia}%`} sub={`${kpis.feitosMes} toques feitos no mês`} />
         <Kpi label="Atrasados" value={String(kpis.atrasados)} sub={`${kpis.pendentesHoje} para hoje`} alerta={kpis.atrasados > 0} />
         <Kpi
@@ -185,7 +169,8 @@ export default function ComercialHomeCare({ periodo }: { periodo: string }) {
 
       <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
         <p className="text-[13px] text-[#6B6560]">
-          Pedido comum não entra nesta lista. Marque kit só quando for home care — senão a recompra 30/45/60 mente.
+          Home care entra sozinho quando o pedido pago tem item das linhas Daily, Nutri, Repair, Scalp, Curls ou Blond.
+          Classifique os produtos em Admin → Produtos. Align³ e item sem linha não entram na régua.
         </p>
       </section>
 
@@ -194,8 +179,7 @@ export default function ComercialHomeCare({ periodo }: { periodo: string }) {
           [
             ["atrasados", `Atrasados (${atrasados.length})`],
             ["hoje", `Hoje (${hoje.length})`],
-            ["kits", `Todos os kits (${data.kits.length})`],
-            ["marcar", `Marcar kit (${data.candidatos.length})`],
+            ["kits", `Com home care (${data.kits.length})`],
           ] as const
         ).map(([id, nome]) => (
           <button
@@ -211,36 +195,9 @@ export default function ComercialHomeCare({ periodo }: { periodo: string }) {
         ))}
       </div>
 
-      {filtro === "marcar" ? (
-        <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
-          <h2 className="text-[15px] font-semibold">Pedidos pagos sem kit (90 dias)</h2>
-          <p className="text-[12px] text-[#8A847A] mb-4">Não marque reposição avulsa. A régua só nasce daqui.</p>
-          {data.candidatos.length === 0 ? (
-            <p className="text-[13px] text-[#8A847A] py-6">Nenhum candidato neste recorte.</p>
-          ) : (
-            <div className="space-y-3">
-              {data.candidatos.map((c) => (
-                <div key={c.order_id} className="flex flex-wrap items-center justify-between gap-3 border border-[#F0EBE3] rounded-2xl px-4 py-3">
-                  <div>
-                    <p className="text-[14px] font-medium">{c.cliente}</p>
-                    <p className="text-[12px] text-[#8A847A]">{dataBr(c.created_at)} · {moeda(c.total)} · {c.status}</p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={busy === c.order_id}
-                    onClick={() => void marcarKit(c.order_id, true)}
-                    className="h-9 px-3 rounded-xl bg-[#2A2723] text-white text-[12px] disabled:opacity-50"
-                  >
-                    {busy === c.order_id ? "…" : "É kit home care"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      ) : listaKits.length === 0 ? (
+      {listaKits.length === 0 ? (
         <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-8 text-[13px] text-[#8A847A]">
-          Nada nesta fila. Se a operação está em dia, olhe “Marcar kit”.
+          Nada nesta fila. Confira se os produtos home care têm linha preenchida em Admin → Produtos.
         </section>
       ) : (
         <div className="space-y-3">
@@ -252,7 +209,7 @@ export default function ComercialHomeCare({ periodo }: { periodo: string }) {
                   <div>
                     <p className="text-[15px] font-semibold">{k.cliente}</p>
                     <p className="text-[12px] text-[#8A847A]">
-                      Kit em {dataBr(k.created_at)} · {moeda(k.total)}
+                      Home care em {dataBr(k.created_at)} · {moeda(k.total)}
                     </p>
                     <p className="text-[12px] text-[#8A847A] mt-1">
                       Recompra: {k.recompras.d30 ? "30 sim" : "30 não"} · {k.recompras.d45 ? "45 sim" : "45 não"} · {k.recompras.d60 ? "60 sim" : "60 não"}
@@ -276,14 +233,6 @@ export default function ComercialHomeCare({ periodo }: { periodo: string }) {
                     >
                       Pedido
                     </Link>
-                    <button
-                      type="button"
-                      disabled={busy === k.order_id}
-                      onClick={() => void marcarKit(k.order_id, false)}
-                      className="h-9 px-3 rounded-xl text-[12px] text-[#9A4338]"
-                    >
-                      Tirar kit
-                    </button>
                   </div>
                 </div>
 

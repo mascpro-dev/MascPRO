@@ -12,6 +12,10 @@ import {
   parsePeriodoScore,
   type ManualScore,
 } from "@/lib/comercialScore";
+import {
+  idsPedidosComHomeCare,
+  sincronizarKitsHomeCarePorItens,
+} from "@/lib/comercialHomeCare";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -123,6 +127,8 @@ export async function GET(req: NextRequest) {
   const { ini: iniMes, fim: fimMes } = boundsMes(periodo);
   const roleAlvo = papel === "embaixadora" ? "EMBAIXADOR" : "DISTRIBUIDOR";
 
+  await sincronizarKitsHomeCarePorItens(supabase, { limitPedidos: 400 });
+
   const pessoasRes = await fetchAllRows<Perfil>(async (from, to) =>
     supabase
       .from("profiles")
@@ -228,6 +234,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: pedidosRes.error }, { status: 500 });
   }
 
+  const kitPorItens = await idsPedidosComHomeCare(
+    supabase,
+    pedidosRes.rows.map((p) => p.id)
+  );
+
   const leadsRes = await fetchAllRows<Lead>(async (from, to) =>
     supabase
       .from("crm_leads")
@@ -273,7 +284,7 @@ export async function GET(req: NextRequest) {
     if (papel === "distribuidor" && ped.distribuidor_gestor_id && idSet.has(ped.distribuidor_gestor_id)) {
       donos.add(ped.distribuidor_gestor_id);
     }
-    const kit = Boolean(ped.eh_kit_home_care);
+    const kit = kitPorItens.has(ped.id) || Boolean(ped.eh_kit_home_care);
     const total = Number(ped.total || 0);
     for (const dono of donos) {
       const acc = atribuidos.get(dono);

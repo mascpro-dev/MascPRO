@@ -7,8 +7,9 @@ import ErroComVoltar from "@/componentes/ErroComVoltar";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import {
   Users, Loader2, Plus, DollarSign, Percent, CheckCircle2, XCircle,
-  Save, RefreshCw, AlertTriangle, MapPin, Target, ArrowLeft, Kanban,
+  Save, RefreshCw, AlertTriangle, MapPin, Target, ArrowLeft, Kanban, Copy, KeyRound,
 } from "lucide-react";
+import { SENHA_PADRAO_CRM } from "@/lib/crmCadastroMembro";
 
 type Vendedor = { id: string; full_name: string; email: string | null; whatsapp: string | null };
 type ProdutoPreco = {
@@ -87,6 +88,12 @@ export default function CrmEquipePage() {
   const [formVendedor, setFormVendedor] = useState({ nome: "", email: "", whatsapp: "" });
   const [criando, setCriando] = useState(false);
   const [msg, setMsg] = useState("");
+  const [acessoCriado, setAcessoCriado] = useState<{
+    nome: string;
+    email: string;
+    senha: string;
+  } | null>(null);
+  const [copiadoId, setCopiadoId] = useState<string | null>(null);
   const [salvandoPrecos, setSalvandoPrecos] = useState(false);
   const [salvandoFaixas, setSalvandoFaixas] = useState(false);
 
@@ -129,6 +136,7 @@ export default function CrmEquipePage() {
   async function criarVendedor() {
     setCriando(true);
     setMsg("");
+    setAcessoCriado(null);
     const res = await fetch("/api/admin/crm/equipe/vendedores", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -138,11 +146,36 @@ export default function CrmEquipePage() {
     if (!res.ok || !d?.ok) {
       setMsg(d?.error || "Erro ao cadastrar.");
     } else {
-      setMsg(`Vendedor criado! Senha temporária: ${d.vendedor.senha_temporaria}`);
+      const senha = d.vendedor?.senha_temporaria || SENHA_PADRAO_CRM;
+      const email = d.vendedor?.email || formVendedor.email;
+      const nome = formVendedor.nome;
+      setAcessoCriado({ nome, email, senha });
+      setMsg(`Vendedor criado! Envie o acesso: e-mail ${email} · senha ${senha}`);
       setFormVendedor({ nome: "", email: "", whatsapp: "" });
       void carregar();
     }
     setCriando(false);
+  }
+
+  async function copiarAcesso(v: { id?: string; full_name: string; email: string | null }, senha = SENHA_PADRAO_CRM) {
+    const origem = typeof window !== "undefined" ? window.location.origin : "";
+    const texto = [
+      `Acesso MascPRO — Vendedor`,
+      `Nome: ${v.full_name}`,
+      `E-mail: ${v.email || ""}`,
+      `Senha temporária: ${senha}`,
+      `Login: ${origem}/login`,
+      `CRM: ${origem}/vendedor/crm`,
+      ``,
+      `Altere a senha no primeiro acesso em Perfil.`,
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiadoId(v.id || v.email || "ok");
+      setTimeout(() => setCopiadoId(null), 2000);
+    } catch {
+      setMsg("Não foi possível copiar. Senha padrão: " + SENHA_PADRAO_CRM);
+    }
   }
 
   async function salvarPrecos() {
@@ -315,15 +348,62 @@ export default function CrmEquipePage() {
               {criando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
               Criar vendedor
             </button>
-            <p className="text-[10px] text-zinc-600">Senha padrão enviada na resposta (1234567890). Vendedor acessa CRM em /vendedor/crm.</p>
+            <div className="rounded-xl border border-[#C9A66B]/25 bg-[#C9A66B]/5 px-3 py-3 text-[11px] text-zinc-400 space-y-1">
+              <p className="flex items-center gap-1.5 text-[#C9A66B] font-bold uppercase tracking-widest text-[10px]">
+                <KeyRound size={12} /> Como o vendedor entra
+              </p>
+              <p>1. Login em <span className="text-zinc-200 font-mono">/login</span> com o e-mail cadastrado</p>
+              <p>2. Senha temporária padrão: <span className="text-[#C9A66B] font-mono font-bold">{SENHA_PADRAO_CRM}</span></p>
+              <p>3. CRM do vendedor: <span className="text-zinc-200 font-mono">/vendedor/crm</span></p>
+            </div>
+            {acessoCriado && (
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-2">
+                <p className="text-emerald-300 text-sm font-bold flex items-center gap-2">
+                  <CheckCircle2 size={16} /> Acesso pronto — envie ao vendedor
+                </p>
+                <p className="text-xs text-zinc-300 font-mono">
+                  E-mail: {acessoCriado.email}<br />
+                  Senha: {acessoCriado.senha}
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void copiarAcesso(
+                      { full_name: acessoCriado.nome, email: acessoCriado.email },
+                      acessoCriado.senha
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-300 hover:text-white"
+                >
+                  <Copy size={12} />
+                  {copiadoId ? "Copiado!" : "Copiar acesso"}
+                </button>
+              </div>
+            )}
           </div>
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
-            <h2 className="text-xs font-black uppercase text-zinc-500 mb-4">Equipe ({vendedores.length})</h2>
-            <ul className="space-y-2 max-h-80 overflow-y-auto">
+            <h2 className="text-xs font-black uppercase text-zinc-500 mb-2">Equipe ({vendedores.length})</h2>
+            <p className="text-[10px] text-zinc-600 mb-4">
+              Senha padrão de cadastro: <span className="text-zinc-400 font-mono">{SENHA_PADRAO_CRM}</span>.
+              Se o vendedor esqueceu, reset em Membros → Editar → nova senha.
+            </p>
+            <ul className="space-y-3 max-h-96 overflow-y-auto">
               {vendedores.map((v) => (
-                <li key={v.id} className="flex justify-between items-center border-b border-zinc-800/50 pb-2 text-sm">
-                  <span className="text-white font-medium">{v.full_name}</span>
-                  <span className="text-zinc-500 text-xs">{v.email}</span>
+                <li key={v.id} className="border border-zinc-800/80 rounded-xl px-3 py-3 space-y-2">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0">
+                      <p className="text-white font-medium text-sm truncate">{v.full_name}</p>
+                      <p className="text-zinc-500 text-xs truncate">{v.email}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void copiarAcesso(v)}
+                      className="shrink-0 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-[#C9A66B] border border-zinc-700 px-2 py-1.5 rounded-lg"
+                    >
+                      <Copy size={11} />
+                      {copiadoId === v.id || copiadoId === v.email ? "Ok" : "Acesso"}
+                    </button>
+                  </div>
                 </li>
               ))}
               {!vendedores.length && <li className="text-zinc-600 text-sm">Nenhum vendedor cadastrado.</li>}

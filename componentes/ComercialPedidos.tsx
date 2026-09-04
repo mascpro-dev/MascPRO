@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
+import {
+  analisarItensHomeCare,
+  formatarResumoHomeCare,
+  linhaEhHomeCare,
+} from "@/lib/comercialHomeCare";
 
 type Pedido = {
   id: string;
@@ -17,7 +22,11 @@ type Pedido = {
   created_at: string;
   eh_kit_home_care?: boolean | null;
   profiles: { full_name: string | null; email?: string | null } | null;
-  order_items: { quantidade: number; preco_unitario: number; products: { title: string } | null }[];
+  order_items: {
+    quantidade: number;
+    preco_unitario: number;
+    products: { title: string; linha?: string | null } | null;
+  }[];
 };
 
 const FILTROS = [
@@ -71,7 +80,6 @@ export default function ComercialPedidos({ periodo }: { periodo: string }) {
   const [filtro, setFiltro] = useState<string>("todos");
   const [busca, setBusca] = useState("");
   const [soMes, setSoMes] = useState(true);
-  const [busy, setBusy] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -89,22 +97,6 @@ export default function ComercialPedidos({ periodo }: { periodo: string }) {
 
   useEffect(() => { void carregar(); }, [carregar]);
 
-  async function marcarKit(id: string, valor: boolean) {
-    setBusy(id);
-    const res = await fetch("/api/admin/comercial/regua", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId: id, eh_kit_home_care: valor }),
-    });
-    const d = await res.json().catch(() => null);
-    setBusy(null);
-    if (!res.ok || !d?.ok) {
-      setErro(d?.error || "Não foi possível marcar o kit.");
-      return;
-    }
-    setPedidos((prev) => prev.map((p) => (p.id === id ? { ...p, eh_kit_home_care: valor } : p)));
-  }
-
   const visiveis = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return pedidos.filter((p) => {
@@ -117,6 +109,10 @@ export default function ComercialPedidos({ periodo }: { periodo: string }) {
   }, [pedidos, busca, soMes, periodo]);
 
   const total = visiveis.reduce((s, p) => s + Number(p.total || 0), 0);
+  const totalHomeCare = visiveis.reduce(
+    (s, p) => s + analisarItensHomeCare(p.order_items).valor,
+    0
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -151,8 +147,14 @@ export default function ComercialPedidos({ periodo }: { periodo: string }) {
         </label>
         <p className="text-[12px] text-[#8A847A] ml-auto">
           {visiveis.length} pedido(s) · {moeda(total)}
+          {totalHomeCare > 0 ? ` · home care ${moeda(totalHomeCare)}` : ""}
         </p>
       </div>
+
+      <p className="text-[12px] text-[#8A847A]">
+        Home care é lido pelos itens (linhas Daily, Nutri, Repair, Scalp, Curls, Blond). Classifique em{" "}
+        <strong className="text-[#6B6560]">Admin → Produtos</strong>. Align³ não entra.
+      </p>
 
       {erro && <p className="text-[13px] text-[#9A4338]">{erro}</p>}
 
@@ -166,59 +168,62 @@ export default function ComercialPedidos({ periodo }: { periodo: string }) {
         </section>
       ) : (
         <div className="space-y-3">
-          {visiveis.map((p) => (
-            <article key={p.id} className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-[15px] font-semibold">{p.profiles?.full_name || "Sem cadastro"}</p>
-                  <p className="text-[12px] text-[#8A847A] mt-0.5">
-                    {dataBr(p.created_at)}
-                    {p.payment_method ? ` · ${p.payment_method}` : ""}
-                    {p.shipping_cep ? ` · CEP ${p.shipping_cep}` : ""}
-                  </p>
-                  {p.shipping_address && (
-                    <p className="text-[12px] text-[#8A847A] mt-1 max-w-2xl">{p.shipping_address}</p>
-                  )}
-                  {(p.codigo_rastreio || p.transportadora) && (
-                    <p className="text-[12px] text-[#6B6560] mt-1">
-                      {p.transportadora || "Frete"} {p.codigo_rastreio ? `· ${p.codigo_rastreio}` : ""}
+          {visiveis.map((p) => {
+            const hc = analisarItensHomeCare(p.order_items);
+            return (
+              <article key={p.id} className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[15px] font-semibold">{p.profiles?.full_name || "Sem cadastro"}</p>
+                    <p className="text-[12px] text-[#8A847A] mt-0.5">
+                      {dataBr(p.created_at)}
+                      {p.payment_method ? ` · ${p.payment_method}` : ""}
+                      {p.shipping_cep ? ` · CEP ${p.shipping_cep}` : ""}
                     </p>
-                  )}
+                    {p.shipping_address && (
+                      <p className="text-[12px] text-[#8A847A] mt-1 max-w-2xl">{p.shipping_address}</p>
+                    )}
+                    {(p.codigo_rastreio || p.transportadora) && (
+                      <p className="text-[12px] text-[#6B6560] mt-1">
+                        {p.transportadora || "Frete"} {p.codigo_rastreio ? `· ${p.codigo_rastreio}` : ""}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[20px] font-semibold tabular-nums">{moeda(Number(p.total || 0))}</p>
+                    <span className={`inline-flex mt-1 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${STATUS_TOM[p.status] || STATUS_TOM.pending}`}>
+                      {STATUS_LABEL[p.status] || p.status}
+                    </span>
+                    {hc.temHomeCare && (
+                      <p className="text-[10px] uppercase tracking-wider text-[#4F7A5A] mt-1">
+                        Home care · {formatarResumoHomeCare(hc)}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[20px] font-semibold tabular-nums">{moeda(Number(p.total || 0))}</p>
-                  <span className={`inline-flex mt-1 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${STATUS_TOM[p.status] || STATUS_TOM.pending}`}>
-                    {STATUS_LABEL[p.status] || p.status}
-                  </span>
-                  {p.eh_kit_home_care && (
-                    <p className="text-[10px] uppercase tracking-wider text-[#8A6A32] mt-1">Kit home care</p>
-                  )}
-                </div>
-              </div>
 
-              {(p.order_items || []).length > 0 && (
-                <ul className="mt-3 space-y-1 border-t border-[#F0EBE3] pt-3">
-                  {p.order_items.map((item, i) => (
-                    <li key={i} className="flex justify-between text-[13px] text-[#6B6560]">
-                      <span>{item.products?.title || "Produto"} × {item.quantidade}</span>
-                      <span className="tabular-nums">{moeda(Number(item.preco_unitario) * Number(item.quantidade))}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {["paid", "separacao", "despachado", "entregue"].includes(p.status) && (
-                <button
-                  type="button"
-                  disabled={busy === p.id}
-                  onClick={() => void marcarKit(p.id, !p.eh_kit_home_care)}
-                  className="mt-3 h-8 px-3 rounded-lg border border-[#E7E1D6] text-[11px] text-[#6B6560] disabled:opacity-50"
-                >
-                  {p.eh_kit_home_care ? "Tirar kit" : "É kit home care"}
-                </button>
-              )}
-            </article>
-          ))}
+                {(p.order_items || []).length > 0 && (
+                  <ul className="mt-3 space-y-1 border-t border-[#F0EBE3] pt-3">
+                    {p.order_items.map((item, i) => {
+                      const ehHc = linhaEhHomeCare(item.products?.linha);
+                      return (
+                        <li
+                          key={i}
+                          className={`flex justify-between text-[13px] ${ehHc ? "text-[#4F7A5A]" : "text-[#6B6560]"}`}
+                        >
+                          <span>
+                            {item.products?.title || "Produto"} × {item.quantidade}
+                            {ehHc ? " · home care" : ""}
+                          </span>
+                          <span className="tabular-nums">{moeda(Number(item.preco_unitario) * Number(item.quantidade))}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

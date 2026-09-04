@@ -16,6 +16,7 @@ import {
   statusExibidoEtapa,
   ymdSaoPaulo,
 } from "@/lib/comercialRegua";
+import { sincronizarKitsHomeCarePorItens } from "@/lib/comercialHomeCare";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -93,6 +94,12 @@ export async function GET(req: NextRequest) {
   }
   const { ini: iniMes, fim: fimMes } = boundsMes(periodo);
   const hoje = ymdSaoPaulo(agora);
+
+  // Marca kits automaticamente pelos itens (products.linha home care)
+  await sincronizarKitsHomeCarePorItens(supabase, {
+    limitPedidos: 500,
+    garantirEtapas: (order) => garantirEtapas(supabase, order),
+  });
 
   const kitsRes = await fetchAllRows<PedidoKit>(async (from, to) =>
     supabase

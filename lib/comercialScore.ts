@@ -79,7 +79,7 @@ export const DEFINICOES_FASE4 = [
   },
   {
     termo: "Home care no score",
-    texto: "Kit marcado à mão entre os pedidos da rede. Pedido comum não pontua aqui.",
+    texto: "Pedido pago da rede com pelo menos 1 item Daily, Nutri, Repair, Scalp, Curls ou Blond. Align³ e produto sem linha não pontuam aqui.",
   },
   {
     termo: "Prova / conteúdo / treino / postura",
@@ -265,7 +265,7 @@ export function montarScoreEmbaixadora(params: {
       pontos: pontosHomeCare(params.kitsRede),
       max: PESOS_EMBAIXADORA.home_care,
       fonte: "derivado",
-      detalhe: params.kitsRede > 0 ? `${params.kitsRede} kit(s) na rede` : "Nenhum kit marcado na rede",
+      detalhe: params.kitsRede > 0 ? `${params.kitsRede} pedido(s) com home care na rede` : "Nenhum pedido com item home care na rede",
     },
     {
       key: "prova",
