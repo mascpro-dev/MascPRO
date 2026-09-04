@@ -52,6 +52,7 @@ export default function VendedorVisitasPage() {
     proximo_passo: "",
     notas: "",
     crm_lead_id: "" as string,
+    profile_id: "" as string,
   });
 
   const carregar = useCallback(async () => {
@@ -73,6 +74,7 @@ export default function VendedorVisitasPage() {
       cliente_telefone: c.telefone || f.cliente_telefone,
       cliente_cidade: c.cidade || f.cliente_cidade,
       crm_lead_id: c.crm_lead_id || "",
+      profile_id: c.profile_id || "",
     }));
   }
 
@@ -88,12 +90,17 @@ export default function VendedorVisitasPage() {
         data_visita: new Date(form.data_visita).toISOString(),
         resultado: form.resultado || null,
         crm_lead_id: form.crm_lead_id || null,
+        profile_id: form.profile_id || null,
       }),
     });
     const d = await res.json().catch(() => null);
     if (!res.ok || !d?.ok) setMsg(d?.error || "Erro ao registrar.");
     else {
-      setMsg("Visita registrada!");
+      setMsg(
+        d.lead_criado
+          ? "Visita registrada e lead criado no pipeline!"
+          : "Visita registrada e atualizada no pipeline!"
+      );
       setContatoSelecionado(null);
       setForm((f) => ({
         ...f,
@@ -104,6 +111,7 @@ export default function VendedorVisitasPage() {
         notas: "",
         proximo_passo: "",
         crm_lead_id: "",
+        profile_id: "",
       }));
       void carregar();
     }
@@ -131,7 +139,7 @@ export default function VendedorVisitasPage() {
         <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Campo</p>
         <h1 className="text-2xl font-black text-white">Relatório de visitas</h1>
         <p className="text-xs text-zinc-500 mt-1">
-          Puxe alguém da sua rede (já cadastrado) ou registre um cliente novo.
+          Puxe alguém da sua rede ou digite um cliente novo — a visita entra no pipeline do CRM.
         </p>
       </div>
 
@@ -174,7 +182,12 @@ export default function VendedorVisitasPage() {
               value={form.cliente_nome}
               onChange={(e) => {
                 setContatoSelecionado(null);
-                setForm((f) => ({ ...f, cliente_nome: e.target.value, crm_lead_id: "" }));
+                setForm((f) => ({
+                  ...f,
+                  cliente_nome: e.target.value,
+                  crm_lead_id: "",
+                  profile_id: "",
+                }));
               }}
               className={inputClass}
               placeholder="Salão / cabeleireira"

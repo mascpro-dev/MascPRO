@@ -7,6 +7,7 @@ import {
   validarProximoPassoProposta,
   erroColunaFase2,
 } from "@/lib/comercialClassificacao";
+import { sincronizarVisitasOrfasNoPipeline } from "@/lib/crmVisitaPipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,9 @@ export async function GET(req: NextRequest) {
   if (!access.ok) {
     return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
   }
+
+  // Visitas antigas sem lead → entram no pipeline ao abrir o CRM
+  await sincronizarVisitasOrfasNoPipeline(supabase, userId, access.full_name || "vendedor");
 
   const busca = req.nextUrl.searchParams.get("q");
   let query = supabase

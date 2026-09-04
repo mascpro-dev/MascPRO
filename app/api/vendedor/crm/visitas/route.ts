@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
 import { assertVendedorCrmAccess } from "@/lib/crmVendedorServer";
+import { garantirLeadPipeline } from "@/lib/crmVisitaPipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -80,19 +81,44 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Resultado inválido." }, { status: 400 });
   }
 
+  const telefone = body?.cliente_telefone?.trim() || null;
+  const cidade = body?.cliente_cidade?.trim() || null;
+  const proximoPasso = body?.proximo_passo?.trim() || null;
+  const notas = body?.notas?.trim() || null;
+  const profileId = body?.profile_id ? String(body.profile_id) : null;
+  const crmLeadIdBody = body?.crm_lead_id ? String(body.crm_lead_id) : null;
+
+  const leadRes = await garantirLeadPipeline(supabase, {
+    userId,
+    vendedorNome: access.full_name || "vendedor",
+    crmLeadId: crmLeadIdBody,
+    profileId,
+    nome: clienteNome,
+    telefone,
+    cidade,
+    resultado,
+    proximoPasso,
+    tipo,
+    notas,
+  });
+
+  if ("error" in leadRes) {
+    return NextResponse.json({ ok: false, error: leadRes.error }, { status: 500 });
+  }
+
   const row = {
     vendedor_id: userId,
     distribuidor_id: access.distribuidor_id,
-    crm_lead_id: body?.crm_lead_id || null,
+    crm_lead_id: leadRes.leadId,
     tipo,
     cliente_nome: clienteNome,
-    cliente_telefone: body?.cliente_telefone?.trim() || null,
-    cliente_cidade: body?.cliente_cidade?.trim() || null,
+    cliente_telefone: telefone,
+    cliente_cidade: cidade,
     data_visita: body?.data_visita || new Date().toISOString(),
     produtos_amostra: body?.produtos_amostra?.trim() || null,
     resultado,
-    proximo_passo: body?.proximo_passo?.trim() || null,
-    notas: body?.notas?.trim() || null,
+    proximo_passo: proximoPasso,
+    notas,
   };
 
   const { data: visita, error } = await supabase.from("crm_visitas").insert(row).select().single();
@@ -105,14 +131,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: msg + dica }, { status: 500 });
   }
 
-  if (body?.crm_lead_id) {
-    await supabase.from("crm_atividades").insert({
-      lead_id: body.crm_lead_id,
-      autor_id: userId,
-      tipo: "contato",
-      conteudo: `Visita em campo (${tipo}): ${clienteNome}${body?.notas ? ` — ${body.notas}` : ""}`,
-    });
-  }
+  const detalhe = [
+    `Visita em campo (${tipo}): ${clienteNome}`,
+    resultado ? `resultado ${resultado}` : null,
+    proximoPasso ? `próximo: ${proximoPasso}` : null,
+    notas || null,
+  ]
+    .filter(Boolean)
+    .join(" — ");
 
-  return NextResponse.json({ ok: true, visita });
+  await supabase.from("crm_atividades").insert({
+    lead_id: leadRes.leadId,
+    autor_id: userId,
+    tipo: "contato",
+    conteudo: detalhe,
+  });
+
+  return NextResponse.json({
+    ok: true,
+    visita,
+    lead_id: leadRes.leadId,
+    lead_criado: leadRes.criado,
+  });
 }
