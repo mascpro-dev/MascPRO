@@ -7,6 +7,7 @@ import {
   LayoutDashboard, Loader2, DollarSign, TrendingUp, Kanban,
   AlertTriangle, ShoppingBag, RefreshCw, Percent, MapPin, Target,
 } from "lucide-react";
+import VendedorNovoPedidoButton from "@/componentes/VendedorNovoPedidoButton";
 
 function moeda(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -50,13 +51,16 @@ export default function VendedorCrmDashboardPage() {
           <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">CRM Vendedor</p>
           <h1 className="text-2xl font-black text-white">Olá, {data.usuario?.full_name}</h1>
         </div>
-        <button
-          type="button"
-          onClick={() => void carregar()}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-700 text-xs text-zinc-400 hover:text-white"
-        >
-          <RefreshCw size={14} /> Atualizar
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <VendedorNovoPedidoButton variante="header" onFechou={() => void carregar()} />
+          <button
+            type="button"
+            onClick={() => void carregar()}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-700 text-xs text-zinc-400 hover:text-white"
+          >
+            <RefreshCw size={14} /> Atualizar
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -147,12 +151,15 @@ export default function VendedorCrmDashboardPage() {
         </ul>
       </div>
 
-      <Link
-        href="/vendedor/crm"
-        className="inline-flex items-center gap-2 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest px-6 py-3 rounded-xl"
-      >
-        <LayoutDashboard size={16} /> Abrir pipeline
-      </Link>
+      <div className="flex flex-wrap gap-3">
+        <VendedorNovoPedidoButton onFechou={() => void carregar()} />
+        <Link
+          href="/vendedor/crm"
+          className="inline-flex items-center gap-2 border border-zinc-700 hover:border-[#C9A66B]/40 text-zinc-300 hover:text-[#C9A66B] font-black uppercase text-xs tracking-widest px-6 py-3 rounded-xl"
+        >
+          <LayoutDashboard size={16} /> Abrir pipeline
+        </Link>
+      </div>
     </div>
   );
 }

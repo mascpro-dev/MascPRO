@@ -1,6 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import ErroComVoltar from "@/componentes/ErroComVoltar";
+import VendedorRedePicker, {
+  type ContatoRedeVendedor,
+} from "@/componentes/VendedorRedePicker";
 import { Loader2, Plus, MapPin, FlaskConical, Package, PhoneCall } from "lucide-react";
 
 type Visita = {
@@ -13,6 +16,7 @@ type Visita = {
   produtos_amostra: string | null;
   resultado: string | null;
   notas: string | null;
+  crm_lead_id?: string | null;
 };
 
 const TIPOS = [
@@ -36,6 +40,7 @@ export default function VendedorVisitasPage() {
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
+  const [contatoSelecionado, setContatoSelecionado] = useState<ContatoRedeVendedor | null>(null);
   const [form, setForm] = useState({
     tipo: "visita",
     cliente_nome: "",
@@ -46,6 +51,7 @@ export default function VendedorVisitasPage() {
     resultado: "",
     proximo_passo: "",
     notas: "",
+    crm_lead_id: "" as string,
   });
 
   const carregar = useCallback(async () => {
@@ -59,6 +65,17 @@ export default function VendedorVisitasPage() {
 
   useEffect(() => { void carregar(); }, [carregar]);
 
+  function aplicarContato(c: ContatoRedeVendedor) {
+    setContatoSelecionado(c);
+    setForm((f) => ({
+      ...f,
+      cliente_nome: c.nome,
+      cliente_telefone: c.telefone || f.cliente_telefone,
+      cliente_cidade: c.cidade || f.cliente_cidade,
+      crm_lead_id: c.crm_lead_id || "",
+    }));
+  }
+
   async function registrar(e: React.FormEvent) {
     e.preventDefault();
     setSalvando(true);
@@ -70,19 +87,23 @@ export default function VendedorVisitasPage() {
         ...form,
         data_visita: new Date(form.data_visita).toISOString(),
         resultado: form.resultado || null,
+        crm_lead_id: form.crm_lead_id || null,
       }),
     });
     const d = await res.json().catch(() => null);
     if (!res.ok || !d?.ok) setMsg(d?.error || "Erro ao registrar.");
     else {
       setMsg("Visita registrada!");
+      setContatoSelecionado(null);
       setForm((f) => ({
         ...f,
         cliente_nome: "",
         cliente_telefone: "",
+        cliente_cidade: "",
         produtos_amostra: "",
         notas: "",
         proximo_passo: "",
+        crm_lead_id: "",
       }));
       void carregar();
     }
@@ -109,13 +130,30 @@ export default function VendedorVisitasPage() {
       <div>
         <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Campo</p>
         <h1 className="text-2xl font-black text-white">Relatório de visitas</h1>
-        <p className="text-xs text-zinc-500 mt-1">Registre visitas, demos e amostras entregues ao cliente.</p>
+        <p className="text-xs text-zinc-500 mt-1">
+          Puxe alguém da sua rede (já cadastrado) ou registre um cliente novo.
+        </p>
       </div>
 
       <form onSubmit={registrar} className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5 space-y-4">
         <h2 className="text-xs font-black uppercase text-zinc-500 flex items-center gap-2">
           <Plus size={14} className="text-[#C9A66B]" /> Nova visita
         </h2>
+
+        <div>
+          <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block">Minha rede</label>
+          <VendedorRedePicker
+            onSelect={aplicarContato}
+            selecionadoId={contatoSelecionado?.id}
+          />
+          {contatoSelecionado && (
+            <p className="text-[10px] text-emerald-400/90 mt-1.5">
+              Selecionado: {contatoSelecionado.nome}
+              {contatoSelecionado.tipo === "membro" ? " · cadastro na rede" : " · lead do pipeline"}
+            </p>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-[10px] text-zinc-500 uppercase font-bold">Tipo</label>
@@ -131,7 +169,16 @@ export default function VendedorVisitasPage() {
           </div>
           <div className="sm:col-span-2">
             <label className="text-[10px] text-zinc-500 uppercase font-bold">Cliente *</label>
-            <input required value={form.cliente_nome} onChange={(e) => setForm((f) => ({ ...f, cliente_nome: e.target.value }))} className={inputClass} placeholder="Salão / cabeleireira" />
+            <input
+              required
+              value={form.cliente_nome}
+              onChange={(e) => {
+                setContatoSelecionado(null);
+                setForm((f) => ({ ...f, cliente_nome: e.target.value, crm_lead_id: "" }));
+              }}
+              className={inputClass}
+              placeholder="Salão / cabeleireira"
+            />
           </div>
           <div>
             <label className="text-[10px] text-zinc-500 uppercase font-bold">Telefone</label>

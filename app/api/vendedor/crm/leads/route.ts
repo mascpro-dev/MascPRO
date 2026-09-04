@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
       instagram: body.instagram?.trim() || null,
       responsavel_id: userId,
       created_by: userId,
+      profile_id: body.profile_id ? String(body.profile_id) : null,
       ...classif.campos,
     })
     .select()

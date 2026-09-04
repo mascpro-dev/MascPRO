@@ -4,6 +4,7 @@ import Link from "next/link";
 import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import ErroComVoltar from "@/componentes/ErroComVoltar";
+import VendedorNovoPedidoButton from "@/componentes/VendedorNovoPedidoButton";
 import {
   Kanban, Plus, Loader2, Search, X, ChevronRight,
   Mail, Building2, Calendar, User, DollarSign,
@@ -163,9 +164,9 @@ function LeadCard({
         )}
       </div>
 
-      {(anterior || proxima || colunaAtual.key === "fechado") && (
+      {(anterior || proxima || onNovoPedido) && (
         <div className="flex gap-2 pt-1 border-t border-zinc-800 flex-wrap">
-          {colunaAtual.key === "fechado" && onNovoPedido && (
+          {onNovoPedido && ["proposta", "negociacao", "fechado"].includes(colunaAtual.key) && (
             <>
               <button
                 type="button"
@@ -174,7 +175,7 @@ function LeadCard({
               >
                 + Novo pedido
               </button>
-              {lead.order_id && (
+              {colunaAtual.key === "fechado" && lead.order_id && (
                 <div className="w-full flex justify-center">
                   <PedidoPdfClienteButton orderId={lead.order_id} compacto />
                 </div>
@@ -445,10 +446,11 @@ export default function EmbaixadoraCrmPipelinePage() {
             <button
               type="button"
               onClick={() => setModalNovo(true)}
-              className="flex items-center gap-2 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest px-4 py-2.5 rounded-xl transition-all"
+              className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase text-xs tracking-widest px-4 py-2.5 rounded-xl transition-all border border-zinc-700"
             >
               <Plus size={16} /> Novo Lead
             </button>
+            <VendedorNovoPedidoButton variante="header" onFechou={() => void carregar()} />
           </div>
         </div>
       </div>
