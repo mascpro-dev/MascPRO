@@ -1,10 +1,13 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import AdminSidebar from "@/componentes/AdminSidebar";
 import ErroComVoltar from "@/componentes/ErroComVoltar";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import {
   Users, Loader2, Plus, DollarSign, Percent, CheckCircle2, XCircle,
-  Save, RefreshCw, AlertTriangle, MapPin, Target,
+  Save, RefreshCw, AlertTriangle, MapPin, Target, ArrowLeft, Kanban,
 } from "lucide-react";
 
 type Vendedor = { id: string; full_name: string; email: string | null; whatsapp: string | null };
@@ -60,6 +63,7 @@ function moeda(v: number) {
 }
 
 export default function CrmEquipePage() {
+  const router = useRouter();
   const [tab, setTab] = useState<TabId>("vendedores");
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
@@ -208,31 +212,65 @@ export default function CrmEquipePage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="animate-spin text-[#C9A66B]" size={32} />
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
+        <AdminSidebar />
+        <main className="flex flex-1 items-center justify-center">
+          <Loader2 className="animate-spin text-[#C9A66B]" size={32} />
+        </main>
       </div>
     );
   }
 
   if (erro) {
-    return <ErroComVoltar mensagem={erro} onVoltar={() => window.history.back()} rotuloVoltar="CRM" />;
+    return (
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
+        <AdminSidebar />
+        <main className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8">
+          <ErroComVoltar
+            mensagem={erro}
+            onVoltar={() => router.push("/admin/crm")}
+            rotuloVoltar="Voltar ao pipeline"
+          />
+        </main>
+      </div>
+    );
   }
 
   const inputClass = "w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B]";
 
   return (
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
+      <AdminSidebar />
+
+      <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-8">
     <div className="space-y-6 pb-12">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
+          <Link
+            href="/admin/crm"
+            className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-[#C9A66B] mb-2 transition-colors"
+          >
+            <ArrowLeft size={12} />
+            Voltar ao pipeline
+          </Link>
           <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Equipe comercial</p>
           <h1 className="text-2xl font-black text-white">Vendedores</h1>
           <p className="text-xs text-zinc-500 mt-1">
             Base cabeleireiro · faixa mín/máx · aprovação de descontos · consignado fora de meta
           </p>
         </div>
-        <button type="button" onClick={() => void carregar()} className="flex items-center gap-2 text-xs text-zinc-400 border border-zinc-700 px-3 py-2 rounded-xl">
-          <RefreshCw size={14} /> Atualizar
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href="/admin/crm/dashboard"
+            className="flex items-center gap-2 text-xs text-zinc-400 border border-zinc-700 px-3 py-2 rounded-xl hover:border-[#C9A66B]/40 hover:text-[#C9A66B] transition-colors"
+          >
+            <Kanban size={14} />
+            Dashboard CRM
+          </Link>
+          <button type="button" onClick={() => void carregar()} className="flex items-center gap-2 text-xs text-zinc-400 border border-zinc-700 px-3 py-2 rounded-xl hover:border-zinc-600">
+            <RefreshCw size={14} /> Atualizar
+          </button>
+        </div>
       </div>
 
       {msg && (
@@ -492,6 +530,8 @@ export default function CrmEquipePage() {
           {!pendentes.length && <li className="text-zinc-600 text-sm">Nenhum pedido pendente.</li>}
         </ul>
       )}
+    </div>
+      </main>
     </div>
   );
 }
