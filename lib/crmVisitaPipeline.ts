@@ -44,7 +44,7 @@ export async function garantirLeadPipeline(
   supabase: SupabaseClient,
   opts: GarantirLeadVisitaOpts
 ): Promise<{ leadId: string; criado: boolean } | { error: string }> {
-  let leadId = opts.crmLeadId;
+  let leadId: string | null = opts.crmLeadId;
   let criado = false;
   let statusAtual: string | null = null;
 
@@ -141,7 +141,12 @@ export async function garantirLeadPipeline(
     await supabase.from("crm_leads").update(patch).eq("id", leadId);
   }
 
-  return { leadId, criado };
+  const resolvedId = leadId ?? null;
+  if (!resolvedId) {
+    return { error: "Falha ao resolver lead no pipeline." };
+  }
+
+  return { leadId: resolvedId, criado };
 }
 
 /**
