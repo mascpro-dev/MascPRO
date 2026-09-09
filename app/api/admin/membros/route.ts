@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminServiceClient } from "@/lib/adminServer";
 import { lerCidadeEstado } from "@/lib/profileLocalizacao";
+import { enriquecerPerfilComEndereco, PROFILE_ENDERECO_SELECT } from "@/lib/profileEndereco";
 import {
   contarIndicadosDiretos,
   enriquecerProRedeMembro,
@@ -14,7 +15,9 @@ export async function GET() {
 
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, full_name, email, whatsapp, instagram, role, nivel, city, state, municipio, uf, created_at, indicado_por, personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total, avatar_url")
+      .select(
+        `id, full_name, email, whatsapp, instagram, role, nivel, created_at, indicado_por, personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total, avatar_url, ${PROFILE_ENDERECO_SELECT}`
+      )
       .order("pro_total", { ascending: false });
 
     if (!profiles) return NextResponse.json({ ok: false, error: "Erro ao buscar perfis" }, { status: 500 });
@@ -38,17 +41,17 @@ export async function GET() {
       if (!pedidos || pedidos.length < 1000) break;
     }
 
-    // Mapa de perfis para lookup de indicador
     const perfilMap = new Map(profiles.map((p: any) => [p.id, p]));
 
     const membros = profiles.map((m: any) => {
       const loc = lerCidadeEstado(m);
+      const end = enriquecerPerfilComEndereco(m);
       const qtd = indicadosCount.get(m.id) || 0;
       const proRede = enriquecerProRedeMembro(m, qtd);
       return {
-        ...m,
-        city: loc.city || m.city,
-        state: loc.state || m.state,
+        ...end,
+        city: loc.city || end.city || m.city,
+        state: loc.state || end.state || m.state,
         tem_compra: idsComCompra.has(m.id),
         qtd_indicados: qtd,
         pro_indicacao: proRede.pro_indicacao,

@@ -1,47 +1,27 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { camposLocalizacaoSync } from "@/lib/profileLocalizacao";
+import { camposEnderecoCompletoSync } from "@/lib/profileEndereco";
 
-/** Salva endereço do perfil (pipeline CRM) mantendo city/state e municipio/uf sincronizados. */
+/** Salva endereço do perfil sincronizando colunas EN (cadastro) e PT (CRM/NF-e). */
 export async function salvarEnderecoProfileCrm(
   supabase: SupabaseClient,
   profileId: string,
   body: Record<string, unknown>
 ) {
-  const update: Record<string, string | null> = {};
-  const map: Record<string, string> = {
-    cep: "cep",
-    logradouro: "logradouro",
-    numero: "numero",
-    complemento: "complemento",
-    bairro: "bairro",
-    municipio: "municipio",
-    uf: "uf",
-    city: "city",
-    state: "state",
-  };
-
-  for (const [k, col] of Object.entries(map)) {
-    if (body[k] !== undefined && body[k] !== null && String(body[k]).trim() !== "") {
-      update[col] = String(body[k]).trim();
-    }
-  }
-
-  const cidade =
-    body.municipio !== undefined
-      ? String(body.municipio || "").trim()
-      : body.city !== undefined
-        ? String(body.city || "").trim()
-        : undefined;
-  const uf =
-    body.uf !== undefined
-      ? String(body.uf || "").trim()
-      : body.state !== undefined
-        ? String(body.state || "").trim()
-        : undefined;
-
-  if (cidade !== undefined || uf !== undefined) {
-    Object.assign(update, camposLocalizacaoSync(cidade ?? "", uf ?? ""));
-  }
+  const update = camposEnderecoCompletoSync({
+    cep: body.cep as string | null | undefined,
+    logradouro: body.logradouro as string | null | undefined,
+    address: body.address as string | null | undefined,
+    numero: body.numero as string | null | undefined,
+    number: body.number as string | null | undefined,
+    complemento: body.complemento as string | null | undefined,
+    complement: body.complement as string | null | undefined,
+    bairro: body.bairro as string | null | undefined,
+    neighborhood: body.neighborhood as string | null | undefined,
+    municipio: body.municipio as string | null | undefined,
+    city: body.city as string | null | undefined,
+    uf: body.uf as string | null | undefined,
+    state: body.state as string | null | undefined,
+  });
 
   if (Object.keys(update).length === 0) return;
   await supabase.from("profiles").update(update).eq("id", profileId);

@@ -12,6 +12,17 @@ type Membro = {
   id: string; full_name: string; email: string; whatsapp: string | null;
   avatar_url?: string | null;
   instagram: string | null; role: string; city: string | null; state: string | null;
+  cep?: string | null;
+  address?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  municipio?: string | null;
+  uf?: string | null;
   created_at: string; indicado_por: string | null;
   personal_coins: number; network_coins: number; total_compras_proprias: number; total_compras_rede: number; pro_total: number;
   qtd_indicados?: number;
@@ -113,7 +124,13 @@ export default function AdminMembrosPage() {
     setForm({
       full_name: m.full_name || "", email: m.email || "",
       whatsapp: m.whatsapp || "", instagram: m.instagram || "",
-      city: m.city || "", state: m.state || "",
+      city: m.city || m.municipio || "",
+      state: m.state || m.uf || "",
+      cep: m.cep || "",
+      address: m.address || m.logradouro || "",
+      number: m.number || m.numero || "",
+      complement: m.complement || m.complemento || "",
+      neighborhood: m.neighborhood || m.bairro || "",
       role: m.role || "CABELEIREIRO",
       indicado_por: m.indicado_por || "", nova_senha: "",
     });
@@ -238,9 +255,10 @@ export default function AdminMembrosPage() {
                       Indicado por <span className="font-semibold text-zinc-400">{m.indicador.full_name}</span>
                     </p>
                   ) : null}
-                  {(m.city || m.state) ? (
+                  {(m.city || m.state || m.municipio || m.uf) ? (
                     <p className="text-[10px] leading-relaxed text-zinc-600">
-                      {[m.city, m.state].filter(Boolean).join(" · ")}
+                      {[m.city || m.municipio, m.state || m.uf].filter(Boolean).join(" · ")}
+                      {(m.neighborhood || m.bairro) ? ` · ${m.neighborhood || m.bairro}` : ""}
                     </p>
                   ) : null}
                 </div>
@@ -417,8 +435,19 @@ export default function AdminMembrosPage() {
                   <div className="col-span-2"><label className={labelClass}>E-mail (altera login)</label><input type="email" value={form.email} onChange={e => set("email", e.target.value)} className={inputClass} /></div>
                   <div><label className={labelClass}>WhatsApp</label><input value={form.whatsapp} onChange={e => set("whatsapp", e.target.value)} className={inputClass} /></div>
                   <div><label className={labelClass}>Instagram</label><input value={form.instagram} onChange={e => set("instagram", e.target.value)} placeholder="@" className={inputClass} /></div>
-                  <div><label className={labelClass}>Cidade</label><input value={form.city} onChange={e => set("city", e.target.value)} className={inputClass} /></div>
-                  <div><label className={labelClass}>Estado (UF)</label><input value={form.state} onChange={e => set("state", e.target.value)} maxLength={2} className={inputClass} /></div>
+                </div>
+
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Endereço (cadastro)</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className={labelClass}>CEP</label><input value={form.cep || ""} onChange={e => set("cep", e.target.value)} className={inputClass} placeholder="00000-000" /></div>
+                    <div><label className={labelClass}>Bairro</label><input value={form.neighborhood || ""} onChange={e => set("neighborhood", e.target.value)} className={inputClass} /></div>
+                    <div className="col-span-2"><label className={labelClass}>Rua / Logradouro</label><input value={form.address || ""} onChange={e => set("address", e.target.value)} className={inputClass} /></div>
+                    <div><label className={labelClass}>Número</label><input value={form.number || ""} onChange={e => set("number", e.target.value)} className={inputClass} /></div>
+                    <div><label className={labelClass}>Complemento</label><input value={form.complement || ""} onChange={e => set("complement", e.target.value)} className={inputClass} /></div>
+                    <div><label className={labelClass}>Cidade</label><input value={form.city} onChange={e => set("city", e.target.value)} className={inputClass} /></div>
+                    <div><label className={labelClass}>Estado (UF)</label><input value={form.state} onChange={e => set("state", e.target.value)} maxLength={2} className={inputClass} /></div>
+                  </div>
                 </div>
 
                 <div>

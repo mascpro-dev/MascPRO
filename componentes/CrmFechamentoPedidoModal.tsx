@@ -229,15 +229,29 @@ export default function CrmFechamentoPedidoModal({
     }
   }
 
-  function aplicarEnderecoPerfil(p: PerfilEndereco) {
+  function aplicarEnderecoPerfil(p: PerfilEndereco & {
+    address?: string | null;
+    number?: string | null;
+    complement?: string | null;
+    neighborhood?: string | null;
+    city?: string | null;
+    state?: string | null;
+  }) {
     setPerfilVinculado(p);
-    if (p.cep) setCep(p.cep);
-    if (p.logradouro) setLogradouro(p.logradouro);
-    if (p.numero) setNumero(p.numero);
-    if (p.complemento) setComplemento(p.complemento);
-    if (p.bairro) setBairro(p.bairro);
-    if (p.municipio) setMunicipio(p.municipio);
-    if (p.uf) setUf(p.uf);
+    const cepV = p.cep || "";
+    const rua = p.logradouro || p.address || "";
+    const num = p.numero || p.number || "";
+    const comp = p.complemento || p.complement || "";
+    const bai = p.bairro || p.neighborhood || "";
+    const mun = p.municipio || p.city || "";
+    const ufV = p.uf || p.state || "";
+    if (cepV) setCep(cepV);
+    if (rua) setLogradouro(rua);
+    if (num) setNumero(num);
+    if (comp) setComplemento(comp);
+    if (bai) setBairro(bai);
+    if (mun) setMunicipio(mun);
+    if (ufV) setUf(ufV);
   }
 
   function adicionarProduto(p: Produto) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
+import { enriquecerPerfilComEndereco } from "@/lib/profileEndereco";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,9 @@ export async function GET(
 
   let query = supabase
     .from("profiles")
-    .select("id, full_name, email, whatsapp, avatar_url, role")
+    .select(
+      "id, full_name, email, whatsapp, avatar_url, role, cep, address, number, complement, neighborhood, city, state, logradouro, numero, complemento, bairro, municipio, uf"
+    )
     .order("full_name", { ascending: true })
     .limit(20);
 
@@ -55,7 +58,10 @@ export async function GET(
   if (error)
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, perfis: data || [] });
+  return NextResponse.json({
+    ok: true,
+    perfis: (data || []).map((p) => enriquecerPerfilComEndereco(p)),
+  });
 }
 
 export async function POST(

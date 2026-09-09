@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { camposLocalizacaoSync } from "@/lib/profileLocalizacao";
+import { camposEnderecoCompletoSync } from "@/lib/profileEndereco";
 
 function sb() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -10,21 +11,54 @@ function sb() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { user_id, full_name, email, whatsapp, instagram, city, state,
-      role, nivel, indicado_por, nova_senha } = body;
+    const {
+      user_id, full_name, email, whatsapp, instagram, city, state,
+      cep, address, number, complement, neighborhood,
+      role, nivel, indicado_por, nova_senha,
+    } = body;
 
     if (!user_id) return NextResponse.json({ ok: false, error: "user_id obrigatório" }, { status: 400 });
 
     const erros: string[] = [];
 
-    // Atualiza profile
     const camposProfile: Record<string, any> = {};
     if (full_name !== undefined) camposProfile.full_name = full_name;
     if (whatsapp !== undefined) camposProfile.whatsapp = whatsapp;
     if (instagram !== undefined) camposProfile.instagram = instagram;
-    if (city !== undefined || state !== undefined) {
-      Object.assign(camposProfile, camposLocalizacaoSync(city, state));
+
+    const temEndereco =
+      cep !== undefined ||
+      address !== undefined ||
+      number !== undefined ||
+      complement !== undefined ||
+      neighborhood !== undefined ||
+      city !== undefined ||
+      state !== undefined;
+
+    if (temEndereco) {
+      Object.assign(
+        camposProfile,
+        camposEnderecoCompletoSync({
+          cep,
+          address,
+          number,
+          complement,
+          neighborhood,
+          city,
+          state,
+          logradouro: address,
+          numero: number,
+          complemento: complement,
+          bairro: neighborhood,
+          municipio: city,
+          uf: state,
+        })
+      );
+      if (city !== undefined || state !== undefined) {
+        Object.assign(camposProfile, camposLocalizacaoSync(city, state));
+      }
     }
+
     if (role !== undefined) camposProfile.role = role;
     if (nivel !== undefined) camposProfile.nivel = nivel;
     if (indicado_por !== undefined) camposProfile.indicado_por = indicado_por || null;
@@ -65,7 +99,6 @@ export async function POST(req: NextRequest) {
       if (errProfile) erros.push(`Perfil: ${errProfile.message}`);
     }
 
-    // Atualiza email no auth se fornecido
     if (email) {
       const { error: errEmail } = await sb().auth.admin.updateUserById(user_id, { email });
       if (errEmail) erros.push(`Email: ${errEmail.message}`);
@@ -75,7 +108,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Atualiza senha se fornecida
     if (nova_senha) {
       if (nova_senha.length < 6) {
         erros.push("Senha deve ter pelo menos 6 caracteres.");

@@ -3,6 +3,7 @@ import { getAdminContext, assertAdmin } from "@/lib/adminServer";
 import { emitirNfe, type DadosCliente } from "@/lib/blingNfe";
 import { registrarAudit } from "@/lib/auditLog";
 import { rateLimit, LIMITS } from "@/lib/rateLimit";
+import { lerEnderecoProfile } from "@/lib/profileEndereco";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,8 @@ export async function POST(req: NextRequest) {
       profile_id,
       profiles!orders_profile_id_fkey(
         id, full_name, email, whatsapp,
-        cpf_cnpj, cep, logradouro, numero, complemento,
+        cpf_cnpj, cep, address, number, complement, neighborhood,
+        city, state, logradouro, numero, complemento,
         bairro, municipio, uf
       ),
       order_items(
@@ -78,10 +80,11 @@ export async function POST(req: NextRequest) {
     }, { status: 400 });
   }
 
-  const perfil: any = order.profiles;
+  const perfilRaw: any = order.profiles;
+  const perfilEnd = lerEnderecoProfile(perfilRaw);
 
   // CPF pode vir do body (informado no modal) ou já estar no perfil
-  const cpfCnpj = (body.cpf_cnpj || perfil?.cpf_cnpj || "").replace(/\D/g, "");
+  const cpfCnpj = (body.cpf_cnpj || perfilRaw?.cpf_cnpj || "").replace(/\D/g, "");
   if (!cpfCnpj || (cpfCnpj.length !== 11 && cpfCnpj.length !== 14)) {
     return NextResponse.json({
       ok: false,
@@ -89,28 +92,31 @@ export async function POST(req: NextRequest) {
     }, { status: 400 });
   }
 
-  // Valida endereço
-  const enderecoOk = perfil?.logradouro && perfil?.municipio && perfil?.uf && perfil?.cep;
-  if (!enderecoOk && !body.endereco) {
+  // Valida endereço (aceita colunas do cadastro EN ou CRM PT)
+  const enderecoBody = body.endereco ? lerEnderecoProfile(body.endereco) : null;
+  const enderecoOk =
+    (enderecoBody?.logradouro && enderecoBody?.municipio && enderecoBody?.uf && enderecoBody?.cep) ||
+    (perfilEnd.logradouro && perfilEnd.municipio && perfilEnd.uf && perfilEnd.cep);
+  if (!enderecoOk) {
     return NextResponse.json({
       ok: false,
       error: "Endereço completo do cliente obrigatório (logradouro, município, UF, CEP).",
     }, { status: 400 });
   }
 
-  const endereco = body.endereco || perfil;
+  const endereco = enderecoBody || perfilEnd;
   const cliente: DadosCliente = {
-    nome:        perfil?.full_name || "Consumidor Final",
-    email:       perfil?.email || "",
+    nome:        perfilRaw?.full_name || "Consumidor Final",
+    email:       perfilRaw?.email || "",
     cpf_cnpj:    cpfCnpj,
-    telefone:    perfil?.whatsapp || "",
-    cep:         endereco?.cep || body.shipping_cep || "",
-    logradouro:  endereco?.logradouro || "",
-    numero:      endereco?.numero || "S/N",
-    complemento: endereco?.complemento || "",
-    bairro:      endereco?.bairro || "",
-    municipio:   endereco?.municipio || "",
-    uf:          endereco?.uf || "",
+    telefone:    perfilRaw?.whatsapp || "",
+    cep:         endereco.cep || body.shipping_cep || "",
+    logradouro:  endereco.logradouro || "",
+    numero:      endereco.numero || "S/N",
+    complemento: endereco.complemento || "",
+    bairro:      endereco.bairro || "",
+    municipio:   endereco.municipio || "",
+    uf:          endereco.uf || "",
   };
 
   // Valida itens — todos precisam ter bling_produto_id
@@ -177,10 +183,10 @@ export async function POST(req: NextRequest) {
     }).eq("id", nfeRec.id);
 
     // Salva CPF no perfil para próximas emissões
-    if (body.cpf_cnpj && perfil?.id && !perfil?.cpf_cnpj) {
+    if (body.cpf_cnpj && perfilRaw?.id && !perfilRaw?.cpf_cnpj) {
       await supabase.from("profiles")
         .update({ cpf_cnpj: cpfCnpj })
-        .eq("id", perfil.id);
+        .eq("id", perfilRaw.id);
     }
 
     await registrarAudit(supabase, {

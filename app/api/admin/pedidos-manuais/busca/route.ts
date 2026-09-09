@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext, assertAdmin } from "@/lib/adminServer";
+import { enriquecerPerfilComEndereco, PROFILE_ENDERECO_SELECT } from "@/lib/profileEndereco";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
     if (tipo === "clientes") {
       let query = supabase
         .from("profiles")
-        .select("id, full_name, email, role, cep, logradouro, numero, complemento, bairro, municipio, uf")
+        .select(`id, full_name, email, role, ${PROFILE_ENDERECO_SELECT}`)
         .order("full_name", { ascending: true })
         .limit(30);
 
@@ -35,7 +36,8 @@ export async function GET(req: NextRequest) {
 
       const { data, error: err } = await query;
       if (err) return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
-      return NextResponse.json({ ok: true, clientes: data || [] });
+      const clientes = (data || []).map((c) => enriquecerPerfilComEndereco(c));
+      return NextResponse.json({ ok: true, clientes });
     }
 
     if (tipo === "produtos") {

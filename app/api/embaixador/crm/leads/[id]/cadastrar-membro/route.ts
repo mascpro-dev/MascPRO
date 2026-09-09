@@ -90,7 +90,7 @@ export async function POST(
     if (resultado.profile_id) {
       const { data: perfil } = await supabase
         .from("profiles")
-        .select("id, full_name, email, role, cep, logradouro, numero, complemento, bairro, municipio, uf")
+        .select("id, full_name, email, role, cep, address, number, complement, neighborhood, city, state, logradouro, numero, complemento, bairro, municipio, uf")
         .eq("id", resultado.profile_id)
         .maybeSingle();
       return NextResponse.json({
@@ -113,7 +113,7 @@ export async function POST(
 
   const { data: perfil } = await supabase
     .from("profiles")
-    .select("id, full_name, email, role, cep, logradouro, numero, complemento, bairro, municipio, uf")
+    .select("id, full_name, email, role, cep, address, number, complement, neighborhood, city, state, logradouro, numero, complemento, bairro, municipio, uf")
     .eq("id", resultado.profile_id)
     .maybeSingle();
 

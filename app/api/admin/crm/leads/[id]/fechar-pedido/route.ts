@@ -15,6 +15,7 @@ import {
   processarIndicadorNoFechamento,
 } from "@/lib/crmIndicadorLead";
 import { salvarEnderecoProfileCrm } from "@/lib/profileEnderecoCrm";
+import { montarEnderecoTexto } from "@/lib/profileEndereco";
 
 export const dynamic = "force-dynamic";
 
@@ -27,16 +28,7 @@ type ItemBody = {
 };
 
 function montarEnderecoCompleto(body: Record<string, unknown>): string {
-  const partes = [
-    body.logradouro,
-    body.numero ? `nº ${body.numero}` : null,
-    body.complemento,
-    body.bairro,
-    body.municipio && body.uf ? `${body.municipio}/${body.uf}` : body.municipio || body.uf,
-  ]
-    .map((p) => (p ? String(p).trim() : ""))
-    .filter(Boolean);
-  return partes.join(", ");
+  return montarEnderecoTexto(body);
 }
 
 async function resolverProfileId(
