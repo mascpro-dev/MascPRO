@@ -49,7 +49,7 @@ export async function carregarPedidoParaPdf(
       desconto_total, aprovacao_status, vendedor_id,
       distribuidor_gestor_id, gestor_tipo, crm_lead_id,
       profiles!orders_profile_id_fkey(full_name, email, whatsapp),
-      crm_leads(nome, telefone, email, cidade, estado),
+      crm_leads!crm_lead_id(nome, telefone, email, cidade, estado),
       order_items(quantidade, preco_unitario, bonificado, preco_tabela, products(title))
     `)
     .eq("id", orderId)
