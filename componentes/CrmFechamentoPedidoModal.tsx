@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
+import VendedorEditarPedidoModal from "@/componentes/VendedorEditarPedidoModal";
 
 type LeadResumo = {
   id: string;
@@ -149,6 +150,7 @@ export default function CrmFechamentoPedidoModal({
   const [statusPedido, setStatusPedido] = useState("paid");
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
   const [criandoNovaCompra, setCriandoNovaCompra] = useState(false);
+  const [editandoPedidoAposCriar, setEditandoPedidoAposCriar] = useState(false);
 
   const [indicadores, setIndicadores] = useState<IndicadorOpcao[]>([]);
   const [indicadorId, setIndicadorId] = useState(lead.indicador_id || "");
@@ -513,7 +515,27 @@ export default function CrmFechamentoPedidoModal({
                 </div>
               </div>
 
-              <PedidoPdfClienteButton orderId={sucesso.order_id} label="Gerar PDF para o cliente" className="w-full" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <PedidoPdfClienteButton orderId={sucesso.order_id} label="Gerar PDF" className="w-full" />
+                {(isVendedor || isRede) && (
+                  <button
+                    type="button"
+                    onClick={() => setEditandoPedidoAposCriar(true)}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-[#C9A66B]/40 bg-[#C9A66B]/10 text-[#C9A66B] hover:bg-[#C9A66B]/20 text-xs font-black uppercase tracking-widest"
+                  >
+                    Ajustar quantidades
+                  </button>
+                )}
+              </div>
+
+              {editandoPedidoAposCriar && (
+                <VendedorEditarPedidoModal
+                  orderId={sucesso.order_id}
+                  produtosApi={isVendedor ? "/api/vendedor/crm/produtos" : isRede ? "/api/embaixador/crm/produtos" : "/api/vendedor/crm/produtos"}
+                  onClose={() => setEditandoPedidoAposCriar(false)}
+                  onSaved={() => setEditandoPedidoAposCriar(false)}
+                />
+              )}
 
               {statusPedido === "pending" && !isVendedor && (
                 <button

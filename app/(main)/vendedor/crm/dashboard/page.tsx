@@ -3,9 +3,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ErroComVoltar from "@/componentes/ErroComVoltar";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
+import VendedorEditarPedidoModal from "@/componentes/VendedorEditarPedidoModal";
 import {
   LayoutDashboard, Loader2, DollarSign, TrendingUp, Kanban,
-  AlertTriangle, ShoppingBag, RefreshCw, Percent, MapPin, Target,
+  AlertTriangle, ShoppingBag, RefreshCw, Percent, MapPin, Target, Pencil,
 } from "lucide-react";
 import VendedorNovoPedidoButton from "@/componentes/VendedorNovoPedidoButton";
 
@@ -17,6 +18,7 @@ export default function VendedorCrmDashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
+  const [editandoPedidoId, setEditandoPedidoId] = useState<string | null>(null);
 
   async function carregar() {
     setLoading(true);
@@ -140,7 +142,19 @@ export default function VendedorCrmDashboardPage() {
               <span className="text-zinc-400 font-mono">#{String(p.id).slice(0, 8)}</span>
               <span className="text-zinc-300">{moeda(Number(p.total))}</span>
               <span className="text-zinc-500 text-xs">{p.status}{p.aprovacao_status === "pendente" ? " · aguardando" : ""}</span>
-              <PedidoPdfClienteButton orderId={p.id} compacto />
+              <div className="flex items-center gap-2 shrink-0">
+                {["novo", "pending"].includes(String(p.status || "").toLowerCase()) && (
+                  <button
+                    type="button"
+                    onClick={() => setEditandoPedidoId(p.id)}
+                    className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-[#C9A66B]"
+                    title="Ajustar quantidades"
+                  >
+                    <Pencil size={12} /> Ajustar
+                  </button>
+                )}
+                <PedidoPdfClienteButton orderId={p.id} compacto />
+              </div>
             </li>
           ))}
           {!data.ultimos_pedidos?.length && (
@@ -150,6 +164,14 @@ export default function VendedorCrmDashboardPage() {
           )}
         </ul>
       </div>
+
+      {editandoPedidoId && (
+        <VendedorEditarPedidoModal
+          orderId={editandoPedidoId}
+          onClose={() => setEditandoPedidoId(null)}
+          onSaved={() => void carregar()}
+        />
+      )}
 
       <div className="flex flex-wrap gap-3">
         <VendedorNovoPedidoButton onFechou={() => void carregar()} />

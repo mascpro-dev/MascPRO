@@ -50,7 +50,7 @@ export async function carregarPedidoParaPdf(
       distribuidor_gestor_id, gestor_tipo, crm_lead_id,
       profiles!orders_profile_id_fkey(full_name, email, whatsapp),
       crm_leads!crm_lead_id(nome, telefone, email, cidade, estado),
-      order_items(quantidade, preco_unitario, bonificado, preco_tabela, products(title))
+      order_items(product_id, quantidade, preco_unitario, bonificado, preco_tabela, products(id, title))
     `)
     .eq("id", orderId)
     .maybeSingle();
