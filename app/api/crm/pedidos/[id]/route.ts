@@ -161,7 +161,6 @@ export async function PATCH(
     const patch: Record<string, unknown> = {
       total,
       shipping_cost: frete,
-      updated_at: new Date().toISOString(),
     };
     if (body.shipping_cep !== undefined) {
       patch.shipping_cep = body.shipping_cep ? String(body.shipping_cep) : null;
