@@ -200,14 +200,34 @@ export default function CrmFechamentoPedidoModal({
   }, [buscaProduto, carregarProdutos]);
 
   useEffect(() => {
-    if (!lead.profile_id || isRede || isVendedor) return;
-    fetch(`${api}/leads/${lead.id}/converter?q=`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => {
-        const p = (d?.perfis || []).find((x: PerfilEndereco) => x.id === lead.profile_id);
-        if (p) aplicarEnderecoPerfil(p);
-      })
-      .catch(() => {});
+    let cancelled = false;
+
+    async function carregarEnderecoPerfil() {
+      try {
+        // Vendedor / embaixador / admin: sempre tenta puxar endereço do cadastro do membro
+        const res = await fetch(`${api}/leads/${lead.id}/perfil`, { cache: "no-store" });
+        const d = await res.json().catch(() => null);
+        if (!cancelled && d?.ok && d.perfil) {
+          aplicarEnderecoPerfil(d.perfil);
+          return;
+        }
+
+        // Fallback admin: busca na lista de converter
+        if (!isRede && !isVendedor && lead.profile_id) {
+          const res2 = await fetch(`${api}/leads/${lead.id}/converter?q=`, { cache: "no-store" });
+          const d2 = await res2.json().catch(() => null);
+          const p = (d2?.perfis || []).find((x: PerfilEndereco) => x.id === lead.profile_id);
+          if (!cancelled && p) aplicarEnderecoPerfil(p);
+        }
+      } catch {
+        /* silencioso — usuário preenche manualmente */
+      }
+    }
+
+    void carregarEnderecoPerfil();
+    return () => {
+      cancelled = true;
+    };
   }, [lead.id, lead.profile_id, api, isRede, isVendedor]);
 
   async function criarNovaCompra() {
