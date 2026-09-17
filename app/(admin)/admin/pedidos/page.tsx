@@ -15,6 +15,7 @@ import {
   formatarResumoHomeCare,
   linhaEhHomeCare,
 } from "@/lib/comercialHomeCare";
+import { calcularTotalPedido } from "@/lib/pedidoTotalSync";
 
 type Pedido = {
   id: string;
@@ -799,6 +800,19 @@ export default function AdminPedidosPage() {
                       <p className="text-2xl font-black text-white">
                         R$ {Number(pedido.total).toFixed(2)}
                       </p>
+                      {(() => {
+                        const calc = calcularTotalPedido({
+                          itens: pedido.order_items,
+                          shipping_cost: pedido.shipping_cost,
+                          desconto_total: (pedido as { desconto_total?: number }).desconto_total,
+                        });
+                        if (Math.abs(calc - Number(pedido.total || 0)) <= 0.009) return null;
+                        return (
+                          <p className="text-[10px] text-amber-400 font-bold mt-0.5">
+                            Itens + frete: R$ {calc.toFixed(2)} (recalculando…)
+                          </p>
+                        );
+                      })()}
                       <span className={`text-[10px] font-black uppercase tracking-widest border px-3 py-1 rounded-full ${statusInfo.style}`}>
                         {statusInfo.icon}{statusInfo.label}
                       </span>

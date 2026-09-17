@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
+import {
+  calcularTotalPedido,
+  sincronizarTotalPedido,
+} from "@/lib/pedidoTotalSync";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +43,7 @@ export async function GET(req: NextRequest) {
       .select(
         `*,
         profiles!orders_profile_id_fkey(full_name, nivel, avatar_url, email),
-        order_items(quantidade, preco_unitario, products(title, linha))`
+        order_items(quantidade, preco_unitario, bonificado, products(title, linha))`
       )
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -74,7 +78,28 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ ok: true, pedidos: data || [] });
+    // Auto-corrige totais divergentes dos itens (ex.: remoção na separação)
+    const pedidos = [];
+    for (const p of data || []) {
+      const totalCalc = calcularTotalPedido({
+        itens: p.order_items,
+        shipping_cost: p.shipping_cost,
+        desconto_total: p.desconto_total,
+      });
+      const totalGravado = Number(p.total || 0);
+      if (Math.abs(totalCalc - totalGravado) > 0.009) {
+        const sync = await sincronizarTotalPedido(supabase, p.id);
+        pedidos.push({
+          ...p,
+          total: sync.ok ? sync.total : totalCalc,
+          total_corrigido: true,
+        });
+      } else {
+        pedidos.push(p);
+      }
+    }
+
+    return NextResponse.json({ ok: true, pedidos });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno.";
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

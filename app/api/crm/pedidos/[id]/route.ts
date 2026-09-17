@@ -124,17 +124,6 @@ export async function PATCH(
       );
     }
 
-    const frete =
-      body.shipping_cost != null
-        ? Math.max(0, Number(body.shipping_cost) || 0)
-        : Number(order.shipping_cost || 0);
-    const desconto = Math.max(0, Number(order.desconto_total || 0));
-    const subtotal = itensLimpos.reduce(
-      (acc, i) => acc + i.quantidade * (i.bonificado ? 0 : i.preco_unitario),
-      0
-    );
-    const total = Number(Math.max(0, subtotal + frete - desconto).toFixed(2));
-
     const { error: delErr } = await supabase
       .from("order_items")
       .delete()
@@ -158,10 +147,10 @@ export async function PATCH(
       return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
     }
 
-    const patch: Record<string, unknown> = {
-      total,
-      shipping_cost: frete,
-    };
+    const patch: Record<string, unknown> = {};
+    if (body.shipping_cost != null) {
+      patch.shipping_cost = Math.max(0, Number(body.shipping_cost) || 0);
+    }
     if (body.shipping_cep !== undefined) {
       patch.shipping_cep = body.shipping_cep ? String(body.shipping_cep) : null;
     }
@@ -172,13 +161,25 @@ export async function PATCH(
       patch.payment_method = String(body.payment_method).trim() || "pix";
     }
 
-    const { error: upErr } = await supabase.from("orders").update(patch).eq("id", params.id);
-    if (upErr) {
-      return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 });
+    if (Object.keys(patch).length > 0) {
+      const { error: upErr } = await supabase.from("orders").update(patch).eq("id", params.id);
+      if (upErr) {
+        return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 });
+      }
+    }
+
+    const { sincronizarTotalPedido } = await import("@/lib/pedidoTotalSync");
+    const sync = await sincronizarTotalPedido(
+      supabase,
+      params.id,
+      body.shipping_cost != null ? { shipping_cost: Number(body.shipping_cost) || 0 } : undefined
+    );
+    if (!sync.ok) {
+      return NextResponse.json({ ok: false, error: sync.error }, { status: 500 });
     }
 
     const pedido = await carregarPedidoParaPdf(supabase, params.id);
-    return NextResponse.json({ ok: true, pedido, total });
+    return NextResponse.json({ ok: true, pedido, total: sync.total });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro ao atualizar pedido.";
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

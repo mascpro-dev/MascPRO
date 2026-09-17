@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext, assertAdmin } from "@/lib/adminServer";
+import { sincronizarTotalPedido } from "@/lib/pedidoTotalSync";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,8 @@ type ItemInput = {
   product_id: string;
   quantidade: number;
   preco_unitario: number;
+  bonificado?: boolean;
+  preco_tabela?: number | null;
 };
 
 export async function GET(
@@ -37,12 +40,16 @@ export async function GET(
     }
 
     const orderId = params.id;
+
+    // Corrige total desatualizado (ex.: itens removidos na separação)
+    await sincronizarTotalPedido(supabase, orderId);
+
     const { data: order, error: qerr } = await supabase
       .from("orders")
       .select(
         `*,
         profiles!orders_profile_id_fkey(id, full_name, email, role),
-        order_items(id, product_id, quantidade, preco_unitario, products(id, title))`
+        order_items(id, product_id, quantidade, preco_unitario, bonificado, preco_tabela, products(id, title))`
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -83,7 +90,7 @@ export async function PATCH(
 
     const { data: existente, error: errExist } = await supabase
       .from("orders")
-      .select("id, profile_id")
+      .select("id, profile_id, shipping_cost, desconto_total")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -151,7 +158,6 @@ export async function PATCH(
       patch.mp_preference_id = body.mp_preference_id ? String(body.mp_preference_id) : null;
     }
 
-    let subtotal = 0;
     const items: ItemInput[] | undefined = Array.isArray(body.items) ? body.items : undefined;
 
     if (items) {
@@ -160,6 +166,11 @@ export async function PATCH(
           product_id: String(i?.product_id || ""),
           quantidade: Math.max(1, Math.floor(Number(i?.quantidade) || 0)),
           preco_unitario: Math.max(0, Number(i?.preco_unitario) || 0),
+          bonificado: Boolean(i?.bonificado),
+          preco_tabela:
+            i?.preco_tabela != null && !Number.isNaN(Number(i.preco_tabela))
+              ? Number(i.preco_tabela)
+              : null,
         }))
         .filter((i) => i.product_id && i.quantidade > 0);
 
@@ -181,11 +192,6 @@ export async function PATCH(
         );
       }
 
-      subtotal = itensLimpos.reduce(
-        (acc, i) => acc + i.quantidade * i.preco_unitario,
-        0
-      );
-
       const { error: delErr } = await supabase
         .from("order_items")
         .delete()
@@ -199,45 +205,16 @@ export async function PATCH(
           order_id: orderId,
           product_id: i.product_id,
           quantidade: i.quantidade,
-          preco_unitario: Number(i.preco_unitario.toFixed(2)),
+          preco_unitario: Number((i.bonificado ? 0 : i.preco_unitario).toFixed(2)),
+          bonificado: Boolean(i.bonificado),
+          preco_tabela:
+            i.preco_tabela != null
+              ? Number(Number(i.preco_tabela).toFixed(2))
+              : Number(i.preco_unitario.toFixed(2)),
         }))
       );
       if (insErr) {
         return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
-      }
-    }
-
-    if (items || patch.shipping_cost != null) {
-      let frete = patch.shipping_cost as number | undefined;
-      if (frete === undefined && !items) {
-        const { data: cur } = await supabase
-          .from("orders")
-          .select("shipping_cost")
-          .eq("id", orderId)
-          .single();
-        frete = Number(cur?.shipping_cost || 0);
-      }
-      if (items) {
-        patch.total = Number((subtotal + (frete ?? 0)).toFixed(2));
-        if (patch.shipping_cost === undefined) {
-          const { data: cur } = await supabase
-            .from("orders")
-            .select("shipping_cost")
-            .eq("id", orderId)
-            .single();
-          patch.total = Number((subtotal + Number(cur?.shipping_cost || 0)).toFixed(2));
-        }
-      } else if (patch.shipping_cost != null) {
-        const { data: curItems } = await supabase
-          .from("order_items")
-          .select("quantidade, preco_unitario")
-          .eq("order_id", orderId);
-        const sub = (curItems || []).reduce(
-          (acc, row) =>
-            acc + Number(row.quantidade || 0) * Number(row.preco_unitario || 0),
-          0
-        );
-        patch.total = Number((sub + Number(patch.shipping_cost)).toFixed(2));
       }
     }
 
@@ -251,17 +228,27 @@ export async function PATCH(
       }
     }
 
+    // Sempre recalcula total a partir dos itens atuais + frete − desconto
+    const sync = await sincronizarTotalPedido(
+      supabase,
+      orderId,
+      body.shipping_cost != null ? { shipping_cost: Number(body.shipping_cost) || 0 } : undefined
+    );
+    if (!sync.ok) {
+      return NextResponse.json({ ok: false, error: sync.error }, { status: 500 });
+    }
+
     const { data: atualizado } = await supabase
       .from("orders")
       .select(
         `*,
         profiles!orders_profile_id_fkey(id, full_name, email, role),
-        order_items(id, product_id, quantidade, preco_unitario, products(id, title))`
+        order_items(id, product_id, quantidade, preco_unitario, bonificado, products(id, title))`
       )
       .eq("id", orderId)
       .single();
 
-    return NextResponse.json({ ok: true, order: atualizado });
+    return NextResponse.json({ ok: true, order: atualizado, total: sync.total });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno.";
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

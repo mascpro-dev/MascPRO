@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { calcularTotalPedido } from "@/lib/pedidoTotalSync";
 import {
   X, Loader2, Save, Plus, Minus, Trash2, Search, Package, User, AlertCircle,
 } from "lucide-react";
@@ -163,7 +164,15 @@ export default function EditarPedidoModal({ orderId, onClose, onSaved }: Props) 
     [itens]
   );
   const freteNum = Number(frete.replace(",", ".")) || 0;
-  const total = subtotal + freteNum;
+  const total = useMemo(
+    () =>
+      calcularTotalPedido({
+        itens,
+        shipping_cost: freteNum,
+        desconto_total: 0,
+      }),
+    [itens, freteNum]
+  );
 
   function adicionarProduto(p: ProdutoBusca) {
     if (!p.ativo) return;
