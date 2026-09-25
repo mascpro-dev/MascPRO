@@ -187,23 +187,21 @@ export default function AdminMembrosPage() {
       body: JSON.stringify({ acao, user_id: m.id }),
     });
     const data = await res.json().catch(() => null);
-    if (!res.ok || !data?.ok) setAvisoMapa(data?.error || "Não foi possível atualizar o mapa.");
-    else if (data?.aviso) setAvisoMapa(data.aviso);
-    await carregar();
-    setMapaAlvo(null);
-  }
-
-  async function varrerMapa() {
-    setMapaAlvo("varrer");
-    setAvisoMapa(null);
-    const res = await fetch("/api/admin/mapa", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ acao: "varrer" }),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data?.ok) setAvisoMapa(data?.error || "Não foi possível desativar os mapas.");
-    else setAvisoMapa(`${data.desativados || 0} cadastro(s) saíram do mapa por falta de compra nos últimos 30 dias.`);
+    const visivel = acao === "ativar" && res.ok && data?.ok;
+    if (!res.ok || !data?.ok) {
+      const msg = data?.error || "Não foi possível atualizar o mapa.";
+      setAvisoMapa(msg);
+      if (editando?.id === m.id) setFeedback({ tipo: "erro", msg });
+    } else {
+      if (data?.aviso) setAvisoMapa(data.aviso);
+      setEditando((atual) => (atual && atual.id === m.id ? { ...atual, mapa_visivel: visivel } : atual));
+      if (editando?.id === m.id) {
+        setFeedback({
+          tipo: data?.aviso ? "erro" : "ok",
+          msg: data?.aviso || (visivel ? "Salão ligado no mapa." : "Salão retirado do mapa."),
+        });
+      }
+    }
     await carregar();
     setMapaAlvo(null);
   }
@@ -249,17 +247,8 @@ export default function AdminMembrosPage() {
           </div>
         </div>
 
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4">
           <p className="text-xs text-zinc-600 font-bold">{filtrado.length} membro(s) encontrado(s)</p>
-          <button
-            type="button"
-            onClick={() => void varrerMapa()}
-            disabled={mapaAlvo === "varrer"}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#C9A66B]/40 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-[#C9A66B] hover:bg-[#C9A66B]/10 disabled:opacity-60"
-          >
-            {mapaAlvo === "varrer" ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
-            Desativar sem compra há 30 dias
-          </button>
         </div>
         {avisoMapa && (
           <p className="mb-4 rounded-xl border border-[#C9A66B]/30 bg-[#C9A66B]/10 px-4 py-3 text-xs text-[#C9A66B]">
@@ -576,6 +565,29 @@ export default function AdminMembrosPage() {
                   </div>
                 </div>
 
+                <div className="bg-zinc-900 rounded-xl p-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B] flex items-center gap-1">
+                      <MapPin size={12} /> Mapa de salões
+                    </p>
+                    <p className="text-[11px] text-zinc-500 mt-1">
+                      A pessoa se cadastra. Você liga o salão no mapa por aqui.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={mapaAlvo === editando.id}
+                    onClick={() => alterarMapa(editando, editando.mapa_visivel ? "desativar" : "ativar")}
+                    className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-colors disabled:opacity-60 ${
+                      editando.mapa_visivel
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                        : "bg-black/40 border-zinc-700 text-zinc-500"
+                    }`}
+                  >
+                    {mapaAlvo === editando.id ? "Salvando..." : editando.mapa_visivel ? "Visível" : "Oculto"}
+                  </button>
+                </div>
+
                 <div className="bg-zinc-900 rounded-xl p-4">
                   <button onClick={() => setMostrarSenha(!mostrarSenha)} className="flex items-center gap-2 text-[10px] font-black uppercase text-zinc-500 hover:text-[#C9A66B] transition-colors">
                     <KeyRound size={13} /> {mostrarSenha ? "Ocultar" : "Alterar Senha"}
@@ -610,48 +622,20 @@ function BotaoMapa({
   ocupado: boolean;
   onAlterar: (m: Membro, acao: "ativar" | "desativar") => void;
 }) {
-  if (m.mapa_visivel && !m.compra_30d) {
-    return (
-      <button
-        type="button"
-        disabled={ocupado}
-        onClick={() => onAlterar(m, "desativar")}
-        className="inline-flex min-h-[1.75rem] items-center justify-center gap-1 rounded-lg border border-amber-800/50 bg-amber-950/40 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-amber-300 disabled:opacity-60"
-      >
-        {ocupado ? <Loader2 size={10} className="animate-spin" /> : <MapPin size={10} />}
-        Fora dos 30 dias
-      </button>
-    );
-  }
-  if (m.mapa_visivel) {
-    return (
-      <button
-        type="button"
-        disabled={ocupado}
-        onClick={() => onAlterar(m, "desativar")}
-        className="inline-flex min-h-[1.75rem] items-center justify-center gap-1 rounded-lg border border-[#C9A66B]/40 bg-[#C9A66B]/10 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[#C9A66B] disabled:opacity-60"
-      >
-        {ocupado ? <Loader2 size={10} className="animate-spin" /> : <MapPin size={10} />}
-        No mapa
-      </button>
-    );
-  }
-  if (m.compra_30d) {
-    return (
-      <button
-        type="button"
-        disabled={ocupado}
-        onClick={() => onAlterar(m, "ativar")}
-        className="inline-flex min-h-[1.75rem] items-center justify-center gap-1 rounded-lg border border-zinc-700 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-zinc-300 hover:border-[#C9A66B]/50 hover:text-[#C9A66B] disabled:opacity-60"
-      >
-        {ocupado ? <Loader2 size={10} className="animate-spin" /> : <MapPin size={10} />}
-        Ativar mapa
-      </button>
-    );
-  }
+  const visivel = m.mapa_visivel === true;
   return (
-    <span className="inline-flex min-h-[1.75rem] items-center justify-center rounded-lg border border-zinc-800 px-2 py-1 text-center text-[9px] font-black uppercase tracking-wide text-zinc-600">
-      Sem compra 30d
-    </span>
+    <button
+      type="button"
+      disabled={ocupado}
+      onClick={() => onAlterar(m, visivel ? "desativar" : "ativar")}
+      className={`inline-flex min-h-[1.75rem] items-center justify-center gap-1 rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-wide disabled:opacity-60 ${
+        visivel
+          ? "border-[#C9A66B]/40 bg-[#C9A66B]/10 text-[#C9A66B]"
+          : "border-zinc-700 text-zinc-300 hover:border-[#C9A66B]/50 hover:text-[#C9A66B]"
+      }`}
+    >
+      {ocupado ? <Loader2 size={10} className="animate-spin" /> : <MapPin size={10} />}
+      {visivel ? "No mapa" : "Ativar mapa"}
+    </button>
   );
 }

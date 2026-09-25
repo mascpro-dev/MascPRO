@@ -425,7 +425,7 @@ export default function PerfilPage() {
                       Aparecer no mapa de salões
                     </p>
                     <p className="text-[11px] text-zinc-500">
-                      O admin libera o mapa. Quem fica mais de 30 dias sem compra sai da busca.
+                      O admin liga o mapa em Todos os membros, dentro do perfil.
                     </p>
                   </div>
                   <button

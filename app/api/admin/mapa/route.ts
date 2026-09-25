@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertAdmin, getAdminContext } from "@/lib/adminServer";
 import { consultaGeocode, geocodificar } from "@/lib/mapaSaloes";
-import { compraDentroDoPrazo, MAPA_DIAS_COMPRA, ultimasComprasPorPerfil } from "@/lib/mapaCompra";
 
 function colunaMapaAusente(err: { message?: string; code?: string } | null | undefined) {
   const msg = String(err?.message || "").toLowerCase();
@@ -20,27 +19,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const acao = String(body.acao || "");
     const db = ctx.supabase;
-
-    if (acao === "varrer") {
-      const { data, error } = await db.from("profiles").select("id").eq("mapa_visivel", true);
-      if (error) {
-        if (colunaMapaAusente(error)) {
-          return NextResponse.json(
-            { ok: false, error: "Rode supabase/mapa_saloes.sql no SQL Editor do Supabase." },
-            { status: 400 }
-          );
-        }
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-      }
-      const ids = (data || []).map((r) => String(r.id));
-      const ultimas = await ultimasComprasPorPerfil(db, ids);
-      const sair = ids.filter((id) => !compraDentroDoPrazo(ultimas.get(id)));
-      if (sair.length) {
-        const { error: up } = await db.from("profiles").update({ mapa_visivel: false }).in("id", sair);
-        if (up) return NextResponse.json({ ok: false, error: up.message }, { status: 500 });
-      }
-      return NextResponse.json({ ok: true, desativados: sair.length });
-    }
 
     const userId = String(body.user_id || "");
     if (!userId) return NextResponse.json({ ok: false, error: "Membro não informado." }, { status: 400 });
@@ -61,17 +39,6 @@ export async function POST(req: NextRequest) {
 
     if (acao !== "ativar") {
       return NextResponse.json({ ok: false, error: "Ação inválida." }, { status: 400 });
-    }
-
-    const ultimas = await ultimasComprasPorPerfil(db, [userId]);
-    if (!compraDentroDoPrazo(ultimas.get(userId))) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `Só entra no mapa quem comprou nos últimos ${MAPA_DIAS_COMPRA} dias.`,
-        },
-        { status: 400 }
-      );
     }
 
     const { data: perfil, error: errPerfil } = await db
