@@ -47,7 +47,7 @@ const securityHeaders = [
     ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }]
     : []),
   // Desativa algumas APIs de browser perigosas
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(self)" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self), payment=(self)" },
   // Content Security Policy básico — bloqueia XSS de fontes externas não autorizadas
   {
     key: "Content-Security-Policy",

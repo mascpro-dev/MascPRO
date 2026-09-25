@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { validateBookingSlugInput } from "@/lib/bookingSlug";
 import { camposLocalizacaoSync } from "@/lib/profileLocalizacao";
+import { consultaGeocode, geocodificar } from "@/lib/mapaSaloes";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,6 +44,39 @@ export async function POST(req: NextRequest) {
     }
     if (body.reminder_enabled !== undefined) campos.reminder_enabled = Boolean(body.reminder_enabled);
 
+    if (body.mapa_visivel === true) {
+      const cidade = String(body.city || "").trim();
+      if (!cidade) {
+        return NextResponse.json(
+          { ok: false, error: "Informe a cidade para aparecer no mapa." },
+          { status: 400 }
+        );
+      }
+      const { data: atual } = await supabase
+        .from("profiles")
+        .select("studio_address, city, state, logradouro, address, numero, number, bairro, neighborhood, municipio, uf")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      const consulta = consultaGeocode({
+        ...(atual || {}),
+        city: body.city,
+        state: body.state,
+        studio_address: body.studio_address ?? atual?.studio_address,
+      });
+      const ponto = await geocodificar(consulta);
+      if (!ponto) {
+        return NextResponse.json(
+          { ok: false, error: "Não localizei esse endereço. Confira a cidade e o endereço do estúdio." },
+          { status: 422 }
+        );
+      }
+      campos.mapa_visivel = true;
+      campos.mapa_lat = ponto.lat;
+      campos.mapa_lng = ponto.lng;
+    } else if (body.mapa_visivel === false) {
+      campos.mapa_visivel = false;
+    }
+
     // Remove campos undefined
     Object.keys(campos).forEach(k => campos[k] === undefined && delete campos[k]);
 
@@ -58,7 +92,22 @@ export async function POST(req: NextRequest) {
           { status: 409 }
         );
       }
-      // Se erro por coluna inexistente, tenta sem os opcionais
+      if (String(error.message || "").toLowerCase().includes("mapa_")) {
+        if (body.mapa_visivel === true) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: "O mapa ainda não está ativo no banco. Rode supabase/mapa_saloes.sql no SQL Editor do Supabase.",
+            },
+            { status: 400 }
+          );
+        }
+        delete campos.mapa_visivel;
+        delete campos.mapa_lat;
+        delete campos.mapa_lng;
+        const { error: semMapa } = await supabase.from("profiles").update(campos).eq("id", session.user.id);
+        if (!semMapa) return NextResponse.json({ ok: true });
+      }
       if (error.message.includes("column") || error.code === "PGRST204") {
         const camposBase: Record<string, unknown> = {
           full_name: body.full_name,

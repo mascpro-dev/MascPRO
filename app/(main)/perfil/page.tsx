@@ -25,8 +25,9 @@ type Form = {
   studio_address: string;
   reminder_template: string;
   reminder_enabled: boolean;
+  mapa_visivel: boolean;
 };
-type StringFormKey = Exclude<keyof Form, "reminder_enabled">;
+type StringFormKey = Exclude<keyof Form, "reminder_enabled" | "mapa_visivel">;
 
 const WORK_TYPES = ["Salão Próprio", "Alugo Cadeira", "Comissionado"];
 const EXPERIENCE_OPTIONS = [
@@ -42,7 +43,7 @@ export default function PerfilPage() {
   const [form, setForm] = useState<Form>({
     full_name: "", whatsapp: "", instagram: "", bio: "",
     city: "", state: "", barber_shop: "", booking_slug: "", work_type: "", experience: "",
-    studio_address: "", reminder_template: "", reminder_enabled: true,
+    studio_address: "", reminder_template: "", reminder_enabled: true, mapa_visivel: false,
   });
   const [salvando, setSalvando] = useState(false);
   const [alterandoFoto, setAlterandoFoto] = useState(false);
@@ -75,6 +76,7 @@ export default function PerfilPage() {
           studio_address: data.studio_address || "",
           reminder_template: data.reminder_template || "",
           reminder_enabled: data.reminder_enabled !== false,
+          mapa_visivel: data.mapa_visivel === true,
         });
       }
     }
@@ -83,7 +85,7 @@ export default function PerfilPage() {
 
   const set = (field: StringFormKey, val: string) =>
     setForm(f => ({ ...f, [field]: val }));
-  const setBool = (field: "reminder_enabled", val: boolean) =>
+  const setBool = (field: "reminder_enabled" | "mapa_visivel", val: boolean) =>
     setForm(f => ({ ...f, [field]: val }));
 
   async function uploadAvatar(file: File) {
@@ -390,6 +392,33 @@ export default function PerfilPage() {
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Estado (UF)</label>
                 <input type="text" placeholder="Ex: SP" maxLength={2} value={form.state} onChange={e => set("state", e.target.value.toUpperCase())} className={inputClass} />
+              </div>
+
+              <div className="md:col-span-2 space-y-3 rounded-2xl border border-[#C9A66B]/30 bg-[#C9A66B]/5 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-black text-[#C9A66B] uppercase tracking-widest">
+                      Aparecer no mapa de salões
+                    </p>
+                    <p className="text-[11px] text-zinc-500">
+                      Com a cidade preenchida, seu salão entra na busca pública. O cliente vê endereço, WhatsApp e agenda.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBool("mapa_visivel", !form.mapa_visivel)}
+                    className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-colors ${
+                      form.mapa_visivel
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                        : "bg-zinc-900 border-zinc-700 text-zinc-500"
+                    }`}
+                  >
+                    {form.mapa_visivel ? "Visível" : "Oculto"}
+                  </button>
+                </div>
+                <a href="/mapa" target="_blank" rel="noreferrer" className="text-[11px] font-bold text-[#C9A66B] underline">
+                  Abrir o mapa público
+                </a>
               </div>
 
               {/* Situação Profissional */}

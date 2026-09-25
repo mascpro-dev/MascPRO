@@ -31,6 +31,19 @@ body {
   background: #C9A66B; /* Fica Dourada (MASC PRO) só quando passa o mouse */
 }
 
+.mapa-pin-wrap,
+.leaflet-div-icon.mapa-pin-wrap {
+  background: transparent !important;
+  border: none !important;
+}
+
+.mapa-canvas .leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: #f3efe9;
+  font-family: inherit;
+}
+
 /* Para Firefox */
 * {
   scrollbar-width: thin;

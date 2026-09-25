@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // Rotas públicas que nunca precisam de auth
-const PUBLIC_ROUTES = ['/agendar', '/catalago', '/instalar-app', '/auth-choice', '/role-select']
-const PUBLIC_PREFIXES = ['/agendar/', '/catalago/', '/api/mp-webhook', '/api/frete', '/api/config/loja', '/api/agendar/']
+const PUBLIC_ROUTES = ['/agendar', '/catalago', '/instalar-app', '/auth-choice', '/role-select', '/mapa']
+const PUBLIC_PREFIXES = ['/agendar/', '/catalago/', '/mapa/', '/api/mp-webhook', '/api/frete', '/api/config/loja', '/api/agendar/']
 
 // Rotas que requerem APENAS login (qualquer usuário autenticado)
 const AUTH_ONLY_PREFIXES = ['/home', '/agenda', '/perfil', '/comunidade', '/loja', '/evolucao', '/jornada', '/rede', '/eventos', '/aula', '/calculadora', '/embaixador', '/vendedor']
