@@ -870,7 +870,7 @@ function Ficha({
             href={salao.agenda}
             className="flex items-center justify-center gap-2 rounded-full bg-[#1FA971] py-3 text-sm font-semibold text-white"
           >
-            <Calendar size={16} /> Agende agora
+            <Calendar size={16} /> Fazer agendamento
           </Link>
         )}
         {wa && (

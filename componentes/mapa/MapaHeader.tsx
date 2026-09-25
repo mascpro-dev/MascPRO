@@ -46,9 +46,6 @@ export default function MapaHeader() {
             <Link href="/mapa?ver=mapa" className={noMapa ? ativo : link}>
               Mapa
             </Link>
-            <Link href="/mapa?ver=mapa" className={link}>
-              Fazer agendamento
-            </Link>
             <Link href="/mapa/inscrever" className={inscrever ? ativo : link}>
               Conheça a Masc
             </Link>
@@ -68,9 +65,6 @@ export default function MapaHeader() {
         </Link>
         <Link href="/mapa?ver=mapa" className={`shrink-0 ${noMapa ? ativo : link}`}>
           Mapa
-        </Link>
-        <Link href="/mapa?ver=mapa" className={`shrink-0 ${link}`}>
-          Fazer agendamento
         </Link>
         <Link href="/mapa/inscrever" className={`shrink-0 ${inscrever ? ativo : link}`}>
           Conheça a Masc
