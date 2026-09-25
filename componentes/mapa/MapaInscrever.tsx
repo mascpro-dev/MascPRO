@@ -16,6 +16,8 @@ const VAZIO = {
   numero: "",
 };
 
+const OURO = "#E0A84A";
+
 export default function MapaInscrever() {
   const [form, setForm] = useState(VAZIO);
   const [erro, setErro] = useState<string | null>(null);
@@ -47,73 +49,191 @@ export default function MapaInscrever() {
     setErro(null);
   }
 
+  function irFormulario() {
+    document.getElementById("formulario")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   return (
-    <div className="min-h-screen bg-[#FFFBF8] text-[#1A1A1A]">
+    <div className="min-h-screen bg-white text-[#1A1A1A]">
       <MapaHeader />
 
-      <section className="bg-[#111] text-white">
-        <div className="mx-auto grid max-w-5xl items-center gap-8 px-4 py-14 md:grid-cols-2">
+      <section className="relative overflow-hidden bg-[#0c0c0c] text-white">
+        <div className="pointer-events-none absolute inset-0 opacity-40 [background:radial-gradient(circle_at_70%_40%,#3a2a12,transparent_42%),radial-gradient(circle_at_10%_80%,#1a1208,transparent_35%)]" />
+        <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:py-20">
           <div>
-            <LogoMasc branca className="mb-5 h-14 w-auto" />
-            <h1 className="text-3xl font-semibold leading-tight [font-family:var(--font-mapa),Georgia,serif] md:text-5xl">
-              Deixe novas clientes encontrarem seu salão.
+            <h1 className="text-3xl font-black uppercase leading-[1.05] tracking-tight md:text-5xl">
+              Deixe novas clientes encontrarem seu salão de forma simples!
             </h1>
-            <p className="mt-4 max-w-md text-sm text-white/75">
-              O mapa conecta quem busca um profissional perto de casa com o salão que já está cadastrado no app.
+            <p className="mt-5 max-w-md text-sm leading-relaxed text-white/80 md:text-base">
+              O Mapa de Salões Masc PRO ajuda a conectar profissionais com novas clientes próximas da sua região.
             </p>
+            <button
+              type="button"
+              onClick={irFormulario}
+              className="mt-8 rounded-md px-6 py-3 text-xs font-black uppercase tracking-widest text-black"
+              style={{ background: OURO }}
+            >
+              Quero aparecer no mapa
+            </button>
           </div>
-          <ul className="space-y-3 text-sm text-white/85">
-            <li>Ser encontrada por quem já está perto de você</li>
-            <li>Receber contato direto no WhatsApp</li>
-            <li>Aparecer com cidade, endereço e agenda</li>
-          </ul>
+          <MapaBrasil />
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-5xl gap-4 px-4 py-12 md:grid-cols-3">
-        {[
-          ["1", "Cadastre seus dados", "Nome, contato, Instagram e endereço. A ficha chega no WhatsApp."],
-          ["2", "Você recebe o link do app", "No app, complete o perfil e ligue a opção de aparecer no mapa."],
-          ["3", "A cliente encontra você", "Ela vê o pin, o Instagram e chama no WhatsApp ou agenda."],
-        ].map(([n, t, d]) => (
-          <article key={n} className="rounded-3xl bg-[#161616] p-6 text-white">
-            <p className="text-xs font-bold text-[#C9A66B]">{n}</p>
-            <h2 className="mt-2 text-lg font-semibold">{t}</h2>
-            <p className="mt-2 text-sm text-white/70">{d}</p>
+      <section className="bg-white">
+        <div className="mx-auto grid max-w-5xl items-center gap-10 px-4 py-16 md:grid-cols-2">
+          <div>
+            <h2 className="text-3xl font-semibold leading-tight md:text-4xl" style={{ color: OURO }}>
+              O seu salão merece mais visibilidade!
+            </h2>
+            <p className="mt-4 max-w-md text-sm leading-relaxed text-zinc-600 md:text-base">
+              O Mapa de Salões existe para facilitar isso: mostrar o seu trabalho para quem está perto de você e ainda não te conhece.
+            </p>
+          </div>
+          <PhoneMapa />
+        </div>
+      </section>
+
+      <section className="bg-black py-14 text-center text-white">
+        <h2 className="text-3xl font-black uppercase tracking-wide md:text-5xl">
+          Aumente sua
+          <br />
+          visibilidade agora
+        </h2>
+      </section>
+
+      <section className="bg-black pb-16 text-white">
+        <div className="mx-auto grid max-w-5xl gap-5 px-4 md:grid-cols-2">
+          <article className="rounded-sm border border-white/10 bg-[#141414] p-8">
+            <ul className="space-y-3 text-sm text-white/85">
+              <li>• Seu salão visível no mapa</li>
+              <li>• Contato direto pelo WhatsApp</li>
+              <li>• Suas redes sociais no perfil</li>
+              <li>• Busca por localização</li>
+            </ul>
+            <button
+              type="button"
+              onClick={irFormulario}
+              className="mt-8 w-full rounded-md py-3 text-xs font-black uppercase tracking-widest text-black"
+              style={{ background: OURO }}
+            >
+              Quero aparecer no mapa
+            </button>
           </article>
-        ))}
+          <article className="rounded-sm border p-8" style={{ borderColor: OURO, background: "linear-gradient(180deg,#1a1408,#0e0e0e)" }}>
+            <ul className="space-y-3 text-sm text-white/85">
+              <li>• Suas redes sociais no perfil</li>
+              <li>• Pin colorido conforme seu papel no app</li>
+              <li>• Busca por localização</li>
+              <li>• Apoio da equipe Masc PRO</li>
+              <li>• Agenda, WhatsApp e Instagram no mesmo pin</li>
+            </ul>
+            <a
+              href={`https://wa.me/${MAPA_WHATSAPP}?text=${encodeURIComponent("Olá! Quero colocar meu salão no mapa da Masc PRO.")}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-8 block w-full rounded-md py-3 text-center text-xs font-black uppercase tracking-widest text-black"
+              style={{ background: OURO }}
+            >
+              Falar com a Masc
+            </a>
+          </article>
+        </div>
       </section>
 
-      <section className="mx-auto max-w-lg px-4 pb-20">
-        <form onSubmit={enviar} className="rounded-[28px] border border-black/10 bg-white p-6 shadow-sm md:p-8">
-          <LogoMasc className="mx-auto mb-4 h-12 w-auto" />
-          <h2 className="text-center text-2xl font-semibold [font-family:var(--font-mapa),Georgia,serif]">
-            Preencha o formulário
-          </h2>
-          <p className="mt-1 text-center text-sm text-zinc-500">e a ficha abre no WhatsApp 14 99743-3541</p>
-          <p className="mb-5 mt-2 text-center text-[11px] text-zinc-400">
-            Os dados servem só para o cadastro no mapa.
-          </p>
-
-          <Campo label="Nome" value={form.nome} onChange={(v) => set("nome", v)} />
-          <Campo label="E-mail" type="email" value={form.email} onChange={(v) => set("email", v)} />
-          <Campo label="Telefone" value={form.telefone} onChange={(v) => set("telefone", v)} placeholder="(14) 99999-9999" />
-          <Campo label="Instagram" value={form.instagram} onChange={(v) => set("instagram", v)} placeholder="@seusalao" />
-          <Campo label="CEP" value={form.cep} onChange={(v) => set("cep", v)} placeholder="00000-000" />
-          <Campo label="Bairro" value={form.bairro} onChange={(v) => set("bairro", v)} />
-          <Campo label="Rua" value={form.rua} onChange={(v) => set("rua", v)} />
-          <Campo label="Número" value={form.numero} onChange={(v) => set("numero", v)} />
-
-          {erro && <p className="mb-3 text-sm text-[#E23B4A]">{erro}</p>}
-
-          <button
-            type="submit"
-            className="mt-2 w-full rounded-xl bg-[#3a2a24] py-3.5 text-sm font-bold uppercase tracking-widest text-white"
-          >
-            Cadastrar no mapa
-          </button>
-        </form>
+      <section className="bg-white px-4 py-16">
+        <h2 className="text-center text-3xl font-black uppercase tracking-wide md:text-4xl">Como funciona?</h2>
+        <div className="mx-auto mt-10 grid max-w-5xl gap-4 md:grid-cols-3">
+          {[
+            ["1", "Cadastre seus dados", "Só pedimos o necessário: nome, contato, Instagram e endereço. A ficha chega no WhatsApp."],
+            ["2", "Seu salão aparece no mapa", "Depois do cadastro, o admin liga o mapa no seu perfil e o pin entra na busca."],
+            ["3", "A cliente encontra você", "Ela vê o pin, o Instagram e chama no WhatsApp ou agenda direto na sua agenda."],
+          ].map(([n, t, d]) => (
+            <article key={n} className="bg-black p-6 text-white">
+              <p className="text-sm font-black" style={{ color: OURO }}>
+                {n}.
+              </p>
+              <h3 className="mt-3 text-lg font-black uppercase leading-tight">{t}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-white/75">{d}</p>
+            </article>
+          ))}
+        </div>
+        <p className="mx-auto mt-10 max-w-3xl border px-6 py-5 text-center text-sm text-zinc-600 md:text-base" style={{ borderColor: OURO }}>
+          Todos os meses profissionais e clientes entram no mapa para procurar um salão mais próximo.
+        </p>
       </section>
+
+      <section className="bg-black text-white">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2">
+          <div>
+            <h2 className="text-3xl font-black uppercase leading-tight md:text-4xl">
+              Benefícios de estar no mapa de salões:
+            </h2>
+            <ul className="mt-6 space-y-3 text-sm text-white/85 md:text-base">
+              <li>• Ser encontrada por quem já está perto de você</li>
+              <li>• Receber contatos diretos no seu WhatsApp</li>
+              <li>• Ter mais um caminho para uma nova cliente chegar até você</li>
+            </ul>
+            <button
+              type="button"
+              onClick={irFormulario}
+              className="mt-8 rounded-md px-6 py-3 text-xs font-black uppercase tracking-widest text-black"
+              style={{ background: OURO }}
+            >
+              Quero aparecer no mapa
+            </button>
+          </div>
+          <MapaBrasil claro />
+        </div>
+      </section>
+
+      <section
+        id="formulario"
+        className="relative overflow-hidden bg-[#f4f1ea]"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg,rgba(244,241,234,0.94),rgba(244,241,234,0.72)),url(https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1600&q=60)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2">
+          <form onSubmit={enviar} className="border border-black/80 bg-[#f7f4ef]/95 p-6 shadow-xl md:p-8">
+            <h2 className="text-center text-3xl font-semibold [font-family:var(--font-mapa),Georgia,serif]">
+              Preencha o formulário
+            </h2>
+            <p className="mt-1 text-center text-sm text-zinc-600">e entraremos em contato</p>
+            <p className="mb-5 mt-3 text-center text-xs text-zinc-500">
+              Os dados servem só para o cadastro no mapa. A ficha abre no WhatsApp 14 99743-3541.
+            </p>
+            <Campo label="Nome*" value={form.nome} onChange={(v) => set("nome", v)} />
+            <Campo label="E-mail*" type="email" value={form.email} onChange={(v) => set("email", v)} />
+            <Campo label="Telefone*" value={form.telefone} onChange={(v) => set("telefone", v)} placeholder="(14) 99999-9999" />
+            <Campo label="Instagram*" value={form.instagram} onChange={(v) => set("instagram", v)} placeholder="@seusalao" />
+            <Campo label="CEP*" value={form.cep} onChange={(v) => set("cep", v)} placeholder="00000-000" />
+            <Campo label="Bairro*" value={form.bairro} onChange={(v) => set("bairro", v)} />
+            <Campo label="Rua*" value={form.rua} onChange={(v) => set("rua", v)} />
+            <Campo label="Número*" value={form.numero} onChange={(v) => set("numero", v)} />
+            {erro && <p className="mb-3 text-sm text-[#E23B4A]">{erro}</p>}
+            <button type="submit" className="mt-2 w-full rounded-full bg-[#3a2a24] py-3.5 text-xs font-black uppercase tracking-[0.18em] text-white">
+              Cadastrar no mapa
+            </button>
+          </form>
+          <div className="hidden flex-col items-center md:flex">
+            <div className="mb-4 flex items-end gap-3">
+              <Pin cor="#9CA3AF" />
+              <Pin cor={OURO} alto />
+              <Pin cor="#E23B4A" />
+            </div>
+            <LogoMasc className="h-16 w-auto" />
+            <p className="mt-3 text-3xl font-black tracking-tight">Mapa de Salões</p>
+          </div>
+        </div>
+      </section>
+
+      <footer className="py-3 text-center text-xs text-black" style={{ background: OURO }}>
+        © Masc PRO {new Date().getFullYear()}. Todos os direitos reservados.
+      </footer>
     </div>
   );
 }
@@ -133,15 +253,79 @@ function Campo({
 }) {
   return (
     <label className="mb-3 block">
-      <span className="mb-1 block text-xs font-medium text-zinc-500">{label}</span>
+      <span className="mb-1 block text-xs text-zinc-600">{label}</span>
       <input
         required
         type={type}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-black/10 bg-zinc-50 px-3 py-2.5 text-sm outline-none focus:border-[#E23B4A]"
+        className="w-full border border-black/15 bg-white px-3 py-2 text-sm outline-none focus:border-[#E0A84A]"
       />
     </label>
+  );
+}
+
+function Pin({ cor, alto = false }: { cor: string; alto?: boolean }) {
+  return (
+    <svg width={alto ? 72 : 54} height={alto ? 96 : 72} viewBox="0 0 32 42" aria-hidden="true">
+      <path d="M16 1C8 1 2 7.2 2 15.2 2 26 16 41 16 41s14-15 14-25.8C30 7.2 24 1 16 1z" fill={cor} />
+      <text x="16" y="19" textAnchor="middle" fontSize="11" fontWeight="700" fill="#fff">
+        M
+      </text>
+    </svg>
+  );
+}
+
+function MapaBrasil({ claro = false }: { claro?: boolean }) {
+  const pins = [
+    { t: "18%", l: "42%", c: "#E23B4A" },
+    { t: "28%", l: "58%", c: OURO },
+    { t: "40%", l: "48%", c: "#fff" },
+    { t: "52%", l: "62%", c: "#fff" },
+    { t: "63%", l: "46%", c: OURO },
+    { t: "34%", l: "34%", c: "#fff" },
+  ];
+  return (
+    <div className="relative mx-auto h-72 w-full max-w-md md:h-80">
+      <svg viewBox="0 0 200 210" className="h-full w-full drop-shadow-2xl" aria-hidden="true">
+        <path
+          d="M78 12c18 2 28 10 42 8 16-2 28 8 36 20 10 16 22 18 28 34 6 18-2 32 2 48 4 18-8 30-6 46-2 18-20 28-36 32-18 4-24 16-42 14-16-2-28-14-44-16-18-2-34-16-36-34-2-16 8-28 6-44-2-18-12-28-8-46 4-16 16-22 22-36 6-14 18-28 36-26z"
+          fill={claro ? "#C9A66B" : "#E0A84A"}
+        />
+      </svg>
+      {pins.map((p) => (
+        <span
+          key={`${p.t}-${p.l}`}
+          className="absolute grid h-7 w-7 -translate-x-1/2 -translate-y-full place-items-center rounded-t-full rounded-br-full text-[10px] font-black text-white shadow"
+          style={{ top: p.t, left: p.l, background: p.c, color: p.c === "#fff" ? "#111" : "#fff" }}
+        >
+          M
+        </span>
+      ))}
+      <p className="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap text-2xl font-black text-white md:text-3xl">
+        Mapa de Salões
+      </p>
+    </div>
+  );
+}
+
+function PhoneMapa() {
+  return (
+    <div className="relative mx-auto grid h-72 w-72 place-items-center">
+      <div className="absolute inset-6 rounded-full" style={{ background: `radial-gradient(circle, ${OURO} 0%, #f3d48a 70%, transparent 72%)` }} />
+      <div className="relative h-64 w-32 rounded-[28px] border-4 border-zinc-800 bg-white p-2 shadow-2xl">
+        <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-zinc-300" />
+        <div className="h-[88%] overflow-hidden rounded-2xl bg-[#f7f4ef] p-2">
+          <LogoMasc className="mx-auto h-5 w-auto" />
+          <p className="mt-1 text-center text-[8px] font-black">Mapa de Salões</p>
+          <div className="relative mt-2 h-28 rounded-lg bg-[#efe7da]">
+            <span className="absolute left-3 top-4 h-3 w-3 rounded-full bg-[#E23B4A]" />
+            <span className="absolute left-8 top-10 h-3 w-3 rounded-full" style={{ background: OURO }} />
+            <span className="absolute right-4 top-6 h-3 w-3 rounded-full bg-zinc-400" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
