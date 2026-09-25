@@ -44,20 +44,26 @@ export default function MapaLeaflet({
         attributionControl: true,
       });
       L.control.zoom({ position: "bottomright" }).addTo(mapa);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
         attribution: "&copy; OpenStreetMap &copy; CARTO",
         subdomains: "abcd",
-        maxZoom: 19,
+        maxZoom: 20,
       }).addTo(mapa);
       mapa.setView([-14.2, -51.9], 4);
       layerRef.current = L.layerGroup().addTo(mapa);
       mapRef.current = mapa;
       setPronto(true);
-      setTimeout(() => mapa?.invalidateSize(), 80);
+      const ajustar = () => mapa?.invalidateSize();
+      setTimeout(ajustar, 50);
+      setTimeout(ajustar, 300);
+      const obs = new ResizeObserver(() => ajustar());
+      if (el.current) obs.observe(el.current);
+      (mapa as LeafletMap & { __obs?: ResizeObserver }).__obs = obs;
     })();
 
     return () => {
       cancelado = true;
+      (mapa as (LeafletMap & { __obs?: ResizeObserver }) | null)?.__obs?.disconnect();
       mapa?.remove();
       mapRef.current = null;
       layerRef.current = null;
@@ -119,7 +125,7 @@ export default function MapaLeaflet({
       return;
     }
     if (saloes.length === 1) {
-      mapa.setView([saloes[0].displayLat, saloes[0].displayLng], 14);
+      mapa.setView([saloes[0].displayLat, saloes[0].displayLng], 15);
       return;
     }
     if (centro) mapa.setView([centro.lat, centro.lng], 13);

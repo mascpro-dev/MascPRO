@@ -54,9 +54,7 @@ export default function MapaInscrever() {
       <section className="bg-[#111] text-white">
         <div className="mx-auto grid max-w-5xl items-center gap-8 px-4 py-14 md:grid-cols-2">
           <div>
-            <span className="mb-5 inline-flex rounded-2xl bg-white px-4 py-2">
-              <LogoMasc className="h-14 w-auto" />
-            </span>
+            <LogoMasc branca className="mb-5 h-14 w-auto" />
             <h1 className="text-3xl font-semibold leading-tight [font-family:var(--font-mapa),Georgia,serif] md:text-5xl">
               Deixe novas clientes encontrarem seu salão.
             </h1>

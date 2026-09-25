@@ -337,7 +337,7 @@ export default function MapaApp() {
             Ver todos no mapa
           </button>
         </div>
-        <div className="relative h-[420px] overflow-hidden rounded-3xl border border-black/5 shadow-sm">
+        <div className="relative h-[560px] overflow-hidden rounded-3xl border border-black/5 shadow-sm">
           <MapaLeaflet
             saloes={espalharPins(saloes)}
             centro={null}
@@ -350,17 +350,6 @@ export default function MapaApp() {
             }}
             focoKey={saloes.map((s) => s.id).join(",")}
           />
-          <button
-            type="button"
-            onClick={() => {
-              setModo("busca");
-              setRaio(400);
-              setFocoKey(`todos-${Date.now()}`);
-            }}
-            className="absolute bottom-4 left-4 z-[1000] rounded-full bg-[#E23B4A] px-4 py-2.5 text-sm font-semibold text-white shadow-lg"
-          >
-            Ver todos os salões no mapa
-          </button>
         </div>
 
         {servicosHome.length > 0 && (
@@ -396,9 +385,7 @@ export default function MapaApp() {
         <div className="mt-12 overflow-hidden rounded-[28px] bg-[#6d2430] text-white">
           <div className="grid items-center gap-6 px-6 py-10 md:grid-cols-[1.3fr_0.7fr] md:px-10">
             <div>
-              <span className="mb-4 inline-flex rounded-2xl bg-white px-4 py-2">
-                <LogoMasc className="h-12 w-auto" />
-              </span>
+              <LogoMasc branca className="mb-4 h-12 w-auto" />
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">Para salões e profissionais</p>
               <h2 className="mt-2 max-w-lg text-3xl font-semibold leading-tight [font-family:var(--font-mapa),Georgia,serif] md:text-4xl">
                 Coloque seu salão no mapa

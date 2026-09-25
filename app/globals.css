@@ -37,11 +37,18 @@ body {
   border: none !important;
 }
 
+.mapa-canvas,
 .mapa-canvas .leaflet-container {
   height: 100%;
   width: 100%;
-  background: #f3efe9;
+  background: #e7e2da;
   font-family: inherit;
+}
+
+.leaflet-container img,
+.leaflet-container canvas {
+  max-width: none !important;
+  max-height: none !important;
 }
 
 /* Para Firefox */
