@@ -183,7 +183,7 @@ export default function MapaInscrever() {
               Quero aparecer no mapa
             </button>
           </div>
-          <MapaBrasil claro />
+          <MapaBrasil />
         </div>
       </section>
 
@@ -277,55 +277,27 @@ function Pin({ cor, alto = false }: { cor: string; alto?: boolean }) {
   );
 }
 
-function MapaBrasil({ claro = false }: { claro?: boolean }) {
-  const pins = [
-    { t: "18%", l: "42%", c: "#E23B4A" },
-    { t: "28%", l: "58%", c: OURO },
-    { t: "40%", l: "48%", c: "#fff" },
-    { t: "52%", l: "62%", c: "#fff" },
-    { t: "63%", l: "46%", c: OURO },
-    { t: "34%", l: "34%", c: "#fff" },
-  ];
+function MapaBrasil() {
   return (
-    <div className="relative mx-auto h-72 w-full max-w-md md:h-80">
-      <svg viewBox="0 0 200 210" className="h-full w-full drop-shadow-2xl" aria-hidden="true">
-        <path
-          d="M78 12c18 2 28 10 42 8 16-2 28 8 36 20 10 16 22 18 28 34 6 18-2 32 2 48 4 18-8 30-6 46-2 18-20 28-36 32-18 4-24 16-42 14-16-2-28-14-44-16-18-2-34-16-36-34-2-16 8-28 6-44-2-18-12-28-8-46 4-16 16-22 22-36 6-14 18-28 36-26z"
-          fill={claro ? "#C9A66B" : "#E0A84A"}
-        />
-      </svg>
-      {pins.map((p) => (
-        <span
-          key={`${p.t}-${p.l}`}
-          className="absolute grid h-7 w-7 -translate-x-1/2 -translate-y-full place-items-center rounded-t-full rounded-br-full text-[10px] font-black text-white shadow"
-          style={{ top: p.t, left: p.l, background: p.c, color: p.c === "#fff" ? "#111" : "#fff" }}
-        >
-          M
-        </span>
-      ))}
-      <p className="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap text-2xl font-black text-white md:text-3xl">
+    <figure className="relative mx-auto w-full max-w-md">
+      <img
+        src="/mapa/globo.jpg"
+        alt="Mapa de Salões"
+        className="h-80 w-full rounded-[28px] object-cover object-center shadow-2xl"
+      />
+      <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-[28px] bg-gradient-to-t from-black/80 to-transparent px-4 pb-5 pt-16 text-center text-2xl font-black text-white md:text-3xl">
         Mapa de Salões
-      </p>
-    </div>
+      </figcaption>
+    </figure>
   );
 }
 
 function PhoneMapa() {
   return (
-    <div className="relative mx-auto grid h-72 w-72 place-items-center">
-      <div className="absolute inset-6 rounded-full" style={{ background: `radial-gradient(circle, ${OURO} 0%, #f3d48a 70%, transparent 72%)` }} />
-      <div className="relative h-64 w-32 rounded-[28px] border-4 border-zinc-800 bg-white p-2 shadow-2xl">
-        <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-zinc-300" />
-        <div className="h-[88%] overflow-hidden rounded-2xl bg-[#f7f4ef] p-2">
-          <LogoMasc className="mx-auto h-5 w-auto" />
-          <p className="mt-1 text-center text-[8px] font-black">Mapa de Salões</p>
-          <div className="relative mt-2 h-28 rounded-lg bg-[#efe7da]">
-            <span className="absolute left-3 top-4 h-3 w-3 rounded-full bg-[#E23B4A]" />
-            <span className="absolute left-8 top-10 h-3 w-3 rounded-full" style={{ background: OURO }} />
-            <span className="absolute right-4 top-6 h-3 w-3 rounded-full bg-zinc-400" />
-          </div>
-        </div>
-      </div>
-    </div>
+    <img
+      src="/mapa/pin-3d.jpg"
+      alt="Seu salão visível no mapa"
+      className="mx-auto h-72 w-full max-w-sm object-contain"
+    />
   );
 }

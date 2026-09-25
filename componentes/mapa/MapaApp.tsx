@@ -40,7 +40,7 @@ const RAIOS = [5, 15, 30, 50];
 const FOTO_HERO =
   "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1400&q=80";
 const FOTO_BANNER =
-  "https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&w=1200&q=80";
+  "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=1400&q=80";
 const FOTO_SALA =
   "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=500&q=70";
 
@@ -448,7 +448,7 @@ export default function MapaApp() {
           <img
             src={FOTO_BANNER}
             alt=""
-            className="pointer-events-none absolute inset-y-0 right-0 hidden h-full w-[46%] object-cover md:block"
+            className="pointer-events-none absolute inset-y-0 right-0 hidden h-full w-[46%] object-cover object-[center_30%] md:block"
           />
           <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] bg-gradient-to-r from-[#6d2430] to-transparent md:block" />
           <div className="relative max-w-xl px-6 py-10 md:px-10 md:py-12">
