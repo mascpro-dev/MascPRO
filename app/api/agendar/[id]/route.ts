@@ -4,6 +4,7 @@ import { appointmentMatchesClient } from "@/lib/proClientMatch";
 import { looksLikeUuid, slugifyForBooking } from "@/lib/bookingSlug";
 import { assertStaffOwnedBy } from "@/lib/proStaffBound";
 import { hasOverlapWithExisting, loadDayAppointmentsForOverlap } from "@/lib/agendaConflict";
+import { avisarNovoAgendamento } from "@/lib/notificarAgenda";
 
 function sb() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -283,6 +284,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+
+    await avisarNovoAgendamento(client, {
+      professionalId: id,
+      clientName: nomeLimpo,
+      service: serviceName,
+      date: String(appointment_date),
+      time: String(appointment_time),
+    });
+
     return NextResponse.json({ ok: true, appointment: data });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
