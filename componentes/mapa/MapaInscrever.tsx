@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import MapaHeader from "@/componentes/mapa/MapaHeader";
+import LogoMasc from "@/componentes/mapa/LogoMasc";
 import { MAPA_WHATSAPP } from "@/lib/mapaSaloes";
 
 const VAZIO = {
@@ -53,6 +54,9 @@ export default function MapaInscrever() {
       <section className="bg-[#111] text-white">
         <div className="mx-auto grid max-w-5xl items-center gap-8 px-4 py-14 md:grid-cols-2">
           <div>
+            <span className="mb-5 inline-flex rounded-2xl bg-white px-4 py-2">
+              <LogoMasc className="h-14 w-auto" />
+            </span>
             <h1 className="text-3xl font-semibold leading-tight [font-family:var(--font-mapa),Georgia,serif] md:text-5xl">
               Deixe novas clientes encontrarem seu salão.
             </h1>
@@ -84,6 +88,7 @@ export default function MapaInscrever() {
 
       <section className="mx-auto max-w-lg px-4 pb-20">
         <form onSubmit={enviar} className="rounded-[28px] border border-black/10 bg-white p-6 shadow-sm md:p-8">
+          <LogoMasc className="mx-auto mb-4 h-12 w-auto" />
           <h2 className="text-center text-2xl font-semibold [font-family:var(--font-mapa),Georgia,serif]">
             Preencha o formulário
           </h2>

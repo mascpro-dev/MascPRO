@@ -44,35 +44,35 @@ export async function POST(req: NextRequest) {
     }
     if (body.reminder_enabled !== undefined) campos.reminder_enabled = Boolean(body.reminder_enabled);
 
+    let avisoMapa: string | null = null;
     if (body.mapa_visivel === true) {
       const cidade = String(body.city || "").trim();
+      const uf = String(body.state || "").trim();
       if (!cidade) {
-        return NextResponse.json(
-          { ok: false, error: "Informe a cidade para aparecer no mapa." },
-          { status: 400 }
-        );
+        avisoMapa = "Informe a cidade para aparecer no mapa. O restante do perfil foi salvo.";
+      } else {
+        const { data: atual } = await supabase
+          .from("profiles")
+          .select("studio_address, city, state, logradouro, address, numero, number, bairro, neighborhood, municipio, uf")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        const consulta = consultaGeocode({
+          ...(atual || {}),
+          city: body.city,
+          state: body.state,
+          studio_address: body.studio_address ?? atual?.studio_address,
+        });
+        const ponto =
+          (await geocodificar(consulta)) ||
+          (await geocodificar([cidade, uf, "Brasil"].filter(Boolean).join(", ")));
+        campos.mapa_visivel = true;
+        if (ponto) {
+          campos.mapa_lat = ponto.lat;
+          campos.mapa_lng = ponto.lng;
+        } else {
+          avisoMapa = "Seu salão ficou visível no mapa, mas o ponto ainda não foi encontrado. Confira a cidade e o endereço do estúdio e salve de novo.";
+        }
       }
-      const { data: atual } = await supabase
-        .from("profiles")
-        .select("studio_address, city, state, logradouro, address, numero, number, bairro, neighborhood, municipio, uf")
-        .eq("id", session.user.id)
-        .maybeSingle();
-      const consulta = consultaGeocode({
-        ...(atual || {}),
-        city: body.city,
-        state: body.state,
-        studio_address: body.studio_address ?? atual?.studio_address,
-      });
-      const ponto = await geocodificar(consulta);
-      if (!ponto) {
-        return NextResponse.json(
-          { ok: false, error: "Não localizei esse endereço. Confira a cidade e o endereço do estúdio." },
-          { status: 422 }
-        );
-      }
-      campos.mapa_visivel = true;
-      campos.mapa_lat = ponto.lat;
-      campos.mapa_lng = ponto.lng;
     } else if (body.mapa_visivel === false) {
       campos.mapa_visivel = false;
     }
@@ -93,20 +93,18 @@ export async function POST(req: NextRequest) {
         );
       }
       if (String(error.message || "").toLowerCase().includes("mapa_")) {
-        if (body.mapa_visivel === true) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: "O mapa ainda não está ativo no banco. Rode supabase/mapa_saloes.sql no SQL Editor do Supabase.",
-            },
-            { status: 400 }
-          );
-        }
         delete campos.mapa_visivel;
         delete campos.mapa_lat;
         delete campos.mapa_lng;
         const { error: semMapa } = await supabase.from("profiles").update(campos).eq("id", session.user.id);
-        if (!semMapa) return NextResponse.json({ ok: true });
+        if (!semMapa) {
+          return NextResponse.json({
+            ok: true,
+            mapa_visivel: false,
+            aviso:
+              "Perfil salvo. O mapa ainda não está no banco, por isso o interruptor volta para Oculto. Rode o arquivo supabase/mapa_saloes.sql no SQL Editor do Supabase e salve de novo.",
+          });
+        }
       }
       if (error.message.includes("column") || error.code === "PGRST204") {
         const camposBase: Record<string, unknown> = {
@@ -131,7 +129,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      aviso: avisoMapa,
+      mapa_visivel: campos.mapa_visivel === true,
+    });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }

@@ -144,8 +144,15 @@ export default function PerfilPage() {
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.ok) {
-        setFeedback({ tipo: "ok", msg: "Perfil atualizado com sucesso!" });
-        setProfile((p: any) => ({ ...p, ...form }));
+        const mapaVisivel = typeof data.mapa_visivel === "boolean" ? data.mapa_visivel : form.mapa_visivel;
+        const proximo = { ...form, mapa_visivel: mapaVisivel };
+        setForm(proximo);
+        setProfile((p: any) => ({ ...p, ...proximo }));
+        setFeedback({
+          tipo: data.aviso ? "erro" : "ok",
+          msg: data.aviso || "Perfil atualizado com sucesso!",
+        });
+        if (!data.aviso) setTimeout(() => setFeedback(null), 4000);
       } else {
         setFeedback({ tipo: "erro", msg: data?.error || "Erro ao salvar." });
       }
@@ -153,7 +160,6 @@ export default function PerfilPage() {
       setFeedback({ tipo: "erro", msg: "Falha de rede. Tente novamente." });
     } finally {
       setSalvando(false);
-      setTimeout(() => setFeedback(null), 4000);
     }
   }
 

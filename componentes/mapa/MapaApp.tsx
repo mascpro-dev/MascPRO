@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import MapaHeader from "@/componentes/mapa/MapaHeader";
+import LogoMasc from "@/componentes/mapa/LogoMasc";
 import MapaLeaflet from "@/componentes/mapa/MapaLeaflet";
 import {
   PIN_META,
@@ -290,6 +291,7 @@ export default function MapaApp() {
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,#fde8e6,transparent_42%),linear-gradient(#fffdfb,#f7f1ea)]" />
         <div className="relative mx-auto max-w-3xl px-4 pb-10 pt-14 text-center md:pt-20">
+          <LogoMasc className="mx-auto mb-5 h-16 w-auto" />
           <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#E23B4A]">Mapa de salões</p>
           <h1 className="mx-auto mt-4 max-w-xl text-4xl font-semibold leading-[1.05] text-[#1A1A1A] [font-family:var(--font-mapa),Georgia,serif] md:text-6xl">
             O salão certo,
@@ -394,6 +396,9 @@ export default function MapaApp() {
         <div className="mt-12 overflow-hidden rounded-[28px] bg-[#6d2430] text-white">
           <div className="grid items-center gap-6 px-6 py-10 md:grid-cols-[1.3fr_0.7fr] md:px-10">
             <div>
+              <span className="mb-4 inline-flex rounded-2xl bg-white px-4 py-2">
+                <LogoMasc className="h-12 w-auto" />
+              </span>
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">Para salões e profissionais</p>
               <h2 className="mt-2 max-w-lg text-3xl font-semibold leading-tight [font-family:var(--font-mapa),Georgia,serif] md:text-4xl">
                 Coloque seu salão no mapa
@@ -575,6 +580,7 @@ function Lista({
         )}
         {!carregando && lista.length === 0 && (
           <div className="rounded-2xl border border-dashed border-black/10 bg-zinc-50 px-4 py-6 text-sm text-zinc-600">
+            <LogoMasc className="mb-3 h-10 w-auto" />
             <p>Nenhum salão neste recorte{raio < 400 ? ` de ${raio} km` : ""}.</p>
             {raio < 50 && (
               <button

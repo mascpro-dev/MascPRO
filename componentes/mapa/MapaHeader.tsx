@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import LogoMasc from "@/componentes/mapa/LogoMasc";
 
 const link = "text-sm text-zinc-600 hover:text-[#1A1A1A] transition-colors";
 const ativo = "text-sm text-[#E23B4A] font-semibold";
@@ -32,11 +33,11 @@ export default function MapaHeader() {
             <ArrowLeft size={16} />
             Voltar
           </button>
-          <Link href="/mapa" className="flex min-w-0 items-center gap-2">
-          <PinLogo />
-          <span className="truncate text-[15px] font-black tracking-tight text-[#1A1A1A]">
-            Mapa de Salões
-          </span>
+          <Link href="/mapa" className="flex min-w-0 items-center gap-2.5">
+            <LogoMasc className="h-9 w-auto" />
+            <span className="truncate text-[15px] font-black tracking-tight text-[#1A1A1A]">
+              Mapa de Salões
+            </span>
           </Link>
         </div>
 
@@ -71,14 +72,3 @@ export default function MapaHeader() {
   );
 }
 
-function PinLogo() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true" className="shrink-0">
-      <path
-        d="M16 2C10.2 2 5.5 6.6 5.5 12.4 5.5 19.2 16 30 16 30s10.5-10.8 10.5-17.6C26.5 6.6 21.8 2 16 2z"
-        fill="#E23B4A"
-      />
-      <circle cx="16" cy="12.5" r="3.6" fill="#fff" />
-    </svg>
-  );
-}
