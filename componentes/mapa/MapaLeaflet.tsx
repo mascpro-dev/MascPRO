@@ -44,10 +44,10 @@ export default function MapaLeaflet({
         attributionControl: true,
       });
       L.control.zoom({ position: "bottomright" }).addTo(mapa);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        attribution: "&copy; OpenStreetMap &copy; CARTO",
-        subdomains: "abcd",
-        maxZoom: 20,
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        subdomains: "abc",
+        maxZoom: 19,
       }).addTo(mapa);
       mapa.setView([-14.2, -51.9], 4);
       layerRef.current = L.layerGroup().addTo(mapa);
