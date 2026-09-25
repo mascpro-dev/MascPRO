@@ -252,7 +252,7 @@ export default function MapaApp() {
 
   if (modo === "busca") {
     return (
-      <div className="flex h-[100dvh] flex-col bg-[#FFFBF8] text-[#1A1A1A]">
+      <div className="flex h-[100dvh] flex-col overflow-x-hidden bg-[#FFFBF8] text-[#1A1A1A]">
         <MapaHeader />
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <aside className="order-2 flex min-h-0 w-full flex-1 flex-col border-black/5 bg-white md:order-1 md:w-[420px] md:flex-none md:border-r">
@@ -307,7 +307,7 @@ export default function MapaApp() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FFFBF8] text-[#1A1A1A]">
+    <div className="min-h-screen overflow-x-hidden bg-[#FFFBF8] text-[#1A1A1A]">
       <MapaHeader />
 
       <section className="relative overflow-hidden">
@@ -315,6 +315,7 @@ export default function MapaApp() {
         <img
           src={FOTO_HERO}
           alt=""
+          referrerPolicy="no-referrer"
           className="pointer-events-none absolute right-0 top-0 hidden h-full w-[48%] object-cover md:block"
         />
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] bg-gradient-to-r from-[#FFFBF8] via-[#fff7f6]/80 to-transparent md:block" />
@@ -345,8 +346,8 @@ export default function MapaApp() {
               </span>
             </div>
           </div>
-          <div className="relative h-56 overflow-hidden rounded-[28px] shadow-lg md:hidden">
-            <img src={FOTO_HERO} alt="" className="h-full w-full object-cover" />
+          <div className="relative h-44 overflow-hidden rounded-[24px] shadow-lg sm:h-56 md:hidden">
+            <img src={FOTO_HERO} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover object-[center_30%]" />
           </div>
         </div>
         <div className="relative mx-auto max-w-4xl px-4 pb-10">
@@ -372,7 +373,7 @@ export default function MapaApp() {
               : "Salões parceiros no app. Ative sua localização para ver os mais perto."}
           </p>
         </div>
-        <div className="relative h-[420px] overflow-hidden rounded-[28px] border border-black/5 shadow-sm">
+        <div className="relative h-[240px] overflow-hidden rounded-[24px] border border-black/5 shadow-sm sm:h-[320px] md:h-[420px] md:rounded-[28px]">
           <MapaLeaflet
             saloes={espalharPins(saloes)}
             centro={null}
@@ -392,7 +393,7 @@ export default function MapaApp() {
               setRaio(400);
               setFocoKey(`todos-${Date.now()}`);
             }}
-            className="absolute bottom-4 right-4 z-[500] rounded-full bg-[#E23B4A] px-4 py-2.5 text-sm font-semibold text-white shadow-lg"
+            className="absolute bottom-3 left-3 right-3 z-[500] mx-auto w-fit max-w-[calc(100%-1.5rem)] rounded-full bg-[#E23B4A] px-3 py-2 text-center text-xs font-semibold text-white shadow-lg sm:bottom-4 sm:left-auto sm:right-4 sm:px-4 sm:py-2.5 sm:text-sm"
           >
             Ver todos os salões no mapa
           </button>
@@ -429,12 +430,13 @@ export default function MapaApp() {
                   setRaio(400);
                   setFocoKey(`srv-${item.nome}-${Date.now()}`);
                 }}
-                className="group w-36 shrink-0 text-left"
+                className="group w-28 shrink-0 text-left sm:w-36"
               >
-                <span className="block h-28 overflow-hidden rounded-2xl bg-zinc-100 shadow-sm">
+                <span className="block h-24 overflow-hidden rounded-2xl bg-zinc-100 shadow-sm sm:h-28">
                   <img
                     src={item.foto}
                     alt=""
+                    referrerPolicy="no-referrer"
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                   />
                 </span>
@@ -444,14 +446,15 @@ export default function MapaApp() {
           </div>
         </div>
 
-        <div className="relative mt-14 overflow-hidden rounded-[28px] bg-[#6d2430] text-white">
+        <div className="relative mt-10 overflow-hidden rounded-[24px] bg-[#6d2430] text-white sm:mt-14 md:rounded-[28px]">
           <img
             src={FOTO_BANNER}
             alt=""
-            className="pointer-events-none absolute inset-y-0 right-0 hidden h-full w-[46%] object-cover object-[center_30%] md:block"
+            referrerPolicy="no-referrer"
+            className="h-44 w-full object-cover object-[center_30%] md:pointer-events-none md:absolute md:inset-y-0 md:right-0 md:h-full md:w-[46%]"
           />
           <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] bg-gradient-to-r from-[#6d2430] to-transparent md:block" />
-          <div className="relative max-w-xl px-6 py-10 md:px-10 md:py-12">
+          <div className="relative max-w-xl px-5 py-8 md:px-10 md:py-12">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">Para salões e profissionais</p>
             <h2 className="mt-2 text-3xl font-semibold leading-tight [font-family:var(--font-mapa),Georgia,serif] md:text-4xl">
               Coloque seu salão no mapa
@@ -820,14 +823,14 @@ function Ficha({
       </button>
       <div className="overflow-hidden rounded-[28px] bg-white">
         <div className="relative h-36">
-          <img src={salao.avatar || FOTO_SALA} alt="" className="h-full w-full object-cover" />
+          <img src={salao.avatar || FOTO_SALA} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent" />
         </div>
         <div className="-mt-8 px-4 pb-4">
       <div className="flex items-start gap-3">
         <Avatar nome={salao.salao} url={salao.avatar} />
         <div className="min-w-0">
-          <h2 className="text-2xl font-semibold leading-tight [font-family:var(--font-mapa),Georgia,serif]">{salao.salao}</h2>
+          <h2 className="break-words text-xl font-semibold leading-tight [font-family:var(--font-mapa),Georgia,serif] sm:text-2xl">{salao.salao}</h2>
           {salao.nome !== salao.salao && <p className="text-sm text-zinc-500">{salao.nome}</p>}
           <p className="mt-1 text-xs font-semibold" style={{ color: PIN_META[salao.pin].cor }}>
             {PIN_META[salao.pin as PinTipo].label}
@@ -891,9 +894,9 @@ function Ficha({
           Como chegar
         </a>
         {ig ? (
-          <a href={ig.href} target="_blank" rel="noreferrer" className="rounded-2xl bg-rose-50 px-2 py-3 font-medium text-[#E23B4A]">
+          <a href={ig.href} target="_blank" rel="noreferrer" className="min-w-0 rounded-2xl bg-rose-50 px-2 py-3 font-medium text-[#E23B4A]">
             <Instagram size={16} className="mx-auto mb-1" />
-            {ig.handle}
+            <span className="block truncate">{ig.handle}</span>
           </a>
         ) : (
           <span className="rounded-2xl bg-zinc-50 px-2 py-3 text-zinc-400">

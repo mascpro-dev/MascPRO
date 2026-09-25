@@ -54,14 +54,14 @@ export default function MapaInscrever() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-[#1A1A1A]">
+    <div className="min-h-screen overflow-x-hidden bg-white text-[#1A1A1A]">
       <MapaHeader />
 
       <section className="relative overflow-hidden bg-[#0c0c0c] text-white">
         <div className="pointer-events-none absolute inset-0 opacity-40 [background:radial-gradient(circle_at_70%_40%,#3a2a12,transparent_42%),radial-gradient(circle_at_10%_80%,#1a1208,transparent_35%)]" />
-        <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:py-20">
+        <div className="relative mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 md:grid-cols-2 md:gap-10 md:py-20">
           <div>
-            <h1 className="text-3xl font-black uppercase leading-[1.05] tracking-tight md:text-5xl">
+            <h1 className="text-2xl font-black uppercase leading-[1.05] tracking-tight sm:text-3xl md:text-5xl">
               Deixe novas clientes encontrarem seu salão de forma simples!
             </h1>
             <p className="mt-5 max-w-md text-sm leading-relaxed text-white/80 md:text-base">
@@ -81,9 +81,9 @@ export default function MapaInscrever() {
       </section>
 
       <section className="bg-white">
-        <div className="mx-auto grid max-w-5xl items-center gap-10 px-4 py-16 md:grid-cols-2">
+        <div className="mx-auto grid max-w-5xl items-center gap-6 px-4 py-10 md:grid-cols-2 md:gap-10 md:py-16">
           <div>
-            <h2 className="text-3xl font-semibold leading-tight md:text-4xl" style={{ color: OURO }}>
+            <h2 className="text-2xl font-semibold leading-tight sm:text-3xl md:text-4xl" style={{ color: OURO }}>
               O seu salão merece mais visibilidade!
             </h2>
             <p className="mt-4 max-w-md text-sm leading-relaxed text-zinc-600 md:text-base">
@@ -94,8 +94,8 @@ export default function MapaInscrever() {
         </div>
       </section>
 
-      <section className="bg-black py-14 text-center text-white">
-        <h2 className="text-3xl font-black uppercase tracking-wide md:text-5xl">
+      <section className="bg-black px-4 py-10 text-center text-white md:py-14">
+        <h2 className="text-2xl font-black uppercase tracking-wide sm:text-3xl md:text-5xl">
           Aumente sua
           <br />
           visibilidade agora
@@ -164,9 +164,9 @@ export default function MapaInscrever() {
       </section>
 
       <section className="bg-black text-white">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 md:grid-cols-2 md:gap-10 md:py-16">
           <div>
-            <h2 className="text-3xl font-black uppercase leading-tight md:text-4xl">
+            <h2 className="text-2xl font-black uppercase leading-tight sm:text-3xl md:text-4xl">
               Benefícios de estar no mapa de salões:
             </h2>
             <ul className="mt-6 space-y-3 text-sm text-white/85 md:text-base">
@@ -279,13 +279,13 @@ function Pin({ cor, alto = false }: { cor: string; alto?: boolean }) {
 
 function MapaBrasil() {
   return (
-    <figure className="relative mx-auto w-full max-w-md">
+    <figure className="relative mx-auto w-full max-w-[17rem] sm:max-w-xs md:max-w-md">
       <img
         src="/mapa/globo.jpg"
         alt="Mapa de Salões"
-        className="h-80 w-full rounded-[28px] object-cover object-center shadow-2xl"
+        className="aspect-[4/5] h-auto w-full rounded-[28px] object-cover object-[center_28%] shadow-2xl md:aspect-auto md:h-80"
       />
-      <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-[28px] bg-gradient-to-t from-black/80 to-transparent px-4 pb-5 pt-16 text-center text-2xl font-black text-white md:text-3xl">
+      <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-[28px] bg-gradient-to-t from-black/80 to-transparent px-3 pb-4 pt-12 text-center text-xl font-black text-white sm:text-2xl md:px-4 md:pb-5 md:pt-16 md:text-3xl">
         Mapa de Salões
       </figcaption>
     </figure>
@@ -297,7 +297,7 @@ function PhoneMapa() {
     <img
       src="/mapa/pin-3d.jpg"
       alt="Seu salão visível no mapa"
-      className="mx-auto h-72 w-full max-w-sm object-contain"
+      className="mx-auto h-auto w-full max-w-[15rem] object-contain sm:max-w-[18rem] md:h-72 md:max-w-sm"
     />
   );
 }
