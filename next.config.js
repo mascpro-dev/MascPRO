@@ -12,6 +12,10 @@ const withPWA = require("@ducanh2912/next-pwa").default({
     maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
     runtimeCaching: [
       {
+        urlPattern: /^https:\/\/(?:[abc]\.tile\.openstreetmap\.org|tile\.openstreetmap\.org)\//i,
+        handler: "NetworkOnly",
+      },
+      {
         urlPattern: ({ url }) => url.pathname.startsWith("/api/"),
         handler: "NetworkOnly",
       },
@@ -24,10 +28,11 @@ const withPWA = require("@ducanh2912/next-pwa").default({
         },
       },
       {
-        urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
+        urlPattern: ({ url, sameOrigin }) =>
+          sameOrigin && /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i.test(url.pathname),
         handler: "StaleWhileRevalidate",
         options: {
-          cacheName: "images",
+          cacheName: "static-image-assets",
           expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 * 30 },
         },
       },
@@ -58,7 +63,7 @@ const securityHeaders = [
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https: http:",
       "media-src 'self' https: blob:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://api.mercadolibre.com https://www.mercadopago.com.br https://www.mercadolibre.com https://www.youtube.com https://youtube.com https://*.googlevideo.com https://www.bling.com.br https://melhorenvio.com.br https://sandbox.melhorenvio.com.br",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://api.mercadolibre.com https://www.mercadopago.com.br https://www.mercadolibre.com https://www.youtube.com https://youtube.com https://*.googlevideo.com https://www.bling.com.br https://melhorenvio.com.br https://sandbox.melhorenvio.com.br https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
       "frame-src 'self' https://sdk.mercadopago.com https://www.mercadopago.com.br https://www.mercadolibre.com https://www.youtube.com https://www.youtube-nocookie.com https://youtube.com",
       "worker-src 'self' blob:",
     ].join("; "),
