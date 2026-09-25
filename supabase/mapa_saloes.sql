@@ -20,3 +20,5 @@ ALTER TABLE public.profiles
 CREATE INDEX IF NOT EXISTS idx_profiles_mapa_visivel
   ON public.profiles (mapa_visivel)
   WHERE mapa_visivel = true;
+
+NOTIFY pgrst, 'reload schema';

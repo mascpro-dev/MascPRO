@@ -1,9 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { validateBookingSlugInput } from "@/lib/bookingSlug";
 import { camposLocalizacaoSync } from "@/lib/profileLocalizacao";
 import { consultaGeocode, geocodificar } from "@/lib/mapaSaloes";
+
+function clienteGravacao(sessao: SupabaseClient): SupabaseClient {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (url && key) return createClient(url, key);
+  return sessao;
+}
+
+function colunaMapaAusente(err: { message?: string; code?: string } | null | undefined) {
+  const msg = String(err?.message || "").toLowerCase();
+  return msg.includes("mapa_") || err?.code === "PGRST204" || err?.code === "42703";
+}
+
+export async function GET() {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return NextResponse.json({ ok: false, error: "Não autenticado." }, { status: 401 });
+
+    const db = clienteGravacao(supabase);
+    const { data, error } = await db
+      .from("profiles")
+      .select("mapa_visivel")
+      .eq("id", session.user.id)
+      .maybeSingle();
+    if (error && colunaMapaAusente(error)) {
+      return NextResponse.json({ ok: true, mapa_visivel: false, precisaSql: true });
+    }
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, mapa_visivel: data?.mapa_visivel === true });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Falha ao ler o mapa.";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,13 +82,9 @@ export async function POST(req: NextRequest) {
 
     let avisoMapa: string | null = null;
     const querMapa = body.mapa_visivel === true;
-    if (querMapa) {
-      campos.mapa_visivel = true;
-      if (!String(body.city || "").trim()) {
-        avisoMapa = "Seu salão ficou marcado para aparecer no mapa. Informe a cidade e salve de novo para o pin surgir.";
-      }
-    } else if (body.mapa_visivel === false) {
-      campos.mapa_visivel = false;
+    const definirMapa = body.mapa_visivel === true || body.mapa_visivel === false;
+    if (querMapa && !String(body.city || "").trim()) {
+      avisoMapa = "O interruptor ficou em Visível. Informe a cidade e salve de novo para o pin surgir.";
     }
 
     // Remove campos undefined
@@ -69,20 +101,6 @@ export async function POST(req: NextRequest) {
           { ok: false, error: "Este final de link já está em uso. Escolha outro." },
           { status: 409 }
         );
-      }
-      if (String(error.message || "").toLowerCase().includes("mapa_")) {
-        delete campos.mapa_visivel;
-        delete campos.mapa_lat;
-        delete campos.mapa_lng;
-        const { error: semMapa } = await supabase.from("profiles").update(campos).eq("id", session.user.id);
-        if (!semMapa) {
-          return NextResponse.json({
-            ok: true,
-            mapa_visivel: false,
-            aviso:
-              "Perfil salvo. O mapa ainda não está no banco, por isso o interruptor volta para Oculto. Rode o arquivo supabase/mapa_saloes.sql no SQL Editor do Supabase e salve de novo.",
-          });
-        }
       }
       if (error.message.includes("column") || error.code === "PGRST204") {
         const camposBase: Record<string, unknown> = {
@@ -102,43 +120,68 @@ export async function POST(req: NextRequest) {
           .update(camposBase)
           .eq("id", session.user.id);
         if (err2) return NextResponse.json({ ok: false, error: err2.message }, { status: 500 });
-        return NextResponse.json({ ok: true });
+      } else {
+        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
       }
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    if (querMapa && String(body.city || "").trim()) {
-      const cidade = String(body.city || "").trim();
-      const uf = String(body.state || "").trim();
-      const { data: atual } = await supabase
+    let mapaVisivel = querMapa;
+    if (definirMapa) {
+      const db = clienteGravacao(supabase);
+      const patch: Record<string, unknown> = { mapa_visivel: querMapa };
+      if (querMapa && String(body.city || "").trim()) {
+        const cidade = String(body.city || "").trim();
+        const uf = String(body.state || "").trim();
+        const { data: atual } = await db
+          .from("profiles")
+          .select("studio_address, city, state, logradouro, address, numero, number, bairro, neighborhood, municipio, uf")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        const consulta = consultaGeocode({
+          ...(atual || {}),
+          city: body.city,
+          state: body.state,
+          studio_address: body.studio_address ?? atual?.studio_address,
+        });
+        const ponto =
+          (await geocodificar(consulta)) ||
+          (await geocodificar([cidade, uf, "Brasil"].filter(Boolean).join(", ")));
+        if (ponto) {
+          patch.mapa_lat = ponto.lat;
+          patch.mapa_lng = ponto.lng;
+        } else if (!avisoMapa) {
+          avisoMapa = "O interruptor ficou em Visível. O ponto da cidade ainda não foi achado; confira o endereço e salve de novo.";
+        }
+      }
+
+      const { error: errMapa } = await db.from("profiles").update(patch).eq("id", session.user.id);
+      if (errMapa && colunaMapaAusente(errMapa)) {
+        return NextResponse.json({
+          ok: true,
+          mapa_visivel: false,
+          aviso:
+            "Perfil salvo, mas o interruptor do mapa não grava enquanto o arquivo supabase/mapa_saloes.sql não for executado no SQL Editor do Supabase.",
+        });
+      }
+      if (errMapa) {
+        return NextResponse.json({ ok: false, error: errMapa.message }, { status: 500 });
+      }
+
+      const { data: gravado } = await db
         .from("profiles")
-        .select("studio_address, city, state, logradouro, address, numero, number, bairro, neighborhood, municipio, uf")
+        .select("mapa_visivel")
         .eq("id", session.user.id)
         .maybeSingle();
-      const consulta = consultaGeocode({
-        ...(atual || {}),
-        city: body.city,
-        state: body.state,
-        studio_address: body.studio_address ?? atual?.studio_address,
-      });
-      const ponto =
-        (await geocodificar(consulta)) ||
-        (await geocodificar([cidade, uf, "Brasil"].filter(Boolean).join(", ")));
-      if (ponto) {
-        await supabase
-          .from("profiles")
-          .update({ mapa_lat: ponto.lat, mapa_lng: ponto.lng, mapa_visivel: true })
-          .eq("id", session.user.id);
-      } else if (!avisoMapa) {
-        avisoMapa =
-          "Seu salão ficou marcado como visível. O ponto da cidade ainda não foi achado; confira o endereço e salve de novo.";
+      mapaVisivel = gravado?.mapa_visivel === true;
+      if (querMapa && !mapaVisivel) {
+        avisoMapa = "O interruptor não permaneceu em Visível. Rode supabase/mapa_saloes.sql no Supabase e salve de novo.";
       }
     }
 
     return NextResponse.json({
       ok: true,
       aviso: avisoMapa,
-      mapa_visivel: campos.mapa_visivel === true,
+      mapa_visivel: mapaVisivel,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });

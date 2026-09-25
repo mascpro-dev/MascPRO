@@ -79,6 +79,11 @@ export default function PerfilPage() {
           reminder_enabled: data.reminder_enabled !== false,
           mapa_visivel: data.mapa_visivel === true,
         });
+        const mapa = await fetch("/api/perfil/atualizar").then((r) => r.json()).catch(() => null);
+        if (mapa && typeof mapa.mapa_visivel === "boolean") {
+          setForm((f) => ({ ...f, mapa_visivel: mapa.mapa_visivel }));
+          setProfile((p: any) => (p ? { ...p, mapa_visivel: mapa.mapa_visivel } : p));
+        }
       }
     }
     load();
