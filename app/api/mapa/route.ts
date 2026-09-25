@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { lerEnderecoProfile, montarEnderecoTexto } from "@/lib/profileEndereco";
 import {
+  consultaGeocode,
   estaAberto,
   geocodificar,
   resolverPin,
@@ -132,16 +133,32 @@ export async function GET(req: NextRequest) {
 
     const saloes: SalaoPublico[] = [];
     for (const row of rows) {
-      const lat = Number(row.mapa_lat);
-      const lng = Number(row.mapa_lng);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
       const endereco = lerEnderecoProfile(row);
       const cidade = endereco.municipio || String(row.city || "").trim();
       const uf = endereco.uf || String(row.state || "").trim();
+      const studio = String(row.studio_address || "").trim();
       const textoEndereco =
+        studio ||
         montarEnderecoTexto({ ...row, ...endereco }) ||
-        String(row.studio_address || "").trim() ||
         [cidade, uf].filter(Boolean).join(" / ");
+      let lat = Number(row.mapa_lat);
+      let lng = Number(row.mapa_lng);
+      if (studio) {
+        const ponto = await geocodificar(consultaGeocode({ studio_address: studio, city: cidade, state: uf, municipio: cidade, uf }));
+        if (ponto) {
+          const longe =
+            !Number.isFinite(lat) ||
+            !Number.isFinite(lng) ||
+            Math.abs(lat - ponto.lat) > 0.0008 ||
+            Math.abs(lng - ponto.lng) > 0.0008;
+          lat = ponto.lat;
+          lng = ponto.lng;
+          if (longe) {
+            await db.from("profiles").update({ mapa_lat: lat, mapa_lng: lng }).eq("id", row.id);
+          }
+        }
+      }
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
       const slug = String(row.booking_slug || "").trim();
       const id = String(row.id);
       const nomeSalao = String(row.barber_shop || "").trim();

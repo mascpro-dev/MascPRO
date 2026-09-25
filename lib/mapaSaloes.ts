@@ -150,13 +150,16 @@ export function consultaGeocode(p: {
 }): string {
   const cidade = String(p.municipio || p.city || "").trim();
   const uf = String(p.uf || p.state || "").trim();
+  const studio = String(p.studio_address || "").trim();
+  if (studio) {
+    const jaTemCidade = Boolean(cidade) && studio.toLocaleLowerCase("pt-BR").includes(cidade.toLocaleLowerCase("pt-BR"));
+    return [studio, jaTemCidade ? "" : cidade, jaTemCidade ? "" : uf, "Brasil"].filter(Boolean).join(", ");
+  }
   const rua = [String(p.logradouro || p.address || "").trim(), String(p.numero || p.number || "").trim()]
     .filter(Boolean)
     .join(", ");
   const bairro = String(p.bairro || p.neighborhood || "").trim();
-  const studio = String(p.studio_address || "").trim();
-  const partes = [studio || rua, bairro, cidade, uf, "Brasil"].filter(Boolean);
-  return partes.join(", ");
+  return [rua, bairro, cidade, uf, "Brasil"].filter(Boolean).join(", ");
 }
 
 export type SugestaoLocal = { rotulo: string; lat: number; lng: number };
