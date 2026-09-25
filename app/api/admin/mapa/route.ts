@@ -92,20 +92,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const ponto =
-      (await geocodificar(consultaGeocode(perfil))) ||
-      (await geocodificar([cidade, uf, "Brasil"].filter(Boolean).join(", ")));
-    if (!ponto) {
-      return NextResponse.json(
-        { ok: false, error: "Não localizei a cidade deste cadastro no mapa." },
-        { status: 422 }
-      );
-    }
-
-    const { error } = await db
-      .from("profiles")
-      .update({ mapa_visivel: true, mapa_lat: ponto.lat, mapa_lng: ponto.lng })
-      .eq("id", userId);
+    const { error } = await db.from("profiles").update({ mapa_visivel: true }).eq("id", userId);
     if (error) {
       if (colunaMapaAusente(error)) {
         return NextResponse.json(
@@ -116,7 +103,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, mapa_visivel: true });
+    const ponto =
+      (await geocodificar(consultaGeocode(perfil))) ||
+      (await geocodificar([cidade, uf, "Brasil"].filter(Boolean).join(", ")));
+    if (ponto) {
+      await db
+        .from("profiles")
+        .update({ mapa_visivel: true, mapa_lat: ponto.lat, mapa_lng: ponto.lng })
+        .eq("id", userId);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      mapa_visivel: true,
+      aviso: ponto ? null : "Mapa ativado. O ponto da cidade ainda não foi achado; confira o endereço do cadastro.",
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Falha ao atualizar o mapa.";
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

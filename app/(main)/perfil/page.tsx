@@ -137,16 +137,20 @@ export default function PerfilPage() {
   async function salvar() {
     setSalvando(true);
     setFeedback(null);
+    const pedido = form;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
     try {
       const res = await fetch("/api/perfil/atualizar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(pedido),
+        signal: ctrl.signal,
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.ok) {
-        const mapaVisivel = typeof data.mapa_visivel === "boolean" ? data.mapa_visivel : form.mapa_visivel;
-        const proximo = { ...form, mapa_visivel: mapaVisivel };
+        const mapaVisivel = typeof data.mapa_visivel === "boolean" ? data.mapa_visivel : pedido.mapa_visivel;
+        const proximo = { ...pedido, mapa_visivel: mapaVisivel };
         setForm(proximo);
         setProfile((p: any) => ({ ...p, ...proximo }));
         setFeedback({
@@ -155,11 +159,19 @@ export default function PerfilPage() {
         });
         if (!data.aviso) setTimeout(() => setFeedback(null), 4000);
       } else {
+        setForm((f) => ({ ...f, mapa_visivel: pedido.mapa_visivel }));
         setFeedback({ tipo: "erro", msg: data?.error || "Erro ao salvar." });
       }
     } catch {
-      setFeedback({ tipo: "erro", msg: "Falha de rede. Tente novamente." });
+      setForm((f) => ({ ...f, mapa_visivel: pedido.mapa_visivel }));
+      setFeedback({
+        tipo: "erro",
+        msg: ctrl.signal.aborted
+          ? "A gravação demorou, mas a escolha de aparecer no mapa foi mantida. Salve de novo."
+          : "Falha de rede. A escolha de aparecer no mapa foi mantida. Tente novamente.",
+      });
     } finally {
+      clearTimeout(timer);
       setSalvando(false);
     }
   }

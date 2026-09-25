@@ -159,30 +159,127 @@ export function consultaGeocode(p: {
   return partes.join(", ");
 }
 
-const geoCache = new Map<string, { lat: number; lng: number } | null>();
+export type SugestaoLocal = { rotulo: string; lat: number; lng: number };
+
+const PRIORIDADE_LUGAR: Record<string, number> = {
+  municipality: 0,
+  city: 0,
+  town: 1,
+  village: 2,
+  suburb: 3,
+  neighbourhood: 3,
+  quarter: 3,
+  hamlet: 4,
+};
+
+const sugestaoCache = new Map<string, { exp: number; itens: SugestaoLocal[] }>();
+
+export async function sugerirLocais(consulta: string): Promise<SugestaoLocal[]> {
+  const q = consulta.trim();
+  if (q.length < 2) return [];
+  const key = q.toLocaleLowerCase("pt-BR");
+  const hit = sugestaoCache.get(key);
+  if (hit && hit.exp > Date.now()) return hit.itens;
+
+  const url = new URL("https://photon.komoot.io/api/");
+  url.searchParams.set("q", q);
+  url.searchParams.set("limit", "20");
+  url.searchParams.set("lang", "default");
+  url.searchParams.set("bbox", "-74,-34,-34,6");
+
+  let itens: SugestaoLocal[] = [];
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "MascPRO-Mapa/1.0 (mapa de saloes)", Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        features?: {
+          geometry?: { coordinates?: number[] };
+          properties?: {
+            name?: string;
+            state?: string;
+            city?: string;
+            countrycode?: string;
+            osm_key?: string;
+            osm_value?: string;
+          };
+        }[];
+      };
+      const vistos = new Set<string>();
+      const brutos: { item: SugestaoLocal; ordem: number; peso: number }[] = [];
+      for (const f of data.features || []) {
+        const p = f.properties || {};
+        if (String(p.countrycode || "").toUpperCase() !== "BR") continue;
+        const tipo = String(p.osm_value || "");
+        if (p.osm_key !== "place" || PRIORIDADE_LUGAR[tipo] == null) continue;
+        const nome = String(p.name || "").trim();
+        if (!nome) continue;
+        const estado = String(p.state || "").trim();
+        const cidade = String(p.city || "").trim();
+        const eCidade = PRIORIDADE_LUGAR[tipo] <= 2 || tipo === "hamlet";
+        const rotulo =
+          eCidade || !cidade || cidade.toLocaleLowerCase("pt-BR") === nome.toLocaleLowerCase("pt-BR")
+            ? [nome, estado].filter(Boolean).join(", ")
+            : [nome, cidade, estado].filter(Boolean).join(", ");
+        const chave = rotulo.toLocaleLowerCase("pt-BR");
+        if (vistos.has(chave)) continue;
+        const lng = Number(f.geometry?.coordinates?.[0]);
+        const lat = Number(f.geometry?.coordinates?.[1]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+        vistos.add(chave);
+        brutos.push({ item: { rotulo, lat, lng }, ordem: brutos.length, peso: PRIORIDADE_LUGAR[tipo] });
+      }
+      itens = brutos
+        .sort((a, b) => a.peso - b.peso || a.ordem - b.ordem)
+        .slice(0, 6)
+        .map((r) => r.item);
+    }
+  } catch {
+    itens = [];
+  }
+
+  sugestaoCache.set(key, { exp: Date.now() + 10 * 60 * 1000, itens });
+  return itens;
+}
+
+const geoCache = new Map<string, { lat: number; lng: number }>();
 
 export async function geocodificar(consulta: string): Promise<{ lat: number; lng: number } | null> {
   const q = consulta.trim();
   if (q.length < 3) return null;
   const key = q.toLowerCase();
-  if (geoCache.has(key)) return geoCache.get(key) ?? null;
+  const guardado = geoCache.get(key);
+  if (guardado) return guardado;
 
-  const ponto = (await nominatim(q)) || (await photon(q));
-  geoCache.set(key, ponto);
+  const ponto = (await photon(q)) || (await nominatim(q));
+  if (ponto) geoCache.set(key, ponto);
   return ponto;
+}
+
+async function fetchCurto(url: string, init: RequestInit): Promise<Response | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 2500);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal, cache: "no-store" });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function nominatim(q: string): Promise<{ lat: number; lng: number } | null> {
   const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=${encodeURIComponent(q)}`;
+  const res = await fetchCurto(url, {
+    headers: {
+      "User-Agent": "MascPRO-Mapa/1.0 (mapa de saloes)",
+      "Accept-Language": "pt-BR",
+    },
+  });
+  if (!res?.ok) return null;
   try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "MascPRO-Mapa/1.0 (mapa de saloes)",
-        "Accept-Language": "pt-BR",
-      },
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
     const data = (await res.json()) as { lat?: string; lon?: string }[];
     const lat = Number(data?.[0]?.lat);
     const lng = Number(data?.[0]?.lon);
@@ -194,10 +291,10 @@ async function nominatim(q: string): Promise<{ lat: number; lng: number } | null
 }
 
 async function photon(q: string): Promise<{ lat: number; lng: number } | null> {
-  const url = `https://photon.komoot.io/api/?limit=1&lang=pt&q=${encodeURIComponent(q)}`;
+  const url = `https://photon.komoot.io/api/?limit=1&lang=default&bbox=-74,-34,-34,6&q=${encodeURIComponent(q)}`;
+  const res = await fetchCurto(url, { headers: { Accept: "application/json" } });
+  if (!res?.ok) return null;
   try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
     const data = (await res.json()) as {
       features?: { geometry?: { coordinates?: number[] }; properties?: { countrycode?: string } }[];
     };

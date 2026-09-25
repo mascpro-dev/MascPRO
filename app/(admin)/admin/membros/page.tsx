@@ -188,6 +188,7 @@ export default function AdminMembrosPage() {
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.ok) setAvisoMapa(data?.error || "Não foi possível atualizar o mapa.");
+    else if (data?.aviso) setAvisoMapa(data.aviso);
     await carregar();
     setMapaAlvo(null);
   }

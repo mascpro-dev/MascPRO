@@ -45,33 +45,11 @@ export async function POST(req: NextRequest) {
     if (body.reminder_enabled !== undefined) campos.reminder_enabled = Boolean(body.reminder_enabled);
 
     let avisoMapa: string | null = null;
-    if (body.mapa_visivel === true) {
-      const cidade = String(body.city || "").trim();
-      const uf = String(body.state || "").trim();
-      if (!cidade) {
-        avisoMapa = "Informe a cidade para aparecer no mapa. O restante do perfil foi salvo.";
-      } else {
-        const { data: atual } = await supabase
-          .from("profiles")
-          .select("studio_address, city, state, logradouro, address, numero, number, bairro, neighborhood, municipio, uf")
-          .eq("id", session.user.id)
-          .maybeSingle();
-        const consulta = consultaGeocode({
-          ...(atual || {}),
-          city: body.city,
-          state: body.state,
-          studio_address: body.studio_address ?? atual?.studio_address,
-        });
-        const ponto =
-          (await geocodificar(consulta)) ||
-          (await geocodificar([cidade, uf, "Brasil"].filter(Boolean).join(", ")));
-        campos.mapa_visivel = true;
-        if (ponto) {
-          campos.mapa_lat = ponto.lat;
-          campos.mapa_lng = ponto.lng;
-        } else {
-          avisoMapa = "Seu salão ficou visível no mapa, mas o ponto ainda não foi encontrado. Confira a cidade e o endereço do estúdio e salve de novo.";
-        }
+    const querMapa = body.mapa_visivel === true;
+    if (querMapa) {
+      campos.mapa_visivel = true;
+      if (!String(body.city || "").trim()) {
+        avisoMapa = "Seu salão ficou marcado para aparecer no mapa. Informe a cidade e salve de novo para o pin surgir.";
       }
     } else if (body.mapa_visivel === false) {
       campos.mapa_visivel = false;
@@ -127,6 +105,34 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    if (querMapa && String(body.city || "").trim()) {
+      const cidade = String(body.city || "").trim();
+      const uf = String(body.state || "").trim();
+      const { data: atual } = await supabase
+        .from("profiles")
+        .select("studio_address, city, state, logradouro, address, numero, number, bairro, neighborhood, municipio, uf")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      const consulta = consultaGeocode({
+        ...(atual || {}),
+        city: body.city,
+        state: body.state,
+        studio_address: body.studio_address ?? atual?.studio_address,
+      });
+      const ponto =
+        (await geocodificar(consulta)) ||
+        (await geocodificar([cidade, uf, "Brasil"].filter(Boolean).join(", ")));
+      if (ponto) {
+        await supabase
+          .from("profiles")
+          .update({ mapa_lat: ponto.lat, mapa_lng: ponto.lng, mapa_visivel: true })
+          .eq("id", session.user.id);
+      } else if (!avisoMapa) {
+        avisoMapa =
+          "Seu salão ficou marcado como visível. O ponto da cidade ainda não foi achado; confira o endereço e salve de novo.";
+      }
     }
 
     return NextResponse.json({

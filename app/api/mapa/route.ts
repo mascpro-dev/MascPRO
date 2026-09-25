@@ -183,7 +183,8 @@ export async function GET(req: NextRequest) {
 
     let centro: { lat: number; lng: number; rotulo: string } | null = null;
     if (Number.isFinite(latQ) && Number.isFinite(lngQ)) {
-      centro = { lat: latQ, lng: lngQ, rotulo: "Sua localização" };
+      const rotulo = String(req.nextUrl.searchParams.get("rotulo") || "").trim();
+      centro = { lat: latQ, lng: lngQ, rotulo: rotulo || "Sua localização" };
     } else if (q) {
       const ponto = await geocodificar(`${q}, Brasil`);
       if (ponto) centro = { ...ponto, rotulo: q };

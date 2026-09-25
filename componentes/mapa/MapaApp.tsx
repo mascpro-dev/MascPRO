@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -29,6 +29,7 @@ import {
   linkWhatsapp,
   type PinTipo,
   type SalaoPublico,
+  type SugestaoLocal,
 } from "@/lib/mapaSaloes";
 
 type Centro = { lat: number; lng: number; rotulo: string };
@@ -108,7 +109,12 @@ export default function MapaApp() {
     setSelecionadoId(null);
   }, [buscaUrl]);
 
-  async function aplicarBusca(q: string, mostrarAviso = true) {
+  function escolherSugestao(s: SugestaoLocal) {
+    setTexto(s.rotulo);
+    aplicarBusca(s.rotulo, true, s);
+  }
+
+  async function aplicarBusca(q: string, mostrarAviso = true, ponto?: SugestaoLocal) {
     const consulta = q.trim();
     if (!consulta) {
       if (mostrarAviso) setAviso("Digite uma cidade ou um bairro.");
@@ -118,7 +124,10 @@ export default function MapaApp() {
     setAviso(null);
     setSelecionadoId(null);
     try {
-      const res = await fetch(`/api/mapa?q=${encodeURIComponent(consulta)}`);
+      const url = ponto
+        ? `/api/mapa?lat=${ponto.lat}&lng=${ponto.lng}&rotulo=${encodeURIComponent(ponto.rotulo)}`
+        : `/api/mapa?q=${encodeURIComponent(consulta)}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (data.saloes) setSaloes(data.saloes);
       if (!data.centro) {
@@ -250,6 +259,7 @@ export default function MapaApp() {
                 setTexto={setTexto}
                 onSubmit={onSubmit}
                 buscando={buscando}
+                onEscolher={escolherSugestao}
                 onGeo={usarLocalizacao}
                 tipo={tipo}
                 setTipo={setTipo}
@@ -288,7 +298,7 @@ export default function MapaApp() {
   return (
     <div className="min-h-screen bg-[#FFFBF8] text-[#1A1A1A]">
       <MapaHeader />
-      <section className="relative overflow-hidden">
+      <section className="relative">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,#fde8e6,transparent_42%),linear-gradient(#fffdfb,#f7f1ea)]" />
         <div className="relative mx-auto max-w-3xl px-4 pb-10 pt-14 text-center md:pt-20">
           <LogoMasc className="mx-auto mb-5 h-16 w-auto" />
@@ -305,6 +315,7 @@ export default function MapaApp() {
             setTexto={setTexto}
             onSubmit={onSubmit}
             buscando={buscando}
+            onEscolher={escolherSugestao}
             onGeo={usarLocalizacao}
             className="mx-auto mt-8 max-w-2xl text-left"
           />
@@ -412,6 +423,7 @@ function BuscaBarra({
   setTexto,
   onSubmit,
   buscando,
+  onEscolher,
   onGeo,
   className,
   compacto = false,
@@ -420,28 +432,129 @@ function BuscaBarra({
   setTexto: (v: string) => void;
   onSubmit: (e: FormEvent) => void;
   buscando: boolean;
+  onEscolher: (s: SugestaoLocal) => void;
   onGeo: () => void;
   className?: string;
   compacto?: boolean;
 }) {
+  const [sugestoes, setSugestoes] = useState<SugestaoLocal[]>([]);
+  const [aberto, setAberto] = useState(false);
+  const [ativo, setAtivo] = useState(0);
+  const caixa = useRef<HTMLDivElement>(null);
+  const ignorar = useRef("");
+
+  useEffect(() => {
+    const q = texto.trim();
+    if (q.length < 2 || ignorar.current === q) {
+      if (ignorar.current === q) return;
+      setSugestoes([]);
+      setAberto(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/mapa/sugestoes?q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
+        const data = await res.json();
+        const lista: SugestaoLocal[] = data.sugestoes || [];
+        setSugestoes(lista);
+        setAberto(lista.length > 0);
+        setAtivo(0);
+      } catch {
+        /* consulta cancelada enquanto a pessoa continua digitando */
+      }
+    }, 220);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [texto]);
+
+  useEffect(() => {
+    function fora(e: MouseEvent) {
+      if (!caixa.current?.contains(e.target as Node)) setAberto(false);
+    }
+    document.addEventListener("mousedown", fora);
+    return () => document.removeEventListener("mousedown", fora);
+  }, []);
+
+  function escolher(s: SugestaoLocal) {
+    ignorar.current = s.rotulo;
+    setAberto(false);
+    setSugestoes([]);
+    onEscolher(s);
+  }
+
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={(e) => {
+        if (aberto && sugestoes[ativo]) {
+          e.preventDefault();
+          escolher(sugestoes[ativo]);
+          return;
+        }
+        setAberto(false);
+        onSubmit(e);
+      }}
       className={
         compacto
-          ? `flex flex-col gap-2 ${className || ""}`
-          : `flex flex-col gap-2 rounded-[28px] border border-black/10 bg-white p-2 shadow-[0_10px_40px_rgba(0,0,0,0.06)] sm:flex-row sm:items-center ${className || ""}`
+          ? `relative z-20 flex flex-col gap-2 ${className || ""}`
+          : `relative z-20 flex flex-col gap-2 rounded-[28px] border border-black/10 bg-white p-2 shadow-[0_10px_40px_rgba(0,0,0,0.06)] sm:flex-row sm:items-center ${className || ""}`
       }
     >
+      <div ref={caixa} className="relative min-w-0 flex-1">
       <label className={`flex min-w-0 flex-1 items-center gap-2 px-3 ${compacto ? "rounded-xl border border-black/10 bg-zinc-50" : ""}`}>
         <Search size={18} className="shrink-0 text-zinc-400" />
         <input
           value={texto}
-          onChange={(e) => setTexto(e.target.value)}
+          onChange={(e) => {
+            ignorar.current = "";
+            setTexto(e.target.value);
+          }}
+          onFocus={() => {
+            if (sugestoes.length > 0) setAberto(true);
+          }}
+          onKeyDown={(e) => {
+            if (!aberto || sugestoes.length === 0) return;
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setAtivo((i) => (i + 1) % sugestoes.length);
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setAtivo((i) => (i - 1 + sugestoes.length) % sugestoes.length);
+            } else if (e.key === "Escape") {
+              setAberto(false);
+            }
+          }}
           placeholder="Busque por cidade ou bairro"
+          autoComplete="off"
+          role="combobox"
+          aria-expanded={aberto}
+          aria-autocomplete="list"
           className="w-full bg-transparent py-2 text-sm outline-none placeholder:text-zinc-400"
         />
       </label>
+      {aberto && sugestoes.length > 0 && (
+        <ul className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-2xl border border-black/10 bg-white py-1 shadow-[0_16px_40px_rgba(0,0,0,0.12)]">
+          {sugestoes.map((s, i) => (
+            <li key={s.rotulo}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setAtivo(i)}
+                onClick={() => escolher(s)}
+                className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm ${
+                  i === ativo ? "bg-[#fde8e6] text-[#1A1A1A]" : "text-zinc-700"
+                }`}
+              >
+                <MapPin size={15} className="shrink-0 text-[#E23B4A]" />
+                <span>{s.rotulo}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      </div>
       <button
         type="button"
         onClick={onGeo}
@@ -467,6 +580,7 @@ function Lista({
   setTexto,
   onSubmit,
   buscando,
+  onEscolher,
   onGeo,
   tipo,
   setTipo,
@@ -486,6 +600,7 @@ function Lista({
   setTexto: (v: string) => void;
   onSubmit: (e: FormEvent) => void;
   buscando: boolean;
+  onEscolher: (s: SugestaoLocal) => void;
   onGeo: () => void;
   tipo: "todos" | "saloes" | "profissionais";
   setTipo: (v: "todos" | "saloes" | "profissionais") => void;
@@ -510,7 +625,15 @@ function Lista({
           {centro ? `Resultados perto de ${centro.rotulo}.` : "Resultados da sua busca."}
         </p>
         <div className="mt-3">
-          <BuscaBarra compacto texto={texto} setTexto={setTexto} onSubmit={onSubmit} buscando={buscando} onGeo={onGeo} />
+          <BuscaBarra
+            compacto
+            texto={texto}
+            setTexto={setTexto}
+            onSubmit={onSubmit}
+            buscando={buscando}
+            onEscolher={onEscolher}
+            onGeo={onGeo}
+          />
         </div>
         {aviso && <p className="mt-2 text-sm text-[#E23B4A]">{aviso}</p>}
         <div className="mt-3 flex items-center gap-2">
