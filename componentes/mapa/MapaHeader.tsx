@@ -1,24 +1,44 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 const link = "text-sm text-zinc-600 hover:text-[#1A1A1A] transition-colors";
 const ativo = "text-sm text-[#E23B4A] font-semibold";
 
 export default function MapaHeader() {
   const path = usePathname();
+  const router = useRouter();
   const inicio = path === "/mapa";
+
+  function voltar() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/home");
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/5 bg-white/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
-        <Link href="/mapa" className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={voltar}
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-black/10 px-3 py-1.5 text-sm font-medium text-[#1A1A1A] hover:bg-zinc-50"
+          >
+            <ArrowLeft size={16} />
+            Voltar
+          </button>
+          <Link href="/mapa" className="flex min-w-0 items-center gap-2">
           <PinLogo />
           <span className="truncate text-[15px] font-black tracking-tight text-[#1A1A1A]">
             Mapa de Salões
           </span>
-        </Link>
+          </Link>
+        </div>
 
         <nav className="hidden items-center gap-6 md:flex">
           <Link href="/mapa" className={inicio ? ativo : link}>

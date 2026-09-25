@@ -99,6 +99,14 @@ export default function MapaApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const buscaUrl = params.toString();
+  useEffect(() => {
+    const q = new URLSearchParams(buscaUrl);
+    if (q.get("ver") === "mapa" || q.get("q")) return;
+    setModo("inicio");
+    setSelecionadoId(null);
+  }, [buscaUrl]);
+
   async function aplicarBusca(q: string, mostrarAviso = true) {
     const consulta = q.trim();
     if (!consulta) {
