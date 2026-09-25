@@ -37,6 +37,22 @@ type ComDistancia = SalaoPublico & { km: number | null };
 
 const RAIOS = [5, 15, 30, 50];
 
+const FOTO_HERO =
+  "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1400&q=80";
+const FOTO_BANNER =
+  "https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&w=1200&q=80";
+const FOTO_SALA =
+  "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=500&q=70";
+
+const SERVICOS_VITRINE = [
+  { nome: "Corte", foto: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=500&q=70" },
+  { nome: "Barba", foto: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=500&q=70" },
+  { nome: "Coloração", foto: "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=500&q=70" },
+  { nome: "Terapia capilar", foto: "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?auto=format&fit=crop&w=500&q=70" },
+  { nome: "Unhas", foto: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=500&q=70" },
+  { nome: "Massagem", foto: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=500&q=70" },
+];
+
 export default function MapaApp() {
   const params = useSearchParams();
   const [saloes, setSaloes] = useState<SalaoPublico[]>([]);
@@ -204,7 +220,12 @@ export default function MapaApp() {
     if (filtros.educador) items = items.filter((s) => s.pin === "educador");
     if (servico) {
       const alvo = normalizar(servico);
-      items = items.filter((s) => s.servicos.some((n) => normalizar(n) === alvo));
+      items = items.filter((s) =>
+        s.servicos.some((n) => {
+          const nome = normalizar(n);
+          return nome === alvo || nome.includes(alvo) || alvo.includes(nome);
+        })
+      );
     }
     items.sort((a, b) => (a.km ?? 9999) - (b.km ?? 9999) || a.salao.localeCompare(b.salao, "pt-BR"));
     return items;
@@ -212,16 +233,6 @@ export default function MapaApp() {
 
   const pins = useMemo(() => espalharPins(modo === "busca" ? lista : saloes), [modo, lista, saloes]);
   const selecionado = saloes.find((s) => s.id === selecionadoId) || null;
-  const servicosHome = useMemo(() => {
-    const nomes = new Map<string, string>();
-    for (const s of saloes) {
-      for (const n of s.servicos) {
-        const k = normalizar(n);
-        if (!nomes.has(k)) nomes.set(k, n);
-      }
-    }
-    return [...nomes.values()].slice(0, 8);
-  }, [saloes]);
 
   async function compartilhar(salao: SalaoPublico) {
     const url = `${window.location.origin}/mapa?salao=${salao.id}`;
@@ -298,18 +309,47 @@ export default function MapaApp() {
   return (
     <div className="min-h-screen bg-[#FFFBF8] text-[#1A1A1A]">
       <MapaHeader />
-      <section className="relative">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,#fde8e6,transparent_42%),linear-gradient(#fffdfb,#f7f1ea)]" />
-        <div className="relative mx-auto max-w-3xl px-4 pb-10 pt-14 text-center md:pt-20">
-          <LogoMasc className="mx-auto mb-5 h-16 w-auto" />
-          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#E23B4A]">Mapa de salões</p>
-          <h1 className="mx-auto mt-4 max-w-xl text-4xl font-semibold leading-[1.05] text-[#1A1A1A] [font-family:var(--font-mapa),Georgia,serif] md:text-6xl">
-            O salão certo,
-            <span className="text-[#E23B4A]"> perto de você.</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-lg text-base text-zinc-600">
-            Busque pela cidade ou use sua localização. O pin abre WhatsApp, Instagram e a agenda de quem já está no app.
-          </p>
+
+      <section className="relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,#fffdfb_0%,#fff7f6_46%,transparent_72%)]" />
+        <img
+          src={FOTO_HERO}
+          alt=""
+          className="pointer-events-none absolute right-0 top-0 hidden h-full w-[48%] object-cover md:block"
+        />
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] bg-gradient-to-r from-[#FFFBF8] via-[#fff7f6]/80 to-transparent md:block" />
+        <div className="relative mx-auto grid max-w-6xl items-center gap-8 px-4 pb-8 pt-12 md:grid-cols-[1.15fr_0.85fr] md:pt-16">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#E23B4A]">Mapa de salões Masc PRO</p>
+            <h1 className="mt-4 max-w-xl text-4xl font-semibold leading-[1.05] text-[#1A1A1A] [font-family:var(--font-mapa),Georgia,serif] md:text-6xl">
+              O cuidado que seus fios merecem,{" "}
+              <span className="text-[#E23B4A]">no salão mais perto.</span>
+            </h1>
+            <p className="mt-4 max-w-md text-base text-zinc-600">
+              Beleza e cuidado com seus fios, no salão parceiro Masc PRO pertinho de você.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-4 text-sm text-zinc-600">
+              <span className="inline-flex items-center gap-2">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-[#fde8e6] text-[#E23B4A]">✦</span>
+                <span>
+                  <strong className="block text-[#1A1A1A]">Rápido e fácil</strong>
+                  Busque e agende em segundos
+                </span>
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-[#fde8e6] text-[#E23B4A]">◎</span>
+                <span>
+                  <strong className="block text-[#1A1A1A]">Perto de você</strong>
+                  Veja os salões no mapa
+                </span>
+              </span>
+            </div>
+          </div>
+          <div className="relative h-56 overflow-hidden rounded-[28px] shadow-lg md:hidden">
+            <img src={FOTO_HERO} alt="" className="h-full w-full object-cover" />
+          </div>
+        </div>
+        <div className="relative mx-auto max-w-4xl px-4 pb-10">
           <BuscaBarra
             texto={texto}
             setTexto={setTexto}
@@ -317,38 +357,22 @@ export default function MapaApp() {
             buscando={buscando}
             onEscolher={escolherSugestao}
             onGeo={usarLocalizacao}
-            className="mx-auto mt-8 max-w-2xl text-left"
           />
-          {aviso && <p className="mt-3 text-sm text-[#E23B4A]">{aviso}</p>}
+          {aviso && <p className="mt-3 text-center text-sm text-[#E23B4A]">{aviso}</p>}
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-16">
-        <div className="mb-4 flex items-end justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-400">No mapa</p>
-            <h2 className="text-2xl font-semibold [font-family:var(--font-mapa),Georgia,serif]">Salões perto de você</h2>
-            <p className="text-sm text-zinc-500">
-              {carregando
-                ? "Carregando salões..."
-                : saloes.length
-                  ? `${saloes.length} ${saloes.length === 1 ? "salão publicado" : "salões publicados"}. Ative a localização para ver os mais perto.`
-                  : "Ainda não há salão publicado. Quem completa o perfil no app aparece aqui."}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setModo("busca");
-              setRaio(400);
-              setFocoKey(`todos-${Date.now()}`);
-            }}
-            className="hidden shrink-0 rounded-full bg-[#E23B4A] px-4 py-2.5 text-sm font-semibold text-white sm:inline-flex"
-          >
-            Ver todos no mapa
-          </button>
+        <div className="mb-4">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-400">No mapa</p>
+          <h2 className="text-2xl font-semibold [font-family:var(--font-mapa),Georgia,serif]">Salões perto de você</h2>
+          <p className="text-sm text-zinc-500">
+            {carregando
+              ? "Carregando salões..."
+              : "Salões parceiros no app. Ative sua localização para ver os mais perto."}
+          </p>
         </div>
-        <div className="relative h-[560px] overflow-hidden rounded-3xl border border-black/5 shadow-sm">
+        <div className="relative h-[420px] overflow-hidden rounded-[28px] border border-black/5 shadow-sm">
           <MapaLeaflet
             saloes={espalharPins(saloes)}
             centro={null}
@@ -361,56 +385,86 @@ export default function MapaApp() {
             }}
             focoKey={saloes.map((s) => s.id).join(",")}
           />
+          <button
+            type="button"
+            onClick={() => {
+              setModo("busca");
+              setRaio(400);
+              setFocoKey(`todos-${Date.now()}`);
+            }}
+            className="absolute bottom-4 right-4 z-[500] rounded-full bg-[#E23B4A] px-4 py-2.5 text-sm font-semibold text-white shadow-lg"
+          >
+            Ver todos os salões no mapa
+          </button>
         </div>
 
-        {servicosHome.length > 0 && (
-          <div className="mt-12">
-            <div className="mb-4 flex items-end justify-between">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-400">Serviços</p>
-                <h2 className="text-2xl font-semibold [font-family:var(--font-mapa),Georgia,serif]">
-                  O que os salões oferecem
-                </h2>
-              </div>
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {servicosHome.map((nome) => (
-                <button
-                  key={nome}
-                  type="button"
-                  onClick={() => {
-                    setServico(nome);
-                    setModo("busca");
-                    setRaio(400);
-                    setFocoKey(`srv-${nome}`);
-                  }}
-                  className="shrink-0 rounded-2xl border border-black/5 bg-white px-4 py-3 text-sm font-medium shadow-sm hover:border-[#E23B4A]/40"
-                >
-                  {nome}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-12 overflow-hidden rounded-[28px] bg-[#6d2430] text-white">
-          <div className="grid items-center gap-6 px-6 py-10 md:grid-cols-[1.3fr_0.7fr] md:px-10">
+        <div className="mt-14">
+          <div className="mb-4 flex items-end justify-between gap-3">
             <div>
-              <LogoMasc branca className="mb-4 h-12 w-auto" />
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">Para salões e profissionais</p>
-              <h2 className="mt-2 max-w-lg text-3xl font-semibold leading-tight [font-family:var(--font-mapa),Georgia,serif] md:text-4xl">
-                Coloque seu salão no mapa
-              </h2>
-              <p className="mt-3 max-w-md text-sm text-white/80">
-                Preencha seus dados. A ficha chega no WhatsApp e você recebe o link do app para aparecer na busca.
-              </p>
-              <Link
-                href="/mapa/inscrever"
-                className="mt-6 inline-flex rounded-full bg-white px-5 py-3 text-sm font-semibold text-[#6d2430]"
-              >
-                Inscrever meu salão
-              </Link>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-400">Serviços</p>
+              <h2 className="text-2xl font-semibold [font-family:var(--font-mapa),Georgia,serif]">Outros serviços próximos</h2>
+              <p className="text-sm text-zinc-500">Serviços oferecidos pelos salões parceiros perto de você.</p>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setServico(null);
+                setModo("busca");
+                setRaio(400);
+                setFocoKey(`todos-${Date.now()}`);
+              }}
+              className="shrink-0 text-sm font-semibold text-[#E23B4A]"
+            >
+              Ver serviços →
+            </button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {SERVICOS_VITRINE.map((item) => (
+              <button
+                key={item.nome}
+                type="button"
+                onClick={() => {
+                  setServico(item.nome);
+                  setModo("busca");
+                  setRaio(400);
+                  setFocoKey(`srv-${item.nome}-${Date.now()}`);
+                }}
+                className="group w-36 shrink-0 text-left"
+              >
+                <span className="block h-28 overflow-hidden rounded-2xl bg-zinc-100 shadow-sm">
+                  <img
+                    src={item.foto}
+                    alt=""
+                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                  />
+                </span>
+                <span className="mt-2 block text-sm font-medium text-[#1A1A1A]">{item.nome}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative mt-14 overflow-hidden rounded-[28px] bg-[#6d2430] text-white">
+          <img
+            src={FOTO_BANNER}
+            alt=""
+            className="pointer-events-none absolute inset-y-0 right-0 hidden h-full w-[46%] object-cover md:block"
+          />
+          <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] bg-gradient-to-r from-[#6d2430] to-transparent md:block" />
+          <div className="relative max-w-xl px-6 py-10 md:px-10 md:py-12">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">Para salões e profissionais</p>
+            <h2 className="mt-2 text-3xl font-semibold leading-tight [font-family:var(--font-mapa),Georgia,serif] md:text-4xl">
+              Coloque seu salão no mapa
+            </h2>
+            <p className="mt-3 text-sm text-white/80">
+              Seja encontrado por quem está pertinho de você e faça parte dos salões parceiros da Masc PRO.
+            </p>
+            <Link
+              href="/mapa/inscrever"
+              className="mt-6 inline-flex rounded-full bg-[#4a1520] px-5 py-3 text-sm font-semibold text-white"
+            >
+              Conheça a Masc
+            </Link>
           </div>
         </div>
       </section>
@@ -708,7 +762,7 @@ function Lista({
             key={s.id}
             type="button"
             onClick={() => onSelect(s.id)}
-            className="flex w-full items-center gap-3 rounded-2xl border border-[#f3d7d9] bg-white px-3 py-3 text-left shadow-sm hover:border-[#E23B4A]/50"
+            className="flex w-full items-center gap-3 rounded-2xl border border-[#f6d5d8] bg-white px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#E23B4A]/50 hover:shadow-md"
           >
             <Avatar nome={s.salao} url={s.avatar} />
             <span className="min-w-0 flex-1">
@@ -764,6 +818,12 @@ function Ficha({
       <button type="button" onClick={onVoltar} className="mb-4 inline-flex items-center gap-1 text-sm text-zinc-500">
         <ArrowLeft size={16} /> Voltar
       </button>
+      <div className="overflow-hidden rounded-[28px] bg-white">
+        <div className="relative h-36">
+          <img src={salao.avatar || FOTO_SALA} alt="" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent" />
+        </div>
+        <div className="-mt-8 px-4 pb-4">
       <div className="flex items-start gap-3">
         <Avatar nome={salao.salao} url={salao.avatar} />
         <div className="min-w-0">
@@ -846,6 +906,8 @@ function Ficha({
           {copiado ? "Copiado" : "Compartilhar"}
         </button>
       </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -862,12 +924,21 @@ function FiltroLinha({ label, on, toggle }: { label: string; on: boolean; toggle
 }
 
 function Avatar({ nome, url }: { nome: string; url: string | null }) {
-  if (url) {
-    return <img src={url} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" />;
+  const [falhou, setFalhou] = useState(false);
+  const foto = !falhou ? url || FOTO_SALA : "";
+  if (foto) {
+    return (
+      <img
+        src={foto}
+        alt=""
+        onError={() => setFalhou(true)}
+        className="h-16 w-16 shrink-0 rounded-full border-2 border-[#f6d5d8] object-cover shadow-sm"
+      />
+    );
   }
   const letra = (nome || "?").trim().charAt(0).toUpperCase();
   return (
-    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-[#fde8e6] text-lg font-semibold text-[#E23B4A]">
+    <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full border-2 border-[#f6d5d8] bg-[#fde8e6] text-lg font-semibold text-[#E23B4A]">
       {letra}
     </span>
   );

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Fraunces } from "next/font/google";
 
@@ -13,5 +14,9 @@ export const metadata: Metadata = {
 };
 
 export default function MapaLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`${display.variable} bg-[#FFFBF8] text-[#1A1A1A]`}>{children}</div>;
+  return (
+    <Suspense fallback={<div className="grid min-h-screen place-items-center bg-[#FFFBF8] text-sm text-zinc-500">Abrindo o mapa…</div>}>
+      <div className={`${display.variable} bg-[#FFFBF8] text-[#1A1A1A]`}>{children}</div>
+    </Suspense>
+  );
 }
