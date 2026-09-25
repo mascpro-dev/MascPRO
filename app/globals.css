@@ -37,11 +37,19 @@ body {
   border: none !important;
 }
 
+.mapa-canvas,
 .mapa-canvas .leaflet-container {
   height: 100%;
   width: 100%;
-  background: #f3efe9;
+  background: #efeae3;
   font-family: inherit;
+}
+
+/* O reset do Tailwind encolhe as imagens e apaga os azulejos do mapa. */
+.leaflet-container img,
+.leaflet-container .leaflet-tile {
+  max-width: none !important;
+  max-height: none !important;
 }
 
 /* Para Firefox */

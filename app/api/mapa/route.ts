@@ -8,6 +8,7 @@ import {
   type PinTipo,
   type SalaoPublico,
 } from "@/lib/mapaSaloes";
+import { compraDentroDoPrazo, ultimasComprasPorPerfil } from "@/lib/mapaCompra";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +78,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    const rows = (data || []) as unknown as Record<string, unknown>[];
+    const todos = (data || []) as unknown as Record<string, unknown>[];
+    const idsTodos = todos.map((r) => String(r.id));
+    const ultimas = await ultimasComprasPorPerfil(db, idsTodos);
+    const semCompra = idsTodos.filter((id) => !compraDentroDoPrazo(ultimas.get(id)));
+    if (semCompra.length) {
+      await db.from("profiles").update({ mapa_visivel: false }).in("id", semCompra);
+    }
+    const rows = todos.filter((r) => compraDentroDoPrazo(ultimas.get(String(r.id))));
     const ids = rows.map((r) => String(r.id));
 
     const abertoPorId = new Map<string, boolean>();

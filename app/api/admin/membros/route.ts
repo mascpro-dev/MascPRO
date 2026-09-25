@@ -7,6 +7,7 @@ import {
   enriquecerProRedeMembro,
   sincronizarNetworkCoinsLote,
 } from "@/lib/syncProRedeMembro";
+import { compraDentroDoPrazo, ultimasComprasPorPerfil } from "@/lib/mapaCompra";
 
 export async function GET() {
   try {
@@ -25,20 +26,14 @@ export async function GET() {
     const indicadosCount = contarIndicadosDiretos(profiles);
     await sincronizarNetworkCoinsLote(supabase, profiles, indicadosCount);
 
-    const idsComCompra = new Set<string>();
-    for (let from = 0; from < 200_000; from += 1000) {
-      const { data: pedidos, error: errPed } = await supabase
-        .from("orders")
-        .select("profile_id")
-        .in("status", ["paid", "separacao", "despachado", "entregue"])
-        .range(from, from + 999);
-      if (errPed) {
-        return NextResponse.json({ ok: false, error: errPed.message }, { status: 500 });
-      }
-      for (const p of pedidos || []) {
-        if (p.profile_id) idsComCompra.add(p.profile_id);
-      }
-      if (!pedidos || pedidos.length < 1000) break;
+    const ultimasCompras = await ultimasComprasPorPerfil(supabase);
+    const idsComCompra = new Set(ultimasCompras.keys());
+
+    const mapaPorId = new Map<string, boolean>();
+    const { data: mapas, error: errMapa } = await supabase.from("profiles").select("id, mapa_visivel");
+    const mapaColuna = !errMapa;
+    if (mapaColuna) {
+      for (const row of mapas || []) mapaPorId.set(String(row.id), row.mapa_visivel === true);
     }
 
     const perfilMap = new Map(profiles.map((p: any) => [p.id, p]));
@@ -53,6 +48,10 @@ export async function GET() {
         city: loc.city || end.city || m.city,
         state: loc.state || end.state || m.state,
         tem_compra: idsComCompra.has(m.id),
+        ultima_compra: ultimasCompras.get(m.id) || null,
+        compra_30d: compraDentroDoPrazo(ultimasCompras.get(m.id)),
+        mapa_visivel: mapaPorId.get(m.id) === true,
+        mapa_coluna: mapaColuna,
         qtd_indicados: qtd,
         pro_indicacao: proRede.pro_indicacao,
         pro_compras_rede: proRede.pro_compras_rede,

@@ -44,20 +44,29 @@ export default function MapaLeaflet({
         attributionControl: true,
       });
       L.control.zoom({ position: "bottomright" }).addTo(mapa);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
         attribution: "&copy; OpenStreetMap &copy; CARTO",
         subdomains: "abcd",
-        maxZoom: 19,
+        maxZoom: 20,
       }).addTo(mapa);
       mapa.setView([-14.2, -51.9], 4);
       layerRef.current = L.layerGroup().addTo(mapa);
       mapRef.current = mapa;
       setPronto(true);
-      setTimeout(() => mapa?.invalidateSize(), 80);
+      const ajustar = () => mapa?.invalidateSize();
+      setTimeout(ajustar, 60);
+      setTimeout(ajustar, 400);
+      if (el.current && typeof ResizeObserver !== "undefined") {
+        const obs = new ResizeObserver(() => ajustar());
+        obs.observe(el.current);
+        (mapa as LeafletMap & { _obs?: ResizeObserver })._obs = obs;
+      }
     })();
 
     return () => {
       cancelado = true;
+      const obs = (mapa as LeafletMap & { _obs?: ResizeObserver } | null)?._obs;
+      obs?.disconnect();
       mapa?.remove();
       mapRef.current = null;
       layerRef.current = null;

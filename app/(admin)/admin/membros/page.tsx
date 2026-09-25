@@ -4,7 +4,7 @@ import AdminSidebar from "@/componentes/AdminSidebar";
 import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import {
   Search, Users, Instagram, MessageCircle, Loader2,
-  ShoppingBag, Pencil, X, Save, AlertCircle, CheckCircle, KeyRound, Link2, Copy,
+  ShoppingBag, Pencil, X, Save, AlertCircle, CheckCircle, KeyRound, Link2, Copy, MapPin,
 } from "lucide-react";
 import { getProBreakdown } from "@/lib/proScore";
 
@@ -31,6 +31,10 @@ type Membro = {
   pro_rede_total?: number;
   indicador?: { full_name: string } | null;
   tem_compra?: boolean; nivel?: string | null;
+  ultima_compra?: string | null;
+  compra_30d?: boolean;
+  mapa_visivel?: boolean;
+  mapa_coluna?: boolean;
 };
 
 /** value = gravado em profiles.role; label = exibicao */
@@ -78,6 +82,8 @@ export default function AdminMembrosPage() {
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [distribuidores, setDistribuidores] = useState<{ id: string; full_name: string }[]>([]);
+  const [mapaAlvo, setMapaAlvo] = useState<string | null>(null);
+  const [avisoMapa, setAvisoMapa] = useState<string | null>(null);
 
   useEffect(() => { void carregar(); void carregarDistribuidores(); }, []);
 
@@ -172,6 +178,35 @@ export default function AdminMembrosPage() {
     setSalvando(false);
   }
 
+  async function alterarMapa(m: Membro, acao: "ativar" | "desativar") {
+    setMapaAlvo(m.id);
+    setAvisoMapa(null);
+    const res = await fetch("/api/admin/mapa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acao, user_id: m.id }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.ok) setAvisoMapa(data?.error || "Não foi possível atualizar o mapa.");
+    await carregar();
+    setMapaAlvo(null);
+  }
+
+  async function varrerMapa() {
+    setMapaAlvo("varrer");
+    setAvisoMapa(null);
+    const res = await fetch("/api/admin/mapa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acao: "varrer" }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.ok) setAvisoMapa(data?.error || "Não foi possível desativar os mapas.");
+    else setAvisoMapa(`${data.desativados || 0} cadastro(s) saíram do mapa por falta de compra nos últimos 30 dias.`);
+    await carregar();
+    setMapaAlvo(null);
+  }
+
   const set = (k: string, v: string) => setForm((f: any) => ({ ...f, [k]: v }));
   const rolesFiltro = [
     "todos",
@@ -213,7 +248,23 @@ export default function AdminMembrosPage() {
           </div>
         </div>
 
-        <p className="text-xs text-zinc-600 mb-4 font-bold">{filtrado.length} membro(s) encontrado(s)</p>
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-zinc-600 font-bold">{filtrado.length} membro(s) encontrado(s)</p>
+          <button
+            type="button"
+            onClick={() => void varrerMapa()}
+            disabled={mapaAlvo === "varrer"}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#C9A66B]/40 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-[#C9A66B] hover:bg-[#C9A66B]/10 disabled:opacity-60"
+          >
+            {mapaAlvo === "varrer" ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
+            Desativar sem compra há 30 dias
+          </button>
+        </div>
+        {avisoMapa && (
+          <p className="mb-4 rounded-xl border border-[#C9A66B]/30 bg-[#C9A66B]/10 px-4 py-3 text-xs text-[#C9A66B]">
+            {avisoMapa}
+          </p>
+        )}
 
         <div className="mb-6 rounded-xl border border-[#C9A66B]/20 bg-[#C9A66B]/5 px-4 py-3 text-xs text-zinc-400">
           <strong className="text-[#C9A66B]">Vendedor de campo:</strong> edite o membro, escolha role{" "}
@@ -313,6 +364,7 @@ export default function AdminMembrosPage() {
                       INATIVO
                     </span>
                   )}
+                  <BotaoMapa m={m} ocupado={mapaAlvo === m.id} onAlterar={alterarMapa} />
                 </div>
               );
 
@@ -545,5 +597,60 @@ export default function AdminMembrosPage() {
         )}
       </main>
     </div>
+  );
+}
+
+function BotaoMapa({
+  m,
+  ocupado,
+  onAlterar,
+}: {
+  m: Membro;
+  ocupado: boolean;
+  onAlterar: (m: Membro, acao: "ativar" | "desativar") => void;
+}) {
+  if (m.mapa_visivel && !m.compra_30d) {
+    return (
+      <button
+        type="button"
+        disabled={ocupado}
+        onClick={() => onAlterar(m, "desativar")}
+        className="inline-flex min-h-[1.75rem] items-center justify-center gap-1 rounded-lg border border-amber-800/50 bg-amber-950/40 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-amber-300 disabled:opacity-60"
+      >
+        {ocupado ? <Loader2 size={10} className="animate-spin" /> : <MapPin size={10} />}
+        Fora dos 30 dias
+      </button>
+    );
+  }
+  if (m.mapa_visivel) {
+    return (
+      <button
+        type="button"
+        disabled={ocupado}
+        onClick={() => onAlterar(m, "desativar")}
+        className="inline-flex min-h-[1.75rem] items-center justify-center gap-1 rounded-lg border border-[#C9A66B]/40 bg-[#C9A66B]/10 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[#C9A66B] disabled:opacity-60"
+      >
+        {ocupado ? <Loader2 size={10} className="animate-spin" /> : <MapPin size={10} />}
+        No mapa
+      </button>
+    );
+  }
+  if (m.compra_30d) {
+    return (
+      <button
+        type="button"
+        disabled={ocupado}
+        onClick={() => onAlterar(m, "ativar")}
+        className="inline-flex min-h-[1.75rem] items-center justify-center gap-1 rounded-lg border border-zinc-700 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-zinc-300 hover:border-[#C9A66B]/50 hover:text-[#C9A66B] disabled:opacity-60"
+      >
+        {ocupado ? <Loader2 size={10} className="animate-spin" /> : <MapPin size={10} />}
+        Ativar mapa
+      </button>
+    );
+  }
+  return (
+    <span className="inline-flex min-h-[1.75rem] items-center justify-center rounded-lg border border-zinc-800 px-2 py-1 text-center text-[9px] font-black uppercase tracking-wide text-zinc-600">
+      Sem compra 30d
+    </span>
   );
 }

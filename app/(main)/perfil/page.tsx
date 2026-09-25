@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
@@ -407,7 +408,7 @@ export default function PerfilPage() {
                       Aparecer no mapa de salões
                     </p>
                     <p className="text-[11px] text-zinc-500">
-                      Com a cidade preenchida, seu salão entra na busca pública. O cliente vê endereço, WhatsApp e agenda.
+                      O admin libera o mapa. Quem fica mais de 30 dias sem compra sai da busca.
                     </p>
                   </div>
                   <button
@@ -422,9 +423,9 @@ export default function PerfilPage() {
                     {form.mapa_visivel ? "Visível" : "Oculto"}
                   </button>
                 </div>
-                <a href="/mapa" target="_blank" rel="noreferrer" className="text-[11px] font-bold text-[#C9A66B] underline">
+                <Link href="/mapa" className="text-[11px] font-bold text-[#C9A66B] underline">
                   Abrir o mapa público
-                </a>
+                </Link>
               </div>
 
               {/* Situação Profissional */}
