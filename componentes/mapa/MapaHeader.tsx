@@ -26,35 +26,34 @@ export default function MapaHeader() {
 
   return (
     <header className="sticky top-0 z-40 px-3 pt-3">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 rounded-full border border-black/5 bg-white/95 px-3 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur">
-        <div className="flex min-w-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={voltar}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50"
-          >
-            <ArrowLeft size={16} />
-            <span className="hidden sm:inline">Voltar</span>
-          </button>
+      <div className="mx-auto grid h-14 max-w-6xl grid-cols-[1fr_auto_1fr] items-center rounded-full border border-black/5 bg-white/95 px-3 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur">
+        <button
+          type="button"
+          onClick={voltar}
+          className="inline-flex w-fit items-center gap-1 rounded-full px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50"
+        >
+          <ArrowLeft size={16} />
+          <span className="hidden sm:inline">Voltar</span>
+        </button>
+
+        <nav className="flex items-center justify-center gap-5">
           <Link href="/mapa" className="shrink-0">
             <LogoMasc className="h-8 w-auto" />
           </Link>
-          <nav className="ml-1 hidden items-center gap-5 lg:flex">
-            <Link href="/mapa" className={inicio ? ativo : link}>
-              Início
-            </Link>
-            <Link href="/mapa?ver=mapa" className={noMapa ? ativo : link}>
-              Mapa
-            </Link>
-            <Link href="/mapa/inscrever" className={inscrever ? ativo : link}>
-              Conheça a Masc
-            </Link>
-          </nav>
-        </div>
+          <Link href="/mapa" className={`hidden sm:inline ${inicio ? ativo : link}`}>
+            Início
+          </Link>
+          <Link href="/mapa?ver=mapa" className={`hidden sm:inline ${noMapa ? ativo : link}`}>
+            Mapa
+          </Link>
+          <Link href="/mapa/inscrever" className={`hidden md:inline ${inscrever ? ativo : link}`}>
+            Conheça a Masc
+          </Link>
+        </nav>
 
         <Link
           href="/mapa?ver=mapa"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#fde8e6] px-4 py-2 text-sm font-semibold text-[#E23B4A]"
+          className="inline-flex w-fit justify-self-end items-center gap-1.5 rounded-full bg-[#fde8e6] px-4 py-2 text-sm font-semibold text-[#E23B4A]"
         >
           Mapa
         </Link>
