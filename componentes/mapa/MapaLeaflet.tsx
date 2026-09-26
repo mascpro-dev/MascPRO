@@ -136,7 +136,7 @@ export default function MapaLeaflet({
   useEffect(() => {
     if (!pronto || !mapRef.current || !selecionadoId) return;
     const alvo = saloes.find((s) => s.id === selecionadoId);
-    if (alvo) mapRef.current.panTo([alvo.displayLat, alvo.displayLng]);
+    if (alvo) mapRef.current.flyTo([alvo.displayLat, alvo.displayLng], 16, { duration: 0.7 });
   }, [pronto, selecionadoId, saloes]);
 
   return <div ref={el} className={`mapa-canvas h-full w-full ${className || ""}`} />;

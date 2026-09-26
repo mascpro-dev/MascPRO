@@ -37,20 +37,17 @@ type ComDistancia = SalaoPublico & { km: number | null };
 
 const RAIOS = [5, 15, 30, 50];
 
-const FOTO_HERO =
-  "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1400&q=80";
-const FOTO_BANNER =
-  "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=1400&q=80";
-const FOTO_SALA =
-  "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=500&q=70";
+const FOTO_HERO = "/mapa/hero.jpg";
+const FOTO_BANNER = "/mapa/banner.jpg";
+const FOTO_SALA = "/mapa/salao.jpg";
 
 const SERVICOS_VITRINE = [
-  { nome: "Corte", foto: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=500&q=70" },
-  { nome: "Barba", foto: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=500&q=70" },
-  { nome: "Coloração", foto: "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=500&q=70" },
-  { nome: "Terapia capilar", foto: "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?auto=format&fit=crop&w=500&q=70" },
-  { nome: "Unhas", foto: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=500&q=70" },
-  { nome: "Massagem", foto: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=500&q=70" },
+  { nome: "Corte", foto: "/mapa/corte.jpg" },
+  { nome: "Barba", foto: "/mapa/barba.jpg" },
+  { nome: "Coloração", foto: "/mapa/coloracao.jpg" },
+  { nome: "Terapia capilar", foto: "/mapa/terapia.jpg" },
+  { nome: "Unhas", foto: "/mapa/unhas.jpg" },
+  { nome: "Massagem", foto: "/mapa/massagem.jpg" },
 ];
 
 export default function MapaApp() {
@@ -71,6 +68,7 @@ export default function MapaApp() {
   const [painelFiltro, setPainelFiltro] = useState(false);
   const [servico, setServico] = useState<string | null>(null);
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
+  const mapaBusca = useRef<HTMLDivElement>(null);
   const [focoKey, setFocoKey] = useState("inicio");
   const [aviso, setAviso] = useState<string | null>(null);
   const [buscando, setBuscando] = useState(false);
@@ -250,12 +248,32 @@ export default function MapaApp() {
     setTimeout(() => setCopiado(false), 2000);
   }
 
+  function abrirSalao(id: string) {
+    setSelecionadoId(id);
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      mapaBusca.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   if (modo === "busca") {
     return (
-      <div className="flex h-[100dvh] flex-col overflow-x-hidden bg-[#FFFBF8] text-[#1A1A1A]">
+      <div className="min-h-screen overflow-x-hidden bg-[#FFFBF8] text-[#1A1A1A] md:flex md:h-[100dvh] md:flex-col">
         <MapaHeader />
-        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <aside className="order-2 flex min-h-0 w-full flex-1 flex-col border-black/5 bg-white md:order-1 md:w-[420px] md:flex-none md:border-r">
+        <div className="flex flex-col md:min-h-0 md:flex-1 md:flex-row">
+          <div
+            ref={mapaBusca}
+            className="relative order-1 h-[280px] w-full scroll-mt-28 sm:h-[340px] md:order-2 md:h-auto md:min-h-0 md:flex-1 md:scroll-mt-0"
+          >
+            <MapaLeaflet
+              saloes={pins}
+              centro={centro}
+              selecionadoId={selecionadoId}
+              onSelect={abrirSalao}
+              focoKey={focoKey}
+            />
+            <Legenda />
+          </div>
+          <aside className="order-2 w-full border-black/5 bg-white md:order-1 md:flex md:min-h-0 md:w-[420px] md:flex-none md:flex-col md:overflow-hidden md:border-r">
             {selecionado ? (
               <Ficha
                 salao={selecionado}
@@ -285,22 +303,12 @@ export default function MapaApp() {
                   setFocoKey(`raio-${n}-${Date.now()}`);
                 }}
                 aviso={aviso}
-                onSelect={setSelecionadoId}
+                onSelect={abrirSalao}
                 carregando={carregando}
                 centro={centro}
               />
             )}
           </aside>
-          <div className="relative order-1 h-[42vh] min-h-[240px] md:order-2 md:h-auto md:min-h-0 md:flex-1">
-            <MapaLeaflet
-              saloes={pins}
-              centro={centro}
-              selecionadoId={selecionadoId}
-              onSelect={(id) => setSelecionadoId(id)}
-              focoKey={focoKey}
-            />
-            <Legenda />
-          </div>
         </div>
       </div>
     );
@@ -311,15 +319,20 @@ export default function MapaApp() {
       <MapaHeader />
 
       <section className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,#fffdfb_0%,#fff7f6_46%,transparent_72%)]" />
         <img
           src={FOTO_HERO}
           alt=""
-          referrerPolicy="no-referrer"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20 md:hidden"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#FFFBF8]/55 via-[#FFFBF8]/82 to-[#FFFBF8] md:hidden" />
+        <div className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(90deg,#fffdfb_0%,#fff7f6_46%,transparent_72%)] md:block" />
+        <img
+          src={FOTO_HERO}
+          alt=""
           className="pointer-events-none absolute right-0 top-0 hidden h-full w-[48%] object-cover md:block"
         />
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] bg-gradient-to-r from-[#FFFBF8] via-[#fff7f6]/80 to-transparent md:block" />
-        <div className="relative mx-auto grid max-w-6xl items-center gap-8 px-4 pb-8 pt-12 md:grid-cols-[1.15fr_0.85fr] md:pt-16">
+        <div className="relative mx-auto grid max-w-6xl items-center gap-8 px-4 pb-4 pt-10 md:grid-cols-[1.15fr_0.85fr] md:pt-16">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#E23B4A]">Mapa de salões Masc PRO</p>
             <h1 className="mt-4 max-w-xl text-4xl font-semibold leading-[1.05] text-[#1A1A1A] [font-family:var(--font-mapa),Georgia,serif] md:text-6xl">
@@ -345,9 +358,6 @@ export default function MapaApp() {
                 </span>
               </span>
             </div>
-          </div>
-          <div className="relative h-44 overflow-hidden rounded-[24px] shadow-lg sm:h-56 md:hidden">
-            <img src={FOTO_HERO} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover object-[center_30%]" />
           </div>
         </div>
         <div className="relative mx-auto max-w-4xl px-4 pb-10">
@@ -560,8 +570,8 @@ function BuscaBarra({
       }
     >
       <div ref={caixa} className="relative min-w-0 flex-1">
-      <label className={`flex min-w-0 flex-1 items-center gap-2 px-3 ${compacto ? "rounded-xl border border-black/10 bg-zinc-50" : ""}`}>
-        <Search size={18} className="shrink-0 text-zinc-400" />
+      <label className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border-2 border-[#E23B4A] bg-[#fff1f0] px-3">
+        <Search size={20} className="shrink-0 text-[#E23B4A]" />
         <input
           value={texto}
           onChange={(e) => {
@@ -583,12 +593,12 @@ function BuscaBarra({
               setAberto(false);
             }
           }}
-          placeholder="Busque por cidade ou bairro"
+          placeholder="Toque aqui e digite a cidade"
           autoComplete="off"
           role="combobox"
           aria-expanded={aberto}
           aria-autocomplete="list"
-          className="w-full bg-transparent py-2 text-sm outline-none placeholder:text-zinc-400"
+          className="w-full bg-transparent py-3.5 text-base text-[#1A1A1A] outline-none placeholder:text-zinc-600"
         />
       </label>
       {aberto && sugestoes.length > 0 && (
@@ -674,7 +684,7 @@ function Lista({
   centro: Centro | null;
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="md:flex md:min-h-0 md:flex-1 md:flex-col">
       <div className="border-b border-black/5 px-4 py-4">
         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#E23B4A]">Sua busca</p>
         <h2 className="text-2xl font-semibold [font-family:var(--font-mapa),Georgia,serif]">Encontre o salão ideal</h2>
@@ -739,7 +749,7 @@ function Lista({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      <div className="space-y-3 px-4 py-4 md:min-h-0 md:flex-1 md:overflow-y-auto">
         {carregando && (
           <p className="flex items-center gap-2 text-sm text-zinc-500">
             <Loader2 size={16} className="animate-spin" /> Buscando salões...

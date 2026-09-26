@@ -279,13 +279,13 @@ function Pin({ cor, alto = false }: { cor: string; alto?: boolean }) {
 
 function MapaBrasil() {
   return (
-    <figure className="relative mx-auto w-full max-w-[17rem] sm:max-w-xs md:max-w-md">
+    <figure className="relative mx-auto hidden w-full max-w-md lg:block">
       <img
         src="/mapa/globo.jpg"
         alt="Mapa de Salões"
-        className="aspect-[4/5] h-auto w-full rounded-[28px] object-cover object-[center_28%] shadow-2xl md:aspect-auto md:h-80"
+        className="h-80 w-full rounded-[28px] object-cover object-center shadow-2xl"
       />
-      <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-[28px] bg-gradient-to-t from-black/80 to-transparent px-3 pb-4 pt-12 text-center text-xl font-black text-white sm:text-2xl md:px-4 md:pb-5 md:pt-16 md:text-3xl">
+      <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-[28px] bg-gradient-to-t from-black/80 to-transparent px-4 pb-5 pt-16 text-center text-3xl font-black text-white">
         Mapa de Salões
       </figcaption>
     </figure>
