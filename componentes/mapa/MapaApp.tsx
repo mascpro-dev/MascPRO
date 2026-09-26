@@ -205,7 +205,7 @@ export default function MapaApp() {
       items = items.filter((s) => {
         if ((s.km ?? 9999) <= raio) return true;
         if (!alvo) return false;
-        return normalizar(`${s.cidade} ${s.uf} ${s.endereco} ${s.salao}`).includes(alvo);
+        return normalizar(`${s.nome} ${s.cidade} ${s.uf} ${s.endereco} ${s.salao}`).includes(alvo);
       });
     }
     if (tipo === "saloes") items = items.filter((s) => s.workType === "Salão Próprio");
@@ -831,16 +831,11 @@ function Ficha({
       <button type="button" onClick={onVoltar} className="mb-4 inline-flex items-center gap-1 text-sm text-zinc-500">
         <ArrowLeft size={16} /> Voltar
       </button>
-      <div className="overflow-hidden rounded-[28px] bg-white">
-        <div className="relative h-36">
-          <img src={salao.avatar || FOTO_SALA} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent" />
-        </div>
-        <div className="-mt-8 px-4 pb-4">
+      <div className="rounded-[28px] bg-white px-4 py-4">
       <div className="flex items-start gap-3">
         <Avatar nome={salao.salao} url={salao.avatar} />
         <div className="min-w-0">
-          <h2 className="break-words text-xl font-semibold leading-tight [font-family:var(--font-mapa),Georgia,serif] sm:text-2xl">{salao.salao}</h2>
+          <h2 className="break-words text-xl font-semibold leading-tight text-[#1A1A1A] [font-family:var(--font-mapa),Georgia,serif] sm:text-2xl">{salao.salao}</h2>
           {salao.nome !== salao.salao && <p className="text-sm text-zinc-500">{salao.nome}</p>}
           <p className="mt-1 text-xs font-semibold" style={{ color: PIN_META[salao.pin].cor }}>
             {PIN_META[salao.pin as PinTipo].label}
@@ -919,7 +914,43 @@ function Ficha({
           {copiado ? "Copiado" : "Compartilhar"}
         </button>
       </div>
-        </div>
+      {ig && <FeedInstagram handle={ig.handle} href={ig.href} />}
+      </div>
+    </div>
+  );
+}
+
+function FeedInstagram({ handle, href }: { handle: string; href: string }) {
+  const [fotos, setFotos] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    fetch(`/api/mapa/instagram?u=${encodeURIComponent(handle)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (vivo) setFotos(Array.isArray(data.fotos) ? data.fotos : []);
+      })
+      .catch(() => {
+        if (vivo) setFotos([]);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [handle]);
+
+  if (!fotos || fotos.length === 0) return null;
+
+  return (
+    <div className="mt-5">
+      <a href={href} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[#1A1A1A]">
+        @{handle}
+      </a>
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        {fotos.map((src) => (
+          <a key={src} href={href} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden rounded-xl bg-zinc-100">
+            <img src={src} alt="" className="h-full w-full object-cover" />
+          </a>
+        ))}
       </div>
     </div>
   );
@@ -938,7 +969,7 @@ function FiltroLinha({ label, on, toggle }: { label: string; on: boolean; toggle
 
 function Avatar({ nome, url }: { nome: string; url: string | null }) {
   const [falhou, setFalhou] = useState(false);
-  const foto = !falhou ? url || FOTO_SALA : "";
+  const foto = !falhou && url ? url : "";
   if (foto) {
     return (
       <img

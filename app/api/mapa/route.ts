@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await db
       .from("profiles")
       .select(SELECT_MAPA)
-      .eq("mapa_visivel", true);
+      .or("mapa_visivel.eq.true,role.ilike.*admin*");
 
     if (error) {
       if (colunaAusente(error)) {
@@ -141,10 +141,23 @@ export async function GET(req: NextRequest) {
         studio ||
         montarEnderecoTexto({ ...row, ...endereco }) ||
         [cidade, uf].filter(Boolean).join(" / ");
+      const ehAdmin = String(row.role || "").toUpperCase().includes("ADMIN");
       let lat = Number(row.mapa_lat);
       let lng = Number(row.mapa_lng);
-      if (studio) {
-        const ponto = await geocodificar(consultaGeocode({ studio_address: studio, city: cidade, state: uf, municipio: cidade, uf }));
+      const consulta = consultaGeocode({
+        studio_address: studio,
+        city: cidade,
+        state: uf,
+        municipio: cidade,
+        uf,
+        logradouro: String(row.logradouro || row.address || ""),
+        numero: String(row.numero || row.number || ""),
+        bairro: String(row.bairro || row.neighborhood || ""),
+      });
+      if (studio || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+        const ponto =
+          (await geocodificar(consulta)) ||
+          (cidade ? await geocodificar([cidade, uf, "Brasil"].filter(Boolean).join(", ")) : null);
         if (ponto) {
           const longe =
             !Number.isFinite(lat) ||
@@ -153,8 +166,15 @@ export async function GET(req: NextRequest) {
             Math.abs(lng - ponto.lng) > 0.0008;
           lat = ponto.lat;
           lng = ponto.lng;
-          if (longe) {
-            await db.from("profiles").update({ mapa_lat: lat, mapa_lng: lng }).eq("id", row.id);
+          if (longe || (ehAdmin && row.mapa_visivel !== true)) {
+            await db
+              .from("profiles")
+              .update({
+                mapa_lat: lat,
+                mapa_lng: lng,
+                ...(ehAdmin ? { mapa_visivel: true } : {}),
+              })
+              .eq("id", row.id);
           }
         }
       }

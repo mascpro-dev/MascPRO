@@ -51,6 +51,7 @@ export function resolverPin(row: {
 }): PinTipo {
   if (ehPinTipo(row.mapa_pin)) return row.mapa_pin;
   const role = String(row.role || "").toUpperCase();
+  if (role.includes("ADMIN")) return "destaque";
   if (role === "EMBAIXADOR") return "embaixador";
   if (role.includes("EDUCADOR")) return "educador";
   if (String(row.booking_slug || "").trim()) return "agendamento";

@@ -52,9 +52,10 @@ export async function POST(req: NextRequest) {
 
     const cidade = String(perfil.municipio || perfil.city || "").trim();
     const uf = String(perfil.uf || perfil.state || "").trim();
-    if (!cidade) {
+    const studio = String(perfil.studio_address || "").trim();
+    if (!cidade && !studio) {
       return NextResponse.json(
-        { ok: false, error: "Este cadastro não tem cidade. Preencha antes de ativar o mapa." },
+        { ok: false, error: "Este cadastro não tem cidade nem endereço do estúdio. Preencha antes de ativar o mapa." },
         { status: 400 }
       );
     }
