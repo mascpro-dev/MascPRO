@@ -5,13 +5,14 @@ const r = await fetch("https://www.instagram.com/marceloconelheiros/", {
   },
 });
 const html = await r.text();
-const re = /https:\\\/\\\/[^"'\\\s]+cdninstagram[^"'\\\s]+/g;
-const raw = [...html.matchAll(re)].map((m) =>
-  m[0].replace(/\\u0026/g, "&").replace(/\\\//g, "/")
-);
-const uniq = [...new Set(raw)];
-console.log("count", uniq.length);
-for (const u of uniq.slice(0, 12)) {
-  console.log("---");
-  console.log(u.slice(0, 220));
+let i = 0;
+let n = 0;
+while (n < 6) {
+  const at = html.indexOf("cdninstagram", i);
+  if (at < 0) break;
+  console.log("---", at);
+  console.log(html.slice(Math.max(0, at - 80), at + 180).replace(/\n/g, " "));
+  i = at + 12;
+  n++;
 }
+console.log("total", html.split("cdninstagram").length - 1);
