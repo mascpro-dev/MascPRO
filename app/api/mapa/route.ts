@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { lerEnderecoProfile, montarEnderecoTexto } from "@/lib/profileEndereco";
+import { buscarAtualizacaoMapaOnline } from "@/lib/mapaAtualizacao";
 import {
   consultaGeocode,
   estaAberto,
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Mapa indisponível no momento." }, { status: 503 });
     }
     const db = sb();
+    void buscarAtualizacaoMapaOnline().catch(() => undefined);
     const q = String(req.nextUrl.searchParams.get("q") || "").trim();
     const latQ = Number(req.nextUrl.searchParams.get("lat"));
     const lngQ = Number(req.nextUrl.searchParams.get("lng"));

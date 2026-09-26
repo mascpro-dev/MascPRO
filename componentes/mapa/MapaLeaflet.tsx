@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap, LayerGroup } from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { PIN_META, type SalaoPublico } from "@/lib/mapaSaloes";
+import { MAPA_TILE_ATRIBUICAO, MAPA_TILE_URL, PIN_META, type SalaoPublico } from "@/lib/mapaSaloes";
 
 type Ponto = SalaoPublico & { displayLat: number; displayLng: number };
 
@@ -44,10 +44,10 @@ export default function MapaLeaflet({
         attributionControl: true,
       });
       L.control.zoom({ position: "bottomright" }).addTo(mapa);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        subdomains: "abc",
+      L.tileLayer(MAPA_TILE_URL, {
+        attribution: MAPA_TILE_ATRIBUICAO,
         maxZoom: 19,
+        maxNativeZoom: 19,
       }).addTo(mapa);
       mapa.setView([-14.2, -51.9], 4);
       layerRef.current = L.layerGroup().addTo(mapa);

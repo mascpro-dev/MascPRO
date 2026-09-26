@@ -1,5 +1,10 @@
 export const MAPA_WHATSAPP = "5514997433541";
 
+/** Endpoint atual dos tiles do OpenStreetMap (HTTP/2, sem subdomínio). */
+export const MAPA_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+export const MAPA_TILE_ATRIBUICAO =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
 export const PIN_TIPOS = [
   "destaque",
   "agendamento",
