@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { boundsMesBrasil, ymSaoPaulo } from "@/lib/comercialRegua";
-import { pedidosAtivosDosPerfis } from "@/lib/pedidoAtivo";
+import { ymSaoPaulo } from "@/lib/comercialRegua";
+import { pedidosPagosDosPerfis } from "@/lib/pedidoAtivo";
 
 export async function POST(req: NextRequest) {
   const supabaseAuth = createRouteHandlerClient({ cookies });
@@ -20,10 +20,9 @@ export async function POST(req: NextRequest) {
 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
   const periodo = ymSaoPaulo();
-  const { ini, fim } = boundsMesBrasil(periodo);
 
   const ids = (equipeIds as unknown[]).map((id) => String(id)).filter(Boolean);
-  const pedidos = await pedidosAtivosDosPerfis(supabase, ids, ini, fim);
+  const pedidos = await pedidosPagosDosPerfis(supabase, ids);
   if (pedidos.error) {
     console.error("[api/rede/status] erro:", pedidos.error);
     return NextResponse.json({ ativos: {}, error: pedidos.error, periodo }, { status: 500 });
@@ -34,5 +33,5 @@ export async function POST(req: NextRequest) {
     if (p.profile_id) ativos[p.profile_id] = true;
   }
 
-  return NextResponse.json({ ativos, periodo });
+  return NextResponse.json({ ativos, periodo, criterio: "historico_pago" });
 }

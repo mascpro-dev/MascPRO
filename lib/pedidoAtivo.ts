@@ -3,10 +3,21 @@ import { STATUS_PEDIDO_PAGO } from "@/lib/comercialMetricas";
 
 const PAGE = 1000;
 const STATUSES_PAGO = ["paid", "separacao", "despachado", "entregue"] as const;
+const STATUSES_PAGO_ALIAS = ["pago", "separacao", "separação", "despachado", "entregue"] as const;
+
+function normalizeStatus(status: unknown) {
+  return String(status || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
 
 export function statusPedidoPago(status: unknown) {
-  return (STATUS_PEDIDO_PAGO as readonly string[]).includes(
-    String(status || "").trim().toLowerCase()
+  const s = normalizeStatus(status);
+  return (
+    (STATUS_PEDIDO_PAGO as readonly string[]).includes(s) ||
+    (STATUSES_PAGO_ALIAS as readonly string[]).includes(s)
   );
 }
 
@@ -40,7 +51,8 @@ type PedidoAtivoRow = {
 
 async function carregarPedidosPagos(
   supabase: SupabaseClient,
-  profileIds?: string[]
+  profileIds?: string[],
+  strictDbStatus = true
 ): Promise<{ rows: PedidoAtivoRow[]; error: string | null }> {
   async function pagina(comPagoEm: boolean, ids?: string[]) {
     const rows: PedidoAtivoRow[] = [];
@@ -50,7 +62,9 @@ async function carregarPedidosPagos(
       let query = comPagoEm
         ? (supabase.from("orders") as any).select("profile_id, created_at, pago_em, status")
         : supabase.from("orders").select("profile_id, created_at, status");
-      query = query.in("status", [...STATUSES_PAGO]);
+      if (strictDbStatus) {
+        query = query.in("status", [...STATUSES_PAGO]);
+      }
       if (ids?.length) query = query.in("profile_id", ids);
       const { data, error } = await query.range(from, to);
       if (error) return { rows: [] as PedidoAtivoRow[], error: error.message };
@@ -75,7 +89,7 @@ async function carregarPedidosPagos(
     if (fetched.error) return fetched;
     all.push(...fetched.rows);
   }
-  return { rows: all, error: null };
+  return { rows: all.filter((p) => statusPedidoPago(p.status)), error: null };
 }
 
 /**
@@ -103,12 +117,22 @@ export async function pedidosAtivosDosPerfis(
 ): Promise<{ rows: PedidoAtivoRow[]; error: string | null }> {
   const ids = [...new Set(profileIds.map(String).filter(Boolean))];
   if (ids.length === 0) return { rows: [], error: null };
-  const fetched = await carregarPedidosPagos(supabase, ids);
+  const fetched = await carregarPedidosPagos(supabase, ids, false);
   if (fetched.error) return fetched;
   return {
     rows: fetched.rows.filter((p) => pedidoAtivoNoPeriodo(p, iniIso, fimIso)),
     error: null,
   };
+}
+
+/** Pedidos pagos históricos da equipe (sem corte de período). */
+export async function pedidosPagosDosPerfis(
+  supabase: SupabaseClient,
+  profileIds: string[]
+): Promise<{ rows: PedidoAtivoRow[]; error: string | null }> {
+  const ids = [...new Set(profileIds.map(String).filter(Boolean))];
+  if (ids.length === 0) return { rows: [], error: null };
+  return await carregarPedidosPagos(supabase, ids, false);
 }
 
 export function idsUnicos(rows: PedidoAtivoRow[]) {

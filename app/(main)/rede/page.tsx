@@ -142,7 +142,7 @@ export default function RedePage() {
                 if (res.ok) {
                   mapAtivos = json?.ativos || {};
                 } else {
-                  setErroAtivos(json?.error || "Não foi possível carregar quem está ativo neste mês.");
+                  setErroAtivos(json?.error || "Não foi possível carregar quem está ativo.");
                 }
               } catch (e) {
                 console.error("Erro ao buscar status da equipe:", e);
@@ -222,7 +222,7 @@ export default function RedePage() {
     }
   };
 
-  // ATIVO = pedido pago neste mês (mesma regra do /admin/ativos)
+  // ATIVO = membro que já tem pelo menos 1 pedido pago no histórico
   const verificarStatus = (memberId: string) => {
     return !!membrosComPedidoNoMes[memberId];
   };
@@ -266,7 +266,7 @@ export default function RedePage() {
             </div>
         </div>
 
-        {/* Membros Ativos (Contador do Mês) */}
+        {/* Membros Ativos (histórico de compras pagas) */}
         <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex items-center gap-4 border-l-4 border-l-green-500">
             <div className="w-12 h-12 rounded-lg bg-green-900/20 text-green-500 flex items-center justify-center">
                 <CheckCircle size={24} />
@@ -274,9 +274,7 @@ export default function RedePage() {
             <div>
                 <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">MEMBROS ATIVOS</p>
                 <p className="text-3xl font-black text-white">{membrosAtivosCount}</p>
-                <p className="text-[10px] text-gray-600">
-                  {new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" })} · zera no dia 1º
-                </p>
+                <p className="text-[10px] text-gray-600">Com pelo menos 1 compra paga</p>
                 {erroAtivos && (
                   <p className="text-[10px] text-red-400 mt-1 max-w-[14rem]">{erroAtivos}</p>
                 )}
