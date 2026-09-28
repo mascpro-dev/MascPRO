@@ -17,6 +17,11 @@ export default function CalculadoraPage() {
   const [resultado, setResultado] = useState<null | {
     custo_hora: number;
     valor_com_lucro: number;
+    horas_mes: number;
+    total_fixo: number;
+    lucro_hora: number;
+    faturamento_mensal_cheio: number;
+    lucro_mensal_projetado: number;
     breakdown: { label: string; valor: number }[];
   }>(null);
 
@@ -34,10 +39,17 @@ export default function CalculadoraPage() {
     const total_fixo = aluguel + energia + agua + internet + outros;
     const custo_hora = total_fixo / horas;
     const valor_com_lucro = custo_hora + lucro;
+    const faturamento_mensal_cheio = valor_com_lucro * horas;
+    const lucro_mensal_projetado = lucro * horas;
 
     setResultado({
       custo_hora,
       valor_com_lucro,
+      horas_mes: horas,
+      total_fixo,
+      lucro_hora: lucro,
+      faturamento_mensal_cheio,
+      lucro_mensal_projetado,
       breakdown: [
         { label: "Aluguel / mês", valor: aluguel },
         { label: "Energia", valor: energia },
@@ -133,6 +145,26 @@ export default function CalculadoraPage() {
                 <p className="text-2xl font-black text-[#C9A66B]">{moeda(resultado.valor_com_lucro)}</p>
                 <p className="text-[10px] text-zinc-500 mt-1">valor justo por hora</p>
               </div>
+            </div>
+
+            {/* PROJEÇÃO MENSAL */}
+            <div className="bg-zinc-800/70 border border-zinc-700 rounded-xl p-4">
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
+                Projeção com agenda preenchida ({resultado.horas_mes}h/mês)
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] text-zinc-500 uppercase font-bold">Faturamento estimado/mês</p>
+                  <p className="text-xl font-black text-white">{moeda(resultado.faturamento_mensal_cheio)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500 uppercase font-bold">Lucro projetado/mês</p>
+                  <p className="text-xl font-black text-emerald-400">{moeda(resultado.lucro_mensal_projetado)}</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-zinc-600 mt-2">
+                Base: {moeda(resultado.valor_com_lucro)}/h × {resultado.horas_mes}h.
+              </p>
             </div>
 
             {/* EXEMPLOS DE SERVIÇO */}
