@@ -62,8 +62,19 @@ export const COLUNAS_KANBAN_CRM = [
   { key: "nao_qualificado", label: "Não qualif.", cor: "text-zinc-400", bg: "bg-zinc-500/10", borda: "border-zinc-500/30" },
 ] as const;
 
-export const STATUS_OCULTOS_CRM_SIMPLIFICADO = ["diagnostico", "proposta"] as const;
+export const STATUS_OCULTOS_CRM_SIMPLIFICADO = [
+  "qualificado",
+  "diagnostico",
+  "proposta",
+  "nao_qualificado",
+] as const;
 const STATUS_OCULTOS_CRM_SIMPLIFICADO_SET = new Set<string>(STATUS_OCULTOS_CRM_SIMPLIFICADO);
+const MAP_STATUS_CRM_SIMPLIFICADO: Record<string, string> = {
+  qualificado: "contato_feito",
+  diagnostico: "negociacao",
+  proposta: "negociacao",
+  nao_qualificado: "perdido",
+};
 
 export const COLUNAS_KANBAN_CRM_SIMPLIFICADO = COLUNAS_KANBAN_CRM.filter(
   (c) => !STATUS_OCULTOS_CRM_SIMPLIFICADO_SET.has(c.key)
@@ -185,7 +196,7 @@ export function statusPipelineAberto(status: string) {
 export function normalizarStatusCrmSimplificado(status: string | null | undefined) {
   const s = String(status || "");
   if (!s) return s;
-  return STATUS_OCULTOS_CRM_SIMPLIFICADO_SET.has(s) ? "negociacao" : s;
+  return MAP_STATUS_CRM_SIMPLIFICADO[s] || s;
 }
 
 export function parseStatusLead(v: unknown, fallback = "novo"): { ok: true; value: string } | { ok: false; error: string } {
