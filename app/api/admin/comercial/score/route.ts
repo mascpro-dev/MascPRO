@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminContext, assertAdmin } from "@/lib/adminServer";
+import { getAdminContext, assertAdmin, assertAdminOrDistribuidor } from "@/lib/adminServer";
 import { STATUS_PEDIDO_PAGO } from "@/lib/comercialMetricas";
 import {
   DEFINICOES_FASE4,
@@ -109,9 +109,9 @@ export async function GET(req: NextRequest) {
   if (!supabase || !userId) {
     return NextResponse.json({ ok: false, error: authErr }, { status });
   }
-  const admin = await assertAdmin(supabase, userId);
-  if (!admin.ok) {
-    return NextResponse.json({ ok: false, error: admin.error }, { status: 403 });
+  const access = await assertAdminOrDistribuidor(supabase, userId);
+  if (!access.ok) {
+    return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
   }
 
   const periodoRaw = parsePeriodoScore(req.nextUrl.searchParams.get("periodo") || ymOf(new Date()));

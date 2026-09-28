@@ -103,6 +103,37 @@ export async function GET() {
     pedidos_mes:        pedidosMes.length,
   };
 
+  // Comissões geradas pela rede (desconto sobre o bruto da operação da rede)
+  let comissoesRedeRows: any[] = [];
+  if (access.role === "ADMIN" || todosIds.length > 0) {
+    const comissoesRedeQuery = access.role === "ADMIN"
+      ? supabase
+          .from("commissions")
+          .select("valor_comissao, created_at, cabeleireiro_id")
+          .order("created_at", { ascending: false })
+          .limit(5000)
+      : supabase
+          .from("commissions")
+          .select("valor_comissao, created_at, cabeleireiro_id")
+          .in("cabeleireiro_id", todosIds)
+          .order("created_at", { ascending: false })
+          .limit(5000);
+
+    const { data } = await comissoesRedeQuery;
+    comissoesRedeRows = data || [];
+  }
+
+  const comissoesRedeTotal = comissoesRedeRows.reduce(
+    (s: number, c: any) => s + Number(c.valor_comissao || 0),
+    0
+  );
+  const comissoesRedeMes = comissoesRedeRows
+    .filter((c: any) => c.created_at >= inicioMes)
+    .reduce((s: number, c: any) => s + Number(c.valor_comissao || 0), 0);
+
+  const recebimentoLiquidoTotal = Math.max(0, financeiro.total_vendas_rede - comissoesRedeTotal);
+  const recebimentoLiquidoMes = Math.max(0, financeiro.vendas_mes - comissoesRedeMes);
+
   // Comissões (withdrawal_requests)
   const { data: comissoesRaw } = await supabase
     .from("withdrawal_requests")
@@ -163,6 +194,10 @@ export async function GET() {
     pipeline: { ...pipeline, followups_atrasados: followupsAtrasados, taxa_conversao: taxaConversao },
     financeiro: {
       ...financeiro,
+      comissoes_descontadas_total: comissoesRedeTotal,
+      comissoes_descontadas_mes: comissoesRedeMes,
+      recebimento_liquido_total: recebimentoLiquidoTotal,
+      recebimento_liquido_mes: recebimentoLiquidoMes,
       comissoes_pagas: comissoesPagas,
       comissoes_aguardando: comissoesAguardando,
     },

@@ -20,6 +20,8 @@ type DashData = {
   financeiro: {
     total_vendas_rede: number; vendas_mes: number;
     total_pedidos_rede: number; pedidos_mes: number;
+    comissoes_descontadas_total: number; comissoes_descontadas_mes: number;
+    recebimento_liquido_total: number; recebimento_liquido_mes: number;
     comissoes_pagas: number; comissoes_aguardando: number;
   };
   rede: { total: number; lista: any[] };
@@ -198,14 +200,20 @@ export default function CrmDashboardPage() {
 
         {/* FINANCEIRO */}
         <p className="text-[10px] text-zinc-600 font-black uppercase tracking-widest mb-3">Financeiro da Rede</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           <Card icon={<DollarSign className="text-emerald-400" size={22} />} label="Total Vendas Rede" value={moeda(financeiro.total_vendas_rede)}
-            sub={`${financeiro.total_pedidos_rede} pedidos pagos`} cor="text-emerald-400" bg="bg-emerald-900/20" />
+            sub={`${financeiro.total_pedidos_rede} pedidos pagos (bruto)`} cor="text-emerald-400" bg="bg-emerald-900/20" />
           <Card icon={<TrendingUp className="text-emerald-300" size={22} />} label="Vendas este Mês" value={moeda(financeiro.vendas_mes)}
-            sub={`${financeiro.pedidos_mes} pedidos`} cor="text-emerald-300" bg="bg-emerald-900/10" />
+            sub={`${financeiro.pedidos_mes} pedidos (bruto)`} cor="text-emerald-300" bg="bg-emerald-900/10" />
+          <Card icon={<DollarSign className="text-red-400" size={22} />} label="Comissões Descontadas" value={moeda(financeiro.comissoes_descontadas_total)}
+            sub={`Mês: ${moeda(financeiro.comissoes_descontadas_mes)}`} cor="text-red-400" bg="bg-red-900/20" />
+          <Card icon={<TrendingUp className="text-green-300" size={22} />} label="Recebimento Líquido Rede" value={moeda(financeiro.recebimento_liquido_total)}
+            sub="Bruto menos comissões da rede" cor="text-green-300" bg="bg-green-900/10" />
+          <Card icon={<TrendingUp className="text-green-400" size={22} />} label="Recebimento Líquido Mês" value={moeda(financeiro.recebimento_liquido_mes)}
+            sub="Líquido no mês corrente" cor="text-green-400" bg="bg-green-900/20" />
           <Card icon={<CheckCircle className="text-[#C9A66B]" size={22} />} label="Comissões Recebidas" value={moeda(financeiro.comissoes_pagas)}
             sub="Total histórico pago" />
-          <Card icon={<ArrowDownToLine className="text-yellow-400" size={22} />} label="Comissões Aguardando" value={moeda(financeiro.comissoes_aguardando)}
+          <Card icon={<ArrowDownToLine className="text-yellow-400" size={22} />} label="Comissões a Sacar" value={moeda(financeiro.comissoes_aguardando)}
             sub={financeiro.comissoes_aguardando > 0 ? "A receber" : "Nenhuma pendente"}
             cor={financeiro.comissoes_aguardando > 0 ? "text-yellow-400" : "text-zinc-500"} bg="bg-yellow-900/20" />
         </div>

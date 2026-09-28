@@ -89,7 +89,15 @@ function inicial(nome: string) {
   return p.slice(0, 1).toUpperCase();
 }
 
-export default function ComercialRede({ periodo, papel }: { periodo: string; papel: PapelScore }) {
+export default function ComercialRede({
+  periodo,
+  papel,
+  readOnly = false,
+}: {
+  periodo: string;
+  papel: PapelScore;
+  readOnly?: boolean;
+}) {
   const [data, setData] = useState<Payload | null>(null);
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
@@ -187,6 +195,11 @@ export default function ComercialRede({ periodo, papel }: { periodo: string; pap
       )}
       {erro && data && (
         <p className="text-[13px] text-[#9A4338]">{erro}</p>
+      )}
+      {readOnly && (
+        <p className="text-[13px] text-[#8A847A] bg-[#F3EEE6] border border-[#E7E1D6] rounded-2xl px-4 py-3">
+          Distribuidor visualiza este score em modo leitura.
+        </p>
       )}
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
@@ -370,22 +383,22 @@ export default function ComercialRede({ periodo, papel }: { periodo: string; pap
             <p className="text-[11px] uppercase tracking-[0.14em] text-[#A39C90] mb-3">Notas manuais deste mês</p>
             {emb ? (
               <div className="space-y-3">
-                <CampoNota label="Prova" max={20} value={form.prova} onChange={(v) => setForm({ ...form, prova: v })} />
-                <CampoNota label="Conteúdo" max={20} value={form.conteudo} onChange={(v) => setForm({ ...form, conteudo: v })} dica={aberta.posts_comunidade ? `${aberta.posts_comunidade} post(s) na comunidade — só pista` : undefined} />
-                <CampoNota label="Treino" max={10} value={form.treino} onChange={(v) => setForm({ ...form, treino: v })} />
-                <CampoNota label="Postura" max={10} value={form.postura} onChange={(v) => setForm({ ...form, postura: v })} />
+                <CampoNota label="Prova" max={20} value={form.prova} onChange={(v) => setForm({ ...form, prova: v })} disabled={readOnly} />
+                <CampoNota label="Conteúdo" max={20} value={form.conteudo} onChange={(v) => setForm({ ...form, conteudo: v })} dica={aberta.posts_comunidade ? `${aberta.posts_comunidade} post(s) na comunidade — só pista` : undefined} disabled={readOnly} />
+                <CampoNota label="Treino" max={10} value={form.treino} onChange={(v) => setForm({ ...form, treino: v })} disabled={readOnly} />
+                <CampoNota label="Postura" max={10} value={form.postura} onChange={(v) => setForm({ ...form, postura: v })} disabled={readOnly} />
               </div>
             ) : (
               <div className="space-y-3">
-                <CampoInt label="Salões prospectados" value={form.saloes_prospectados} onChange={(v) => setForm({ ...form, saloes_prospectados: v })} />
-                <CampoInt label="Salões ativados" value={form.saloes_ativados} onChange={(v) => setForm({ ...form, saloes_ativados: v })} />
-                <CampoNota label="Exclusividade" max={15} value={form.exclusividade} onChange={(v) => setForm({ ...form, exclusividade: v })} />
+                <CampoInt label="Salões prospectados" value={form.saloes_prospectados} onChange={(v) => setForm({ ...form, saloes_prospectados: v })} disabled={readOnly} />
+                <CampoInt label="Salões ativados" value={form.saloes_ativados} onChange={(v) => setForm({ ...form, saloes_ativados: v })} disabled={readOnly} />
+                <CampoNota label="Exclusividade" max={15} value={form.exclusividade} onChange={(v) => setForm({ ...form, exclusividade: v })} disabled={readOnly} />
                 <label className="flex items-center gap-2 text-[13px] text-[#6B6560]">
-                  <input type="checkbox" checked={form.relatorio_ok} onChange={(e) => setForm({ ...form, relatorio_ok: e.target.checked })} />
+                  <input type="checkbox" checked={form.relatorio_ok} onChange={(e) => setForm({ ...form, relatorio_ok: e.target.checked })} disabled={readOnly} />
                   Relatório mensal entregue
                 </label>
                 <label className="flex items-center gap-2 text-[13px] text-[#6B6560]">
-                  <input type="checkbox" checked={form.politica_ok} onChange={(e) => setForm({ ...form, politica_ok: e.target.checked })} />
+                  <input type="checkbox" checked={form.politica_ok} onChange={(e) => setForm({ ...form, politica_ok: e.target.checked })} disabled={readOnly} />
                   Política / combinado em dia
                 </label>
               </div>
@@ -397,18 +410,23 @@ export default function ComercialRede({ periodo, papel }: { periodo: string; pap
                 value={form.notas || ""}
                 onChange={(e) => setForm({ ...form, notas: e.target.value })}
                 rows={3}
+                disabled={readOnly}
                 className="mt-1 w-full bg-white border border-[#E7E1D6] rounded-2xl px-3 py-2 text-[13px] text-[#2A2723] outline-none"
               />
             </label>
 
-            <button
-              type="button"
-              onClick={() => void salvar()}
-              disabled={saving}
-              className="mt-5 w-full h-11 rounded-2xl bg-[#2A2723] text-white text-[13px] font-medium disabled:opacity-60"
-            >
-              {saving ? "Salvando…" : "Salvar notas do ciclo"}
-            </button>
+            {readOnly ? (
+              <p className="mt-5 text-[12px] text-[#8A847A]">Edição disponível apenas para administradores.</p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void salvar()}
+                disabled={saving}
+                className="mt-5 w-full h-11 rounded-2xl bg-[#2A2723] text-white text-[13px] font-medium disabled:opacity-60"
+              >
+                {saving ? "Salvando…" : "Salvar notas do ciclo"}
+              </button>
+            )}
           </aside>
         </div>
       )}
@@ -427,13 +445,14 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub: string 
 }
 
 function CampoNota({
-  label, max, value, onChange, dica,
+  label, max, value, onChange, dica, disabled = false,
 }: {
   label: string;
   max: number;
   value: number | null;
   onChange: (v: number | null) => void;
   dica?: string;
+  disabled?: boolean;
 }) {
   return (
     <label className="block text-[12px] text-[#8A847A]">
@@ -445,6 +464,7 @@ function CampoNota({
         value={value ?? ""}
         placeholder="—"
         onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+        disabled={disabled}
         className="mt-1 w-full h-10 bg-white border border-[#E7E1D6] rounded-2xl px-3 text-[13px] text-[#2A2723] outline-none"
       />
       {dica && <span className="block mt-1 text-[11px] text-[#A39C90]">{dica}</span>}
@@ -452,7 +472,17 @@ function CampoNota({
   );
 }
 
-function CampoInt({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function CampoInt({
+  label,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
   return (
     <label className="block text-[12px] text-[#8A847A]">
       {label}
@@ -461,6 +491,7 @@ function CampoInt({ label, value, onChange }: { label: string; value: number; on
         min={0}
         value={value}
         onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
+        disabled={disabled}
         className="mt-1 w-full h-10 bg-white border border-[#E7E1D6] rounded-2xl px-3 text-[13px] text-[#2A2723] outline-none"
       />
     </label>

@@ -62,7 +62,7 @@ function dataHoraBr(iso: string) {
   return d.toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-export default function ComercialEventos({ periodo }: { periodo: string }) {
+export default function ComercialEventos({ periodo, readOnly = false }: { periodo: string; readOnly?: boolean }) {
   const [data, setData] = useState<Payload | null>(null);
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
@@ -140,6 +140,11 @@ export default function ComercialEventos({ periodo }: { periodo: string }) {
         <p className="text-[13px] text-[#8A6A32] bg-[#F5EDDF] border border-[#E7E1D6] rounded-2xl px-4 py-3">{data.aviso}</p>
       )}
       {erro && data && <p className="text-[13px] text-[#9A4338]">{erro}</p>}
+      {readOnly && (
+        <p className="text-[13px] text-[#8A847A] bg-[#F3EEE6] border border-[#E7E1D6] rounded-2xl px-4 py-3">
+          Distribuidor visualiza resultados de eventos em modo leitura.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <Kpi label="Eventos no mês" value={String(data.kpis.eventosMes)} sub="mesmo calendário do operacional" />
@@ -254,12 +259,12 @@ export default function ComercialEventos({ periodo }: { periodo: string }) {
 
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <Num label="Leads gerados" value={form.leads_gerados} onChange={(v) => setForm({ ...form, leads_gerados: v })} />
-                <Num label="Pedidos" value={form.pedidos} onChange={(v) => setForm({ ...form, pedidos: v })} />
+                <Num label="Leads gerados" value={form.leads_gerados} onChange={(v) => setForm({ ...form, leads_gerados: v })} disabled={readOnly} />
+                <Num label="Pedidos" value={form.pedidos} onChange={(v) => setForm({ ...form, pedidos: v })} disabled={readOnly} />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Num label="Receita (R$)" value={form.receita} onChange={(v) => setForm({ ...form, receita: v })} />
-                <Num label="Custo (R$)" value={form.custo} onChange={(v) => setForm({ ...form, custo: v })} />
+                <Num label="Receita (R$)" value={form.receita} onChange={(v) => setForm({ ...form, receita: v })} disabled={readOnly} />
+                <Num label="Custo (R$)" value={form.custo} onChange={(v) => setForm({ ...form, custo: v })} disabled={readOnly} />
               </div>
               <p className="text-[12px] text-[#8A847A]">
                 Retorno: {form.custo > 0 ? `${roiPreview(form.receita, form.custo)}x` : "informe o custo para calcular"}
@@ -269,6 +274,7 @@ export default function ComercialEventos({ periodo }: { periodo: string }) {
                   type="checkbox"
                   checked={form.followup_ok}
                   onChange={(e) => setForm({ ...form, followup_ok: e.target.checked })}
+                  disabled={readOnly}
                 />
                 Follow-up feito
               </label>
@@ -278,6 +284,7 @@ export default function ComercialEventos({ periodo }: { periodo: string }) {
                   type="date"
                   value={form.followup_em || ""}
                   onChange={(e) => setForm({ ...form, followup_em: e.target.value || null })}
+                  disabled={readOnly}
                   className="mt-1 w-full h-10 bg-white border border-[#E7E1D6] rounded-2xl px-3 text-[13px] outline-none"
                 />
               </label>
@@ -287,19 +294,24 @@ export default function ComercialEventos({ periodo }: { periodo: string }) {
                   value={form.notas || ""}
                   onChange={(e) => setForm({ ...form, notas: e.target.value })}
                   rows={3}
+                  disabled={readOnly}
                   className="mt-1 w-full bg-white border border-[#E7E1D6] rounded-2xl px-3 py-2 text-[13px] outline-none"
                 />
               </label>
             </div>
 
-            <button
-              type="button"
-              onClick={() => void salvar()}
-              disabled={saving}
-              className="mt-5 w-full h-11 rounded-2xl bg-[#2A2723] text-white text-[13px] font-medium disabled:opacity-60"
-            >
-              {saving ? "Salvando…" : "Salvar resultado"}
-            </button>
+            {readOnly ? (
+              <p className="mt-5 text-[12px] text-[#8A847A]">Edição disponível apenas para administradores.</p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void salvar()}
+                disabled={saving}
+                className="mt-5 w-full h-11 rounded-2xl bg-[#2A2723] text-white text-[13px] font-medium disabled:opacity-60"
+              >
+                {saving ? "Salvando…" : "Salvar resultado"}
+              </button>
+            )}
           </aside>
         </div>
       )}
@@ -312,7 +324,17 @@ function roiPreview(receita: number, custo: number) {
   return Math.round((receita / custo) * 100) / 100;
 }
 
-function Num({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function Num({
+  label,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
   return (
     <label className="block text-[12px] text-[#8A847A]">
       {label}
@@ -321,6 +343,7 @@ function Num({ label, value, onChange }: { label: string; value: number; onChang
         min={0}
         value={value}
         onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
+        disabled={disabled}
         className="mt-1 w-full h-10 bg-white border border-[#E7E1D6] rounded-2xl px-3 text-[13px] text-[#2A2723] outline-none"
       />
     </label>

@@ -87,6 +87,21 @@ export async function assertAdmin(
   return { ok: true };
 }
 
+export async function assertAdminOrDistribuidor(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<
+  { ok: true; role: "ADMIN" | "DISTRIBUIDOR" } | { ok: false; error: string }
+> {
+  const { data, error } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  const role = String(data?.role || "").trim().toUpperCase();
+  if (role === "ADMIN" || role === "DISTRIBUIDOR") {
+    return { ok: true, role };
+  }
+  return { ok: false, error: "Acesso restrito a administradores e distribuidores." };
+}
+
 /** Só a service_role ignora RLS; necessária em tabelas como `products` (só SELECT liberado no anon). */
 export function createServiceRoleClient(): SupabaseClient | null {
   const k = process.env.SUPABASE_SERVICE_ROLE_KEY;

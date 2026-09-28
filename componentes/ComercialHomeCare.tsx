@@ -76,7 +76,7 @@ function tomEtapa(status: string) {
   return "bg-[#F5EDDF] text-[#8A6A32]";
 }
 
-export default function ComercialHomeCare({ periodo }: { periodo: string }) {
+export default function ComercialHomeCare({ periodo, readOnly = false }: { periodo: string; readOnly?: boolean }) {
   const [data, setData] = useState<Payload | null>(null);
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
@@ -173,6 +173,11 @@ export default function ComercialHomeCare({ periodo }: { periodo: string }) {
           Classifique os produtos em Admin → Produtos. Align³ e item sem linha não entram na régua.
         </p>
       </section>
+      {readOnly && (
+        <p className="text-[13px] text-[#8A847A] bg-[#F3EEE6] border border-[#E7E1D6] rounded-2xl px-4 py-3">
+          Distribuidor visualiza a régua em modo leitura.
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {(
@@ -255,7 +260,7 @@ export default function ComercialHomeCare({ periodo }: { periodo: string }) {
                           </span>
                         </div>
                         <p className="text-[12px] text-[#8A847A] mt-1">{dataBr(e.previsto_em)} · {meta.dica}</p>
-                        {(e.status === "pendente" || e.status === "atrasado") && (
+                        {(e.status === "pendente" || e.status === "atrasado") && !readOnly && (
                           <div className="flex gap-2 mt-3">
                             <button
                               type="button"
@@ -285,7 +290,7 @@ export default function ComercialHomeCare({ periodo }: { periodo: string }) {
                     Motivo de não recompra
                     <select
                       value={k.motivo_nao_recompra || ""}
-                      disabled={busy === k.order_id}
+                      disabled={readOnly || busy === k.order_id}
                       onChange={(e) => void salvarMotivo(k.order_id, e.target.value)}
                       className="mt-1 w-full max-w-sm h-10 px-3 rounded-xl border border-[#E7E1D6] bg-[#FBF9F6] text-[13px] outline-none"
                     >

@@ -87,7 +87,7 @@ function dataBr(iso: string) {
   return `${d}/${m}/${y}`;
 }
 
-export default function ComercialProvas({ periodo }: { periodo: string }) {
+export default function ComercialProvas({ periodo, readOnly = false }: { periodo: string; readOnly?: boolean }) {
   const [data, setData] = useState<Payload | null>(null);
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
@@ -211,6 +211,11 @@ export default function ComercialProvas({ periodo }: { periodo: string }) {
   return (
     <div className="flex flex-col gap-6">
       {erro && data && <p className="text-[13px] text-[#9A4338]">{erro}</p>}
+      {readOnly && (
+        <p className="text-[13px] text-[#8A847A] bg-[#F3EEE6] border border-[#E7E1D6] rounded-2xl px-4 py-3">
+          Distribuidor visualiza o banco de provas em modo leitura.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <Kpi label="Provas no mês" value={String(data.kpis.total)} sub="só o que foi catalogado" />
@@ -254,13 +259,15 @@ export default function ComercialProvas({ periodo }: { periodo: string }) {
             <option key={l.value} value={l.value}>{l.label}</option>
           ))}
         </select>
-        <button
-          type="button"
-          onClick={abrirNova}
-          className="h-9 px-3 rounded-full bg-[#2A2723] text-white text-[12px] ml-auto flex items-center gap-1.5"
-        >
-          <Plus size={14} /> Nova prova
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={abrirNova}
+            className="h-9 px-3 rounded-full bg-[#2A2723] text-white text-[12px] ml-auto flex items-center gap-1.5"
+          >
+            <Plus size={14} /> Nova prova
+          </button>
+        )}
       </div>
 
       {data.porLinha.length > 0 && filtro !== "candidatos" && (
@@ -288,13 +295,17 @@ export default function ComercialProvas({ periodo }: { periodo: string }) {
                   <p className="text-[12px] text-[#8A847A] line-clamp-2">{c.content || "Sem texto"}</p>
                   <p className="text-[11px] text-[#A39C90] mt-1">{dataBr(c.created_at)} · ainda não é prova</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => catalogar(c)}
-                  className="h-9 px-3 rounded-full border border-[#E7E1D6] text-[12px] bg-[#FBF9F6]"
-                >
-                  Catalogar
-                </button>
+                {readOnly ? (
+                  <span className="text-[11px] text-[#8A847A]">Somente leitura</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => catalogar(c)}
+                    className="h-9 px-3 rounded-full border border-[#E7E1D6] text-[12px] bg-[#FBF9F6]"
+                  >
+                    Catalogar
+                  </button>
+                )}
               </div>
             ))
           )}
@@ -308,8 +319,8 @@ export default function ComercialProvas({ periodo }: { periodo: string }) {
               <button
                 key={p.id}
                 type="button"
-                onClick={() => abrirEditar(p)}
-                className="w-full text-left bg-white rounded-[22px] border border-[#E7E1D6] p-4 flex flex-wrap items-center gap-4 hover:border-[#D8CFC0]"
+                onClick={() => { if (!readOnly) abrirEditar(p); }}
+                className={`w-full text-left bg-white rounded-[22px] border border-[#E7E1D6] p-4 flex flex-wrap items-center gap-4 ${readOnly ? "" : "hover:border-[#D8CFC0]"}`}
               >
                 {p.midia_url ? (
                   <img src={p.midia_url} alt="" className="w-14 h-14 rounded-2xl object-cover" />
@@ -361,19 +372,19 @@ export default function ComercialProvas({ periodo }: { periodo: string }) {
 
             <div className="space-y-3">
               <Campo label="Cliente">
-                <input value={form.cliente_nome} onChange={(e) => setForm({ ...form, cliente_nome: e.target.value })} className={inp} />
+                <input value={form.cliente_nome} onChange={(e) => setForm({ ...form, cliente_nome: e.target.value })} className={inp} disabled={readOnly} />
               </Campo>
               <div className="grid grid-cols-2 gap-3">
                 <Campo label="Cidade">
-                  <input value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} className={inp} />
+                  <input value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} className={inp} disabled={readOnly} />
                 </Campo>
                 <Campo label="UF">
-                  <input value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })} className={inp} />
+                  <input value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })} className={inp} disabled={readOnly} />
                 </Campo>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Campo label="Linha">
-                  <select value={form.linha} onChange={(e) => setForm({ ...form, linha: e.target.value })} className={inp}>
+                  <select value={form.linha} onChange={(e) => setForm({ ...form, linha: e.target.value })} className={inp} disabled={readOnly}>
                     <option value="">Selecione</option>
                     {LINHAS_PRODUTO.map((l) => (
                       <option key={l.value} value={l.value}>{l.label}</option>
@@ -381,14 +392,14 @@ export default function ComercialProvas({ periodo }: { periodo: string }) {
                   </select>
                 </Campo>
                 <Campo label="Data">
-                  <input type="date" value={form.realizado_em} onChange={(e) => setForm({ ...form, realizado_em: e.target.value })} className={inp} />
+                  <input type="date" value={form.realizado_em} onChange={(e) => setForm({ ...form, realizado_em: e.target.value })} className={inp} disabled={readOnly} />
                 </Campo>
               </div>
               <Campo label="Protocolo">
-                <textarea value={form.protocolo} onChange={(e) => setForm({ ...form, protocolo: e.target.value })} rows={3} className={inp} />
+                <textarea value={form.protocolo} onChange={(e) => setForm({ ...form, protocolo: e.target.value })} rows={3} className={inp} disabled={readOnly} />
               </Campo>
               <Campo label="Responsável (embaixadora / distribuidor)">
-                <select value={form.profile_id} onChange={(e) => setForm({ ...form, profile_id: e.target.value })} className={inp}>
+                <select value={form.profile_id} onChange={(e) => setForm({ ...form, profile_id: e.target.value })} className={inp} disabled={readOnly}>
                   <option value="">Sem responsável</option>
                   {data.pessoas.map((p) => (
                     <option key={p.id} value={p.id}>{p.nome}</option>
@@ -396,7 +407,7 @@ export default function ComercialProvas({ periodo }: { periodo: string }) {
                 </select>
               </Campo>
               <Campo label="Evento (opcional)">
-                <select value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })} className={inp}>
+                <select value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })} className={inp} disabled={readOnly}>
                   <option value="">Fora de evento</option>
                   {data.eventos.map((e) => (
                     <option key={e.id} value={e.id}>{e.titulo}</option>
@@ -404,37 +415,43 @@ export default function ComercialProvas({ periodo }: { periodo: string }) {
                 </select>
               </Campo>
               <Campo label="URL da mídia">
-                <input value={form.midia_url} onChange={(e) => setForm({ ...form, midia_url: e.target.value })} className={inp} />
+                <input value={form.midia_url} onChange={(e) => setForm({ ...form, midia_url: e.target.value })} className={inp} disabled={readOnly} />
               </Campo>
               <label className="flex items-center gap-2 text-[13px] text-[#6B6560]">
-                <input type="checkbox" checked={form.autorizacao} onChange={(e) => setForm({ ...form, autorizacao: e.target.checked })} />
+                <input type="checkbox" checked={form.autorizacao} onChange={(e) => setForm({ ...form, autorizacao: e.target.checked })} disabled={readOnly} />
                 Autorização do cliente (obrigatória)
               </label>
               <label className="flex items-center gap-2 text-[13px] text-[#6B6560]">
-                <input type="checkbox" checked={form.uso_comercial} onChange={(e) => setForm({ ...form, uso_comercial: e.target.checked })} />
+                <input type="checkbox" checked={form.uso_comercial} onChange={(e) => setForm({ ...form, uso_comercial: e.target.checked })} disabled={readOnly} />
                 Liberar uso comercial
               </label>
               <Campo label="Notas">
-                <textarea value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} rows={2} className={inp} />
+                <textarea value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} rows={2} className={inp} disabled={readOnly} />
               </Campo>
             </div>
 
-            <button
-              type="button"
-              onClick={() => void salvar()}
-              disabled={saving}
-              className="mt-5 w-full h-11 rounded-2xl bg-[#2A2723] text-white text-[13px] font-medium disabled:opacity-60"
-            >
-              {saving ? "Salvando…" : "Catalogar"}
-            </button>
-            {form.id && (
-              <button
-                type="button"
-                onClick={() => void apagar(form.id!)}
-                className="mt-2 w-full h-10 text-[12px] text-[#9A4338]"
-              >
-                Remover do banco
-              </button>
+            {readOnly ? (
+              <p className="mt-5 text-[12px] text-[#8A847A]">Edição disponível apenas para administradores.</p>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void salvar()}
+                  disabled={saving}
+                  className="mt-5 w-full h-11 rounded-2xl bg-[#2A2723] text-white text-[13px] font-medium disabled:opacity-60"
+                >
+                  {saving ? "Salvando…" : "Catalogar"}
+                </button>
+                {form.id && (
+                  <button
+                    type="button"
+                    onClick={() => void apagar(form.id!)}
+                    className="mt-2 w-full h-10 text-[12px] text-[#9A4338]"
+                  >
+                    Remover do banco
+                  </button>
+                )}
+              </>
             )}
           </aside>
         </div>

@@ -37,6 +37,7 @@ type Kpi = {
 type Overview = {
   ok: boolean;
   error?: string;
+  viewer_role?: "ADMIN" | "DISTRIBUIDOR";
   periodo: string;
   periodoAnterior: string;
   metas: { leads: number; pedidos: number; receita: number; recompras: number };
@@ -285,6 +286,12 @@ export default function PainelComercialPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
+  const modoLeitura = data?.viewer_role === "DISTRIBUIDOR";
+
+  const abasVisiveis = useMemo(
+    () => (modoLeitura ? ABAS.filter((a) => a.id !== "metas") : ABAS),
+    [modoLeitura]
+  );
 
   const periodos = useMemo(() => {
     const d = new Date();
@@ -316,6 +323,9 @@ export default function PainelComercialPage() {
   }, [periodo]);
 
   useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => {
+    if (modoLeitura && aba === "metas") setAba("dashboard");
+  }, [modoLeitura, aba]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#F6F3EE] text-[#2A2723]">
@@ -333,7 +343,7 @@ export default function PainelComercialPage() {
         </div>
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           <p className="text-[10px] uppercase tracking-[0.16em] text-[#A39C90] px-3 mb-2">Este painel</p>
-          {ABAS.map((item) => {
+          {abasVisiveis.map((item) => {
             const Icon = item.icon;
             const active = aba === item.id;
             return (
@@ -351,9 +361,9 @@ export default function PainelComercialPage() {
           })}
         </nav>
         <div className="p-4 border-t border-[#E7E1D6] pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <Link href="/admin" className="flex items-center gap-2 text-[13px] font-medium text-[#2A2723]">
+          <Link href={modoLeitura ? "/admin/crm" : "/admin"} className="flex items-center gap-2 text-[13px] font-medium text-[#2A2723]">
             <ArrowLeft size={15} strokeWidth={1.8} />
-            Admin operacional
+            {modoLeitura ? "CRM" : "Admin operacional"}
           </Link>
         </div>
       </aside>
@@ -365,20 +375,25 @@ export default function PainelComercialPage() {
               <Menu size={18} />
             </button>
             <Link
-              href="/admin"
+              href={modoLeitura ? "/admin/crm" : "/admin"}
               className="md:hidden flex items-center gap-1 shrink-0 h-9 px-2.5 rounded-xl text-[12px] text-[#6B6560] hover:bg-white border border-[#E7E1D6] bg-white"
             >
               <ArrowLeft size={14} strokeWidth={1.8} />
-              Admin
+              {modoLeitura ? "CRM" : "Admin"}
             </Link>
             <div className="flex-1 min-w-[160px]">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-lg md:text-xl font-semibold tracking-tight">
-                  {ABAS.find((n) => n.id === aba)?.nome}
+                  {abasVisiveis.find((n) => n.id === aba)?.nome || "Dashboard"}
                 </h1>
                 <span className="text-[10px] tracking-[0.16em] uppercase font-semibold px-2 py-0.5 rounded-full bg-[#EDE4D4] text-[#8A6A32]">
                   {rotuloFaseComercial()} / {FASE_COMERCIAL_TOTAL}
                 </span>
+                {modoLeitura && (
+                  <span className="text-[10px] tracking-[0.1em] uppercase font-semibold px-2 py-0.5 rounded-full bg-[#F3EEE6] text-[#8A847A]">
+                    Somente leitura
+                  </span>
+                )}
               </div>
               <p className="text-[12px] text-[#8A847A]">
                 {aba === "homecare"
@@ -423,15 +438,15 @@ export default function PainelComercialPage() {
           ) : aba === "pedidos" ? (
             <ComercialPedidos periodo={periodo} />
           ) : aba === "homecare" ? (
-            <ComercialHomeCare periodo={periodo} />
+            <ComercialHomeCare periodo={periodo} readOnly={modoLeitura} />
           ) : aba === "embaixadoras" ? (
-            <ComercialRede periodo={periodo} papel="embaixadora" />
+            <ComercialRede periodo={periodo} papel="embaixadora" readOnly={modoLeitura} />
           ) : aba === "distribuidores" ? (
-            <ComercialRede periodo={periodo} papel="distribuidor" />
+            <ComercialRede periodo={periodo} papel="distribuidor" readOnly={modoLeitura} />
           ) : aba === "provas" ? (
-            <ComercialProvas periodo={periodo} />
+            <ComercialProvas periodo={periodo} readOnly={modoLeitura} />
           ) : aba === "eventos" ? (
-            <ComercialEventos periodo={periodo} />
+            <ComercialEventos periodo={periodo} readOnly={modoLeitura} />
           ) : aba === "alarmes" ? (
             <ComercialAlarmes onNavegar={(destino) => setAba(destino)} />
           ) : loading ? (

@@ -10,7 +10,7 @@ const PUBLIC_PREFIXES = ['/agendar/', '/catalago/', '/mapa/', '/api/mp-webhook',
 const AUTH_ONLY_PREFIXES = ['/home', '/agenda', '/perfil', '/comunidade', '/loja', '/evolucao', '/jornada', '/rede', '/eventos', '/aula', '/calculadora', '/embaixador', '/vendedor']
 
 // Rotas admin com acesso para ADMIN e DISTRIBUIDOR
-const ADMIN_DISTRIB_PREFIXES = ['/admin/crm', '/admin/returns']
+const ADMIN_DISTRIB_PREFIXES = ['/admin/crm', '/admin/returns', '/admin/comercial']
 const ADMIN_STRICT_PREFIXES = ['/admin']
 const EMBAIXADORA_CRM_PREFIX = '/embaixador/crm'
 const VENDEDOR_CRM_PREFIX = '/vendedor/crm'
