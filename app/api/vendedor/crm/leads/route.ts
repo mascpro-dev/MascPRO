@@ -5,6 +5,7 @@ import {
   parseOrigemLead,
   pickClassificacaoLead,
   validarProximoPassoProposta,
+  normalizarStatusCrmSimplificado,
   erroColunaFase2,
 } from "@/lib/comercialClassificacao";
 import { sincronizarVisitasOrfasNoPipeline } from "@/lib/crmVisitaPipeline";
@@ -40,7 +41,11 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
-  return NextResponse.json({ ok: true, leads: data || [] });
+  const leads = (data || []).map((lead: any) => ({
+    ...lead,
+    status: normalizarStatusCrmSimplificado(lead.status),
+  }));
+  return NextResponse.json({ ok: true, leads });
 }
 
 export async function POST(req: NextRequest) {

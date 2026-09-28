@@ -11,6 +11,7 @@ import {
   pickClassificacaoLead,
   STATUS_LEAD_LABEL,
   validarAvancoComercial,
+  normalizarStatusCrmSimplificado,
   erroColunaFase2,
 } from "@/lib/comercialClassificacao";
 
@@ -55,7 +56,10 @@ export async function GET(
 
   return NextResponse.json({
     ok: true,
-    lead,
+    lead: {
+      ...lead,
+      status: normalizarStatusCrmSimplificado(lead.status),
+    },
     atividades: atividades || [],
   });
 }
@@ -91,7 +95,7 @@ export async function PATCH(
   if ("status" in body) {
     const statusLead = parseStatusLead(body.status, leadAtual?.status || "novo");
     if (!statusLead.ok) return NextResponse.json({ ok: false, error: statusLead.error }, { status: 400 });
-    body.status = statusLead.value;
+    body.status = normalizarStatusCrmSimplificado(statusLead.value);
   }
   if ("origem" in body) {
     const origem = parseOrigemLead(body.origem, "manual");

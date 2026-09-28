@@ -62,6 +62,13 @@ export const COLUNAS_KANBAN_CRM = [
   { key: "nao_qualificado", label: "Não qualif.", cor: "text-zinc-400", bg: "bg-zinc-500/10", borda: "border-zinc-500/30" },
 ] as const;
 
+export const STATUS_OCULTOS_CRM_SIMPLIFICADO = ["diagnostico", "proposta"] as const;
+const STATUS_OCULTOS_CRM_SIMPLIFICADO_SET = new Set<string>(STATUS_OCULTOS_CRM_SIMPLIFICADO);
+
+export const COLUNAS_KANBAN_CRM_SIMPLIFICADO = COLUNAS_KANBAN_CRM.filter(
+  (c) => !STATUS_OCULTOS_CRM_SIMPLIFICADO_SET.has(c.key)
+);
+
 export const STATUS_LEAD_LABEL: Record<string, string> = Object.fromEntries(
   COLUNAS_KANBAN_CRM.map((c) => [c.key, c.label])
 );
@@ -173,6 +180,12 @@ export function statusContaFollowup(status: string) {
 
 export function statusPipelineAberto(status: string) {
   return (STATUS_PIPELINE_ABERTO as readonly string[]).includes(status);
+}
+
+export function normalizarStatusCrmSimplificado(status: string | null | undefined) {
+  const s = String(status || "");
+  if (!s) return s;
+  return STATUS_OCULTOS_CRM_SIMPLIFICADO_SET.has(s) ? "negociacao" : s;
 }
 
 export function parseStatusLead(v: unknown, fallback = "novo"): { ok: true; value: string } | { ok: false; error: string } {

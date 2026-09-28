@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   COLUNAS_KANBAN_CRM,
+  COLUNAS_KANBAN_CRM_SIMPLIFICADO,
   PERFIS_LEAD,
   INTERESSES_LEAD,
   LINHAS_PRODUTO,
@@ -25,6 +26,7 @@ import {
   LINHA_LABEL,
   DOR_LABEL,
   ORIGEM_LEAD_LABEL,
+  normalizarStatusCrmSimplificado,
 } from "@/lib/comercialClassificacao";
 
 // ─── Tipos ────────────────────────────────────────────────
@@ -85,6 +87,8 @@ type Lead = {
 // ─── Constantes ───────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; cor: string; bg: string; borda: string }> =
   Object.fromEntries(COLUNAS_KANBAN_CRM.map((c) => [c.key, { label: c.label, cor: c.cor, bg: c.bg, borda: c.borda }]));
+const STATUS_CONFIG_SIMPLIFICADO: Record<string, { label: string; cor: string; bg: string; borda: string }> =
+  Object.fromEntries(COLUNAS_KANBAN_CRM_SIMPLIFICADO.map((c) => [c.key, { label: c.label, cor: c.cor, bg: c.bg, borda: c.borda }]));
 
 const ORIGENS = ORIGEM_LEAD_LABEL;
 
@@ -146,6 +150,7 @@ export default function LeadDetalhePage() {
   const [buscandoPerfil, setBuscandoPerfil] = useState(false);
   const [convertendo, setConvertendo] = useState(false);
   const [cadastroCriado, setCadastroCriado] = useState(false);
+  const statusOptions = viewerRole === "DISTRIBUIDOR" ? STATUS_CONFIG_SIMPLIFICADO : STATUS_CONFIG;
 
   const carregar = useCallback(async () => {
     const res = await fetch(`/api/admin/crm/leads/${id}`, { cache: "no-store" });
@@ -213,7 +218,9 @@ export default function LeadDetalhePage() {
       instagram: lead.instagram || "",
       cidade: lead.cidade || "",
       estado: lead.estado || "",
-      status: lead.status || "novo",
+      status: viewerRole === "DISTRIBUIDOR"
+        ? normalizarStatusCrmSimplificado(lead.status || "novo")
+        : (lead.status || "novo"),
       origem: lead.origem || "manual",
       valor_estimado: lead.valor_estimado != null ? String(lead.valor_estimado) : "",
       data_followup: lead.data_followup || "",
@@ -233,6 +240,9 @@ export default function LeadDetalhePage() {
     setSalvando(true);
     setFeedback(null);
     const body: any = { ...form };
+    if (viewerRole === "DISTRIBUIDOR") {
+      body.status = normalizarStatusCrmSimplificado(form.status);
+    }
     body.valor_estimado = form.valor_estimado ? parseFloat(String(form.valor_estimado).replace(",", ".")) : null;
     body.data_followup = form.data_followup || null;
 
@@ -837,7 +847,7 @@ export default function LeadDetalhePage() {
                 <div>
                   <label className={labelClass}>Status</label>
                   <select value={form.status} onChange={(e) => setForm((f: any) => ({ ...f, status: e.target.value }))} className={inputClass}>
-                    {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                    {Object.entries(statusOptions).map(([k, v]) => (
                       <option key={k} value={k}>{v.label}</option>
                     ))}
                   </select>

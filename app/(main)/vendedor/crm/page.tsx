@@ -11,7 +11,7 @@ import {
   MessageCircle, Instagram, AlertCircle,
 } from "lucide-react";
 import {
-  COLUNAS_KANBAN_CRM as COLUNAS,
+  COLUNAS_KANBAN_CRM_SIMPLIFICADO as COLUNAS,
   ORIGENS_LEAD as ORIGENS,
   PERFIS_LEAD,
   INTERESSES_LEAD,
@@ -166,7 +166,7 @@ function LeadCard({
 
       {(anterior || proxima || onNovoPedido) && (
         <div className="flex gap-2 pt-1 border-t border-zinc-800 flex-wrap">
-          {onNovoPedido && ["proposta", "negociacao", "fechado"].includes(colunaAtual.key) && (
+          {onNovoPedido && ["negociacao", "fechado"].includes(colunaAtual.key) && (
             <>
               <button
                 type="button"

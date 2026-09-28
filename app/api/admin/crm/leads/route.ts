@@ -6,6 +6,7 @@ import {
   parseStatusLead,
   pickClassificacaoLead,
   validarProximoPassoProposta,
+  normalizarStatusCrmSimplificado,
   erroColunaFase2,
 } from "@/lib/comercialClassificacao";
 
@@ -97,7 +98,12 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
 
-  return NextResponse.json({ ok: true, leads: data || [] });
+  const leads = (data || []).map((lead: any) => ({
+    ...lead,
+    status: access.role === "DISTRIBUIDOR" ? normalizarStatusCrmSimplificado(lead.status) : lead.status,
+  }));
+
+  return NextResponse.json({ ok: true, viewer_role: access.role, leads });
 }
 
 // POST /api/admin/crm/leads — cria novo lead
@@ -119,6 +125,9 @@ export async function POST(req: NextRequest) {
 
   const statusLead = parseStatusLead(body.status, "novo");
   if (!statusLead.ok) return NextResponse.json({ ok: false, error: statusLead.error }, { status: 400 });
+  const statusFinal = access.role === "DISTRIBUIDOR"
+    ? normalizarStatusCrmSimplificado(statusLead.value)
+    : statusLead.value;
   const origem = parseOrigemLead(body.origem, "manual");
   if (!origem.ok) return NextResponse.json({ ok: false, error: origem.error }, { status: 400 });
   const classif = pickClassificacaoLead(body);
@@ -127,7 +136,7 @@ export async function POST(req: NextRequest) {
   const dataFollowup = body.data_followup || null;
   const proximoPasso = classif.campos.proximo_passo ?? (body.proximo_passo?.trim() || null);
   const avancao = validarProximoPassoProposta({
-    status: statusLead.value,
+    status: statusFinal,
     data_followup: dataFollowup,
     proximo_passo: proximoPasso,
   });
@@ -141,7 +150,7 @@ export async function POST(req: NextRequest) {
     instagram: body.instagram?.trim() || null,
     cidade: body.cidade?.trim() || null,
     estado: body.estado?.trim() || null,
-    status: statusLead.value,
+    status: statusFinal,
     origem: origem.value,
     valor_estimado: body.valor_estimado ? Number(body.valor_estimado) : null,
     data_followup: dataFollowup,
