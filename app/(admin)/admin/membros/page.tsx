@@ -4,7 +4,7 @@ import AdminSidebar from "@/componentes/AdminSidebar";
 import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import {
   Search, Users, Instagram, MessageCircle, Loader2,
-  ShoppingBag, Pencil, X, Save, AlertCircle, CheckCircle, KeyRound, Link2, Copy, MapPin,
+  ShoppingBag, Pencil, Trash2, X, Save, AlertCircle, CheckCircle, KeyRound, Link2, Copy, MapPin,
 } from "lucide-react";
 import { getProBreakdown } from "@/lib/proScore";
 
@@ -84,6 +84,8 @@ export default function AdminMembrosPage() {
   const [distribuidores, setDistribuidores] = useState<{ id: string; full_name: string }[]>([]);
   const [mapaAlvo, setMapaAlvo] = useState<string | null>(null);
   const [avisoMapa, setAvisoMapa] = useState<string | null>(null);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
+  const [avisoAcao, setAvisoAcao] = useState<{ tipo: "ok" | "erro"; msg: string } | null>(null);
 
   useEffect(() => { void carregar(); void carregarDistribuidores(); }, []);
 
@@ -206,6 +208,33 @@ export default function AdminMembrosPage() {
     setMapaAlvo(null);
   }
 
+  async function excluirCadastro(m: Membro) {
+    const confirmar = window.confirm(
+      `Excluir cadastro de "${m.full_name}"?\n\nEssa ação é irreversível e remove o acesso desse usuário.`
+    );
+    if (!confirmar) return;
+
+    setExcluindoId(m.id);
+    setAvisoAcao(null);
+
+    const res = await fetch("/api/admin/membros/editar", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: m.id }),
+    });
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data?.ok) {
+      setAvisoAcao({ tipo: "erro", msg: data?.error || "Não foi possível excluir o cadastro." });
+    } else {
+      if (editando?.id === m.id) setEditando(null);
+      await carregar();
+      setAvisoAcao({ tipo: "ok", msg: "Cadastro excluído com sucesso." });
+    }
+
+    setExcluindoId(null);
+  }
+
   const set = (k: string, v: string) => setForm((f: any) => ({ ...f, [k]: v }));
   const rolesFiltro = [
     "todos",
@@ -250,6 +279,17 @@ export default function AdminMembrosPage() {
         <div className="mb-4">
           <p className="text-xs text-zinc-600 font-bold">{filtrado.length} membro(s) encontrado(s)</p>
         </div>
+        {avisoAcao && (
+          <p
+            className={`mb-4 rounded-xl border px-4 py-3 text-xs ${
+              avisoAcao.tipo === "ok"
+                ? "border-emerald-600/30 bg-emerald-900/20 text-emerald-300"
+                : "border-red-600/30 bg-red-900/20 text-red-300"
+            }`}
+          >
+            {avisoAcao.msg}
+          </p>
+        )}
         {avisoMapa && (
           <p className="mb-4 rounded-xl border border-[#C9A66B]/30 bg-[#C9A66B]/10 px-4 py-3 text-xs text-[#C9A66B]">
             {avisoMapa}
@@ -398,14 +438,25 @@ export default function AdminMembrosPage() {
                       <div className="flex flex-col justify-center gap-2">{pills}</div>
                     </div>
                     <div className="flex justify-end border-t border-zinc-800/80 pt-3">
-                      <button
-                        type="button"
-                        onClick={() => abrirEditar(m)}
-                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 transition-all hover:bg-zinc-700 hover:text-[#C9A66B]"
-                        title="Editar membro"
-                      >
-                        <Pencil size={14} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => abrirEditar(m)}
+                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 transition-all hover:bg-zinc-700 hover:text-[#C9A66B]"
+                          title="Editar membro"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void excluirCadastro(m)}
+                          disabled={excluindoId === m.id}
+                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-800 text-zinc-500 transition-all hover:bg-red-500/20 hover:text-red-400 disabled:opacity-60"
+                          title="Excluir cadastro"
+                        >
+                          {excluindoId === m.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -437,7 +488,7 @@ export default function AdminMembrosPage() {
                     </div>
                     {icones}
                     <div className="flex min-w-0 justify-center">{pills}</div>
-                    <div className="flex justify-center">
+                    <div className="flex h-full flex-col items-center justify-center gap-2">
                       <button
                         type="button"
                         onClick={() => abrirEditar(m)}
@@ -445,6 +496,15 @@ export default function AdminMembrosPage() {
                         title="Editar membro"
                       >
                         <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void excluirCadastro(m)}
+                        disabled={excluindoId === m.id}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-800 text-zinc-500 transition-all hover:bg-red-500/20 hover:text-red-400 disabled:opacity-60"
+                        title="Excluir cadastro"
+                      >
+                        {excluindoId === m.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                       </button>
                     </div>
                   </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { assertAdmin, getAdminContext } from "@/lib/adminServer";
 import { camposLocalizacaoSync } from "@/lib/profileLocalizacao";
 import { camposEnderecoCompletoSync } from "@/lib/profileEndereco";
 
@@ -124,5 +125,54 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { supabase, userId, error: authErr, status } = await getAdminContext();
+    if (!supabase || !userId) {
+      return NextResponse.json({ ok: false, error: authErr || "Não autenticado." }, { status });
+    }
+
+    const admin = await assertAdmin(supabase, userId);
+    if (!admin.ok) {
+      return NextResponse.json({ ok: false, error: admin.error }, { status: 403 });
+    }
+
+    const body = await req.json().catch(() => null);
+    const alvoId = String(body?.user_id || "").trim();
+    if (!alvoId) {
+      return NextResponse.json({ ok: false, error: "user_id obrigatório" }, { status: 400 });
+    }
+    if (alvoId === userId) {
+      return NextResponse.json({ ok: false, error: "Você não pode excluir o próprio usuário." }, { status: 400 });
+    }
+
+    const adminClient = sb();
+    const { data: perfilAlvo, error: errPerfilAlvo } = await adminClient
+      .from("profiles")
+      .select("role, full_name")
+      .eq("id", alvoId)
+      .maybeSingle();
+
+    if (errPerfilAlvo) {
+      return NextResponse.json({ ok: false, error: errPerfilAlvo.message }, { status: 500 });
+    }
+    if (!perfilAlvo) {
+      return NextResponse.json({ ok: false, error: "Membro não encontrado." }, { status: 404 });
+    }
+    if (String(perfilAlvo.role || "").toUpperCase() === "ADMIN") {
+      return NextResponse.json({ ok: false, error: "Não é permitido excluir outro ADMIN por esta tela." }, { status: 400 });
+    }
+
+    const { error: errAuthDelete } = await adminClient.auth.admin.deleteUser(alvoId);
+    if (errAuthDelete) {
+      return NextResponse.json({ ok: false, error: `Falha ao excluir usuário: ${errAuthDelete.message}` }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message || "Erro interno." }, { status: 500 });
   }
 }
