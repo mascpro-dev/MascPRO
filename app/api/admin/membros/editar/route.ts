@@ -9,6 +9,11 @@ function sb() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
 }
 
+function erroUsuarioNaoEncontrado(msg: string | undefined) {
+  const t = String(msg || "").toLowerCase();
+  return t.includes("user not found") || t.includes("not found");
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -167,8 +172,14 @@ export async function DELETE(req: NextRequest) {
     }
 
     const { error: errAuthDelete } = await adminClient.auth.admin.deleteUser(alvoId);
-    if (errAuthDelete) {
+    if (errAuthDelete && !erroUsuarioNaoEncontrado(errAuthDelete.message)) {
       return NextResponse.json({ ok: false, error: `Falha ao excluir usuário: ${errAuthDelete.message}` }, { status: 500 });
+    }
+
+    // Fallback: se o usuário já não existe no Auth, remove o perfil diretamente.
+    const { error: errProfileDelete } = await adminClient.from("profiles").delete().eq("id", alvoId);
+    if (errProfileDelete) {
+      return NextResponse.json({ ok: false, error: `Falha ao excluir perfil: ${errProfileDelete.message}` }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });
