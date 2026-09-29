@@ -14,9 +14,9 @@ function erroUsuarioNaoEncontrado(msg: string | undefined) {
   return t.includes("user not found") || t.includes("not found");
 }
 
-function erroFkPedidos(msg: string | undefined) {
+function erroFkBloqueiaDelete(msg: string | undefined) {
   const t = String(msg || "").toLowerCase();
-  return t.includes("orders_profile_id_fkey") || (t.includes("foreign key") && t.includes("orders"));
+  return t.includes("foreign key") || t.includes("violates foreign key constraint");
 }
 
 export async function POST(req: NextRequest) {
@@ -184,11 +184,11 @@ export async function DELETE(req: NextRequest) {
     // Fallback: se o usuário já não existe no Auth, remove o perfil diretamente.
     const { error: errProfileDelete } = await adminClient.from("profiles").delete().eq("id", alvoId);
     if (errProfileDelete) {
-      if (!erroFkPedidos(errProfileDelete.message)) {
+      if (!erroFkBloqueiaDelete(errProfileDelete.message)) {
         return NextResponse.json({ ok: false, error: `Falha ao excluir perfil: ${errProfileDelete.message}` }, { status: 500 });
       }
 
-      // Perfil com pedidos vinculados não pode ser removido fisicamente.
+      // Perfil com vínculos não pode ser removido fisicamente.
       // Faz "inativação lógica": remove dos membros e preserva histórico.
       const anonEmail = `excluido+${alvoId.slice(0, 8)}@mascpro.local`;
       const { error: errSoft } = await adminClient
@@ -210,7 +210,7 @@ export async function DELETE(req: NextRequest) {
 
       return NextResponse.json({
         ok: true,
-        msg: "Cadastro ocultado (perfil com pedidos históricos).",
+        msg: "Cadastro ocultado (perfil com vínculos históricos).",
       });
     }
 
