@@ -14,6 +14,11 @@ function erroUsuarioNaoEncontrado(msg: string | undefined) {
   return t.includes("user not found") || t.includes("not found");
 }
 
+function erroFkPedidos(msg: string | undefined) {
+  const t = String(msg || "").toLowerCase();
+  return t.includes("orders_profile_id_fkey") || (t.includes("foreign key") && t.includes("orders"));
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -179,7 +184,34 @@ export async function DELETE(req: NextRequest) {
     // Fallback: se o usuário já não existe no Auth, remove o perfil diretamente.
     const { error: errProfileDelete } = await adminClient.from("profiles").delete().eq("id", alvoId);
     if (errProfileDelete) {
-      return NextResponse.json({ ok: false, error: `Falha ao excluir perfil: ${errProfileDelete.message}` }, { status: 500 });
+      if (!erroFkPedidos(errProfileDelete.message)) {
+        return NextResponse.json({ ok: false, error: `Falha ao excluir perfil: ${errProfileDelete.message}` }, { status: 500 });
+      }
+
+      // Perfil com pedidos vinculados não pode ser removido fisicamente.
+      // Faz "inativação lógica": remove dos membros e preserva histórico.
+      const anonEmail = `excluido+${alvoId.slice(0, 8)}@mascpro.local`;
+      const { error: errSoft } = await adminClient
+        .from("profiles")
+        .update({
+          full_name: `[EXCLUIDO] ${perfilAlvo.full_name || "Membro"}`,
+          email: anonEmail,
+          whatsapp: null,
+          instagram: null,
+          role: "EXCLUIDO",
+          indicado_por: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", alvoId);
+
+      if (errSoft) {
+        return NextResponse.json({ ok: false, error: `Falha ao inativar perfil com pedidos: ${errSoft.message}` }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        msg: "Cadastro ocultado (perfil com pedidos históricos).",
+      });
     }
 
     return NextResponse.json({ ok: true });

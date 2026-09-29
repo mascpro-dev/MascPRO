@@ -19,6 +19,7 @@ export async function GET() {
       .select(
         `id, full_name, email, whatsapp, instagram, role, nivel, created_at, indicado_por, personal_coins, network_coins, total_compras_proprias, total_compras_rede, pro_total, avatar_url, ${PROFILE_ENDERECO_SELECT}`
       )
+      .neq("role", "EXCLUIDO")
       .order("pro_total", { ascending: false });
 
     if (!profiles) return NextResponse.json({ ok: false, error: "Erro ao buscar perfis" }, { status: 500 });

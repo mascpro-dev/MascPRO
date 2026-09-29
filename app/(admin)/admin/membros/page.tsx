@@ -229,7 +229,7 @@ export default function AdminMembrosPage() {
     } else {
       if (editando?.id === m.id) setEditando(null);
       await carregar();
-      setAvisoAcao({ tipo: "ok", msg: "Cadastro excluído com sucesso." });
+      setAvisoAcao({ tipo: "ok", msg: data?.msg || "Cadastro excluído com sucesso." });
     }
 
     setExcluindoId(null);
