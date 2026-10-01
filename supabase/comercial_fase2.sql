@@ -10,7 +10,7 @@ ALTER TABLE public.products
   ADD COLUMN IF NOT EXISTS linha TEXT;
 
 COMMENT ON COLUMN public.products.linha IS
-  'Linha MASC: daily, nutri, repair, scalp, curls, blond, align3. NULL = ainda sem classificar.';
+  'Linha MASC: daily, nutri, repair, scalp, curls, blond, align3, finalizadores. NULL = ainda sem classificar.';
 
 DO $$
 BEGIN
@@ -21,7 +21,7 @@ BEGIN
       ADD CONSTRAINT products_linha_check
       CHECK (
         linha IS NULL OR linha IN (
-          'daily','nutri','repair','scalp','curls','blond','align3'
+          'daily','nutri','repair','scalp','curls','blond','align3','finalizadores'
         )
       );
   END IF;
@@ -64,7 +64,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'crm_leads_linha_interesse_check') THEN
     ALTER TABLE public.crm_leads ADD CONSTRAINT crm_leads_linha_interesse_check
       CHECK (linha_interesse IS NULL OR linha_interesse IN (
-        'daily','nutri','repair','scalp','curls','blond','align3'
+        'daily','nutri','repair','scalp','curls','blond','align3','finalizadores'
       ));
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'crm_leads_dor_check') THEN

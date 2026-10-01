@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Users, CheckCircle, TrendingUp, Copy, Instagram, MessageCircle, Search, Filter, AlertTriangle, DollarSign, ArrowDownToLine, X, Loader2, Clock, XCircle, ChevronDown, ChevronUp, Receipt, ShoppingBag } from "lucide-react";
+import { PRO_POR_INDICADO } from "@/lib/networkCoinsIndicacao";
+import { ymSaoPaulo } from "@/lib/comercialRegua";
 
 type ComissaoDetalhe = {
   id: string;
@@ -28,7 +30,8 @@ export default function RedePage() {
 
   // PRO Financeiro
   const [bonusDireto, setBonusDireto] = useState(0);  
-  const [saldoTotal, setSaldoTotal] = useState(0);     
+  const [saldoTotal, setSaldoTotal] = useState(0);
+  const [prosGeradosMes, setProsGeradosMes] = useState(0);     
 
   // Comissões de vendas (R$)
   const [saldoComissoes, setSaldoComissoes] = useState(0);
@@ -125,6 +128,12 @@ export default function RedePage() {
         if (equipe) {
             setListaEquipe(equipe);
             setTotalIndicados(equipe.length);
+            const mesAtual = ymSaoPaulo();
+            const indicadosNoMes = equipe.filter((m: any) => {
+              if (!m.created_at) return false;
+              return ymSaoPaulo(new Date(m.created_at)) === mesAtual;
+            }).length;
+            setProsGeradosMes(indicadosNoMes * PRO_POR_INDICADO);
 
             const equipeIds = equipe.map((m: any) => m.id);
             let mapAtivos: Record<string, boolean> = {};
@@ -288,7 +297,8 @@ export default function RedePage() {
             </div>
             <div>
                 <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">PROS GERADOS</p>
-                <p className="text-3xl font-black text-white">{bonusDireto} <span className="text-sm">PRO</span></p>
+                <p className="text-3xl font-black text-white">{prosGeradosMes} <span className="text-sm">PRO</span></p>
+                <p className="text-[10px] text-gray-600">Indicações do mês atual</p>
             </div>
         </div>
       </div>

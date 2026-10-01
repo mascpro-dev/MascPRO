@@ -6,6 +6,7 @@ export const LINHAS_PRODUTO = [
   { value: "curls", label: "Curls" },
   { value: "blond", label: "Blond" },
   { value: "align3", label: "Align³" },
+  { value: "finalizadores", label: "Finalizadores" },
 ] as const;
 
 export const PERFIS_LEAD = [

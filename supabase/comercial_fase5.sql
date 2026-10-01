@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS public.comercial_provas (
   cidade             TEXT        NOT NULL,
   estado             TEXT,
   linha              TEXT        NOT NULL
-    CHECK (linha IN ('daily','nutri','repair','scalp','curls','blond','align3')),
+    CHECK (linha IN ('daily','nutri','repair','scalp','curls','blond','align3','finalizadores')),
   protocolo          TEXT        NOT NULL,
   autorizacao        BOOLEAN     NOT NULL DEFAULT false,
   uso_comercial      BOOLEAN     NOT NULL DEFAULT false,

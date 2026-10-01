@@ -5,6 +5,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { ShoppingBag, Loader2, ChevronRight, ShoppingCart, Search } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "./CartContext";
+import { LINHAS_PRODUTO } from "@/lib/comercialClassificacao";
 
 /** Texto para busca: minúsculas e sem acento (ex.: "shampoo" encontra "Shampoo"). */
 function normalizarBusca(s: string) {
@@ -26,49 +27,17 @@ function normalizarNivelParaPreco(nivel: string | null | undefined): "cabeleirei
   return "cabeleireiro";
 }
 
-type GrupoId =
-  | "alisamento"
-  | "nutricao"
-  | "reconstrucao"
-  | "tratamento"
-  | "scalp"
-  | "cachos"
-  | "finalizadores";
+const SEM_LINHA = "sem_linha";
 
-const ORDEM_GRUPOS: { id: GrupoId; label: string }[] = [
-  { id: "alisamento", label: "Alisamento" },
-  { id: "nutricao", label: "Nutricao" },
-  { id: "reconstrucao", label: "Reconstrucao" },
-  { id: "tratamento", label: "Tratamento" },
-  { id: "scalp", label: "Scalp" },
-  { id: "cachos", label: "Cachos" },
-  { id: "finalizadores", label: "Finalizadores" },
+const ORDEM_GRUPOS: { id: string; label: string }[] = [
+  ...LINHAS_PRODUTO.map((l) => ({ id: l.value, label: l.label })),
+  { id: SEM_LINHA, label: "Sem linha" },
 ];
 
-function resolverGrupoProduto(product: any): GrupoId | "outros" {
-  const linha = normalizarBusca(String(product?.linha || ""));
-  const texto = normalizarBusca(
-    [product?.linha, product?.category, product?.title, product?.description].filter(Boolean).join(" ")
-  );
-
-  if (linha === "align3" || texto.includes("alis") || texto.includes("progressiva") || texto.includes("selagem")) {
-    return "alisamento";
-  }
-  if (linha === "nutri" || texto.includes("nutri")) return "nutricao";
-  if (linha === "repair" || texto.includes("reconstr")) return "reconstrucao";
-  if (linha === "scalp" || texto.includes("scalp") || texto.includes("couro")) return "scalp";
-  if (linha === "curls" || texto.includes("cacho") || texto.includes("curl")) return "cachos";
-  if (
-    texto.includes("finaliz") ||
-    texto.includes("leave-in") ||
-    texto.includes("leave in") ||
-    texto.includes("serum") ||
-    texto.includes("spray")
-  ) {
-    return "finalizadores";
-  }
-  if (linha === "daily" || linha === "blond" || texto.includes("trat")) return "tratamento";
-  return "outros";
+function resolverGrupoProduto(product: any): string {
+  const linha = String(product?.linha || "").trim().toLowerCase();
+  if (LINHAS_PRODUTO.some((l) => l.value === linha)) return linha;
+  return SEM_LINHA;
 }
 
 function LojaContent() {
@@ -133,7 +102,6 @@ function LojaContent() {
   const produtosAgrupados = useMemo(() => {
     const buckets = new Map<string, any[]>();
     ORDEM_GRUPOS.forEach((g) => buckets.set(g.id, []));
-    buckets.set("outros", []);
 
     for (const p of produtosFiltrados) {
       const grupo = resolverGrupoProduto(p);
@@ -149,16 +117,9 @@ function LojaContent() {
       );
     }
 
-    const gruposComItens: { id: GrupoId | "outros"; label: string; items: any[] }[] = ORDEM_GRUPOS
+    return ORDEM_GRUPOS
       .map((g) => ({ id: g.id, label: g.label, items: buckets.get(g.id) || [] }))
       .filter((g) => g.items.length > 0);
-
-    const outros = buckets.get("outros") || [];
-    if (outros.length > 0) {
-      gruposComItens.push({ id: "outros", label: "Outros", items: outros });
-    }
-
-    return gruposComItens;
   }, [produtosFiltrados]);
 
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
