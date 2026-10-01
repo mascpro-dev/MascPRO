@@ -28,7 +28,14 @@ export async function GET() {
     await sincronizarNetworkCoinsLote(supabase, profiles, indicadosCount);
 
     const ultimasCompras = await ultimasComprasPorPerfil(supabase);
-    const idsComCompra = new Set(ultimasCompras.keys());
+    const agora = new Date();
+    const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).getTime();
+    const compraNoMesAtual = (iso: string | null | undefined) => {
+      if (!iso) return false;
+      const t = new Date(iso).getTime();
+      if (!Number.isFinite(t)) return false;
+      return t >= inicioMes;
+    };
 
     const mapaPorId = new Map<string, boolean>();
     const { data: mapas, error: errMapa } = await supabase.from("profiles").select("id, mapa_visivel");
@@ -48,7 +55,7 @@ export async function GET() {
         ...end,
         city: loc.city || end.city || m.city,
         state: loc.state || end.state || m.state,
-        tem_compra: idsComCompra.has(m.id),
+        tem_compra: compraNoMesAtual(ultimasCompras.get(m.id)),
         ultima_compra: ultimasCompras.get(m.id) || null,
         compra_30d: compraDentroDoPrazo(ultimasCompras.get(m.id)),
         mapa_visivel: mapaPorId.get(m.id) === true,
