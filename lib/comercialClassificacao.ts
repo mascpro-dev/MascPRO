@@ -1,10 +1,10 @@
 export const LINHAS_PRODUTO = [
-  { value: "daily", label: "Daily" },
-  { value: "nutri", label: "Nutri" },
-  { value: "repair", label: "Repair" },
-  { value: "scalp", label: "Scalp" },
-  { value: "curls", label: "Curls" },
-  { value: "blond", label: "Blond" },
+  { value: "daily", label: "Daily Barrier" },
+  { value: "nutri", label: "Nutri Lipid" },
+  { value: "repair", label: "Bond Repair" },
+  { value: "scalp", label: "Scalp Density" },
+  { value: "curls", label: "Curls Humidity" },
+  { value: "blond", label: "Blond Platinum" },
   { value: "align3", label: "Align³" },
   { value: "finalizadores", label: "Finalizadores" },
 ] as const;

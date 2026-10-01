@@ -29,6 +29,19 @@ function normalizarNivelParaPreco(nivel: string | null | undefined): "cabeleirei
 
 const SEM_LINHA = "sem_linha";
 
+/** Cor da faixa impressa na embalagem de cada linha. */
+const FAIXA_LINHA: Record<string, { bg: string; fg: string }> = {
+  daily: { bg: "#D4CBB8", fg: "#2C261C" },
+  nutri: { bg: "#E0C07A", fg: "#2A2110" },
+  repair: { bg: "#8B3A4F", fg: "#FFFFFF" },
+  scalp: { bg: "#9EB62E", fg: "#1A2208" },
+  curls: { bg: "#7A9CC6", fg: "#102033" },
+  blond: { bg: "#643E86", fg: "#FFFFFF" },
+  align3: { bg: "#3D6555", fg: "#FFFFFF" },
+  finalizadores: { bg: "#B83890", fg: "#FFFFFF" },
+  [SEM_LINHA]: { bg: "#27272A", fg: "#E4E4E7" },
+};
+
 const ORDEM_GRUPOS: { id: string; label: string }[] = [
   ...LINHAS_PRODUTO.map((l) => ({ id: l.value, label: l.label })),
   { id: SEM_LINHA, label: "Sem linha" },
@@ -198,13 +211,18 @@ function LojaContent() {
           </div>
         ) : (
         <div className="space-y-10">
-          {produtosAgrupados.map((grupo) => (
+          {produtosAgrupados.map((grupo) => {
+            const faixa = FAIXA_LINHA[grupo.id] || FAIXA_LINHA[SEM_LINHA];
+            return (
             <section key={grupo.id}>
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg md:text-xl font-black uppercase tracking-tight text-[#C9A66B]">
+              <div
+                className="mb-4 flex items-center justify-between rounded-xl px-4 py-3 md:px-5"
+                style={{ backgroundColor: faixa.bg, color: faixa.fg }}
+              >
+                <h2 className="text-sm md:text-base font-black uppercase tracking-[0.16em]">
                   {grupo.label}
                 </h2>
-                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">
+                <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
                   {grupo.items.length} produto{grupo.items.length === 1 ? "" : "s"}
                 </span>
               </div>
@@ -238,7 +256,8 @@ function LojaContent() {
                 ))}
               </div>
             </section>
-          ))}
+            );
+          })}
         </div>
         )}
       </div>
