@@ -5,7 +5,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { ShoppingBag, Loader2, ChevronRight, ShoppingCart, Search } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "./CartContext";
-import { LINHAS_PRODUTO } from "@/lib/comercialClassificacao";
+import { FAIXA_LINHA, SEM_LINHA, agruparProdutosPorLinha } from "@/lib/gruposLinhaProduto";
 
 /** Texto para busca: minúsculas e sem acento (ex.: "shampoo" encontra "Shampoo"). */
 function normalizarBusca(s: string) {
@@ -25,32 +25,6 @@ function normalizarNivelParaPreco(nivel: string | null | undefined): "cabeleirei
   if (v === "distribuidor") return "distribuidor";
   if (v === "embaixador" || v === "educador_tecnico" || v === "educador tecnico") return "embaixador";
   return "cabeleireiro";
-}
-
-const SEM_LINHA = "sem_linha";
-
-/** Cor da faixa impressa na embalagem de cada linha. */
-const FAIXA_LINHA: Record<string, { bg: string; fg: string }> = {
-  daily: { bg: "#D4CBB8", fg: "#2C261C" },
-  nutri: { bg: "#E0C07A", fg: "#2A2110" },
-  repair: { bg: "#8B3A4F", fg: "#FFFFFF" },
-  scalp: { bg: "#9EB62E", fg: "#1A2208" },
-  curls: { bg: "#7A9CC6", fg: "#102033" },
-  blond: { bg: "#643E86", fg: "#FFFFFF" },
-  align3: { bg: "#3D6555", fg: "#FFFFFF" },
-  finalizadores: { bg: "#B83890", fg: "#FFFFFF" },
-  [SEM_LINHA]: { bg: "#27272A", fg: "#E4E4E7" },
-};
-
-const ORDEM_GRUPOS: { id: string; label: string }[] = [
-  ...LINHAS_PRODUTO.map((l) => ({ id: l.value, label: l.label })),
-  { id: SEM_LINHA, label: "Sem linha" },
-];
-
-function resolverGrupoProduto(product: any): string {
-  const linha = String(product?.linha || "").trim().toLowerCase();
-  if (LINHAS_PRODUTO.some((l) => l.value === linha)) return linha;
-  return SEM_LINHA;
 }
 
 function LojaContent() {
@@ -112,28 +86,10 @@ function LojaContent() {
     return products.filter((p) => normalizarBusca(String(p.title ?? "")).includes(q));
   }, [products, busca]);
 
-  const produtosAgrupados = useMemo(() => {
-    const buckets = new Map<string, any[]>();
-    ORDEM_GRUPOS.forEach((g) => buckets.set(g.id, []));
-
-    for (const p of produtosFiltrados) {
-      const grupo = resolverGrupoProduto(p);
-      buckets.get(grupo)?.push(p);
-    }
-
-    for (const lista of buckets.values()) {
-      lista.sort((a, b) =>
-        String(a.title ?? "").localeCompare(String(b.title ?? ""), "pt-BR", {
-          numeric: true,
-          sensitivity: "base",
-        })
-      );
-    }
-
-    return ORDEM_GRUPOS
-      .map((g) => ({ id: g.id, label: g.label, items: buckets.get(g.id) || [] }))
-      .filter((g) => g.items.length > 0);
-  }, [produtosFiltrados]);
+  const produtosAgrupados = useMemo(
+    () => agruparProdutosPorLinha(produtosFiltrados),
+    [produtosFiltrados]
+  );
 
   if (loading) return <div className="h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-[#C9A66B]" /></div>;
 
