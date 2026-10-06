@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminContext, assertAdmin } from "@/lib/adminServer";
+import { getAdminContext, assertAdmin, assertAdminOrDistribuidor } from "@/lib/adminServer";
 import { parseLinhaProduto } from "@/lib/comercialClassificacao";
+import {
+  notificarProdutoAlterado,
+  notificarProdutoCriado,
+  notificarProdutoRemovido,
+} from "@/lib/notificarAlteracaoProduto";
 
 /** Erro de configuração no Supabase: rode supabase/fix_products_admin_completo.sql (GRANTs + RLS) ou adicione SUPABASE_SERVICE_ROLE_KEY no Vercel. */
 const MSG_DICA_DB = "Se o erro for permission denied, execute no Supabase o script fix_products_admin_completo.sql (pasta supabase) e adicione SUPABASE_SERVICE_ROLE_KEY no ambiente (API → service_role).";
@@ -11,9 +16,9 @@ export async function GET() {
     if (!supabase || !userId) {
       return NextResponse.json({ ok: false, error: error || "Falha de autenticação." }, { status: status || 401 });
     }
-    const admin = await assertAdmin(supabase, userId);
-    if (!admin.ok) {
-      return NextResponse.json({ ok: false, error: admin.error }, { status: 403 });
+    const acesso = await assertAdminOrDistribuidor(supabase, userId);
+    if (!acesso.ok) {
+      return NextResponse.json({ ok: false, error: acesso.error }, { status: 403 });
     }
 
     const { data, error: qerr } = await supabase
@@ -26,7 +31,13 @@ export async function GET() {
         { status: 500 }
       );
     }
-    return NextResponse.json({ ok: true, products: data || [] });
+    const products = (data || []).map((p) => {
+      if (acesso.role === "ADMIN") return p;
+      const publico = { ...(p as Record<string, unknown>) };
+      delete publico.custo_unitario;
+      return publico;
+    });
+    return NextResponse.json({ ok: true, role: acesso.role, products });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno.";
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
@@ -74,6 +85,11 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+    await notificarProdutoCriado(supabase, {
+      actorId: userId,
+      title: String(title),
+      price_hairdresser: hairdresserPrice,
+    });
     return NextResponse.json({ ok: true, product: data });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno.";
@@ -112,12 +128,20 @@ export async function PATCH(req: NextRequest) {
       const pg = Math.round(Number(patch.peso_gramas));
       patch.peso_gramas = Number.isFinite(pg) && pg > 0 ? pg : 500;
     }
+    const { data: antes } = await supabase.from("products").select("*").eq("id", id).maybeSingle();
     const { error: uerr } = await supabase.from("products").update(patch).eq("id", id);
     if (uerr) {
       return NextResponse.json(
         { ok: false, error: `${uerr.message} ${MSG_DICA_DB}` },
         { status: 500 }
       );
+    }
+    if (antes) {
+      await notificarProdutoAlterado(supabase, {
+        actorId: userId,
+        antes: antes as Record<string, unknown>,
+        patch,
+      });
     }
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
@@ -139,6 +163,7 @@ export async function DELETE(req: NextRequest) {
 
     const { id } = await req.json();
     if (!id) return NextResponse.json({ ok: false, error: "id obrigatório" }, { status: 400 });
+    const { data: antes } = await supabase.from("products").select("title").eq("id", id).maybeSingle();
     const { error: derr } = await supabase.from("products").delete().eq("id", id);
     if (derr) {
       return NextResponse.json(
@@ -146,6 +171,10 @@ export async function DELETE(req: NextRequest) {
         { status: 500 }
       );
     }
+    await notificarProdutoRemovido(supabase, {
+      actorId: userId,
+      title: String(antes?.title || "Produto"),
+    });
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno.";

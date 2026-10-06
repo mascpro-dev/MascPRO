@@ -97,6 +97,12 @@ const ADMIN_MENU_ITEMS = [
 
 const DISTRIBUIDOR_MENU_ITEMS = [
   {
+    title: "LOJA",
+    items: [
+      { name: "Produtos", desc: "Tabela licenciado", icon: Package, href: "/admin/produtos", color: "text-emerald-400" },
+    ],
+  },
+  {
     title: "CRM / ERP",
     items: [
       { name: "Dashboard",         desc: "Financeiro e geral",                icon: LayoutDashboard, href: "/admin/crm/dashboard",  color: "text-emerald-400" },

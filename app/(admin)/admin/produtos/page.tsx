@@ -30,6 +30,7 @@ export default function AdminProdutosPage() {
   const [form, setForm] = useState({ ...EMPTY });
   const [erro, setErro] = useState("");
   const [busca, setBusca] = useState("");
+  const [papel, setPapel] = useState<"" | "ADMIN" | "DISTRIBUIDOR">("");
 
   useEffect(() => { carregar(); }, []);
 
@@ -38,6 +39,7 @@ export default function AdminProdutosPage() {
     const res = await fetch("/api/admin/produtos", { credentials: "include" });
     const d = await res.json().catch(() => null);
     setProdutos(d?.products || []);
+    setPapel(d?.role === "ADMIN" || d?.role === "DISTRIBUIDOR" ? d.role : "");
     setLoading(false);
   }
 
@@ -96,6 +98,7 @@ export default function AdminProdutosPage() {
     await carregar();
   }
 
+  const podeEditar = papel === "ADMIN";
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const moeda = (v: number) => `R$ ${Number(v).toFixed(2)}`;
@@ -114,12 +117,18 @@ export default function AdminProdutosPage() {
             <ShoppingBag className="text-[#C9A66B]" size={26} />
             <div>
               <h1 className="text-2xl font-black uppercase italic">Produtos <span className="text-[#C9A66B]">da Loja</span></h1>
-              <p className="text-zinc-500 text-xs">{produtos.length} produto(s) cadastrados</p>
+              <p className="text-zinc-500 text-xs">
+                {papel === "DISTRIBUIDOR"
+                  ? "Tabela licenciado · consulta de aumentos e descontos"
+                  : `${produtos.length} produto(s) cadastrados`}
+              </p>
             </div>
           </div>
+          {podeEditar && (
           <button onClick={abrirNovo} className="flex items-center gap-2 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest px-5 py-3 rounded-xl transition-all">
             <Plus size={16} /> Novo Produto
           </button>
+          )}
         </div>
 
         {/* BUSCA */}
@@ -139,13 +148,13 @@ export default function AdminProdutosPage() {
                 <tr className="text-[10px] text-zinc-500 uppercase tracking-widest border-b border-zinc-800">
                   <th className="text-left pb-3 pr-4">Produto</th>
                   <th className="text-left pb-3 pr-4">Linha</th>
-                  <th className="text-right pb-3 pr-4">Cabeleireiro</th>
+                  <th className="text-right pb-3 pr-4">{papel === "DISTRIBUIDOR" ? "Licenciado" : "Cabeleireiro"}</th>
                   <th className="text-right pb-3 pr-4">Embaixador</th>
                   <th className="text-right pb-3 pr-4">Distribuidor</th>
                   <th className="text-right pb-3 pr-4">Peso (g)</th>
                   <th className="text-center pb-3 pr-4">Estoque</th>
                   <th className="text-center pb-3 pr-4">Status</th>
-                  <th className="text-center pb-3">Ações</th>
+                  {podeEditar && <th className="text-center pb-3">Ações</th>}
                 </tr>
               </thead>
               <tbody>
@@ -182,11 +191,18 @@ export default function AdminProdutosPage() {
                       </span>
                     </td>
                     <td className="py-3 pr-4 text-center">
+                      {podeEditar ? (
                       <button onClick={() => toggleAtivo(p)} className={`text-[9px] font-black uppercase px-2 py-1 rounded flex items-center gap-1 mx-auto ${p.ativo ? "text-green-400 bg-green-900/20" : "text-zinc-500 bg-zinc-800"}`}>
                         {p.ativo ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
                         {p.ativo ? "ATIVO" : "INATIVO"}
                       </button>
+                      ) : (
+                      <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${p.ativo ? "text-green-400 bg-green-900/20" : "text-zinc-500 bg-zinc-800"}`}>
+                        {p.ativo ? "ATIVO" : "INATIVO"}
+                      </span>
+                      )}
                     </td>
+                    {podeEditar && (
                     <td className="py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button onClick={() => abrirEditar(p)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-all">
@@ -197,6 +213,7 @@ export default function AdminProdutosPage() {
                         </button>
                       </div>
                     </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
