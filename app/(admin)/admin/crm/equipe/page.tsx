@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AdminSidebar from "@/componentes/AdminSidebar";
@@ -10,12 +10,15 @@ import {
   Save, RefreshCw, AlertTriangle, MapPin, Target, ArrowLeft, Kanban, Copy, KeyRound,
 } from "lucide-react";
 import { SENHA_PADRAO_CRM } from "@/lib/crmCadastroMembro";
+import { FAIXA_LINHA, SEM_LINHA, agruparProdutosPorLinha } from "@/lib/gruposLinhaProduto";
 
 type Vendedor = { id: string; full_name: string; email: string | null; whatsapp: string | null };
 type ProdutoPreco = {
   product_id: string;
   title?: string;
+  linha?: string | null;
   preco_cabeleireiro: number;
+  preco_licenciado: number;
   preco_final: number;
   preco_minimo: number;
 };
@@ -96,6 +99,7 @@ export default function CrmEquipePage() {
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
   const [salvandoPrecos, setSalvandoPrecos] = useState(false);
   const [salvandoFaixas, setSalvandoFaixas] = useState(false);
+  const gruposPreco = useMemo(() => agruparProdutosPorLinha(produtos), [produtos]);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -417,49 +421,69 @@ export default function CrmEquipePage() {
           <p className="text-xs text-zinc-500">
             Referência: preço cabeleireiro. Defina o <strong className="text-zinc-300">preço final</strong> (teto) e o <strong className="text-zinc-300">mínimo praticado</strong> que o vendedor pode usar sem aprovação.
           </p>
-          <div className="overflow-x-auto border border-zinc-800 rounded-2xl">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[10px] uppercase text-zinc-500 border-b border-zinc-800">
-                  <th className="text-left p-3">Produto</th>
-                  <th className="text-right p-3">Cabeleireiro</th>
-                  <th className="text-right p-3">Preço final</th>
-                  <th className="text-right p-3">Mínimo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {produtos.map((p, idx) => (
-                  <tr key={p.product_id} className="border-b border-zinc-800/50">
-                    <td className="p-3 text-zinc-300">{p.title}</td>
-                    <td className="p-3 text-right text-zinc-500">{moeda(p.preco_cabeleireiro)}</td>
-                    <td className="p-3 text-right">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={p.preco_final}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          setProdutos((arr) => arr.map((x, i) => (i === idx ? { ...x, preco_final: v } : x)));
-                        }}
-                        className="w-24 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-right text-white"
-                      />
-                    </td>
-                    <td className="p-3 text-right">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={p.preco_minimo}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          setProdutos((arr) => arr.map((x, i) => (i === idx ? { ...x, preco_minimo: v } : x)));
-                        }}
-                        className="w-24 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-right text-white"
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-8">
+            {gruposPreco.map((grupo) => {
+              const faixa = FAIXA_LINHA[grupo.id] || FAIXA_LINHA[SEM_LINHA];
+              return (
+                <section key={grupo.id}>
+                  <div
+                    className="mb-3 flex items-center justify-between rounded-xl px-4 py-3"
+                    style={{ backgroundColor: faixa.bg, color: faixa.fg }}
+                  >
+                    <h2 className="text-sm font-black uppercase tracking-[0.16em]">{grupo.label}</h2>
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
+                      {grupo.items.length} produto{grupo.items.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto border border-zinc-800 rounded-2xl">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-[10px] uppercase text-zinc-500 border-b border-zinc-800">
+                          <th className="text-left p-3">Produto</th>
+                          <th className="text-right p-3">Cabeleireiro</th>
+                          <th className="text-right p-3">Licenciado</th>
+                          <th className="text-right p-3">Preço final</th>
+                          <th className="text-right p-3">Mínimo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {grupo.items.map((p) => (
+                          <tr key={p.product_id} className="border-b border-zinc-800/50">
+                            <td className="p-3 text-zinc-300">{p.title}</td>
+                            <td className="p-3 text-right text-zinc-500">{moeda(p.preco_cabeleireiro)}</td>
+                            <td className="p-3 text-right text-zinc-400">{moeda(p.preco_licenciado || 0)}</td>
+                            <td className="p-3 text-right">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={p.preco_final}
+                                onChange={(e) => {
+                                  const v = Number(e.target.value);
+                                  setProdutos((arr) => arr.map((x) => (x.product_id === p.product_id ? { ...x, preco_final: v } : x)));
+                                }}
+                                className="w-24 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-right text-white"
+                              />
+                            </td>
+                            <td className="p-3 text-right">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={p.preco_minimo}
+                                onChange={(e) => {
+                                  const v = Number(e.target.value);
+                                  setProdutos((arr) => arr.map((x) => (x.product_id === p.product_id ? { ...x, preco_minimo: v } : x)));
+                                }}
+                                className="w-24 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-right text-white"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              );
+            })}
           </div>
           <button type="button" disabled={salvandoPrecos} onClick={salvarPrecos} className="bg-[#C9A66B] text-black font-black uppercase text-xs px-6 py-3 rounded-xl flex items-center gap-2 disabled:opacity-50">
             {salvandoPrecos ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}

@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import { ShoppingBag, Plus, Loader2, Pencil, Trash2, ToggleLeft, ToggleRight, X, Image as ImageIcon, Video } from "lucide-react";
-import { LINHAS_PRODUTO, LINHA_LABEL } from "@/lib/comercialClassificacao";
+import { LINHAS_PRODUTO } from "@/lib/comercialClassificacao";
+import { FAIXA_LINHA, SEM_LINHA, agruparProdutosPorLinha } from "@/lib/gruposLinhaProduto";
 
 type Produto = {
   id: string; title: string; description: string | null; how_to_use: string | null;
@@ -106,6 +107,7 @@ export default function AdminProdutosPage() {
   const filtrados = produtos.filter(p =>
     p.title.toLowerCase().includes(busca.toLowerCase())
   );
+  const grupos = useMemo(() => agruparProdutosPorLinha(filtrados), [filtrados]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
@@ -142,82 +144,98 @@ export default function AdminProdutosPage() {
         ) : filtrados.length === 0 ? (
           <p className="text-zinc-600 text-center mt-20">Nenhum produto encontrado.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[10px] text-zinc-500 uppercase tracking-widest border-b border-zinc-800">
-                  <th className="text-left pb-3 pr-4">Produto</th>
-                  <th className="text-left pb-3 pr-4">Linha</th>
-                  <th className="text-right pb-3 pr-4">{papel === "DISTRIBUIDOR" ? "Licenciado" : "Cabeleireiro"}</th>
-                  <th className="text-right pb-3 pr-4">Embaixador</th>
-                  <th className="text-right pb-3 pr-4">Distribuidor</th>
-                  <th className="text-right pb-3 pr-4">Peso (g)</th>
-                  <th className="text-center pb-3 pr-4">Estoque</th>
-                  <th className="text-center pb-3 pr-4">Status</th>
-                  {podeEditar && <th className="text-center pb-3">Ações</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {filtrados.map(p => (
-                  <tr key={p.id} className={`border-b border-zinc-900 hover:bg-zinc-900/40 transition-colors ${!p.ativo ? "opacity-40" : ""}`}>
-                    <td className="py-3 pr-4">
-                      <div className="flex items-center gap-3">
-                        {p.image_url ? (
-                          <img src={p.image_url} alt={p.title} className="w-10 h-10 rounded-lg object-cover shrink-0" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0">
-                            <ImageIcon size={16} className="text-zinc-600" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-bold text-sm leading-tight">{p.title}</p>
-                          {p.volume && <p className="text-[10px] text-zinc-500">{p.volume}</p>}
-                          {p.video_url && <span className="text-[9px] text-blue-400 flex items-center gap-1"><Video size={9} /> tutorial</span>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 pr-4 text-xs text-zinc-400">
-                      {p.linha ? (LINHA_LABEL[p.linha] || p.linha) : <span className="text-zinc-600">—</span>}
-                    </td>
-                    <td className="py-3 pr-4 text-right font-bold text-[#C9A66B]">{moeda(p.price_hairdresser)}</td>
-                    <td className="py-3 pr-4 text-right text-zinc-300">{moeda(p.price_ambassador)}</td>
-                    <td className="py-3 pr-4 text-right text-zinc-300">{moeda(p.price_distributor)}</td>
-                    <td className="py-3 pr-4 text-right text-zinc-500 text-xs">
-                      {p.peso_gramas && p.peso_gramas > 0 ? p.peso_gramas : "—"}
-                    </td>
-                    <td className="py-3 pr-4 text-center">
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded ${p.stock <= 0 ? "bg-red-900/30 text-red-400" : p.stock <= 5 ? "bg-yellow-900/30 text-yellow-400" : "bg-green-900/20 text-green-400"}`}>
-                        {p.stock}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 text-center">
-                      {podeEditar ? (
-                      <button onClick={() => toggleAtivo(p)} className={`text-[9px] font-black uppercase px-2 py-1 rounded flex items-center gap-1 mx-auto ${p.ativo ? "text-green-400 bg-green-900/20" : "text-zinc-500 bg-zinc-800"}`}>
-                        {p.ativo ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
-                        {p.ativo ? "ATIVO" : "INATIVO"}
-                      </button>
-                      ) : (
-                      <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${p.ativo ? "text-green-400 bg-green-900/20" : "text-zinc-500 bg-zinc-800"}`}>
-                        {p.ativo ? "ATIVO" : "INATIVO"}
-                      </span>
-                      )}
-                    </td>
-                    {podeEditar && (
-                    <td className="py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => abrirEditar(p)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-all">
-                          <Pencil size={13} />
-                        </button>
-                        <button onClick={() => excluir(p.id)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-900/40 text-zinc-300 hover:text-red-400 transition-all">
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-8">
+            {grupos.map((grupo) => {
+              const faixa = FAIXA_LINHA[grupo.id] || FAIXA_LINHA[SEM_LINHA];
+              return (
+                <section key={grupo.id}>
+                  <div
+                    className="mb-3 flex items-center justify-between rounded-xl px-4 py-3"
+                    style={{ backgroundColor: faixa.bg, color: faixa.fg }}
+                  >
+                    <h2 className="text-sm font-black uppercase tracking-[0.16em]">{grupo.label}</h2>
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
+                      {grupo.items.length} produto{grupo.items.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-[10px] text-zinc-500 uppercase tracking-widest border-b border-zinc-800">
+                          <th className="text-left pb-3 pr-4">Produto</th>
+                          <th className="text-right pb-3 pr-4">Cabeleireiro</th>
+                          <th className="text-right pb-3 pr-4">Licenciado</th>
+                          <th className="text-right pb-3 pr-4">Distribuidor</th>
+                          <th className="text-right pb-3 pr-4">Peso (g)</th>
+                          {podeEditar && <th className="text-center pb-3 pr-4">Estoque</th>}
+                          <th className="text-center pb-3 pr-4">Status</th>
+                          {podeEditar && <th className="text-center pb-3">Ações</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {grupo.items.map((p) => (
+                          <tr key={p.id} className={`border-b border-zinc-900 hover:bg-zinc-900/40 transition-colors ${!p.ativo ? "opacity-40" : ""}`}>
+                            <td className="py-3 pr-4">
+                              <div className="flex items-center gap-3">
+                                {p.image_url ? (
+                                  <img src={p.image_url} alt={p.title} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0">
+                                    <ImageIcon size={16} className="text-zinc-600" />
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="font-bold text-sm leading-tight">{p.title}</p>
+                                  {p.volume && <p className="text-[10px] text-zinc-500">{p.volume}</p>}
+                                  {p.video_url && <span className="text-[9px] text-blue-400 flex items-center gap-1"><Video size={9} /> tutorial</span>}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 pr-4 text-right font-bold text-[#C9A66B]">{moeda(p.price_hairdresser)}</td>
+                            <td className="py-3 pr-4 text-right text-zinc-300">{moeda(p.price_ambassador)}</td>
+                            <td className="py-3 pr-4 text-right text-zinc-300">{moeda(p.price_distributor)}</td>
+                            <td className="py-3 pr-4 text-right text-zinc-500 text-xs">
+                              {p.peso_gramas && p.peso_gramas > 0 ? p.peso_gramas : "—"}
+                            </td>
+                            {podeEditar && (
+                            <td className="py-3 pr-4 text-center">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded ${p.stock <= 0 ? "bg-red-900/30 text-red-400" : p.stock <= 5 ? "bg-yellow-900/30 text-yellow-400" : "bg-green-900/20 text-green-400"}`}>
+                                {p.stock}
+                              </span>
+                            </td>
+                            )}
+                            <td className="py-3 pr-4 text-center">
+                              {podeEditar ? (
+                              <button onClick={() => toggleAtivo(p)} className={`text-[9px] font-black uppercase px-2 py-1 rounded flex items-center gap-1 mx-auto ${p.ativo ? "text-green-400 bg-green-900/20" : "text-zinc-500 bg-zinc-800"}`}>
+                                {p.ativo ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                                {p.ativo ? "ATIVO" : "INATIVO"}
+                              </button>
+                              ) : (
+                              <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${p.ativo ? "text-green-400 bg-green-900/20" : "text-zinc-500 bg-zinc-800"}`}>
+                                {p.ativo ? "ATIVO" : "INATIVO"}
+                              </span>
+                              )}
+                            </td>
+                            {podeEditar && (
+                            <td className="py-3 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button onClick={() => abrirEditar(p)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-all">
+                                  <Pencil size={13} />
+                                </button>
+                                <button onClick={() => excluir(p.id)} className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-900/40 text-zinc-300 hover:text-red-400 transition-all">
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              );
+            })}
           </div>
         )}
 
@@ -309,7 +327,7 @@ export default function AdminProdutosPage() {
                       <input type="number" step="0.01" min="0" value={form.price_hairdresser} onChange={e => set("price_hairdresser", e.target.value)} className="input" />
                     </div>
                     <div>
-                      <label className="label text-blue-400">Embaixador</label>
+                      <label className="label text-blue-400">Licenciado</label>
                       <input type="number" step="0.01" min="0" value={form.price_ambassador} onChange={e => set("price_ambassador", e.target.value)} className="input" />
                     </div>
                     <div>

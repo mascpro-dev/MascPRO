@@ -5,6 +5,8 @@ export type TabelaPrecoVendedor = {
   preco_final: number;
   preco_minimo: number;
   preco_cabeleireiro: number;
+  preco_licenciado: number;
+  linha?: string | null;
   title?: string;
 };
 
@@ -14,7 +16,7 @@ export async function carregarTabelaPrecosDistribuidor(
 ): Promise<Map<string, TabelaPrecoVendedor>> {
   const { data: produtos } = await supabase
     .from("products")
-    .select("id, title, price, price_hairdresser, ativo")
+    .select("id, title, price, price_hairdresser, price_ambassador, linha, ativo")
     .eq("ativo", true);
 
   const { data: custom } = await supabase
@@ -35,7 +37,9 @@ export async function carregarTabelaPrecosDistribuidor(
     map.set(p.id, {
       product_id: p.id,
       title: p.title,
+      linha: p.linha || null,
       preco_cabeleireiro: base,
+      preco_licenciado: Number(p.price_ambassador) || 0,
       preco_final,
       preco_minimo: Math.min(preco_minimo, preco_final),
     });

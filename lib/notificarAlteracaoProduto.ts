@@ -3,7 +3,7 @@ import { labelLinha } from "@/lib/comercialClassificacao";
 
 const PRECOS = [
   { key: "price_hairdresser", label: "Licenciado" },
-  { key: "price_ambassador", label: "Embaixador" },
+  { key: "price_ambassador", label: "Licenciado" },
   { key: "price_distributor", label: "Distribuidor" },
 ] as const;
 

@@ -25,7 +25,9 @@ export async function GET(req: NextRequest) {
   const produtos = Array.from(map.values()).map((p) => ({
     product_id: p.product_id,
     title: p.title,
+    linha: p.linha,
     preco_cabeleireiro: p.preco_cabeleireiro,
+    preco_licenciado: p.preco_licenciado,
     preco_final: p.preco_final,
     preco_minimo: p.preco_minimo,
     customizado: p.preco_final !== p.preco_cabeleireiro || p.preco_minimo !== p.preco_cabeleireiro,
