@@ -675,7 +675,7 @@ function FunilView({ data }: { data: Overview }) {
       <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
         <h2 className="text-[15px] font-semibold">Colunas do CRM</h2>
         <p className="text-[12px] text-[#8A847A] mb-4">
-          Foto do pipeline agora. Qualificado, diagnóstico, reativar e não qualificado entram na fase 2.
+          Foto do pipeline: Novo, Em atendimento, Negociação, Fechado, Perdido e Reativar.
         </p>
         <div className="space-y-2.5">
           {data.funil.map((f) => (

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, Search, Plus, MessageCircle, X } from "lucide-react";
 import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
 import {
-  COLUNAS_KANBAN_CRM,
+  COLUNAS_KANBAN_CRM_SIMPLIFICADO as COLUNAS_KANBAN_CRM,
   ORIGENS_LEAD,
   PERFIS_LEAD,
   INTERESSES_LEAD,
@@ -17,6 +17,7 @@ import {
   INTERESSE_LABEL,
   STATUS_LEAD_LABEL,
   statusContaFollowup,
+  normalizarStatusCrmSimplificado,
 } from "@/lib/comercialClassificacao";
 
 type Lead = {
@@ -195,7 +196,7 @@ export default function ComercialPipeline() {
         <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
           <div className="flex gap-3 h-full min-w-max pb-1">
             {COLUNAS_KANBAN_CRM.map((col) => {
-              const lista = leads.filter((l) => l.status === col.key);
+              const lista = leads.filter((l) => normalizarStatusCrmSimplificado(l.status) === col.key);
               const idx = COLUNAS_KANBAN_CRM.findIndex((c) => c.key === col.key);
               const prev = COLUNAS_KANBAN_CRM[idx - 1];
               const next = COLUNAS_KANBAN_CRM[idx + 1];

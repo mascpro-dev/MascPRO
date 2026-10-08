@@ -17,11 +17,12 @@ import {
   type MetasCiclo,
 } from "@/lib/comercialMetricas";
 import {
-  COLUNAS_KANBAN_CRM,
+  COLUNAS_KANBAN_CRM_SIMPLIFICADO,
   LINHAS_PRODUTO,
   STATUS_FUNIL_PRINCIPAL,
   statusContaFollowup,
   statusPipelineAberto,
+  normalizarStatusCrmSimplificado,
 } from "@/lib/comercialClassificacao";
 
 export const dynamic = "force-dynamic";
@@ -442,10 +443,17 @@ export async function GET(req: NextRequest) {
     }))
     .sort((a, b) => b.faturamento - a.faturamento);
 
-  const funil = COLUNAS_KANBAN_CRM.map((c) => ({
+  const funilSoma: Record<string, number> = {};
+  for (const c of COLUNAS_KANBAN_CRM_SIMPLIFICADO) funilSoma[c.key] = 0;
+  for (const [key, n] of Object.entries(pipeline)) {
+    if (typeof n !== "number" || key === "total") continue;
+    const dest = normalizarStatusCrmSimplificado(key);
+    if (dest in funilSoma) funilSoma[dest] += n;
+  }
+  const funil = COLUNAS_KANBAN_CRM_SIMPLIFICADO.map((c) => ({
     key: c.key,
     label: c.label,
-    n: pipeline[c.key as keyof typeof pipeline] as number,
+    n: funilSoma[c.key] || 0,
   }));
 
   function kpi(
@@ -504,11 +512,8 @@ export async function GET(req: NextRequest) {
   const converteTop = quemConverte[0];
   const linhaTop = [...porLinha].filter((l) => l.key !== "_sem").sort((a, b) => b.receita - a.receita)[0];
   const etapasFluxo = STATUS_FUNIL_PRINCIPAL
-    .map((key) => funil.find((f) => f.key === key)!)
-    .filter((f) => {
-      if (["qualificado", "diagnostico"].includes(f.key)) return f.n > 0;
-      return true;
-    });
+    .map((key) => funil.find((f) => f.key === key))
+    .filter((f): f is NonNullable<typeof f> => Boolean(f));
   let gargalo: string = etapasFluxo[0]?.label || "—";
   let maiorQueda = 0;
   for (let i = 1; i < etapasFluxo.length; i++) {

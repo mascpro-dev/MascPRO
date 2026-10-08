@@ -104,7 +104,7 @@ export async function GET(
     ok: true,
     lead: {
       ...lead,
-      status: access.role === "DISTRIBUIDOR" ? normalizarStatusCrmSimplificado(lead.status) : lead.status,
+      status: normalizarStatusCrmSimplificado(lead.status),
     },
     atividades: atividades || [],
     viewer_role: access.role,
@@ -144,9 +144,7 @@ export async function PATCH(
   if ("status" in body) {
     const statusLead = parseStatusLead(body.status, leadAtual?.status || "novo");
     if (!statusLead.ok) return NextResponse.json({ ok: false, error: statusLead.error }, { status: 400 });
-    body.status = access.role === "DISTRIBUIDOR"
-      ? normalizarStatusCrmSimplificado(statusLead.value)
-      : statusLead.value;
+    body.status = normalizarStatusCrmSimplificado(statusLead.value);
   }
   if ("origem" in body) {
     const origem = parseOrigemLead(body.origem, "manual");

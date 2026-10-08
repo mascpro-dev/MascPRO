@@ -150,7 +150,7 @@ export default function LeadDetalhePage() {
   const [buscandoPerfil, setBuscandoPerfil] = useState(false);
   const [convertendo, setConvertendo] = useState(false);
   const [cadastroCriado, setCadastroCriado] = useState(false);
-  const statusOptions = viewerRole === "DISTRIBUIDOR" ? STATUS_CONFIG_SIMPLIFICADO : STATUS_CONFIG;
+  const statusOptions = STATUS_CONFIG_SIMPLIFICADO;
 
   const carregar = useCallback(async () => {
     const res = await fetch(`/api/admin/crm/leads/${id}`, { cache: "no-store" });
@@ -218,9 +218,7 @@ export default function LeadDetalhePage() {
       instagram: lead.instagram || "",
       cidade: lead.cidade || "",
       estado: lead.estado || "",
-      status: viewerRole === "DISTRIBUIDOR"
-        ? normalizarStatusCrmSimplificado(lead.status || "novo")
-        : (lead.status || "novo"),
+      status: normalizarStatusCrmSimplificado(lead.status || "novo"),
       origem: lead.origem || "manual",
       valor_estimado: lead.valor_estimado != null ? String(lead.valor_estimado) : "",
       data_followup: lead.data_followup || "",
@@ -240,9 +238,7 @@ export default function LeadDetalhePage() {
     setSalvando(true);
     setFeedback(null);
     const body: any = { ...form };
-    if (viewerRole === "DISTRIBUIDOR") {
-      body.status = normalizarStatusCrmSimplificado(form.status);
-    }
+    body.status = normalizarStatusCrmSimplificado(form.status);
     body.valor_estimado = form.valor_estimado ? parseFloat(String(form.valor_estimado).replace(",", ".")) : null;
     body.data_followup = form.data_followup || null;
 

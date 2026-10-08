@@ -11,7 +11,6 @@ import {
   MessageCircle, Instagram, AlertCircle, Filter,
 } from "lucide-react";
 import {
-  COLUNAS_KANBAN_CRM,
   COLUNAS_KANBAN_CRM_SIMPLIFICADO,
   ORIGENS_LEAD as ORIGENS,
   PERFIS_LEAD,
@@ -21,6 +20,7 @@ import {
   LINHA_LABEL,
   PERFIL_LABEL,
   statusContaFollowup,
+  normalizarStatusCrmSimplificado,
 } from "@/lib/comercialClassificacao";
 
 // ─── Tipos ────────────────────────────────────────────────
@@ -163,14 +163,14 @@ function LeadCard({
   lead: Lead;
   onMover: (id: string, novoStatus: string) => void;
   onNovoPedido?: (lead: Lead) => void;
-  colunaAtual: (typeof COLUNAS_KANBAN_CRM)[number];
-  colunas: readonly (typeof COLUNAS_KANBAN_CRM)[number][];
+  colunaAtual: (typeof COLUNAS_KANBAN_CRM_SIMPLIFICADO)[number];
+  colunas: readonly (typeof COLUNAS_KANBAN_CRM_SIMPLIFICADO)[number][];
   mostrarDistribuidor?: boolean;
 }) {
   const [movendo, setMovendo] = useState(false);
   const atrasado = followupAtrasado(lead.data_followup);
 
-  const idx = colunas.findIndex((c) => c.key === lead.status);
+  const idx = colunas.findIndex((c) => c.key === normalizarStatusCrmSimplificado(lead.status));
   const proxima = colunas[idx + 1];
   const anterior = colunas[idx - 1];
 
@@ -476,7 +476,6 @@ export default function CrmKanbanPage() {
   const [loading, setLoading] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState("");
   const [aviso, setAviso] = useState("");
-  const [viewerRole, setViewerRole] = useState("");
   const [busca, setBusca] = useState("");
   const [modalNovo, setModalNovo] = useState(false);
   const [leadFechamento, setLeadFechamento] = useState<Lead | null>(null);
@@ -508,7 +507,6 @@ export default function CrmKanbanPage() {
       setLoading(false);
       return;
     }
-    setViewerRole(String(data.viewer_role || "").toUpperCase());
     setLeads(data.leads || []);
     setLoading(false);
   }, [busca, distribuidorSelecionado]);
@@ -566,10 +564,7 @@ export default function CrmKanbanPage() {
     setModalNovo(false);
   }
 
-  const colunasAtivas =
-    viewerRole === "DISTRIBUIDOR"
-      ? COLUNAS_KANBAN_CRM_SIMPLIFICADO
-      : COLUNAS_KANBAN_CRM;
+  const colunasAtivas = COLUNAS_KANBAN_CRM_SIMPLIFICADO;
 
   const followupsHoje = leads.filter(
     (l) => l.data_followup && followupAtrasado(l.data_followup) && statusContaFollowup(l.status)
@@ -665,7 +660,7 @@ export default function CrmKanbanPage() {
           <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
             <div className="flex gap-4 p-4 md:p-6 h-full min-w-max">
               {colunasAtivas.map((col) => {
-                const leadsColuna = leads.filter((l) => l.status === col.key);
+                const leadsColuna = leads.filter((l) => normalizarStatusCrmSimplificado(l.status) === col.key);
                 return (
                   <div
                     key={col.key}

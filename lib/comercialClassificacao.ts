@@ -120,9 +120,6 @@ export const STATUS_EXIGE_PROXIMO_PASSO = ["proposta", "negociacao"] as const;
 export const STATUS_FUNIL_PRINCIPAL = [
   "novo",
   "contato_feito",
-  "qualificado",
-  "diagnostico",
-  "proposta",
   "negociacao",
   "fechado",
 ] as const;

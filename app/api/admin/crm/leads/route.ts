@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
 
   const leads = (data || []).map((lead: any) => ({
     ...lead,
-    status: access.role === "DISTRIBUIDOR" ? normalizarStatusCrmSimplificado(lead.status) : lead.status,
+    status: normalizarStatusCrmSimplificado(lead.status),
   }));
 
   return NextResponse.json({ ok: true, viewer_role: access.role, leads });
@@ -125,9 +125,7 @@ export async function POST(req: NextRequest) {
 
   const statusLead = parseStatusLead(body.status, "novo");
   if (!statusLead.ok) return NextResponse.json({ ok: false, error: statusLead.error }, { status: 400 });
-  const statusFinal = access.role === "DISTRIBUIDOR"
-    ? normalizarStatusCrmSimplificado(statusLead.value)
-    : statusLead.value;
+  const statusFinal = normalizarStatusCrmSimplificado(statusLead.value);
   const origem = parseOrigemLead(body.origem, "manual");
   if (!origem.ok) return NextResponse.json({ ok: false, error: origem.error }, { status: 400 });
   const classif = pickClassificacaoLead(body);
