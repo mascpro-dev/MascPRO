@@ -15,6 +15,7 @@ import {
   processarIndicadorNoFechamento,
 } from "@/lib/crmIndicadorLead";
 import { salvarEnderecoProfileCrm } from "@/lib/profileEnderecoCrm";
+import { aplicarClienteNoFechamento } from "@/lib/crmFechamentoCliente";
 import { montarEnderecoTexto } from "@/lib/profileEndereco";
 
 export const dynamic = "force-dynamic";
@@ -119,6 +120,19 @@ export async function POST(
     lead,
     body.profile_id ? String(body.profile_id) : null
   );
+
+  const cliente = await aplicarClienteNoFechamento(supabase, {
+    profileId,
+    leadId: lead.id,
+    nome: body.cliente_nome,
+    nomeLead: lead.nome,
+    cpf_cnpj: body.cpf_cnpj,
+    telefone: body.telefone || lead.telefone,
+    email: body.email || lead.email,
+  });
+  if (!cliente.ok) {
+    return NextResponse.json({ ok: false, error: cliente.error }, { status: 400 });
+  }
 
   if (profileId) {
     await salvarEnderecoProfile(supabase, profileId, body);

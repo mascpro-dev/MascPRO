@@ -18,7 +18,7 @@ export type PedidoPdfData = {
   desconto_total?: number | null;
   aprovacao_status?: string | null;
   order_items?: PedidoPdfItem[];
-  profiles?: { full_name?: string | null; email?: string | null; whatsapp?: string | null } | null;
+  profiles?: { full_name?: string | null; email?: string | null; whatsapp?: string | null; cpf_cnpj?: string | null } | null;
   crm_leads?: { nome?: string; telefone?: string | null; email?: string | null; cidade?: string | null; estado?: string | null } | null;
   vendedor_nome?: string | null;
   distribuidor_nome?: string | null;
@@ -62,9 +62,16 @@ export function montarHtmlPedidoCliente(pedido: PedidoPdfData): string {
   const lead = pedido.crm_leads;
   const perfil = pedido.profiles;
   const clienteNome =
-    lead?.nome || perfil?.full_name || "Cliente";
-  const clienteTel = lead?.telefone || perfil?.whatsapp || "";
-  const clienteEmail = lead?.email || perfil?.email || "";
+    perfil?.full_name || lead?.nome || "Cliente";
+  const clienteTel = perfil?.whatsapp || lead?.telefone || "";
+  const clienteEmail = perfil?.email || lead?.email || "";
+  const doc = String(perfil?.cpf_cnpj || "").replace(/\D/g, "");
+  const clienteDoc =
+    doc.length === 11
+      ? doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
+      : doc.length === 14
+        ? doc.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")
+        : "";
   const clienteCidade = [lead?.cidade, lead?.estado].filter(Boolean).join(" / ");
 
   const itens = (pedido.order_items || [])
@@ -111,6 +118,7 @@ export function montarHtmlPedidoCliente(pedido: PedidoPdfData): string {
       <td style="vertical-align:top;width:50%">
         <p style="margin:0 0 6px;font-size:11px;color:#888;text-transform:uppercase;font-weight:bold">Cliente</p>
         <p style="margin:0;font-size:16px;font-weight:bold">${clienteNome}</p>
+        ${clienteDoc ? `<p style="margin:4px 0 0;color:#444">${doc.length === 14 ? "CNPJ" : "CPF"}: ${clienteDoc}</p>` : ""}
         ${clienteTel ? `<p style="margin:4px 0 0;color:#444">${clienteTel}</p>` : ""}
         ${clienteEmail ? `<p style="margin:2px 0 0;color:#444">${clienteEmail}</p>` : ""}
         ${clienteCidade ? `<p style="margin:2px 0 0;color:#666">${clienteCidade}</p>` : ""}

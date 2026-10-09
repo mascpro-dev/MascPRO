@@ -78,6 +78,8 @@ export async function POST(
   const resultado = await criarMembroDeLead(supabase, {
     lead: { ...lead, indicador_id: indicadorId ?? lead.indicador_id },
     email: body.email ? String(body.email) : undefined,
+    nomeCliente: body.nome ? String(body.nome) : undefined,
+    cpfCnpj: body.cpf_cnpj,
     indicadoPor: indicadorId,
     closingUserId: userId,
     vincularLead: true,
@@ -87,7 +89,7 @@ export async function POST(
     if (resultado.profile_id) {
       const { data: perfil } = await supabase
         .from("profiles")
-        .select("id, full_name, email, role, cep, address, number, complement, neighborhood, city, state, logradouro, numero, complemento, bairro, municipio, uf")
+        .select("id, full_name, email, role, whatsapp, cpf_cnpj, cep, address, number, complement, neighborhood, city, state, logradouro, numero, complemento, bairro, municipio, uf")
         .eq("id", resultado.profile_id)
         .maybeSingle();
       return NextResponse.json({
@@ -110,7 +112,7 @@ export async function POST(
 
   const { data: perfil } = await supabase
     .from("profiles")
-    .select("id, full_name, email, role, cep, address, number, complement, neighborhood, city, state, logradouro, numero, complemento, bairro, municipio, uf")
+    .select("id, full_name, email, role, whatsapp, cpf_cnpj, cep, address, number, complement, neighborhood, city, state, logradouro, numero, complemento, bairro, municipio, uf")
     .eq("id", resultado.profile_id)
     .maybeSingle();
 

@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       .from("orders")
       .select(
         `*,
-        profiles!orders_profile_id_fkey(full_name, nivel, avatar_url, email),
+        profiles!orders_profile_id_fkey(full_name, nivel, avatar_url, email, whatsapp, cpf_cnpj),
         order_items(quantidade, preco_unitario, bonificado, products(title, linha))`
       )
       .order("created_at", { ascending: false })
@@ -99,7 +99,76 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, pedidos });
+    const leadIds = [
+      ...new Set(
+        pedidos
+          .map((p) => (p as { crm_lead_id?: string | null }).crm_lead_id)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+    const leadsPorId = new Map<
+      string,
+      { nome: string | null; telefone: string | null; email: string | null }
+    >();
+    if (leadIds.length > 0) {
+      const { data: leads } = await supabase
+        .from("crm_leads")
+        .select("id, nome, telefone, email")
+        .in("id", leadIds);
+      for (const lead of leads || []) {
+        leadsPorId.set(lead.id, lead);
+      }
+    }
+
+    const pedidosComCliente = [];
+    for (const bruto of pedidos) {
+      const p = bruto as typeof bruto & {
+        profile_id?: string | null;
+        crm_lead_id?: string | null;
+        profiles?: {
+          full_name?: string | null;
+          nivel?: string | null;
+          avatar_url?: string | null;
+          email?: string | null;
+          whatsapp?: string | null;
+          cpf_cnpj?: string | null;
+        } | null;
+      };
+      const lead = p.crm_lead_id ? leadsPorId.get(p.crm_lead_id) : undefined;
+      const perfil = p.profiles;
+      const nomePerfil = String(perfil?.full_name || "").trim();
+      const nomeLead = String(lead?.nome || "").trim();
+      const nome = nomePerfil || nomeLead;
+      const email = String(perfil?.email || "").trim() || lead?.email || null;
+      const whatsapp = String(perfil?.whatsapp || "").trim() || lead?.telefone || null;
+
+      if (p.profile_id && perfil) {
+        const patch: Record<string, string> = {};
+        if (!nomePerfil && nomeLead) patch.full_name = nomeLead;
+        if (!String(perfil.whatsapp || "").trim() && lead?.telefone) {
+          patch.whatsapp = lead.telefone;
+        }
+        if (Object.keys(patch).length > 0) {
+          await supabase.from("profiles").update(patch).eq("id", p.profile_id);
+        }
+      }
+
+      pedidosComCliente.push({
+        ...p,
+        profiles: nome || perfil
+          ? {
+              full_name: nome,
+              nivel: perfil?.nivel || null,
+              avatar_url: perfil?.avatar_url || null,
+              email,
+              whatsapp,
+              cpf_cnpj: perfil?.cpf_cnpj || null,
+            }
+          : perfil,
+      });
+    }
+
+    return NextResponse.json({ ok: true, pedidos: pedidosComCliente });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno.";
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

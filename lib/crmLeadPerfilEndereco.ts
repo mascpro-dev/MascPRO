@@ -17,7 +17,7 @@ export async function resolverPerfilEnderecoDoLead(
     nome?: string | null;
   }
 ) {
-  const select = `id, full_name, email, role, whatsapp, ${PROFILE_ENDERECO_SELECT}`;
+  const select = `id, full_name, email, role, whatsapp, cpf_cnpj, ${PROFILE_ENDERECO_SELECT}`;
 
   if (lead.profile_id) {
     const { data } = await supabase

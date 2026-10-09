@@ -48,7 +48,7 @@ export async function carregarPedidoParaPdf(
       shipping_cost, shipping_cep, shipping_address,
       desconto_total, aprovacao_status, vendedor_id,
       distribuidor_gestor_id, gestor_tipo, crm_lead_id,
-      profiles!orders_profile_id_fkey(full_name, email, whatsapp),
+      profiles!orders_profile_id_fkey(full_name, email, whatsapp, cpf_cnpj),
       crm_leads!crm_lead_id(nome, telefone, email, cidade, estado),
       order_items(product_id, quantidade, preco_unitario, bonificado, preco_tabela, products(id, title))
     `)

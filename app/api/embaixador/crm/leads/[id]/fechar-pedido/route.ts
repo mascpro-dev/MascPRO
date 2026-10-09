@@ -11,6 +11,7 @@ import { atualizarComoPago } from "@/lib/pedidoAtivo";
 import { calcularTotalPedidoCrm, parseDescontoFinalBody } from "@/lib/crmPedidoTotal";
 import { processarIndicadorNoFechamento } from "@/lib/crmIndicadorLead";
 import { salvarEnderecoProfileCrm } from "@/lib/profileEnderecoCrm";
+import { aplicarClienteNoFechamento } from "@/lib/crmFechamentoCliente";
 
 export const dynamic = "force-dynamic";
 
@@ -91,7 +92,7 @@ export async function POST(
 
   const { data: lead, error: errLead } = await supabase
     .from("crm_leads")
-    .select("id, nome, email, status, profile_id, order_id, responsavel_id, indicador_id")
+    .select("id, nome, email, telefone, status, profile_id, order_id, responsavel_id, indicador_id")
     .eq("id", params.id)
     .maybeSingle();
 
@@ -117,17 +118,20 @@ export async function POST(
     body.profile_id ? String(body.profile_id) : null
   );
 
-  if (!profileId) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Vincule ou crie o cadastro da pessoa antes de registrar o pedido.",
-      },
-      { status: 400 }
-    );
+  const cliente = await aplicarClienteNoFechamento(supabase, {
+    profileId,
+    leadId: lead.id,
+    nome: body.cliente_nome,
+    nomeLead: lead.nome,
+    cpf_cnpj: body.cpf_cnpj,
+    telefone: body.telefone || lead.telefone,
+    email: body.email || lead.email,
+  });
+  if (!cliente.ok) {
+    return NextResponse.json({ ok: false, error: cliente.error }, { status: 400 });
   }
 
-  await salvarEnderecoProfile(supabase, profileId, body);
+  await salvarEnderecoProfile(supabase, profileId!, body);
 
   const indicadorProc = await processarIndicadorNoFechamento(supabase, {
     lead,

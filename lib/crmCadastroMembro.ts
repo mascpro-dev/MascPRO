@@ -1,4 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  gravarIdentidadeClienteNoPerfil,
+  validarCpfCnpjOpcional,
+} from "@/lib/crmFechamentoCliente";
 
 export const SENHA_PADRAO_CRM = "1234567890";
 
@@ -44,10 +48,18 @@ export async function criarMembroDeLead(
     closingUserId: string;
     vincularLead?: boolean;
     roleMembro?: RoleMembroCrm;
+    nomeCliente?: string;
+    cpfCnpj?: unknown;
   }
 ): Promise<ResultadoCadastroLead> {
   const { lead, closingUserId, vincularLead = true } = params;
   const roleMembro = params.roleMembro || "CLIENTE";
+  const nome = String(params.nomeCliente || lead.nome || "").trim();
+  if (!nome) {
+    return { ok: false, error: "Informe o nome do cliente." };
+  }
+  const cpfCheck = validarCpfCnpjOpcional(params.cpfCnpj);
+  if (!cpfCheck.ok) return { ok: false, error: cpfCheck.error };
 
   if (lead.profile_id) {
     return {
@@ -77,9 +89,21 @@ export async function criarMembroDeLead(
     if (vincularLead) {
       await supabase
         .from("crm_leads")
-        .update({ profile_id: existente.id })
+        .update({ profile_id: existente.id, nome })
         .eq("id", lead.id);
     }
+    const preenchido = await gravarIdentidadeClienteNoPerfil(
+      supabase,
+      existente.id,
+      {
+        nome,
+        cpf_cnpj: cpfCheck.cpf,
+        telefone: lead.telefone,
+        email,
+      },
+      { somenteSeVazio: true }
+    );
+    if (!preenchido.ok) return { ok: false, error: preenchido.error };
     return {
       ok: false,
       error: `Este e-mail já está cadastrado (${existente.full_name || existente.email}). Lead vinculado automaticamente.`,
@@ -91,7 +115,7 @@ export async function criarMembroDeLead(
     email,
     password: SENHA_PADRAO_CRM,
     email_confirm: true,
-    user_metadata: { full_name: lead.nome.trim() },
+    user_metadata: { full_name: nome },
   });
 
   if (authErr || !authData.user) {
@@ -111,7 +135,8 @@ export async function criarMembroDeLead(
   const profileRow: Record<string, unknown> = {
     id: userId,
     email,
-    full_name: lead.nome.trim(),
+    full_name: nome,
+    cpf_cnpj: cpfCheck.cpf,
     whatsapp: lead.telefone?.trim() || null,
     instagram: lead.instagram?.trim() || null,
     city: lead.cidade?.trim() || null,
@@ -135,6 +160,7 @@ export async function criarMembroDeLead(
     delete fallback.onboarding_completed;
     delete fallback.municipio;
     delete fallback.uf;
+    delete fallback.cpf_cnpj;
     const retry = await supabase
       .from("profiles")
       .upsert(fallback, { onConflict: "id" });
@@ -149,7 +175,7 @@ export async function criarMembroDeLead(
   if (vincularLead) {
     await supabase
       .from("crm_leads")
-      .update({ profile_id: userId })
+      .update({ profile_id: userId, nome })
       .eq("id", lead.id);
   }
 
@@ -158,6 +184,6 @@ export async function criarMembroDeLead(
     profile_id: userId,
     email,
     senha_temporaria: SENHA_PADRAO_CRM,
-    full_name: lead.nome.trim(),
+    full_name: nome,
   };
 }

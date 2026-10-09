@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
 import {
-  assertEmbaixadoraCrmAccess,
-  podeAcessarLeadEmbaixadora,
-} from "@/lib/crmEmbaixadoraServer";
-import { criarMembroDeLead, type RoleMembroCrm } from "@/lib/crmCadastroMembro";
+  assertVendedorCrmAccess,
+  podeAcessarLeadVendedor,
+} from "@/lib/crmVendedorServer";
+import { criarMembroDeLead } from "@/lib/crmCadastroMembro";
 import {
   parseIndicadorIdBody,
   resolverIndicadorId,
@@ -14,6 +14,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const PERFIL_SELECT =
+  "id, full_name, email, role, whatsapp, cpf_cnpj, cep, address, number, complement, neighborhood, city, state, logradouro, numero, complemento, bairro, municipio, uf";
+
+/** Cria o cadastro do cliente a partir do lead do vendedor (nome, CPF e acesso). */
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -23,27 +27,24 @@ export async function POST(
     return NextResponse.json({ ok: false, error: authErr }, { status });
   }
 
-  const access = await assertEmbaixadoraCrmAccess(supabase, userId);
+  const access = await assertVendedorCrmAccess(supabase, userId);
   if (!access.ok) {
     return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
   }
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json(
-      { ok: false, error: "Cadastro indisponível no momento." },
+      { ok: false, error: "Criação de cadastro requer SUPABASE_SERVICE_ROLE_KEY no servidor." },
       { status: 500 }
     );
   }
 
-  const permitido = await podeAcessarLeadEmbaixadora(supabase, params.id, userId);
+  const permitido = await podeAcessarLeadVendedor(supabase, params.id, userId);
   if (!permitido) {
     return NextResponse.json({ ok: false, error: "Sem acesso a este lead." }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));
-  const roleRaw = String(body.role_membro || "CABELEIREIRO").toUpperCase();
-  const roleMembro: RoleMembroCrm =
-    roleRaw === "EMBAIXADOR" ? "EMBAIXADOR" : "CABELEIREIRO";
 
   const { data: lead, error: errLead } = await supabase
     .from("crm_leads")
@@ -64,11 +65,12 @@ export async function POST(
   const indicadorId = resolverIndicadorId(lead, bodyIndicadorId, userId);
 
   if (indicadorId) {
-    const permitido = await indicadorPermitidoParaContexto(supabase, indicadorId, {
-      viewerRole: "EMBAIXADOR",
+    const okIndicador = await indicadorPermitidoParaContexto(supabase, indicadorId, {
+      viewerRole: "VENDEDOR",
       viewerId: userId,
+      distribuidorId: access.distribuidor_id,
     });
-    if (!permitido) {
+    if (!okIndicador) {
       return NextResponse.json(
         { ok: false, error: "Indicador selecionado não permitido." },
         { status: 400 }
@@ -82,17 +84,16 @@ export async function POST(
     email: body.email ? String(body.email) : undefined,
     nomeCliente: body.nome ? String(body.nome) : undefined,
     cpfCnpj: body.cpf_cnpj,
-    closingUserId: userId,
     indicadoPor: indicadorId,
+    closingUserId: userId,
     vincularLead: true,
-    roleMembro,
   });
 
   if (!resultado.ok) {
     if (resultado.profile_id) {
       const { data: perfil } = await supabase
         .from("profiles")
-        .select("id, full_name, email, role, whatsapp, cpf_cnpj, cep, address, number, complement, neighborhood, city, state, logradouro, numero, complemento, bairro, municipio, uf")
+        .select(PERFIL_SELECT)
         .eq("id", resultado.profile_id)
         .maybeSingle();
       return NextResponse.json({
@@ -110,12 +111,12 @@ export async function POST(
     lead_id: lead.id,
     autor_id: userId,
     tipo: "nota",
-    conteudo: `Cadastro ${roleMembro} criado (${resultado.email}). Senha temporária: ${resultado.senha_temporaria}.`,
+    conteudo: `Cadastro criado no app (${resultado.email}). Senha temporária: ${resultado.senha_temporaria} — oriente a cliente a alterar no primeiro acesso.`,
   });
 
   const { data: perfil } = await supabase
     .from("profiles")
-    .select("id, full_name, email, role, whatsapp, cpf_cnpj, cep, address, number, complement, neighborhood, city, state, logradouro, numero, complemento, bairro, municipio, uf")
+    .select(PERFIL_SELECT)
     .eq("id", resultado.profile_id)
     .maybeSingle();
 
@@ -124,7 +125,6 @@ export async function POST(
     profile_id: resultado.profile_id,
     email: resultado.email,
     senha_temporaria: resultado.senha_temporaria,
-    role_membro: roleMembro,
     perfil,
   });
 }

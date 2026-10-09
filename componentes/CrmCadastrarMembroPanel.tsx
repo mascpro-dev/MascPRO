@@ -4,10 +4,27 @@ import ErroComVoltar from "@/componentes/ErroComVoltar";
 import { UserPlus, Loader2, KeyRound, Copy, CheckCircle2 } from "lucide-react";
 import { SENHA_PADRAO_CRM } from "@/lib/crmCadastroMembro";
 
+function mascaraCpfCnpj(valor: string): string {
+  const d = valor.replace(/\D/g, "").slice(0, 14);
+  if (d.length <= 11) {
+    return d
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  }
+  return d
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+}
+
 type PerfilCriado = {
   id: string;
   full_name: string | null;
   email: string | null;
+  whatsapp?: string | null;
+  cpf_cnpj?: string | null;
   role: string | null;
   cep?: string | null;
   logradouro?: string | null;
@@ -43,6 +60,8 @@ export default function CrmCadastrarMembroPanel({
   accent = "gold",
   indicadorId = null,
 }: Props) {
+  const [nomeCadastro, setNomeCadastro] = useState(nome || "");
+  const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState(emailInicial || "");
   const [tipoMembro, setTipoMembro] = useState<"CABELEIREIRO" | "EMBAIXADOR">("CABELEIREIRO");
   const accentColor = "#C9A66B";
@@ -59,12 +78,23 @@ export default function CrmCadastrarMembroPanel({
 
   async function criarCadastro() {
     setErro("");
+    if (!nomeCadastro.trim()) {
+      setErro("Informe o nome do cliente.");
+      return;
+    }
+    const digitos = cpf.replace(/\D/g, "");
+    if (digitos && digitos.length !== 11 && digitos.length !== 14) {
+      setErro("CPF deve ter 11 dígitos ou CNPJ 14 dígitos.");
+      return;
+    }
     setCriando(true);
     try {
       const res = await fetch(`${apiBase}/leads/${leadId}/cadastrar-membro`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          nome: nomeCadastro.trim(),
+          cpf_cnpj: cpf.replace(/\D/g, ""),
           email: email.trim(),
           indicador_id: indicadorId,
           ...(permitirTipoMembro ? { role_membro: tipoMembro } : {}),
@@ -170,6 +200,29 @@ export default function CrmCadastrarMembroPanel({
           ))}
         </div>
       )}
+      <div>
+        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+          Nome do cliente *
+        </label>
+        <input
+          value={nomeCadastro}
+          onChange={(e) => setNomeCadastro(e.target.value)}
+          placeholder="Nome que aparece no pedido"
+          className={inputClass}
+        />
+      </div>
+      <div>
+        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+          CPF / CNPJ
+        </label>
+        <input
+          value={cpf}
+          onChange={(e) => setCpf(mascaraCpfCnpj(e.target.value))}
+          placeholder="000.000.000-00"
+          inputMode="numeric"
+          className={inputClass}
+        />
+      </div>
       {erro && (
         <ErroComVoltar
           compacto
@@ -193,7 +246,7 @@ export default function CrmCadastrarMembroPanel({
       <button
         type="button"
         onClick={criarCadastro}
-        disabled={criando || !email.trim()}
+        disabled={criando || !email.trim() || !nomeCadastro.trim()}
         className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 border border-zinc-700 text-white font-black uppercase text-[10px] tracking-widest py-2.5 rounded-xl flex items-center justify-center gap-2"
       >
         {criando ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}

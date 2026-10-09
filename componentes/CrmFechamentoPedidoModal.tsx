@@ -66,6 +66,8 @@ type PerfilEndereco = {
   id: string;
   full_name: string | null;
   email?: string | null;
+  whatsapp?: string | null;
+  cpf_cnpj?: string | null;
   role: string | null;
   cep: string | null;
   logradouro: string | null;
@@ -75,6 +77,21 @@ type PerfilEndereco = {
   municipio: string | null;
   uf: string | null;
 };
+
+function mascaraCpfCnpj(valor: string): string {
+  const d = valor.replace(/\D/g, "").slice(0, 14);
+  if (d.length <= 11) {
+    return d
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  }
+  return d
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+}
 
 const PAGAMENTOS = ["pix", "dinheiro", "cartao", "boleto", "transferencia", "manual"];
 const PAGAMENTOS_VENDEDOR = [...PAGAMENTOS, "consignado"];
@@ -129,6 +146,10 @@ export default function CrmFechamentoPedidoModal({
   const [pagamento, setPagamento] = useState("pix");
   const [confirmarPagamento, setConfirmarPagamento] = useState(false);
 
+  const [clienteNome, setClienteNome] = useState(lead.nome || "");
+  const [clienteCpf, setClienteCpf] = useState("");
+  const [clienteTelefone, setClienteTelefone] = useState(lead.telefone || "");
+  const [clienteEmail, setClienteEmail] = useState(lead.email || "");
   const [cep, setCep] = useState("");
   const [logradouro, setLogradouro] = useState("");
   const [numero, setNumero] = useState("");
@@ -260,6 +281,10 @@ export default function CrmFechamentoPedidoModal({
     state?: string | null;
   }) {
     setPerfilVinculado(p);
+    if (p.full_name?.trim()) setClienteNome(p.full_name.trim());
+    if (p.cpf_cnpj) setClienteCpf(mascaraCpfCnpj(p.cpf_cnpj));
+    if (p.whatsapp?.trim()) setClienteTelefone(p.whatsapp.trim());
+    if (p.email?.trim()) setClienteEmail(p.email.trim());
     const cepV = p.cep || "";
     const rua = p.logradouro || p.address || "";
     const num = p.numero || p.number || "";
@@ -355,6 +380,15 @@ export default function CrmFechamentoPedidoModal({
       setErro("Adicione pelo menos um produto.");
       return;
     }
+    if (!clienteNome.trim()) {
+      setErro("Informe o nome do cliente.");
+      return;
+    }
+    const cpfDigitos = clienteCpf.replace(/\D/g, "");
+    if (cpfDigitos.length !== 11 && cpfDigitos.length !== 14) {
+      setErro("Informe o CPF (11 dígitos) ou CNPJ (14 dígitos) do cliente.");
+      return;
+    }
     if (!cep.trim() || !logradouro.trim()) {
       setErro("CEP e logradouro são obrigatórios para salvar o endereço.");
       return;
@@ -368,6 +402,10 @@ export default function CrmFechamentoPedidoModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           profile_id: perfilVinculado?.id || lead.profile_id || null,
+          cliente_nome: clienteNome.trim(),
+          cpf_cnpj: cpfDigitos,
+          telefone: clienteTelefone.trim(),
+          email: clienteEmail.trim(),
           items: itens.map((i) => ({
             product_id: i.product_id,
             quantidade: i.quantidade,
@@ -812,6 +850,52 @@ export default function CrmFechamentoPedidoModal({
                     ))}
                   </ul>
                 )}
+              </div>
+
+              <div>
+                <p className={labelClass}>
+                  <UserRound size={12} className="inline mr-1" />
+                  Dados do cliente (vão para o cadastro e para Pedidos da Loja)
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className={labelClass}>Nome *</label>
+                    <input
+                      value={clienteNome}
+                      onChange={(e) => setClienteNome(e.target.value)}
+                      className={inputClass}
+                      placeholder="Nome do cadastro"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>CPF / CNPJ *</label>
+                    <input
+                      value={clienteCpf}
+                      onChange={(e) => setClienteCpf(mascaraCpfCnpj(e.target.value))}
+                      className={inputClass}
+                      placeholder="000.000.000-00"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Telefone</label>
+                    <input
+                      value={clienteTelefone}
+                      onChange={(e) => setClienteTelefone(e.target.value)}
+                      className={inputClass}
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className={labelClass}>E-mail</label>
+                    <input
+                      value={clienteEmail}
+                      onChange={(e) => setClienteEmail(e.target.value)}
+                      className={inputClass}
+                      placeholder="email@exemplo.com"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>

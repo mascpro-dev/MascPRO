@@ -33,7 +33,14 @@ type Pedido = {
   parcelas?: number | null;
   created_at: string;
   eh_kit_home_care?: boolean | null;
-  profiles: { full_name: string; nivel: string; avatar_url?: string | null } | null;
+  profiles: {
+    full_name: string;
+    nivel: string;
+    avatar_url?: string | null;
+    email?: string | null;
+    whatsapp?: string | null;
+    cpf_cnpj?: string | null;
+  } | null;
   order_items: {
     quantidade: number;
     preco_unitario: number;
@@ -210,6 +217,13 @@ export default function AdminPedidosPage() {
     await carregarPedidos();
     setModalTracking(null);
     setSalvandoTracking(false);
+  }
+
+  function formatarDocumento(valor?: string | null) {
+    const d = String(valor || "").replace(/\D/g, "");
+    if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    return "";
   }
 
   function pagamentoLabel(metodo: string) {
@@ -777,6 +791,21 @@ export default function AdminPedidosPage() {
                         <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
                           {pedido.profiles?.nivel || "cabeleireiro"} · {new Date(pedido.created_at).toLocaleDateString("pt-BR")}
                         </p>
+                        {formatarDocumento(pedido.profiles?.cpf_cnpj) && (
+                          <p className="text-[10px] text-zinc-500 mt-1">
+                            CPF/CNPJ: <span className="text-zinc-300">{formatarDocumento(pedido.profiles?.cpf_cnpj)}</span>
+                          </p>
+                        )}
+                        {pedido.profiles?.whatsapp && (
+                          <p className="text-[10px] text-zinc-500 mt-1">
+                            Tel: <span className="text-zinc-300">{pedido.profiles.whatsapp}</span>
+                          </p>
+                        )}
+                        {pedido.profiles?.email && (
+                          <p className="text-[10px] text-zinc-500 mt-1">
+                            E-mail: <span className="text-zinc-300">{pedido.profiles.email}</span>
+                          </p>
+                        )}
                         {pedido.mp_payment_id && (
                           <p className="text-[10px] text-zinc-600 font-mono mt-1">MP #{pedido.mp_payment_id}</p>
                         )}
