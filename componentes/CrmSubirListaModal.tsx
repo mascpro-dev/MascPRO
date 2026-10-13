@@ -84,7 +84,7 @@ export default function CrmSubirListaModal({ api, tema, onClose, onImportado }: 
         </div>
 
         <p className={`text-[11px] mb-3 ${muted}`}>
-          Colunas: nome, telefone, email, cidade, estado. A primeira linha pode ser o título. Só o nome é obrigatório.
+          Aceita a planilha com Nome, Tipo, Endereço, Número, Complemento, Bairro, Telefone, Cidade, UF, CEP, Telefone 1, Telefone 2 e Email. Só o nome é obrigatório.
         </p>
 
         <label className={`mb-3 inline-flex items-center gap-2 text-xs font-bold cursor-pointer ${escuro ? "text-[#C9A66B]" : "text-[#8A6A32]"}`}>
@@ -109,7 +109,7 @@ export default function CrmSubirListaModal({ api, tema, onClose, onImportado }: 
             setResumo("");
           }}
           rows={8}
-          placeholder={"nome;telefone;email;cidade;estado\nMaria Silva;67999999999;maria@email.com;Corumbá;MS"}
+          placeholder={"Nome;Tipo;Endereço;Número;Complemento;Bairro;Telefone;Cidade;UF;CEP;Telefone 1;Telefone 2;Email"}
           className={campo}
         />
 

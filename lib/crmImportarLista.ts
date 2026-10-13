@@ -14,7 +14,23 @@ export type LeadLista = {
 
 export type LinhaIgnorada = { linha: number; motivo: string };
 
-type Campo = "nome" | "telefone" | "email" | "cidade" | "estado" | "empresa" | "instagram" | "notas";
+type Campo =
+  | "nome"
+  | "telefone"
+  | "telefone_1"
+  | "telefone_2"
+  | "email"
+  | "cidade"
+  | "estado"
+  | "empresa"
+  | "instagram"
+  | "notas"
+  | "tipo"
+  | "endereco"
+  | "numero"
+  | "complemento"
+  | "bairro"
+  | "cep";
 
 const ALIAS: Record<string, Campo> = {
   nome: "nome",
@@ -25,6 +41,14 @@ const ALIAS: Record<string, Campo> = {
   celular: "telefone",
   fone: "telefone",
   phone: "telefone",
+  "telefone 1": "telefone_1",
+  telefone1: "telefone_1",
+  "fone 1": "telefone_1",
+  "celular 1": "telefone_1",
+  "telefone 2": "telefone_2",
+  telefone2: "telefone_2",
+  "fone 2": "telefone_2",
+  "celular 2": "telefone_2",
   email: "email",
   "e-mail": "email",
   cidade: "cidade",
@@ -38,6 +62,16 @@ const ALIAS: Record<string, Campo> = {
   notas: "notas",
   obs: "notas",
   observacao: "notas",
+  tipo: "tipo",
+  endereco: "endereco",
+  logradouro: "endereco",
+  rua: "endereco",
+  numero: "numero",
+  "nº": "numero",
+  "n°": "numero",
+  complemento: "complemento",
+  bairro: "bairro",
+  cep: "cep",
 };
 
 function semAcento(v: string): string {
@@ -126,12 +160,20 @@ export function parseListaLeads(texto: string): {
     const rec: Record<Campo, string | null> = {
       nome: null,
       telefone: null,
+      telefone_1: null,
+      telefone_2: null,
       email: null,
       cidade: null,
       estado: null,
       empresa: null,
       instagram: null,
       notas: null,
+      tipo: null,
+      endereco: null,
+      numero: null,
+      complemento: null,
+      bairro: null,
+      cep: null,
     };
     if (temCabecalho) {
       primeira.forEach((h, idx) => {
@@ -151,7 +193,9 @@ export function parseListaLeads(texto: string): {
       continue;
     }
 
-    const tel = rec.telefone?.replace(/[^\d+]/g, "") || "";
+    const fones = [rec.telefone, rec.telefone_1, rec.telefone_2].filter((t): t is string => Boolean(t));
+    const telefone = fones[0] || null;
+    const tel = telefone?.replace(/[^\d+]/g, "") || "";
     const chave = `${semAcento(nome.toLowerCase())}|${tel}`;
     if (vistos.has(chave)) {
       ignoradas.push({ linha: item.n, motivo: "repetido na lista" });
@@ -160,15 +204,34 @@ export function parseListaLeads(texto: string): {
     vistos.add(chave);
 
     const uf = rec.estado ? rec.estado.trim() : null;
+    const extras = fones.slice(1).filter((t) => t.replace(/\D/g, "") !== tel);
+    const endereco = [
+      rec.endereco,
+      rec.numero ? `nº ${rec.numero}` : null,
+      rec.complemento,
+      rec.bairro,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    const notas = [
+      rec.tipo ? `Tipo: ${rec.tipo}` : null,
+      endereco ? `Endereço: ${endereco}` : null,
+      rec.cep ? `CEP: ${rec.cep}` : null,
+      extras.length ? `Outros telefones: ${extras.join(" · ")}` : null,
+      rec.notas,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
     leads.push({
       nome: nome.slice(0, 180),
-      telefone: rec.telefone,
+      telefone,
       email: rec.email ? rec.email.toLowerCase() : null,
       cidade: rec.cidade,
       estado: uf && uf.length === 2 ? uf.toUpperCase() : uf,
       empresa: rec.empresa,
       instagram: rec.instagram,
-      notas: rec.notas,
+      notas: notas || null,
       linha: item.n,
     });
   }
