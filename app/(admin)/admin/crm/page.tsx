@@ -7,7 +7,7 @@ import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import ErroComVoltar from "@/componentes/ErroComVoltar";
 import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
 import {
-  Kanban, Plus, Loader2, Search, Upload, X, ChevronRight, ChevronDown,
+  Kanban, Plus, Loader2, Search, Upload, Trash2, X, ChevronRight, ChevronDown,
   Mail, Building2, Calendar, User, DollarSign,
   MessageCircle, Instagram, AlertCircle, Filter,
 } from "lucide-react";
@@ -480,6 +480,8 @@ export default function CrmKanbanPage() {
   const [busca, setBusca] = useState("");
   const [modalNovo, setModalNovo] = useState(false);
   const [modalLista, setModalLista] = useState(false);
+  const [papel, setPapel] = useState("");
+  const [apagandoLista, setApagandoLista] = useState(false);
   const [leadFechamento, setLeadFechamento] = useState<Lead | null>(null);
   const [modalPedidoKey, setModalPedidoKey] = useState(0);
 
@@ -510,6 +512,7 @@ export default function CrmKanbanPage() {
       return;
     }
     setLeads(data.leads || []);
+    setPapel(String(data.viewer_role || ""));
     setLoading(false);
   }, [busca, distribuidorSelecionado]);
 
@@ -518,6 +521,46 @@ export default function CrmKanbanPage() {
     const timer = setTimeout(() => carregar(), busca ? 400 : 0);
     return () => clearTimeout(timer);
   }, [carregar, busca]);
+
+  async function apagarUltimaLista() {
+    setApagandoLista(true);
+    setAviso("");
+    try {
+      const previa = await fetch("/api/admin/crm/leads/excluir-lista", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmar: false }),
+      });
+      const antes = await previa.json().catch(() => null);
+      if (!previa.ok || !antes?.ok) {
+        setAviso(antes?.error || "Não foi possível localizar a lista.");
+        return;
+      }
+      if (!antes.total) {
+        setAviso("Não há lista importada recente para apagar.");
+        return;
+      }
+      const amostra = (antes.amostra || []).filter(Boolean).join(", ");
+      const ok = window.confirm(
+        `Apagar ${antes.total} leads da última lista importada?${amostra ? `\n\nExemplos: ${amostra}` : ""}`
+      );
+      if (!ok) return;
+      const res = await fetch("/api/admin/crm/leads/excluir-lista", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmar: true }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        setAviso(data?.error || "Não foi possível apagar a lista.");
+        return;
+      }
+      await carregar();
+      setAviso(`${data.apagados} leads da última lista foram apagados.`);
+    } finally {
+      setApagandoLista(false);
+    }
+  }
 
   async function moverLead(id: string, novoStatus: string) {
     if (novoStatus === "fechado") {
@@ -616,6 +659,17 @@ export default function CrmKanbanPage() {
                   className="bg-zinc-900 border border-zinc-800 rounded-xl py-2 pl-9 pr-4 text-sm text-white outline-none focus:border-[#C9A66B]/50 w-48"
                 />
               </div>
+              {papel === "ADMIN" && (
+                <button
+                  type="button"
+                  onClick={() => void apagarUltimaLista()}
+                  disabled={apagandoLista}
+                  className="flex items-center gap-2 bg-red-950/40 hover:bg-red-950/70 text-red-300 font-black uppercase text-xs tracking-widest px-4 py-2.5 rounded-xl transition-all border border-red-900/50 disabled:opacity-50"
+                >
+                  {apagandoLista ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  Apagar última lista
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setModalLista(true)}
