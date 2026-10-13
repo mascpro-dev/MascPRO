@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Search, Plus, MessageCircle, X } from "lucide-react";
+import { Loader2, Search, Plus, MessageCircle, Upload, X } from "lucide-react";
+import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
 import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
 import {
   COLUNAS_KANBAN_CRM_SIMPLIFICADO as COLUNAS_KANBAN_CRM,
@@ -92,6 +93,7 @@ export default function ComercialPipeline() {
   const [distribuidorId, setDistribuidorId] = useState("");
   const [aberto, setAberto] = useState<Lead | null>(null);
   const [modalNovo, setModalNovo] = useState(false);
+  const [modalLista, setModalLista] = useState(false);
   const [leadFechamento, setLeadFechamento] = useState<Lead | null>(null);
   const [modalKey, setModalKey] = useState(0);
 
@@ -178,8 +180,15 @@ export default function ComercialPipeline() {
         </p>
         <button
           type="button"
+          onClick={() => setModalLista(true)}
+          className="ml-auto inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-[#E7E1D6] bg-white text-[#2A2723] text-[12px]"
+        >
+          <Upload size={14} /> Subir lista
+        </button>
+        <button
+          type="button"
           onClick={() => setModalNovo(true)}
-          className="ml-auto inline-flex items-center gap-1.5 h-10 px-3 rounded-xl bg-[#2A2723] text-white text-[12px]"
+          className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl bg-[#2A2723] text-white text-[12px]"
         >
           <Plus size={14} /> Novo lead
         </button>
@@ -275,6 +284,15 @@ export default function ComercialPipeline() {
 
       {aberto && (
         <DetalheLead lead={aberto} onClose={() => setAberto(null)} />
+      )}
+
+      {modalLista && (
+        <CrmSubirListaModal
+          api="/api/admin/crm/leads/importar"
+          tema="claro"
+          onClose={() => setModalLista(false)}
+          onImportado={() => void carregar()}
+        />
       )}
 
       {modalNovo && (

@@ -5,8 +5,9 @@ import AdminSidebar from "@/componentes/AdminSidebar";
 import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import ErroComVoltar from "@/componentes/ErroComVoltar";
+import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
 import {
-  Kanban, Plus, Loader2, Search, X, ChevronRight, ChevronDown,
+  Kanban, Plus, Loader2, Search, Upload, X, ChevronRight, ChevronDown,
   Mail, Building2, Calendar, User, DollarSign,
   MessageCircle, Instagram, AlertCircle, Filter,
 } from "lucide-react";
@@ -478,6 +479,7 @@ export default function CrmKanbanPage() {
   const [aviso, setAviso] = useState("");
   const [busca, setBusca] = useState("");
   const [modalNovo, setModalNovo] = useState(false);
+  const [modalLista, setModalLista] = useState(false);
   const [leadFechamento, setLeadFechamento] = useState<Lead | null>(null);
   const [modalPedidoKey, setModalPedidoKey] = useState(0);
 
@@ -615,6 +617,13 @@ export default function CrmKanbanPage() {
                 />
               </div>
               <button
+                type="button"
+                onClick={() => setModalLista(true)}
+                className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white font-black uppercase text-xs tracking-widest px-4 py-2.5 rounded-xl transition-all border border-zinc-700"
+              >
+                <Upload size={16} /> Subir lista
+              </button>
+              <button
                 onClick={() => setModalNovo(true)}
                 className="flex items-center gap-2 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest px-4 py-2.5 rounded-xl transition-all"
               >
@@ -706,6 +715,15 @@ export default function CrmKanbanPage() {
           </div>
         )}
       </main>
+
+      {modalLista && (
+        <CrmSubirListaModal
+          api="/api/admin/crm/leads/importar"
+          tema="escuro"
+          onClose={() => setModalLista(false)}
+          onImportado={() => void carregar()}
+        />
+      )}
 
       {modalNovo && (
         <ModalNovoLead onClose={() => setModalNovo(false)} onSalvo={onLeadSalvo} />

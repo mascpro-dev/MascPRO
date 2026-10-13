@@ -5,8 +5,9 @@ import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import ErroComVoltar from "@/componentes/ErroComVoltar";
 import VendedorNovoPedidoButton from "@/componentes/VendedorNovoPedidoButton";
+import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
 import {
-  Kanban, Plus, Loader2, Search, X, ChevronRight,
+  Kanban, Plus, Loader2, Search, Upload, X, ChevronRight,
   Mail, Building2, Calendar, User, DollarSign,
   MessageCircle, Instagram, AlertCircle,
 } from "lucide-react";
@@ -360,6 +361,7 @@ export default function EmbaixadoraCrmPipelinePage() {
   const [aviso, setAviso] = useState("");
   const [busca, setBusca] = useState("");
   const [modalNovo, setModalNovo] = useState(false);
+  const [modalLista, setModalLista] = useState(false);
   const [leadFechamento, setLeadFechamento] = useState<Lead | null>(null);
   const [modalPedidoKey, setModalPedidoKey] = useState(0);
 
@@ -445,6 +447,13 @@ export default function EmbaixadoraCrmPipelinePage() {
             </div>
             <button
               type="button"
+              onClick={() => setModalLista(true)}
+              className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white font-black uppercase text-xs tracking-widest px-4 py-2.5 rounded-xl transition-all border border-zinc-700"
+            >
+              <Upload size={16} /> Subir lista
+            </button>
+            <button
+              type="button"
               onClick={() => setModalNovo(true)}
               className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase text-xs tracking-widest px-4 py-2.5 rounded-xl transition-all border border-zinc-700"
             >
@@ -506,6 +515,15 @@ export default function EmbaixadoraCrmPipelinePage() {
             })}
           </div>
         </div>
+      )}
+
+      {modalLista && (
+        <CrmSubirListaModal
+          api="/api/vendedor/crm/leads/importar"
+          tema="escuro"
+          onClose={() => setModalLista(false)}
+          onImportado={() => void carregar()}
+        />
       )}
 
       {modalNovo && (
