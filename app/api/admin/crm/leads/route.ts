@@ -9,6 +9,7 @@ import {
   normalizarStatusCrmSimplificado,
   erroColunaFase2,
 } from "@/lib/comercialClassificacao";
+import { buscarTodasAsPaginas } from "@/lib/crmBuscarTodasPaginas";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -53,50 +54,60 @@ export async function GET(req: NextRequest) {
   const busca           = searchParams.get("q");
   const distribuidorId  = searchParams.get("distribuidor_id"); // filtro exclusivo do ADMIN
 
-  let query = supabase
-    .from("crm_leads")
-    .select(CRM_LEADS_LIST_SELECT)
-    .order("updated_at", { ascending: false });
+  let roleFiltro = "";
+  let todosIdsFiltro: string[] | null = null;
+  let todosIdsRede: string[] | null = null;
 
-  if (access.role === "ADMIN") {
-    if (distribuidorId) {
-      const { data: filtroPerfil } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", distribuidorId)
-        .maybeSingle();
-      const roleFiltro = String(filtroPerfil?.role || "").toUpperCase();
-
-      if (roleFiltro === "EMBAIXADOR") {
-        query = query.or(
-          `created_by.eq.${distribuidorId},responsavel_id.eq.${distribuidorId}`
-        );
-      } else {
-        const redeIds = await getRedeIds(supabase, distribuidorId);
-        const todosIds = [distribuidorId, ...redeIds];
-        query = query.or(
-          todosIds.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
-        );
-      }
+  if (access.role === "ADMIN" && distribuidorId) {
+    const { data: filtroPerfil } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", distribuidorId)
+      .maybeSingle();
+    roleFiltro = String(filtroPerfil?.role || "").toUpperCase();
+    if (roleFiltro !== "EMBAIXADOR") {
+      const redeIds = await getRedeIds(supabase, distribuidorId);
+      todosIdsFiltro = [distribuidorId, ...redeIds];
     }
-  } else {
-    // DISTRIBUIDOR: sempre filtrado pela própria rede
+  } else if (access.role !== "ADMIN") {
     const redeIds = await getRedeIds(supabase, userId);
-    const todosIds = [userId, ...redeIds];
-    query = query.or(
-      todosIds.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
-    );
+    todosIdsRede = [userId, ...redeIds];
   }
 
-  if (filterStatus) query = query.eq("status", filterStatus);
-  if (busca) {
-    query = query.or(
-      `nome.ilike.%${busca}%,empresa.ilike.%${busca}%,telefone.ilike.%${busca}%,email.ilike.%${busca}%`
-    );
-  }
+  const { data, error } = await buscarTodasAsPaginas((inicio, fim) => {
+    let query = supabase
+      .from("crm_leads")
+      .select(CRM_LEADS_LIST_SELECT)
+      .order("updated_at", { ascending: false });
 
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
+    if (access.role === "ADMIN") {
+      if (distribuidorId) {
+        if (roleFiltro === "EMBAIXADOR") {
+          query = query.or(
+            `created_by.eq.${distribuidorId},responsavel_id.eq.${distribuidorId}`
+          );
+        } else if (todosIdsFiltro) {
+          query = query.or(
+            todosIdsFiltro.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
+          );
+        }
+      }
+    } else if (todosIdsRede) {
+      query = query.or(
+        todosIdsRede.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
+      );
+    }
+
+    if (filterStatus) query = query.eq("status", filterStatus);
+    if (busca) {
+      query = query.or(
+        `nome.ilike.%${busca}%,empresa.ilike.%${busca}%,telefone.ilike.%${busca}%,email.ilike.%${busca}%`
+      );
+    }
+
+    return query.range(inicio, fim);
+  });
+  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error) }, { status: 500 });
 
   const leads = (data || []).map((lead: any) => ({
     ...lead,

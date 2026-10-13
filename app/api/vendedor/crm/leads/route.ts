@@ -9,6 +9,7 @@ import {
   erroColunaFase2,
 } from "@/lib/comercialClassificacao";
 import { sincronizarVisitasOrfasNoPipeline } from "@/lib/crmVisitaPipeline";
+import { buscarTodasAsPaginas } from "@/lib/crmBuscarTodasPaginas";
 
 export const dynamic = "force-dynamic";
 
@@ -27,20 +28,21 @@ export async function GET(req: NextRequest) {
   await sincronizarVisitasOrfasNoPipeline(supabase, userId, access.full_name || "vendedor");
 
   const busca = req.nextUrl.searchParams.get("q");
-  let query = supabase
-    .from("crm_leads")
-    .select("*")
-    .or(`created_by.eq.${userId},responsavel_id.eq.${userId}`)
-    .order("updated_at", { ascending: false });
+  const { data, error } = await buscarTodasAsPaginas((inicio, fim) => {
+    let query = supabase
+      .from("crm_leads")
+      .select("*")
+      .or(`created_by.eq.${userId},responsavel_id.eq.${userId}`)
+      .order("updated_at", { ascending: false });
 
-  if (busca) {
-    query = query.or(
-      `nome.ilike.%${busca}%,telefone.ilike.%${busca}%,email.ilike.%${busca}%`
-    );
-  }
-
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
+    if (busca) {
+      query = query.or(
+        `nome.ilike.%${busca}%,telefone.ilike.%${busca}%,email.ilike.%${busca}%`
+      );
+    }
+    return query.range(inicio, fim);
+  });
+  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error) }, { status: 500 });
   const leads = (data || []).map((lead: any) => ({
     ...lead,
     status: normalizarStatusCrmSimplificado(lead.status),
