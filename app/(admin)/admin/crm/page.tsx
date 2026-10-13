@@ -774,6 +774,8 @@ export default function CrmKanbanPage() {
         <CrmSubirListaModal
           api="/api/admin/crm/leads/importar"
           tema="escuro"
+          escolherResponsavel={papel === "ADMIN"}
+          responsavelInicial={distribuidorSelecionado}
           onClose={() => setModalLista(false)}
           onImportado={() => void carregar()}
         />

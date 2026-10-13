@@ -3,7 +3,13 @@ import { parseListaLeads, type LeadLista, type LinhaIgnorada } from "@/lib/crmIm
 
 export async function inserirListaLeads(
   supabase: SupabaseClient,
-  params: { userId: string; autorNome: string; texto: string }
+  params: {
+    autorId: string;
+    autorNome: string;
+    responsavelId: string;
+    destinoNome?: string;
+    texto: string;
+  }
 ): Promise<
   | { ok: true; criados: number; ignoradas: LinhaIgnorada[] }
   | { ok: false; error: string; ignoradas?: LinhaIgnorada[] }
@@ -22,8 +28,8 @@ export async function inserirListaLeads(
     notas: lead.notas,
     status: "novo",
     origem: "manual",
-    responsavel_id: params.userId,
-    created_by: params.userId,
+    responsavel_id: params.responsavelId,
+    created_by: params.responsavelId,
   }));
 
   const { data, error } = await supabase.from("crm_leads").insert(rows).select("id");
@@ -35,9 +41,11 @@ export async function inserirListaLeads(
     await supabase.from("crm_atividades").insert(
       data.map((lead) => ({
         lead_id: lead.id,
-        autor_id: params.userId,
+        autor_id: params.autorId,
         tipo: "criacao",
-        conteudo: `Lead importado de lista por ${params.autorNome}.`,
+        conteudo: params.destinoNome
+          ? `Lead importado de lista por ${params.autorNome} para o pipeline de ${params.destinoNome}.`
+          : `Lead importado de lista por ${params.autorNome}.`,
       }))
     );
   }

@@ -20,8 +20,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const texto = String(body?.texto || "");
   const resultado = await inserirListaLeads(supabase, {
-    userId,
+    autorId: userId,
     autorNome: access.full_name || "vendedor",
+    responsavelId: userId,
     texto,
   });
 

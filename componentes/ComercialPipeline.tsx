@@ -290,6 +290,7 @@ export default function ComercialPipeline() {
         <CrmSubirListaModal
           api="/api/admin/crm/leads/importar"
           tema="claro"
+          escolherResponsavel={distribuidores.length > 0}
           onClose={() => setModalLista(false)}
           onImportado={() => void carregar()}
         />

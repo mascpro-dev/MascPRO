@@ -1,22 +1,50 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Loader2, Upload, X } from "lucide-react";
 import { parseListaLeads } from "@/lib/crmImportarLista";
+
+type Responsavel = { id: string; full_name: string; role: string };
 
 type Props = {
   api: string;
   tema: "claro" | "escuro";
+  escolherResponsavel?: boolean;
+  responsavelInicial?: string;
   onClose: () => void;
   onImportado: () => void;
 };
 
-export default function CrmSubirListaModal({ api, tema, onClose, onImportado }: Props) {
+export default function CrmSubirListaModal({
+  api,
+  tema,
+  escolherResponsavel = false,
+  responsavelInicial = "",
+  onClose,
+  onImportado,
+}: Props) {
   const escuro = tema === "escuro";
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
   const [resumo, setResumo] = useState("");
+  const [responsaveis, setResponsaveis] = useState<Responsavel[]>([]);
+  const [responsavelId, setResponsavelId] = useState(responsavelInicial);
+
+  useEffect(() => {
+    if (!escolherResponsavel) return;
+    let ativo = true;
+    fetch(api, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!ativo || !d?.ok) return;
+        setResponsaveis(d.responsaveis || []);
+      })
+      .catch(() => {});
+    return () => {
+      ativo = false;
+    };
+  }, [api, escolherResponsavel]);
 
   const previa = useMemo(() => (texto.trim() ? parseListaLeads(texto) : null), [texto]);
 
@@ -36,6 +64,10 @@ export default function CrmSubirListaModal({ api, tema, onClose, onImportado }: 
       setErro("Cole a lista ou escolha um arquivo CSV.");
       return;
     }
+    if (escolherResponsavel && !responsavelId) {
+      setErro("Escolha o distribuidor ou o vendedor que recebe a lista.");
+      return;
+    }
     setEnviando(true);
     setErro("");
     setResumo("");
@@ -43,16 +75,20 @@ export default function CrmSubirListaModal({ api, tema, onClose, onImportado }: 
       const res = await fetch(api, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto }),
+        body: JSON.stringify({
+          texto,
+          ...(escolherResponsavel ? { responsavel_id: responsavelId } : {}),
+        }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
         setErro(data?.error || "Não foi possível subir a lista.");
         return;
       }
+      const destino = responsaveis.find((r) => r.id === responsavelId)?.full_name;
       const pulados = Number(data.ignoradas?.length || 0);
       setResumo(
-        `${data.criados} contato(s) entraram em Novo.${pulados ? ` ${pulados} linha(s) ficaram de fora.` : ""}`
+        `${data.criados} contato(s) entraram em Novo${destino ? ` no pipeline de ${destino}` : ""}.${pulados ? ` ${pulados} linha(s) ficaram de fora.` : ""}`
       );
       onImportado();
     } finally {
@@ -75,13 +111,40 @@ export default function CrmSubirListaModal({ api, tema, onClose, onImportado }: 
           <div>
             <h2 className="text-base font-bold">Subir lista</h2>
             <p className={`text-xs mt-1 ${muted}`}>
-              Os contatos entram na coluna Novo, no seu pipeline. No Excel, salve como CSV ou cole as células aqui.
+              {escolherResponsavel
+                ? "Escolha o distribuidor ou o vendedor. Os contatos entram na coluna Novo do pipeline dessa pessoa."
+                : "Os contatos entram na coluna Novo, no seu pipeline. No Excel, salve como CSV ou cole as células aqui."}
             </p>
           </div>
           <button type="button" onClick={onClose} className={muted}>
             <X size={18} />
           </button>
         </div>
+
+        {escolherResponsavel && (
+          <div className="mb-3">
+            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-1 ${muted}`}>
+              Pipeline de destino *
+            </label>
+            <select
+              value={responsavelId}
+              onChange={(e) => setResponsavelId(e.target.value)}
+              className={campo}
+            >
+              <option value="">Selecione...</option>
+              <optgroup label="Distribuidores">
+                {responsaveis.filter((r) => r.role === "DISTRIBUIDOR").map((r) => (
+                  <option key={r.id} value={r.id}>{r.full_name}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Vendedores">
+                {responsaveis.filter((r) => r.role === "VENDEDOR").map((r) => (
+                  <option key={r.id} value={r.id}>{r.full_name}</option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+        )}
 
         <p className={`text-[11px] mb-3 ${muted}`}>
           Aceita a planilha com Nome, Tipo, Endereço, Número, Complemento, Bairro, Telefone, Cidade, UF, CEP, Telefone 1, Telefone 2 e Email. Só o nome é obrigatório.
