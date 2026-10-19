@@ -1,22 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertAdmin, getAdminContext } from "@/lib/adminServer";
 import { extractYouTubeVideoId } from "@/lib/youtube";
 
-function sb() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
+const MSG_PERMISSAO =
+  "Sem permissão na tabela de aulas. No Supabase, SQL Editor, rode o arquivo supabase/fix_lessons_grants.sql.";
+
+function erroAula(message: string) {
+  if (/permission denied/i.test(message)) return MSG_PERMISSAO;
+  return message;
+}
+
+async function clienteAdmin(): Promise<
+  | { ok: true; supabase: SupabaseClient }
+  | { ok: false; error: string; status: number }
+> {
+  const { supabase, userId, error, status } = await getAdminContext();
+  if (!supabase || !userId) {
+    return { ok: false, error: error || "Não autenticado.", status: status || 401 };
+  }
+  const access = await assertAdmin(supabase, userId);
+  if (!access.ok) return { ok: false, error: access.error, status: 403 };
+  return { ok: true, supabase };
 }
 
 // --- COURSES ---
 export async function GET() {
-  const supabase = sb();
+  const acesso = await clienteAdmin();
+  if (!acesso.ok) return NextResponse.json({ ok: false, error: acesso.error }, { status: acesso.status });
+  const supabase = acesso.supabase;
 
   const { data: courses, error } = await supabase
     .from("courses")
     .select("*")
     .order("sequence_order", { ascending: true });
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: erroAula(error.message) }, { status: 500 });
 
   if (!courses || courses.length === 0) {
     return NextResponse.json({ ok: true, courses: [] });
@@ -64,6 +83,9 @@ function buildLessonRow(body: {
 }
 
 export async function POST(req: NextRequest) {
+  const acesso = await clienteAdmin();
+  if (!acesso.ok) return NextResponse.json({ ok: false, error: acesso.error }, { status: acesso.status });
+  const supabase = acesso.supabase;
   const body = await req.json();
   if (body._type === "lesson") {
     // course_id aqui é o ID do course — buscamos o code para usar como FK
@@ -71,29 +93,32 @@ export async function POST(req: NextRequest) {
     if (!course_id || !title) return NextResponse.json({ ok: false, error: "course_id e title obrigatórios" }, { status: 400 });
 
     // Busca o code do curso pelo id
-    const { data: curso } = await sb().from("courses").select("code").eq("id", course_id).single();
+    const { data: curso } = await supabase.from("courses").select("code").eq("id", course_id).single();
     const course_code = curso?.code;
     if (!course_code) return NextResponse.json({ ok: false, error: "Curso não encontrado." }, { status: 404 });
 
-    const { data, error } = await sb().from("lessons").insert({
+    const { data, error } = await supabase.from("lessons").insert({
       course_code,
       ...buildLessonRow(body),
     }).select().single();
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ ok: false, error: erroAula(error.message) }, { status: 500 });
     return NextResponse.json({ ok: true, lesson: data });
   }
   const { title, description, image_url, code, sequence_order } = body;
   if (!title) return NextResponse.json({ ok: false, error: "Título obrigatório" }, { status: 400 });
-  const { data, error } = await sb().from("courses").insert({
+  const { data, error } = await supabase.from("courses").insert({
     title, description, image_url,
     code: code || title.toLowerCase().replace(/\s+/g, "-"),
     sequence_order: Number(sequence_order) || 1,
   }).select().single();
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: erroAula(error.message) }, { status: 500 });
   return NextResponse.json({ ok: true, course: data });
 }
 
 export async function PATCH(req: NextRequest) {
+  const acesso = await clienteAdmin();
+  if (!acesso.ok) return NextResponse.json({ ok: false, error: acesso.error }, { status: acesso.status });
+  const supabase = acesso.supabase;
   const body = await req.json();
   const { id, _type } = body;
   if (!id) return NextResponse.json({ ok: false, error: "id obrigatório" }, { status: 400 });
@@ -110,16 +135,18 @@ export async function PATCH(req: NextRequest) {
     if (campos.sequence_order) campos.sequence_order = Number(campos.sequence_order);
   }
 
-  const { error } = await sb().from(table).update(campos).eq("id", id);
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  const { error } = await supabase.from(table).update(campos).eq("id", id);
+  if (error) return NextResponse.json({ ok: false, error: erroAula(error.message) }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: NextRequest) {
+  const acesso = await clienteAdmin();
+  if (!acesso.ok) return NextResponse.json({ ok: false, error: acesso.error }, { status: acesso.status });
   const { id, _type } = await req.json();
   if (!id) return NextResponse.json({ ok: false, error: "id obrigatório" }, { status: 400 });
   const table = _type === "lesson" ? "lessons" : "courses";
-  const { error } = await sb().from(table).delete().eq("id", id);
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  const { error } = await acesso.supabase.from(table).delete().eq("id", id);
+  if (error) return NextResponse.json({ ok: false, error: erroAula(error.message) }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
