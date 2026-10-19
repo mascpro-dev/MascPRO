@@ -23,7 +23,10 @@ export default function LessonYoutubePlayer({ lesson, started, onStart }: Props)
       playsinline: "1",
       rel: "0",
       modestbranding: "1",
+      iv_load_policy: "3",
       controls: "1",
+      disablekb: "1",
+      fs: "1",
       enablejsapi: "1",
       origin,
     });
@@ -62,14 +65,17 @@ export default function LessonYoutubePlayer({ lesson, started, onStart }: Props)
   }
 
   return (
-    <iframe
-      key={videoId}
-      title="Aula em vídeo"
-      src={embedSrc!}
-      className="absolute inset-0 w-full h-full border-0"
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-      allowFullScreen
-      referrerPolicy="strict-origin-when-cross-origin"
-    />
+    <div className="absolute inset-0 overflow-hidden bg-black">
+      <iframe
+        key={videoId}
+        title="Aula em vídeo"
+        src={embedSrc!}
+        className="absolute left-0 w-full border-0"
+        style={{ top: "-64px", height: "calc(100% + 64px)" }}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+        allowFullScreen
+        referrerPolicy="strict-origin-when-cross-origin"
+      />
+    </div>
   );
 }
