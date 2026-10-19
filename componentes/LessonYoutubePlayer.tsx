@@ -126,7 +126,7 @@ export default function LessonYoutubePlayer({ lesson, started, onStart }: Props)
         title="Aula em vídeo"
         src={embedSrc!}
         className="absolute left-0 w-full border-0"
-        style={{ top: "-64px", height: "calc(100% + 64px)" }}
+        style={{ top: "-64px", height: "calc(100% + 64px + 52px)" }}
         onLoad={inscreverPlayer}
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
         allowFullScreen
