@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
+import { buscarTodasAsPaginas } from "@/lib/crmBuscarTodasPaginas";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -46,7 +47,7 @@ export async function GET() {
   // ─── 1. ESTOQUE DE PRODUTOS ─────────────────────────────
   const { data: produtosRaw } = await supabase
     .from("products")
-    .select("id, title, stock, ativo, price_hairdresser, price_ambassador, price_distributor, volume")
+    .select("id, title, stock, ativo, price_hairdresser, price_ambassador, price_distributor, volume, custo_unitario")
     .order("stock", { ascending: true });
 
   const produtos = (produtosRaw || []).map((p: any) => ({
@@ -76,11 +77,17 @@ export async function GET() {
   // ─── 3. ITENS DOS PEDIDOS (curva ABC + margem) ──────────
   let itensBrutos: any[] = [];
   if (pedidoIds.length > 0) {
-    const { data: itens } = await supabase
-      .from("order_items")
-      .select("order_id, product_id, quantidade, preco_unitario")
-      .in("order_id", pedidoIds);
-    itensBrutos = itens || [];
+    for (let i = 0; i < pedidoIds.length; i += 80) {
+      const lote = pedidoIds.slice(i, i + 80);
+      const { data: itens } = await buscarTodasAsPaginas((inicio, fim) =>
+        supabase
+          .from("order_items")
+          .select("order_id, product_id, quantidade, preco_unitario")
+          .in("order_id", lote)
+          .range(inicio, fim)
+      );
+      itensBrutos.push(...itens);
+    }
   }
 
   // Junta com dados do produto para calcular margem
@@ -127,11 +134,21 @@ export async function GET() {
 
   const receitaTotal = rankingProdutos.reduce((s, p) => s + p.receita, 0);
   let acumulado = 0;
-  const curvaABC = rankingProdutos.map((p) => {
+  const curvaABC = rankingProdutos.map((p, idx) => {
+    const pctAntes = receitaTotal > 0 ? (acumulado / receitaTotal) * 100 : 0;
     acumulado += p.receita;
-    const pct_acumulado = receitaTotal > 0 ? (acumulado / receitaTotal) * 100 : 0;
-    const curva = pct_acumulado <= 80 ? "A" : pct_acumulado <= 95 ? "B" : "C";
-    return { ...p, pct_receita: receitaTotal > 0 ? Math.round((p.receita / receitaTotal) * 100) : 0, pct_acumulado: Math.round(pct_acumulado), curva };
+    const pct_acumulado = receitaTotal > 0
+      ? (idx === rankingProdutos.length - 1 ? 100 : (acumulado / receitaTotal) * 100)
+      : 0;
+    // O item que atravessa 80% continua na curva A; o que atravessa 95% continua na B.
+    const curva = pctAntes < 80 ? "A" : pctAntes < 95 ? "B" : "C";
+    const pctReceita = receitaTotal > 0 ? (p.receita / receitaTotal) * 100 : 0;
+    return {
+      ...p,
+      pct_receita: Math.round(pctReceita * 10) / 10,
+      pct_acumulado: Math.round(pct_acumulado * 10) / 10,
+      curva,
+    };
   });
 
   const resumoCurva = {
@@ -253,7 +270,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     estoque,
-    curva_abc: { resumo: resumoCurva, lista: curvaABC.slice(0, 30) },
+    curva_abc: { resumo: resumoCurva, lista: curvaABC },
     clientes: clientesStats,
     rfm: { resumo: rfmResumo, lista: rfmList },
     pagamentos: pagamentosArray,

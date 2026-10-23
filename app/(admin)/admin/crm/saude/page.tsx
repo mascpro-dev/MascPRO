@@ -48,6 +48,45 @@ function pagLabel(m: string) {
   return map[m.toLowerCase()] || m;
 }
 
+function LinhaPareto({ lista }: { lista: SaudeData["curva_abc"]["lista"] }) {
+  if (lista.length === 0) return null;
+  const n = lista.length;
+  const pontos = [
+    { x: 0, y: 0 },
+    ...lista.map((p, i) => ({
+      x: ((i + 1) / n) * 100,
+      y: Math.min(100, Number(p.pct_acumulado) || 0),
+    })),
+  ];
+  pontos[pontos.length - 1].y = 100;
+  const path = pontos.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${(100 - p.y).toFixed(2)}`).join(" ");
+  const area = `${path} L 100 100 L 0 100 Z`;
+  return (
+    <div className="mb-6 rounded-xl border border-white/5 bg-black/40 p-4">
+      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-3">Receita acumulada até 100%</p>
+      <svg viewBox="-4 -6 108 112" className="w-full h-28 md:h-40 overflow-visible" preserveAspectRatio="none" aria-label="Curva ABC de Pareto">
+        <rect x="0" y="20" width="100" height="80" fill="rgb(34 197 94 / 0.08)" />
+        <rect x="0" y="5" width="100" height="15" fill="rgb(234 179 8 / 0.08)" />
+        <rect x="0" y="0" width="100" height="5" fill="rgb(113 113 122 / 0.08)" />
+        <line x1="0" y1="20" x2="100" y2="20" stroke="rgb(34 197 94 / 0.45)" strokeDasharray="2 2" strokeWidth="0.6" />
+        <line x1="0" y1="5" x2="100" y2="5" stroke="rgb(234 179 8 / 0.35)" strokeDasharray="2 2" strokeWidth="0.6" />
+        <path d={area} fill="rgb(201 166 107 / 0.12)" />
+        <path d={path} fill="none" stroke="#C9A66B" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        {pontos.filter((_, i) => i > 0).map((p, i) => (
+          <circle key={i} cx={p.x} cy={100 - p.y} r="1.4" fill="#C9A66B" />
+        ))}
+        <text x="1" y="18" fill="rgb(74 222 128)" fontSize="4">80% A</text>
+        <text x="1" y="9" fill="rgb(250 204 21)" fontSize="4">95% B</text>
+        <text x="92" y="4" fill="#C9A66B" fontSize="4">100%</text>
+      </svg>
+      <div className="flex justify-between text-[9px] text-zinc-600 font-bold uppercase tracking-widest mt-1">
+        <span>1º produto</span>
+        <span>Todos os produtos</span>
+      </div>
+    </div>
+  );
+}
+
 // Barra de progresso simples
 function Barra({ valor, max, cor }: { valor: number; max: number; cor: string }) {
   const pct = max > 0 ? Math.min(100, Math.round((valor / max) * 100)) : 0;
@@ -257,46 +296,61 @@ export default function SaudeNegocioPage() {
             <BarChart3 size={16} className="text-[#C9A66B]" />
             <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Curva ABC de Produtos (Pareto)</p>
           </div>
-          <p className="text-[10px] text-zinc-600 mb-5">Curva A = 80% da receita · Curva B = 15% · Curva C = 5%</p>
+          <p className="text-[10px] text-zinc-600 mb-5">
+            A até 80% da receita · B de 80% a 95% · C o restante · {curva_abc.lista.length} produto{curva_abc.lista.length !== 1 ? "s" : ""} na curva
+          </p>
+
+          <LinhaPareto lista={curva_abc.lista} />
 
           {/* Resumo */}
           <div className="grid grid-cols-3 gap-3 mb-5">
             {(["A","B","C"] as const).map((letra) => {
               const cores: Record<string, string> = { A: "text-green-400 border-green-500/30 bg-green-500/10", B: "text-yellow-400 border-yellow-500/30 bg-yellow-500/10", C: "text-zinc-400 border-zinc-600/30 bg-zinc-600/10" };
+              const pctTotal = receita_total > 0 ? Math.round((curva_abc.resumo[letra].receita / receita_total) * 1000) / 10 : 0;
               return (
                 <div key={letra} className={`rounded-xl border p-4 text-center ${cores[letra]}`}>
                   <p className="text-2xl font-black">Curva {letra}</p>
                   <p className="text-xs font-black mt-1">{curva_abc.resumo[letra].count} produto{curva_abc.resumo[letra].count !== 1 ? "s" : ""}</p>
-                  <p className="text-[10px] mt-0.5 opacity-80">{moeda(curva_abc.resumo[letra].receita)}</p>
+                  <p className="text-[10px] mt-0.5 opacity-80">{moeda(curva_abc.resumo[letra].receita)} · {pctTotal}%</p>
                 </div>
               );
             })}
           </div>
 
           {/* Tabela */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
+          <div className="max-h-[240px] md:max-h-[320px] overflow-auto overscroll-contain rounded-xl border border-zinc-800/80">
+            <table className="w-full min-w-[640px] text-xs">
+              <thead className="sticky top-0 z-10 bg-zinc-900">
                 <tr className="text-[9px] text-zinc-600 font-black uppercase tracking-widest border-b border-zinc-800">
                   <th className="text-left py-2 pr-4">Produto</th>
                   <th className="text-right py-2 px-2">Qtd</th>
                   <th className="text-right py-2 px-2">Receita</th>
+                  <th className="text-right py-2 px-2">% Rec.</th>
                   <th className="text-right py-2 px-2">Margem</th>
-                  <th className="text-right py-2 px-2">% Acum.</th>
+                  <th className="text-right py-2 px-2 min-w-[120px]">% Acum.</th>
                   <th className="text-center py-2 pl-2">Curva</th>
                 </tr>
               </thead>
               <tbody>
                 {curva_abc.lista.map((p) => {
                   const curvaColor: Record<string, string> = { A: "text-green-400 bg-green-500/10", B: "text-yellow-400 bg-yellow-500/10", C: "text-zinc-400 bg-zinc-700/20" };
+                  const barraCor = p.curva === "A" ? "bg-green-500" : p.curva === "B" ? "bg-yellow-500" : "bg-zinc-500";
                   const margemCor = p.margem_pct >= 30 ? "text-green-400" : p.margem_pct >= 15 ? "text-yellow-400" : "text-red-400";
                   return (
                     <tr key={p.product_id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
-                      <td className="py-2 pr-4 text-zinc-300 font-medium truncate max-w-[180px]">{p.title}</td>
+                      <td className="py-2 pr-4 text-zinc-300 font-medium whitespace-normal break-words">{p.title}</td>
                       <td className="py-2 px-2 text-right text-zinc-400 tabular-nums">{p.qtd}</td>
                       <td className="py-2 px-2 text-right font-black text-white tabular-nums">{moeda(p.receita)}</td>
+                      <td className="py-2 px-2 text-right text-zinc-500 tabular-nums">{p.pct_receita}%</td>
                       <td className={`py-2 px-2 text-right font-black tabular-nums ${margemCor}`}>{p.margem_pct}%</td>
-                      <td className="py-2 px-2 text-right text-zinc-500 tabular-nums">{p.pct_acumulado}%</td>
+                      <td className="py-2 px-2 text-right text-zinc-400 tabular-nums">
+                        <div className="flex flex-col items-end gap-1">
+                          <span>{p.pct_acumulado}%</span>
+                          <div className="w-24 bg-zinc-800 rounded-full h-1.5">
+                            <div className={`h-1.5 rounded-full ${barraCor}`} style={{ width: `${Math.min(100, p.pct_acumulado)}%` }} />
+                          </div>
+                        </div>
+                      </td>
                       <td className="py-2 pl-2 text-center">
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${curvaColor[p.curva]}`}>{p.curva}</span>
                       </td>
@@ -305,6 +359,9 @@ export default function SaudeNegocioPage() {
                 })}
               </tbody>
             </table>
+            {curva_abc.lista.length === 0 && (
+              <p className="text-zinc-600 text-sm text-center py-6">Sem vendas pagas para montar a curva.</p>
+            )}
           </div>
         </div>
 
