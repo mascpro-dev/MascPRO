@@ -166,6 +166,7 @@ export async function POST(req: NextRequest) {
     notas: body.notas?.trim() || null,
     responsavel_id: body.responsavel_id || userId,
     created_by: userId,
+    profile_id: body.profile_id || null,
     ...classif.campos,
   };
 

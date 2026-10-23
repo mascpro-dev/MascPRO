@@ -9,7 +9,7 @@ import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
 import {
   Kanban, Plus, Loader2, Search, Upload, Trash2, X, ChevronRight, ChevronDown,
   Mail, Building2, Calendar, User, DollarSign,
-  MessageCircle, Instagram, AlertCircle, Filter,
+  MessageCircle, Instagram, AlertCircle, Filter, ShoppingBag,
 } from "lucide-react";
 import {
   COLUNAS_KANBAN_CRM_SIMPLIFICADO,
@@ -670,6 +670,12 @@ export default function CrmKanbanPage() {
                   Apagar última lista
                 </button>
               )}
+              <Link
+                href="/admin/crm/pedidos/novo"
+                className="flex items-center gap-2 bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 font-black uppercase text-xs tracking-widest px-4 py-2.5 rounded-xl transition-all border border-blue-500/30"
+              >
+                <ShoppingBag size={16} /> Lançar pedido
+              </Link>
               <button
                 type="button"
                 onClick={() => setModalLista(true)}

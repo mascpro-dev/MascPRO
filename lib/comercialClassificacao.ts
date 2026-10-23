@@ -146,6 +146,7 @@ export const CAMPOS_PATCH_LEAD = [
   "data_followup",
   "notas",
   "responsavel_id",
+  "profile_id",
   ...CAMPOS_CLASSIFICACAO_LEAD,
 ] as const;
 

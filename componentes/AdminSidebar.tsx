@@ -68,6 +68,7 @@ const ADMIN_MENU_ITEMS = [
     items: [
       { name: "Dashboard",        desc: "Financeiro e visão geral",         icon: LayoutDashboard, href: "/admin/crm/dashboard",   color: "text-emerald-400" },
       { name: "Pipeline de Leads",desc: "Funil de vendas e follow-ups",     icon: Kanban,          href: "/admin/crm",             color: "text-[#C9A66B]"  },
+      { name: "Novos Pedidos",    desc: "Buscar cliente e lançar pedido",   icon: ShoppingBag,    href: "/admin/crm/pedidos/novo", color: "text-blue-400"  },
       { name: "Saúde do Negócio", desc: "Estoque · Margem · Curva ABC",     icon: TrendingUp,      href: "/admin/crm/saude",       color: "text-pink-400"   },
       { name: "DRE",              desc: "Demonstração de resultado",         icon: FileText,        href: "/admin/crm/dre",         color: "text-blue-400"   },
       { name: "Metas & Targets",  desc: "Progresso por período",            icon: Target,          href: "/admin/crm/metas",       color: "text-yellow-400" },
@@ -107,6 +108,7 @@ const DISTRIBUIDOR_MENU_ITEMS = [
     items: [
       { name: "Dashboard",         desc: "Financeiro e geral",                icon: LayoutDashboard, href: "/admin/crm/dashboard",  color: "text-emerald-400" },
       { name: "Pipeline de Leads", desc: "Funil de vendas e follow-ups",      icon: Kanban,          href: "/admin/crm",            color: "text-[#C9A66B]"  },
+      { name: "Novos Pedidos",     desc: "Buscar cliente e lançar pedido",    icon: ShoppingBag,    href: "/admin/crm/pedidos/novo", color: "text-blue-400" },
       { name: "Equipe / Vendedores", desc: "Cadastro, preços e aprovações", icon: Users,           href: "/admin/crm/equipe",     color: "text-[#C9A66B]"  },
       { name: "Saúde do Negócio",  desc: "Estoque · Margem · Curva ABC",      icon: TrendingUp,      href: "/admin/crm/saude",      color: "text-pink-400"   },
       { name: "DRE",               desc: "Demonstração de resultado",          icon: FileText,        href: "/admin/crm/dre",        color: "text-blue-400"   },
