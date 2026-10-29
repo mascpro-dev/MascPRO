@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Loader2, Search, MessageCircle, MapPin, Users, Phone, ChevronLeft, ChevronRight,
+  Loader2, Search, MessageCircle, MapPin, Users, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import {
   PERFIS_COMERCIAIS,
@@ -12,6 +12,7 @@ import {
   TIPOS_ATENDIMENTO,
 } from "@/lib/crmCarteira";
 import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
+import CrmLigarBotao from "@/componentes/CrmLigarBotao";
 
 type Cidade = {
   cidade: string;
@@ -404,9 +405,7 @@ function AtendimentoModal({
             </a>
           )}
           {contato.telefone && (
-            <a href={`tel:${contato.telefone.replace(/\D/g, "")}`} className="flex-1 h-10 rounded-xl bg-[#F5EDDF] text-[#8A6A32] text-[12px] font-medium flex items-center justify-center gap-1">
-              <Phone size={14} /> Ligar
-            </a>
+            <CrmLigarBotao leadId={contato.id} telefone={contato.telefone} compacto={false} claro />
           )}
         </div>
         <p className="text-[11px] text-[#A39C90] mt-2">Abrir WhatsApp não registra conversa. Grave a tentativa abaixo.</p>

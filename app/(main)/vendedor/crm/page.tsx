@@ -6,6 +6,7 @@ import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import ErroComVoltar from "@/componentes/ErroComVoltar";
 import VendedorNovoPedidoButton from "@/componentes/VendedorNovoPedidoButton";
 import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
+import CrmLigarBotao from "@/componentes/CrmLigarBotao";
 import {
   Kanban, Plus, Loader2, Search, Upload, X, ChevronRight,
   Mail, Building2, Calendar, User, DollarSign,
@@ -129,6 +130,7 @@ function LeadCard({
             <MessageCircle size={10} /> {lead.telefone}
           </a>
         )}
+        {lead.telefone && <CrmLigarBotao leadId={lead.id} telefone={lead.telefone} />}
         {lead.email && (
           <span className="flex items-center gap-1 text-[10px] text-blue-400 bg-blue-500/10 px-2 py-1 rounded-lg truncate max-w-full">
             <Mail size={10} /> {lead.email}

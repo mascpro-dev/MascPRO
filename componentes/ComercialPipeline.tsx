@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Search, Plus, MessageCircle, Upload, X } from "lucide-react";
 import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
+import CrmLigarBotao from "@/componentes/CrmLigarBotao";
 import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
 import {
   COLUNAS_KANBAN_CRM_SIMPLIFICADO as COLUNAS_KANBAN_CRM,
@@ -260,6 +261,7 @@ export default function ComercialPipeline() {
                                 <MessageCircle size={11} /> WhatsApp
                               </a>
                             )}
+                            {lead.telefone && <CrmLigarBotao leadId={lead.id} telefone={lead.telefone} compacto claro />}
                             {prev && (
                               <button type="button" onClick={() => void mover(lead.id, prev.key)} className="text-[11px] text-[#8A847A]">
                                 ← {prev.label}

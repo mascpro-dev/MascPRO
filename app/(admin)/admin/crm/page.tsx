@@ -6,6 +6,7 @@ import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import ErroComVoltar from "@/componentes/ErroComVoltar";
 import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
+import CrmLigarBotao from "@/componentes/CrmLigarBotao";
 import {
   Kanban, Plus, Loader2, Search, Upload, Trash2, X, ChevronRight, ChevronDown,
   Mail, Building2, Calendar, User, DollarSign,
@@ -232,6 +233,7 @@ function LeadCard({
             <MessageCircle size={10} /> {lead.telefone}
           </a>
         )}
+        {lead.telefone && <CrmLigarBotao leadId={lead.id} telefone={lead.telefone} />}
         {lead.instagram && (
           <a
             href={`https://instagram.com/${lead.instagram.replace(/^@/, "")}`}
