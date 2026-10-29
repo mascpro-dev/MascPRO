@@ -1,6 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext, assertAdmin } from "@/lib/adminServer";
 import { sincronizarTotalPedido } from "@/lib/pedidoTotalSync";
+import { applyOrderRewards } from "@/lib/applyOrderRewards";
+import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
+import { applyOrderToProInventory } from "@/lib/applyOrderToProInventory";
+import { atualizarComoPago, statusPedidoPago } from "@/lib/pedidoAtivo";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+async function gravarPatchPedido(
+  supabase: SupabaseClient,
+  orderId: string,
+  patch: Record<string, unknown>,
+  jaEstavaPago: boolean,
+  viraPago: boolean
+) {
+  if (Object.keys(patch).length === 0) return { error: null as { message: string } | null };
+  const tentar = (dados: Record<string, unknown>) =>
+    viraPago
+      ? atualizarComoPago(supabase, orderId, dados, jaEstavaPago)
+      : supabase.from("orders").update(dados).eq("id", orderId);
+
+  let { error } = await tentar(patch);
+  if (error && /mp_payment_id|mp_preference_id|schema cache/i.test(error.message || "")) {
+    const semMp = { ...patch };
+    delete semMp.mp_payment_id;
+    delete semMp.mp_preference_id;
+    if (Object.keys(semMp).length === 0) return { error: null };
+    const retry = await tentar(semMp);
+    error = retry.error;
+  }
+  return { error };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -90,7 +120,7 @@ export async function PATCH(
 
     const { data: existente, error: errExist } = await supabase
       .from("orders")
-      .select("id, profile_id, shipping_cost, desconto_total")
+      .select("id, profile_id, shipping_cost, desconto_total, status, crm_lead_id")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -218,14 +248,13 @@ export async function PATCH(
       }
     }
 
-    if (Object.keys(patch).length > 0) {
-      const { error: upErr } = await supabase
-        .from("orders")
-        .update(patch)
-        .eq("id", orderId);
-      if (upErr) {
-        return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 });
-      }
+    const statusFinal = String(patch.status ?? existente.status ?? "");
+    const jaEstavaPago = statusPedidoPago(existente.status);
+    const viraPago = statusPedidoPago(statusFinal);
+
+    const gravado = await gravarPatchPedido(supabase, orderId, patch, jaEstavaPago, viraPago);
+    if (gravado.error) {
+      return NextResponse.json({ ok: false, error: gravado.error.message }, { status: 500 });
     }
 
     // Sempre recalcula total a partir dos itens atuais + frete − desconto
@@ -238,6 +267,38 @@ export async function PATCH(
       return NextResponse.json({ ok: false, error: sync.error }, { status: 500 });
     }
 
+    let rewardsErro: string | undefined;
+    let estoqueCatalogoErro: string | undefined;
+    let estoqueErro: string | undefined;
+    let recompensas: Awaited<ReturnType<typeof applyOrderRewards>> | undefined;
+    let estoque: Awaited<ReturnType<typeof applyOrderToProInventory>> | undefined;
+
+    if (viraPago) {
+      // Manual ou app: PRO, comissão e ativo no mês (idempotente).
+      const rewards = await applyOrderRewards(supabase, orderId);
+      if (!rewards.ok) {
+        rewardsErro = rewards.error;
+      } else {
+        recompensas = rewards;
+      }
+      const baixa = await applyOrderCatalogStock(supabase, orderId);
+      if (!baixa.ok) estoqueCatalogoErro = baixa.error;
+
+      const leadId = (existente as { crm_lead_id?: string | null }).crm_lead_id;
+      if (leadId && !jaEstavaPago) {
+        await supabase
+          .from("crm_leads")
+          .update({ status: "fechado", order_id: orderId })
+          .eq("id", leadId);
+      }
+    }
+
+    if (String(statusFinal).toLowerCase() === "entregue") {
+      const inv = await applyOrderToProInventory(supabase, orderId);
+      if (!inv.ok) estoqueErro = inv.error;
+      else estoque = inv;
+    }
+
     const { data: atualizado } = await supabase
       .from("orders")
       .select(
@@ -248,7 +309,16 @@ export async function PATCH(
       .eq("id", orderId)
       .single();
 
-    return NextResponse.json({ ok: true, order: atualizado, total: sync.total });
+    return NextResponse.json({
+      ok: true,
+      order: atualizado,
+      total: sync.total,
+      recompensas,
+      ...(rewardsErro ? { rewardsErro } : {}),
+      ...(estoqueCatalogoErro ? { estoqueCatalogoErro } : {}),
+      ...(estoqueErro ? { estoqueErro } : {}),
+      ...(estoque ? { estoque } : {}),
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno.";
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

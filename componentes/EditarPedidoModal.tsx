@@ -38,15 +38,15 @@ const STATUS_OPCOES = [
 ];
 
 const PAGAMENTOS = [
-  "mercadopago",
-  "manual",
-  "pix",
-  "dinheiro",
-  "cartao",
-  "boleto",
-  "transferencia",
-  "credito",
-  "debito",
+  { value: "mercadopago", label: "App (Mercado Pago)" },
+  { value: "manual", label: "Manual" },
+  { value: "pix", label: "PIX" },
+  { value: "dinheiro", label: "Dinheiro" },
+  { value: "cartao", label: "Cartão" },
+  { value: "boleto", label: "Boleto" },
+  { value: "transferencia", label: "Transferência" },
+  { value: "credito", label: "Crédito" },
+  { value: "debito", label: "Débito" },
 ];
 
 type Props = {
@@ -214,8 +214,8 @@ export default function EditarPedidoModal({ orderId, onClose, onSaved }: Props) 
           transportadora: transportadora || null,
           data_previsao: dataPrevisao || null,
           parcelas: Number(parcelas) || 1,
-          mp_payment_id: mpPaymentId || null,
-          mp_preference_id: mpPreferenceId || null,
+          ...(mpPaymentId.trim() ? { mp_payment_id: mpPaymentId.trim() } : {}),
+          ...(mpPreferenceId.trim() ? { mp_preference_id: mpPreferenceId.trim() } : {}),
           items: itens.map((i) => ({
             product_id: i.product_id,
             quantidade: i.quantidade,
@@ -224,7 +224,7 @@ export default function EditarPedidoModal({ orderId, onClose, onSaved }: Props) 
         }),
       });
       const raw = await res.text();
-      let d: { ok?: boolean; error?: string } = {};
+      let d: { ok?: boolean; error?: string; rewardsErro?: string } = {};
       try {
         d = raw ? JSON.parse(raw) : {};
       } catch {
@@ -234,6 +234,9 @@ export default function EditarPedidoModal({ orderId, onClose, onSaved }: Props) 
       if (!res.ok || !d.ok) {
         setErro(d.error || "Erro ao salvar.");
         return;
+      }
+      if (d.rewardsErro) {
+        alert(`Pedido salvo, mas PRO/comissão não completou:\n${d.rewardsErro}`);
       }
       onSaved();
       onClose();
@@ -275,7 +278,7 @@ export default function EditarPedidoModal({ orderId, onClose, onSaved }: Props) 
             )}
 
             <p className="text-[10px] text-amber-400/90 leading-relaxed">
-              Alterar valor ou itens não recalcula comissão/PRO já liberados. Ajuste manualmente se necessário.
+              App (Mercado Pago) libera PRO, comissão e ativo no mês sozinho. Pagamento manual faz a mesma distribuição ao marcar pago, em separação, despachado ou entregue. Alterar valor depois não recalcula o que já foi liberado.
             </p>
 
             {/* Cliente */}
@@ -342,7 +345,7 @@ export default function EditarPedidoModal({ orderId, onClose, onSaved }: Props) 
                   className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#C9A66B]"
                 >
                   {PAGAMENTOS.map((p) => (
-                    <option key={p} value={p}>{p}</option>
+                    <option key={p.value} value={p.value}>{p.label}</option>
                   ))}
                 </select>
               </div>
