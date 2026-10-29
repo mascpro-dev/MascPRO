@@ -76,7 +76,15 @@ function tomEtapa(status: string) {
   return "bg-[#F5EDDF] text-[#8A6A32]";
 }
 
-export default function ComercialHomeCare({ periodo, readOnly = false }: { periodo: string; readOnly?: boolean }) {
+export default function ComercialHomeCare({
+  periodo,
+  readOnly = false,
+  tipo = "home_care",
+}: {
+  periodo: string;
+  readOnly?: boolean;
+  tipo?: "home_care" | "profissional";
+}) {
   const [data, setData] = useState<Payload | null>(null);
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
@@ -87,7 +95,8 @@ export default function ComercialHomeCare({ periodo, readOnly = false }: { perio
     setLoading(true);
     setErro("");
     try {
-      const res = await fetch(`/api/admin/comercial/regua?periodo=${periodo}`, { cache: "no-store" });
+      const qs = tipo === "profissional" ? `&tipo=profissional` : "";
+      const res = await fetch(`/api/admin/comercial/regua?periodo=${periodo}${qs}`, { cache: "no-store" });
       const json = (await res.json().catch(() => null)) as Payload | null;
       if (!res.ok || !json?.ok) {
         setErro(json?.error || "Falha ao carregar a régua.");
@@ -100,7 +109,7 @@ export default function ComercialHomeCare({ periodo, readOnly = false }: { perio
     } finally {
       setLoading(false);
     }
-  }, [periodo]);
+  }, [periodo, tipo]);
 
   useEffect(() => { void carregar(); }, [carregar]);
 
@@ -149,6 +158,7 @@ export default function ComercialHomeCare({ periodo, readOnly = false }: { perio
   }
 
   const { kpis } = data;
+  const rotulo = tipo === "profissional" ? "profissional" : "home care";
   const atrasados = data.kits.filter((k) => k.etapas.some((e) => e.status === "atrasado"));
   const hoje = data.kits.filter((k) => k.etapas.some((e) => e.status === "pendente" && e.previsto_em === data.hoje));
   const listaKits =
@@ -157,7 +167,7 @@ export default function ComercialHomeCare({ periodo, readOnly = false }: { perio
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <Kpi label="Pedidos c/ home care" value={String(kpis.kitsMes)} sub={`mês anterior: ${kpis.kitsPrev}`} />
+        <Kpi label={`Pedidos c/ ${rotulo}`} value={String(kpis.kitsMes)} sub={`mês anterior: ${kpis.kitsPrev}`} />
         <Kpi label="Régua em dia" value={`${kpis.taxaEmDia}%`} sub={`${kpis.feitosMes} toques feitos no mês`} />
         <Kpi label="Atrasados" value={String(kpis.atrasados)} sub={`${kpis.pendentesHoje} para hoje`} alerta={kpis.atrasados > 0} />
         <Kpi
@@ -169,8 +179,9 @@ export default function ComercialHomeCare({ periodo, readOnly = false }: { perio
 
       <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
         <p className="text-[13px] text-[#6B6560]">
-          Home care entra sozinho quando o pedido pago tem item das linhas Daily, Nutri, Repair, Scalp, Curls ou Blond.
-          Classifique os produtos em Admin → Produtos. Align³ e item sem linha não entram na régua.
+          {tipo === "profissional"
+            ? "Profissional entra sozinho quando o pedido pago tem item marcado como Profissional em Admin → Produtos."
+            : "Home care entra sozinho quando o pedido pago tem item marcado como Home care em Admin → Produtos. Sem essa marca, ainda valem as linhas Daily, Nutri, Repair, Scalp, Curls ou Blond."}
         </p>
       </section>
       {readOnly && (
@@ -184,7 +195,7 @@ export default function ComercialHomeCare({ periodo, readOnly = false }: { perio
           [
             ["atrasados", `Atrasados (${atrasados.length})`],
             ["hoje", `Hoje (${hoje.length})`],
-            ["kits", `Com home care (${data.kits.length})`],
+            ["kits", `Com ${rotulo} (${data.kits.length})`],
           ] as const
         ).map(([id, nome]) => (
           <button
@@ -202,7 +213,7 @@ export default function ComercialHomeCare({ periodo, readOnly = false }: { perio
 
       {listaKits.length === 0 ? (
         <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-8 text-[13px] text-[#8A847A]">
-          Nada nesta fila. Confira se os produtos home care têm linha preenchida em Admin → Produtos.
+          Nada nesta fila. Marque o uso do produto (Home care ou Profissional) em Admin → Produtos.
         </section>
       ) : (
         <div className="space-y-3">
@@ -214,7 +225,7 @@ export default function ComercialHomeCare({ periodo, readOnly = false }: { perio
                   <div>
                     <p className="text-[15px] font-semibold">{k.cliente}</p>
                     <p className="text-[12px] text-[#8A847A]">
-                      Home care em {dataBr(k.created_at)} · {moeda(k.total)}
+                      {tipo === "profissional" ? "Profissional" : "Home care"} em {dataBr(k.created_at)} · {moeda(k.total)}
                     </p>
                     <p className="text-[12px] text-[#8A847A] mt-1">
                       Recompra: {k.recompras.d30 ? "30 sim" : "30 não"} · {k.recompras.d45 ? "45 sim" : "45 não"} · {k.recompras.d60 ? "60 sim" : "60 não"}

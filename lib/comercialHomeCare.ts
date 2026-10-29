@@ -1,8 +1,7 @@
 /**
- * Home care por ITENS do pedido (products.linha), não pelo pedido inteiro.
- *
- * Linhas MASC de manutenção em casa → home care.
- * Align³ e sem linha → não contam como home care automático.
+ * Uso comercial por ITEM (products.uso), não pelo pedido inteiro.
+ * products.uso = home_care | profissional.
+ * Sem uso preenchido, home care ainda cai nas linhas Daily/Nutri/Repair/Scalp/Curls/Blond.
  */
 
 export const LINHAS_HOME_CARE = [
@@ -23,16 +22,35 @@ export function linhaEhHomeCare(linha: string | null | undefined): boolean {
   return HOME_CARE_SET.has(String(linha).toLowerCase().trim());
 }
 
+export type UsoComercial = "home_care" | "profissional";
+
 export type ItemParaHomeCare = {
   quantidade?: number | null;
   preco_unitario?: number | null;
   products?: {
     title?: string | null;
     linha?: string | null;
+    uso?: string | null;
   } | null;
-  /** fallback se products vier aninhado diferente */
   linha?: string | null;
+  uso?: string | null;
 };
+
+export function usoComercialDoItem(item: ItemParaHomeCare | null | undefined): UsoComercial | null {
+  const uso = String(item?.products?.uso ?? item?.uso ?? "").toLowerCase().trim();
+  if (uso === "home_care" || uso === "profissional") return uso;
+  const linha = item?.products?.linha ?? item?.linha ?? null;
+  if (linhaEhHomeCare(linha)) return "home_care";
+  return null;
+}
+
+export function itemEhHomeCare(item: ItemParaHomeCare | null | undefined) {
+  return usoComercialDoItem(item) === "home_care";
+}
+
+export function itemEhProfissional(item: ItemParaHomeCare | null | undefined) {
+  return usoComercialDoItem(item) === "profissional";
+}
 
 export type ResumoHomeCarePedido = {
   temHomeCare: boolean;
@@ -51,8 +69,7 @@ export function analisarItensHomeCare(
   const titulos: string[] = [];
 
   for (const item of items || []) {
-    const linha = item.products?.linha ?? item.linha ?? null;
-    if (!linhaEhHomeCare(linha)) continue;
+    if (!itemEhHomeCare(item)) continue;
 
     const qtd = Math.max(0, Math.floor(Number(item.quantidade) || 0));
     const preco = Math.max(0, Number(item.preco_unitario) || 0);
@@ -85,18 +102,27 @@ export function formatarResumoHomeCare(r: ResumoHomeCarePedido): string {
 export const DEFINICAO_HOME_CARE_ITENS = {
   termo: "Home care (por item)",
   texto:
-    "Conta só produtos com linha Daily, Nutri, Repair, Scalp, Curls ou Blond. Align³ e produto sem linha não entram. O pedido pode misturar profissional + home care.",
+    "Conta o produto marcado como Home care em Admin → Produtos. Sem essa marca, ainda entram as linhas Daily, Nutri, Repair, Scalp, Curls ou Blond. Uso profissional vai para a aba Profissional.",
 };
+
+export const DEFINICAO_PROFISSIONAL_ITENS = {
+  termo: "Profissional (por item)",
+  texto:
+    "Conta o produto marcado como Profissional em Admin → Produtos. O pedido pode misturar profissional + home care; cada item entra só na aba do uso dele.",
+};
+
+function itemSemClassificacao(item: any) {
+  const uso = String(item?.products?.uso ?? item?.uso ?? "").trim();
+  const linha = item?.products?.linha ?? item?.linha ?? null;
+  return !uso && !linha;
+}
 
 type Sb = {
   from: (table: string) => any;
 };
 
 /**
- * Sincroniza orders.eh_kit_home_care a partir dos itens (products.linha).
- * - Tem item home care → marca kit + cria régua
- * - Todos os itens classificados e nenhum home care → desmarca kit
- * - Itens sem linha → não altera (aguarda classificação em Produtos)
+ * Sincroniza orders.eh_kit_home_care e eh_kit_profissional a partir dos itens (products.uso).
  */
 export async function sincronizarKitsHomeCarePorItens(
   supabase: Sb,
@@ -105,14 +131,30 @@ export async function sincronizarKitsHomeCarePorItens(
   const limit = opts?.limitPedidos ?? 400;
   const STATUS_PAGO = ["paid", "separacao", "despachado", "entregue"];
 
-  const { data: pedidos, error } = await supabase
+  let pedidos: any[] | null = null;
+  let error: { message?: string } | null = null;
+  const comUso = await supabase
     .from("orders")
     .select(
-      "id, created_at, profile_id, status, eh_kit_home_care, order_items(quantidade, preco_unitario, products(title, linha))"
+      "id, created_at, profile_id, status, eh_kit_home_care, eh_kit_profissional, order_items(quantidade, preco_unitario, products(title, linha, uso))"
     )
     .in("status", STATUS_PAGO)
     .order("created_at", { ascending: false })
     .limit(limit);
+  error = comUso.error;
+  pedidos = comUso.data;
+  if (error && /uso|eh_kit_profissional/i.test(String(error.message || ""))) {
+    const fb = await supabase
+      .from("orders")
+      .select(
+        "id, created_at, profile_id, status, eh_kit_home_care, order_items(quantidade, preco_unitario, products(title, linha))"
+      )
+      .in("status", STATUS_PAGO)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    error = fb.error;
+    pedidos = fb.data;
+  }
 
   if (error || !pedidos) {
     return { marcados: 0, desmarcados: 0, analisados: 0 };
@@ -121,32 +163,51 @@ export async function sincronizarKitsHomeCarePorItens(
   let marcados = 0;
   let desmarcados = 0;
 
-  for (const ped of pedidos as any[]) {
+  for (const ped of pedidos) {
     const items = ped.order_items || [];
-    const resumo = analisarItensHomeCare(items);
-    const algumSemLinha = items.some((it: any) => {
-      const linha = it.products?.linha ?? null;
-      return !linha;
-    });
-    const flagAtual = Boolean(ped.eh_kit_home_care);
+    const temHomeCare = items.some((it: ItemParaHomeCare) => itemEhHomeCare(it));
+    const temProfissional = items.some((it: ItemParaHomeCare) => itemEhProfissional(it));
+    const algumSemClasse = items.some(itemSemClassificacao);
+    const flagHc = Boolean(ped.eh_kit_home_care);
+    const flagProf = Boolean(ped.eh_kit_profissional);
+    const patch: Record<string, boolean> = {};
 
-    if (resumo.temHomeCare && !flagAtual) {
-      await supabase.from("orders").update({ eh_kit_home_care: true }).eq("id", ped.id);
-      if (opts?.garantirEtapas) {
-        await opts.garantirEtapas({
-          id: ped.id,
-          created_at: ped.created_at,
-          profile_id: ped.profile_id,
-        });
-      }
+    if (temHomeCare && !flagHc) {
+      patch.eh_kit_home_care = true;
       marcados += 1;
-      continue;
+    } else if (!temHomeCare && flagHc && !algumSemClasse && items.length > 0) {
+      patch.eh_kit_home_care = false;
+      desmarcados += 1;
     }
 
-    if (!resumo.temHomeCare && flagAtual && !algumSemLinha && items.length > 0) {
-      await supabase.from("orders").update({ eh_kit_home_care: false }).eq("id", ped.id);
-      await supabase.from("comercial_regua").delete().eq("order_id", ped.id);
+    if (temProfissional && !flagProf) {
+      patch.eh_kit_profissional = true;
+      marcados += 1;
+    } else if (!temProfissional && flagProf && items.every((it: ItemParaHomeCare) => Boolean(it.products?.uso || it.uso))) {
+      patch.eh_kit_profissional = false;
       desmarcados += 1;
+    }
+
+    if (Object.keys(patch).length === 0) continue;
+
+    const { error: upErr } = await supabase.from("orders").update(patch).eq("id", ped.id);
+    if (upErr && /eh_kit_profissional/i.test(upErr.message || "")) {
+      const soHc: Record<string, boolean> = {};
+      if ("eh_kit_home_care" in patch) soHc.eh_kit_home_care = patch.eh_kit_home_care;
+      if (Object.keys(soHc).length) await supabase.from("orders").update(soHc).eq("id", ped.id);
+    }
+
+    const hcFinal = patch.eh_kit_home_care ?? flagHc;
+    const profFinal = patch.eh_kit_profissional ?? flagProf;
+    if ((patch.eh_kit_home_care === true || patch.eh_kit_profissional === true) && opts?.garantirEtapas) {
+      await opts.garantirEtapas({
+        id: ped.id,
+        created_at: ped.created_at,
+        profile_id: ped.profile_id,
+      });
+    }
+    if (!hcFinal && !profFinal && (patch.eh_kit_home_care === false || patch.eh_kit_profissional === false)) {
+      await supabase.from("comercial_regua").delete().eq("order_id", ped.id);
     }
   }
 
@@ -164,16 +225,16 @@ export async function idsPedidosComHomeCare(
   const chunk = 80;
   for (let i = 0; i < orderIds.length; i += chunk) {
     const slice = orderIds.slice(i, i + chunk);
-    const { data } = await supabase
-      .from("order_items")
-      .select("order_id, products(linha)")
-      .in("order_id", slice);
+    let data = (
+      await supabase.from("order_items").select("order_id, products(linha, uso)").in("order_id", slice)
+    ).data;
+    if (!data) {
+      data = (await supabase.from("order_items").select("order_id, products(linha)").in("order_id", slice)).data;
+    }
 
     for (const row of data || []) {
-      const linha = Array.isArray(row.products)
-        ? row.products[0]?.linha
-        : row.products?.linha;
-      if (linhaEhHomeCare(linha)) out.add(row.order_id);
+      const prod = Array.isArray(row.products) ? row.products[0] : row.products;
+      if (itemEhHomeCare({ products: prod })) out.add(row.order_id);
     }
   }
   return out;

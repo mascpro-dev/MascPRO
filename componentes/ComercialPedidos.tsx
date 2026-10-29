@@ -5,7 +5,7 @@ import { Loader2, Search } from "lucide-react";
 import {
   analisarItensHomeCare,
   formatarResumoHomeCare,
-  linhaEhHomeCare,
+  itemEhHomeCare,
 } from "@/lib/comercialHomeCare";
 
 type Pedido = {
@@ -25,7 +25,7 @@ type Pedido = {
   order_items: {
     quantidade: number;
     preco_unitario: number;
-    products: { title: string; linha?: string | null } | null;
+    products: { title: string; linha?: string | null; uso?: string | null } | null;
   }[];
 };
 
@@ -205,7 +205,7 @@ export default function ComercialPedidos({ periodo }: { periodo: string }) {
                 {(p.order_items || []).length > 0 && (
                   <ul className="mt-3 space-y-1 border-t border-[#F0EBE3] pt-3">
                     {p.order_items.map((item, i) => {
-                      const ehHc = linhaEhHomeCare(item.products?.linha);
+                      const ehHc = itemEhHomeCare(item);
                       return (
                         <li
                           key={i}

@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import { ShoppingBag, Plus, Loader2, Pencil, Trash2, ToggleLeft, ToggleRight, X, Image as ImageIcon, Video } from "lucide-react";
-import { LINHAS_PRODUTO } from "@/lib/comercialClassificacao";
+import { LINHAS_PRODUTO, USOS_PRODUTO, USO_PRODUTO_LABEL } from "@/lib/comercialClassificacao";
 import { FAIXA_LINHA, SEM_LINHA, agruparProdutosPorLinha } from "@/lib/gruposLinhaProduto";
 
 type Produto = {
@@ -13,13 +13,14 @@ type Produto = {
   price_hairdresser: number; price_ambassador: number; price_distributor: number;
   stock: number; ativo: boolean;
   linha?: string | null;
+  uso?: string | null;
 };
 
 const EMPTY = {
   title: "", description: "", how_to_use: "", image_url: "", video_url: "",
   volume: "", peso_gramas: "500", custo_unitario: "",
   price_hairdresser: "", price_ambassador: "", price_distributor: "",
-  stock: "0", ativo: true, linha: "",
+  stock: "0", ativo: true, linha: "", uso: "",
 };
 
 export default function AdminProdutosPage() {
@@ -58,6 +59,7 @@ export default function AdminProdutosPage() {
       price_hairdresser: String(p.price_hairdresser), price_ambassador: String(p.price_ambassador),
       price_distributor: String(p.price_distributor), stock: String(p.stock), ativo: p.ativo,
       linha: p.linha || "",
+      uso: p.uso || "",
     });
     setErro(""); setShowForm(true);
   }
@@ -186,7 +188,9 @@ export default function AdminProdutosPage() {
                                 )}
                                 <div>
                                   <p className="font-bold text-sm leading-tight">{p.title}</p>
-                                  {p.volume && <p className="text-[10px] text-zinc-500">{p.volume}</p>}
+                                  <p className="text-[10px] text-zinc-500">
+                                    {[p.volume, p.uso ? USO_PRODUTO_LABEL[p.uso] || p.uso : null].filter(Boolean).join(" · ")}
+                                  </p>
                                   {p.video_url && <span className="text-[9px] text-blue-400 flex items-center gap-1"><Video size={9} /> tutorial</span>}
                                 </div>
                               </div>
@@ -284,6 +288,16 @@ export default function AdminProdutosPage() {
                   <div>
                     <label className="label">Estoque (unidades)</label>
                     <input type="number" min="0" value={form.stock} onChange={e => set("stock", e.target.value)} className="input" />
+                  </div>
+                  <div>
+                    <label className="label">Uso — Home care ou Profissional</label>
+                    <select value={form.uso} onChange={e => set("uso", e.target.value)} className="input">
+                      <option value="">Não definido</option>
+                      {USOS_PRODUTO.map((u) => (
+                        <option key={u.value} value={u.value}>{u.label}</option>
+                      ))}
+                    </select>
+                    <p className="text-[9px] text-zinc-600 mt-1">Home care entra na régua Home care. Profissional entra na aba Profissional.</p>
                   </div>
                 </div>
 

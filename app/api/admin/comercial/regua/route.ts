@@ -16,7 +16,7 @@ import {
   statusExibidoEtapa,
   ymdSaoPaulo,
 } from "@/lib/comercialRegua";
-import { sincronizarKitsHomeCarePorItens } from "@/lib/comercialHomeCare";
+import { DEFINICAO_PROFISSIONAL_ITENS, sincronizarKitsHomeCarePorItens } from "@/lib/comercialHomeCare";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -89,6 +89,8 @@ export async function GET(req: NextRequest) {
 
   const agora = new Date();
   const periodo = req.nextUrl.searchParams.get("periodo") || ymOf(agora);
+  const tipo = req.nextUrl.searchParams.get("tipo") === "profissional" ? "profissional" : "home_care";
+  const flagKit = tipo === "profissional" ? "eh_kit_profissional" : "eh_kit_home_care";
   if (!/^\d{4}-\d{2}$/.test(periodo)) {
     return NextResponse.json({ ok: false, error: "Período inválido." }, { status: 400 });
   }
@@ -104,15 +106,18 @@ export async function GET(req: NextRequest) {
   const kitsRes = await fetchAllRows<PedidoKit>(async (from, to) =>
     supabase
       .from("orders")
-      .select("id, created_at, total, status, profile_id, eh_kit_home_care, motivo_nao_recompra, profiles!orders_profile_id_fkey(full_name, whatsapp)")
-      .eq("eh_kit_home_care", true)
+      .select(`id, created_at, total, status, profile_id, ${flagKit}, motivo_nao_recompra, profiles!orders_profile_id_fkey(full_name, whatsapp)`)
+      .eq(flagKit, true)
       .in("status", [...STATUS_PEDIDO_PAGO])
       .order("created_at", { ascending: false })
       .range(from, to)
   );
 
   if (kitsRes.error) {
-    return NextResponse.json({ ok: false, error: erroColunaFase3(kitsRes.error) }, { status: 500 });
+    const msg = /eh_kit_profissional/i.test(kitsRes.error)
+      ? "Rode supabase/products_uso_comercial.sql no Supabase para habilitar a aba Profissional."
+      : erroColunaFase3(kitsRes.error);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 
   const hoje0 = hoje;
@@ -263,14 +268,14 @@ export async function GET(req: NextRequest) {
 
   const { data: candidatosRaw, error: candErr } = await supabase
     .from("orders")
-    .select("id, created_at, total, status, profile_id, eh_kit_home_care, profiles!orders_profile_id_fkey(full_name)")
-    .eq("eh_kit_home_care", false)
+    .select(`id, created_at, total, status, profile_id, ${flagKit}, profiles!orders_profile_id_fkey(full_name)`)
+    .eq(flagKit, false)
     .in("status", [...STATUS_PEDIDO_PAGO])
     .gte("created_at", new Date(agora.getTime() - 90 * 86_400_000).toISOString())
     .order("created_at", { ascending: false })
     .limit(40);
 
-  if (candErr && !/eh_kit_home_care/i.test(candErr.message)) {
+  if (candErr && !/eh_kit_home_care|eh_kit_profissional/i.test(candErr.message)) {
     return NextResponse.json({ ok: false, error: candErr.message }, { status: 500 });
   }
 
@@ -302,10 +307,13 @@ export async function GET(req: NextRequest) {
       recompra45: taxaJanela(45),
       recompra60: taxaJanela(60),
     },
+    tipo,
     kits,
     candidatos,
     etapas: ETAPAS_REGUA,
-    definicoes: DEFINICOES_FASE3,
+    definicoes: tipo === "profissional"
+      ? [DEFINICAO_PROFISSIONAL_ITENS, ...DEFINICOES_FASE3.filter((d) => !/Home care/i.test(d.termo))]
+      : DEFINICOES_FASE3,
   });
 }
 
@@ -421,8 +429,7 @@ export async function PATCH(req: NextRequest) {
     const { error } = await supabase
       .from("orders")
       .update({ motivo_nao_recompra: motivo.value })
-      .eq("id", body.orderId)
-      .eq("eh_kit_home_care", true);
+      .eq("id", body.orderId);
     if (error) return NextResponse.json({ ok: false, error: erroColunaFase3(error.message) }, { status: 500 });
     return NextResponse.json({ ok: true, orderId: body.orderId, motivo_nao_recompra: motivo.value });
   }

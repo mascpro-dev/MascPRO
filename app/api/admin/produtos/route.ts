@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext, assertAdmin, assertAdminOrDistribuidor } from "@/lib/adminServer";
-import { parseLinhaProduto } from "@/lib/comercialClassificacao";
+import { parseLinhaProduto, parseUsoProduto } from "@/lib/comercialClassificacao";
 import {
   notificarProdutoAlterado,
   notificarProdutoCriado,
@@ -9,6 +9,7 @@ import {
 
 /** Erro de configuração no Supabase: rode supabase/fix_products_admin_completo.sql (GRANTs + RLS) ou adicione SUPABASE_SERVICE_ROLE_KEY no Vercel. */
 const MSG_DICA_DB = "Se o erro for permission denied, execute no Supabase o script fix_products_admin_completo.sql (pasta supabase) e adicione SUPABASE_SERVICE_ROLE_KEY no ambiente (API → service_role).";
+const MSG_USO = "Rode supabase/products_uso_comercial.sql no Supabase para gravar Home care / Profissional.";
 
 export async function GET() {
   try {
@@ -57,10 +58,12 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { title, description, how_to_use, image_url, video_url, volume, peso_gramas,
-      price_hairdresser, price_ambassador, price_distributor, stock, ativo, linha } = body;
+      price_hairdresser, price_ambassador, price_distributor, stock, ativo, linha, uso } = body;
     if (!title) return NextResponse.json({ ok: false, error: "Título obrigatório" }, { status: 400 });
     const linhaOk = parseLinhaProduto(linha);
     if (!linhaOk.ok) return NextResponse.json({ ok: false, error: linhaOk.error }, { status: 400 });
+    const usoOk = parseUsoProduto(uso);
+    if (!usoOk.ok) return NextResponse.json({ ok: false, error: usoOk.error }, { status: 400 });
     const pg = Math.round(Number(peso_gramas));
     const hairdresserPrice = Number(price_hairdresser) || 0;
     const { data, error: ierr } = await supabase
@@ -76,12 +79,14 @@ export async function POST(req: NextRequest) {
         ativo: ativo !== false,
         peso_gramas: Number.isFinite(pg) && pg > 0 ? pg : 500,
         linha: linhaOk.value,
+        uso: usoOk.value,
       })
       .select()
       .single();
     if (ierr) {
+      const dica = /uso/i.test(ierr.message) ? MSG_USO : MSG_DICA_DB;
       return NextResponse.json(
-        { ok: false, error: `${ierr.message} ${MSG_DICA_DB}` },
+        { ok: false, error: `${ierr.message} ${dica}` },
         { status: 500 }
       );
     }
@@ -117,6 +122,11 @@ export async function PATCH(req: NextRequest) {
       if (!linhaOk.ok) return NextResponse.json({ ok: false, error: linhaOk.error }, { status: 400 });
       patch.linha = linhaOk.value;
     }
+    if ("uso" in patch) {
+      const usoOk = parseUsoProduto(patch.uso);
+      if (!usoOk.ok) return NextResponse.json({ ok: false, error: usoOk.error }, { status: 400 });
+      patch.uso = usoOk.value;
+    }
     ["price_hairdresser", "price_ambassador", "price_distributor", "stock"].forEach((k) => {
       if (patch[k] !== undefined) patch[k] = Number(patch[k]) || 0;
     });
@@ -131,8 +141,9 @@ export async function PATCH(req: NextRequest) {
     const { data: antes } = await supabase.from("products").select("*").eq("id", id).maybeSingle();
     const { error: uerr } = await supabase.from("products").update(patch).eq("id", id);
     if (uerr) {
+      const dica = /uso/i.test(uerr.message) ? MSG_USO : MSG_DICA_DB;
       return NextResponse.json(
-        { ok: false, error: `${uerr.message} ${MSG_DICA_DB}` },
+        { ok: false, error: `${uerr.message} ${dica}` },
         { status: 500 }
       );
     }

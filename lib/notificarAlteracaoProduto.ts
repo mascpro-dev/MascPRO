@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { labelLinha } from "@/lib/comercialClassificacao";
+import { labelLinha, USO_PRODUTO_LABEL } from "@/lib/comercialClassificacao";
 
 const PRECOS = [
   { key: "price_hairdresser", label: "Licenciado" },
@@ -47,6 +47,11 @@ function descreverAlteracao(antes: Record<string, unknown>, patch: Record<string
     const de = labelLinha(texto(antes.linha)) || "Sem linha";
     const para = labelLinha(texto(patch.linha)) || "Sem linha";
     outros.push(`linha ${de} → ${para}`);
+  }
+  if ("uso" in patch && texto(patch.uso) !== texto(antes.uso)) {
+    const de = USO_PRODUTO_LABEL[texto(antes.uso)] || "não definido";
+    const para = USO_PRODUTO_LABEL[texto(patch.uso)] || "não definido";
+    outros.push(`uso ${de} → ${para}`);
   }
   if ("volume" in patch && texto(patch.volume) !== texto(antes.volume)) {
     outros.push(`volume "${texto(antes.volume) || "—"}" → "${texto(patch.volume) || "—"}"`);

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, Filter, Target, Kanban, ShoppingBag, RefreshCw,
   ChevronDown, Menu, ArrowUpRight, ArrowDownRight, Loader2, Save,
-  Sparkles, Users, Camera, Calendar, Bell, ArrowLeft,
+  Sparkles, Users, Camera, Calendar, Bell, ArrowLeft, Scissors,
 } from "lucide-react";
 import ComercialHomeCare from "@/componentes/ComercialHomeCare";
 import ComercialPipeline from "@/componentes/ComercialPipeline";
@@ -16,7 +16,7 @@ import ComercialEventos from "@/componentes/ComercialEventos";
 import ComercialAlarmes from "@/componentes/ComercialAlarmes";
 import { FASE_COMERCIAL_TOTAL, resumoFaseComercial, rotuloFaseComercial } from "@/lib/comercialFase";
 
-type Aba = "dashboard" | "pipeline" | "pedidos" | "funil" | "homecare" | "embaixadoras" | "distribuidores" | "provas" | "eventos" | "alarmes" | "metas";
+type Aba = "dashboard" | "pipeline" | "pedidos" | "funil" | "homecare" | "profissional" | "embaixadoras" | "distribuidores" | "provas" | "eventos" | "alarmes" | "metas";
 type Semaforo = "ok" | "atencao" | "risco";
 type Formato = "int" | "moeda";
 
@@ -68,6 +68,7 @@ const ABAS: { id: Aba; nome: string; icon: typeof LayoutDashboard }[] = [
   { id: "pedidos", nome: "Pedidos", icon: ShoppingBag },
   { id: "funil", nome: "Funil", icon: Filter },
   { id: "homecare", nome: "Home care", icon: RefreshCw },
+  { id: "profissional", nome: "Profissional", icon: Scissors },
   { id: "embaixadoras", nome: "Embaixadoras", icon: Sparkles },
   { id: "distribuidores", nome: "Distribuidores", icon: Users },
   { id: "provas", nome: "Provas", icon: Camera },
@@ -397,7 +398,9 @@ export default function PainelComercialPage() {
               </div>
               <p className="text-[12px] text-[#8A847A]">
                 {aba === "homecare"
-                  ? "Kit é marca manual. Régua 7/15/30 · recompra 30/45/60"
+                  ? "Produto marcado Home care · régua 7/15/30 · recompra 30/45/60"
+                  : aba === "profissional"
+                    ? "Produto marcado Profissional · régua 7/15/30 · recompra 30/45/60"
                   : aba === "pipeline"
                     ? "Mesmos leads do CRM · visual deste painel"
                     : aba === "pedidos"
@@ -438,7 +441,9 @@ export default function PainelComercialPage() {
           ) : aba === "pedidos" ? (
             <ComercialPedidos periodo={periodo} />
           ) : aba === "homecare" ? (
-            <ComercialHomeCare periodo={periodo} readOnly={modoLeitura} />
+            <ComercialHomeCare periodo={periodo} readOnly={modoLeitura} tipo="home_care" />
+          ) : aba === "profissional" ? (
+            <ComercialHomeCare periodo={periodo} readOnly={modoLeitura} tipo="profissional" />
           ) : aba === "embaixadoras" ? (
             <ComercialRede periodo={periodo} papel="embaixadora" readOnly={modoLeitura} />
           ) : aba === "distribuidores" ? (

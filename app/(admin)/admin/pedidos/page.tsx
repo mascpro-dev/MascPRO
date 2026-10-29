@@ -13,7 +13,7 @@ import {
 import {
   analisarItensHomeCare,
   formatarResumoHomeCare,
-  linhaEhHomeCare,
+  itemEhHomeCare,
 } from "@/lib/comercialHomeCare";
 import { calcularTotalPedido } from "@/lib/pedidoTotalSync";
 
@@ -44,7 +44,7 @@ type Pedido = {
   order_items: {
     quantidade: number;
     preco_unitario: number;
-    products: { title: string; linha?: string | null } | null;
+    products: { title: string; linha?: string | null; uso?: string | null } | null;
   }[];
 };
 
@@ -861,7 +861,7 @@ export default function AdminPedidosPage() {
                       </div>
                       <div className="flex flex-col gap-1">
                         {pedido.order_items.map((item, i) => {
-                          const ehHc = linhaEhHomeCare(item.products?.linha);
+                          const ehHc = itemEhHomeCare(item);
                           return (
                             <div
                               key={i}

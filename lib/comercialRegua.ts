@@ -35,11 +35,11 @@ export const DEFINICOES_FASE3 = [
   {
     termo: "Home care (por item)",
     texto:
-      "Pedido pago com pelo menos 1 item das linhas Daily, Nutri, Repair, Scalp, Curls ou Blond. Align³ e produto sem linha não entram. O pedido pode misturar profissional + home care.",
+      "Pedido pago com pelo menos 1 item marcado como Home care em Admin → Produtos. Sem essa marca, ainda valem as linhas Daily, Nutri, Repair, Scalp, Curls ou Blond. Item profissional vai para a aba Profissional.",
   },
   {
     termo: "Régua 7 / 15 / 30",
-    texto: "Três toques depois da data do pedido que tem home care. Não dispara só em Align³ ou item sem linha.",
+    texto: "Três toques depois da data do pedido com item home care. Uso profissional não dispara esta régua.",
   },
   {
     termo: "Recompra 30 / 45 / 60",

@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       .select(
         `*,
         profiles!orders_profile_id_fkey(full_name, nivel, avatar_url, email, whatsapp, cpf_cnpj),
-        order_items(quantidade, preco_unitario, bonificado, products(title, linha))`
+        order_items(quantidade, preco_unitario, bonificado, products(title, linha, uso))`
       )
       .order("created_at", { ascending: false })
       .limit(limit);

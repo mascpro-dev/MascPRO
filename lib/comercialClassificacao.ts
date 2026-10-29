@@ -1,3 +1,21 @@
+export const USOS_PRODUTO = [
+  { value: "home_care", label: "Home care" },
+  { value: "profissional", label: "Profissional" },
+] as const;
+
+export const USO_PRODUTO_LABEL: Record<string, string> = Object.fromEntries(
+  USOS_PRODUTO.map((u) => [u.value, u.label])
+);
+
+const USO_SET = new Set<string>(USOS_PRODUTO.map((u) => u.value));
+
+export function parseUsoProduto(v: unknown): { ok: true; value: string | null } | { ok: false; error: string } {
+  if (v == null || v === "") return { ok: true, value: null };
+  const s = String(v);
+  if (USO_SET.has(s)) return { ok: true, value: s };
+  return { ok: false, error: "Uso inválido. Escolha Home care ou Profissional." };
+}
+
 export const LINHAS_PRODUTO = [
   { value: "daily", label: "Daily Barrier" },
   { value: "nutri", label: "Nutri Lipid" },
