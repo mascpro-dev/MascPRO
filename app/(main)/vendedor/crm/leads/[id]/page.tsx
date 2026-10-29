@@ -19,6 +19,7 @@ import {
 import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
 import CrmLigarBotao from "@/componentes/CrmLigarBotao";
 import CrmRegistrarTarefaModal from "@/componentes/CrmRegistrarTarefaModal";
+import CrmLeadCarteiraSelects from "@/componentes/CrmLeadCarteiraSelects";
 
 type Atividade = {
   id: string;
@@ -47,6 +48,9 @@ type Lead = {
   linha_interesse?: string | null;
   profile_id: string | null;
   order_id: string | null;
+  relacionamento?: string | null;
+  resultado_atendimento?: string | null;
+  proxima_acao?: string | null;
 };
 
 const STATUS_LABEL = STATUS_LEAD_LABEL;
@@ -184,13 +188,26 @@ export default function VendedorLeadDetalhePage() {
         {lead.linha_interesse && <p className="text-sm text-zinc-400">Linha: {LINHA_LABEL[lead.linha_interesse] || lead.linha_interesse}</p>}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setModalTarefa(true)}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest text-[#C9A66B] bg-[#C9A66B]/10 border border-[#C9A66B]/30"
-      >
-        <CalendarPlus size={14} /> Registrar atividade
-      </button>
+      <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5">
+        <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-3">Registrar atividade</p>
+        <div className="flex flex-wrap gap-2 mb-3">
+          <CrmLeadCarteiraSelects
+            leadId={lead.id}
+            apiBase="/api/vendedor/crm/leads"
+            relacionamento={lead.relacionamento}
+            resultadoAtendimento={lead.resultado_atendimento}
+            proximaAcao={lead.proxima_acao}
+            onAtualizado={(campos) => setLead((l) => (l ? { ...l, ...campos } : l))}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setModalTarefa(true)}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest text-[#C9A66B] bg-[#C9A66B]/10 border border-[#C9A66B]/30"
+        >
+          <CalendarPlus size={14} /> Registrar atividade
+        </button>
+      </div>
 
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
         <h2 className="text-xs font-black uppercase text-zinc-500 mb-3">Histórico</h2>

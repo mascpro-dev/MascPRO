@@ -16,7 +16,7 @@ export const PERFIS_COMERCIAIS = [
 
 export const RELACIONAMENTOS_MARCA = [
   { value: "nao_identificado", label: "Não identificado" },
-  { value: "nunca_ouviu", label: "Nunca ouviu falar da marca" },
+  { value: "nunca_ouviu", label: "Nunca conheceu" },
   { value: "conhece_nunca_comprou", label: "Conhece, mas nunca comprou" },
   { value: "ja_comprou", label: "Já comprou anteriormente" },
   { value: "cliente_ativo", label: "Cliente ativo" },

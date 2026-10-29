@@ -169,6 +169,9 @@ export const CAMPOS_PATCH_LEAD = [
   "dono_telefone",
   "cabeleireiro_nome",
   "cabeleireiro_telefone",
+  "relacionamento",
+  "resultado_atendimento",
+  "proxima_acao",
   ...CAMPOS_CLASSIFICACAO_LEAD,
 ] as const;
 
@@ -324,6 +327,9 @@ export function validarProximoPassoProposta(params: {
 export function erroColunaFase2(message: string) {
   if (/atividade_tipo|atividade_em|tipo_tarefa|agendada_em/i.test(message)) {
     return "Rode supabase/crm_atividades_tarefas.sql no Supabase para agendar atividades no pipeline.";
+  }
+  if (/relacionamento|resultado_atendimento|proxima_acao/i.test(message)) {
+    return "Rode supabase/crm_carteiras_fase1.sql no Supabase para gravar relacionamento e próxima ação.";
   }
   if (/dono_nome|cabeleireiro_nome|dono_telefone|cabeleireiro_telefone/i.test(message)) {
     return "Rode supabase/crm_leads_pessoas_salao.sql no Supabase para salvar dono e cabeleireiro no mesmo salão.";

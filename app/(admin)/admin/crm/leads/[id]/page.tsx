@@ -9,6 +9,7 @@ import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
 import CrmLigarBotao from "@/componentes/CrmLigarBotao";
 import CrmRegistrarTarefaModal from "@/componentes/CrmRegistrarTarefaModal";
+import CrmLeadCarteiraSelects from "@/componentes/CrmLeadCarteiraSelects";
 import {
   ArrowLeft, Loader2, Pencil, Save, X, AlertCircle,
   CheckCircle, MessageCircle, Instagram, Mail, Building2,
@@ -85,6 +86,9 @@ type Lead = {
   linha_interesse: string | null;
   dor: string | null;
   proximo_passo: string | null;
+  relacionamento?: string | null;
+  resultado_atendimento?: string | null;
+  proxima_acao?: string | null;
   responsavel: { id: string; full_name: string } | null;
   criador: { id: string; full_name: string } | null;
   profile_id: string | null;
@@ -651,7 +655,7 @@ export default function LeadDetalhePage() {
               </button>
 
               {/* Tipo de atividade */}
-              <div className="flex gap-2 mb-3">
+              <div className="flex flex-wrap gap-2 mb-3 items-center">
                 {(["nota", "contato", "followup"] as const).map((t) => {
                   const configs = {
                     nota:     { label: "Nota",     icon: <FileText size={12} />,  cor: "text-blue-400",   bg: "bg-blue-500/10",   borda: "border-blue-500/30"   },
@@ -669,6 +673,15 @@ export default function LeadDetalhePage() {
                     </button>
                   );
                 })}
+                <CrmLeadCarteiraSelects
+                  key={`${lead.relacionamento}-${lead.resultado_atendimento}-${lead.proxima_acao}`}
+                  leadId={lead.id}
+                  apiBase="/api/admin/crm/leads"
+                  relacionamento={lead.relacionamento}
+                  resultadoAtendimento={lead.resultado_atendimento}
+                  proximaAcao={lead.proxima_acao}
+                  onAtualizado={(campos) => setLead((l) => (l ? { ...l, ...campos } : l))}
+                />
               </div>
 
               <div className="flex gap-2">
