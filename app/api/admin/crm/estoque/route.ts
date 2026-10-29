@@ -158,5 +158,5 @@ export async function POST(req: NextRequest) {
 
   const r = await resetarEstoquePeloUltimoPedido(supabase, profissionalId);
   if (!r.ok) return NextResponse.json({ ok: false, error: r.error }, { status: 400 });
-  return NextResponse.json({ ok: true, profissional_id: profissionalId, ...r });
+  return NextResponse.json({ profissional_id: profissionalId, ...r });
 }
