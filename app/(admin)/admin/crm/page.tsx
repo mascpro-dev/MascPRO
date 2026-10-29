@@ -526,6 +526,8 @@ export default function CrmKanbanPage() {
   const [modalPedidoKey, setModalPedidoKey] = useState(0);
   const [filtroPrazo, setFiltroPrazo] = useState<PrazoAtividade | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<TipoTarefa | null>(null);
+  const [filtroEstado, setFiltroEstado] = useState("");
+  const [filtroCidade, setFiltroCidade] = useState("");
   const [leadTarefa, setLeadTarefa] = useState<Lead | null>(null);
 
   // Filtro por distribuidor (só visível para ADMIN)
@@ -653,7 +655,11 @@ export default function CrmKanbanPage() {
   }
 
   const colunasAtivas = COLUNAS_KANBAN_CRM_SIMPLIFICADO;
-  const leadsVisiveis = filtrarLeadsAtividade(leads, filtroTipo, filtroPrazo);
+  const leadsVisiveis = filtrarLeadsAtividade(leads, filtroTipo, filtroPrazo).filter((l) => {
+    if (filtroEstado && String(l.estado || "").trim().toUpperCase() !== filtroEstado) return false;
+    if (filtroCidade && String(l.cidade || "").replace(/\s+/g, " ").trim().toLowerCase() !== filtroCidade.toLowerCase()) return false;
+    return true;
+  });
 
   const followupsHoje = leads.filter(
     (l) => l.data_followup && followupAtrasado(l.data_followup) && statusContaFollowup(l.status)
@@ -742,6 +748,11 @@ export default function CrmKanbanPage() {
             filtroTipo={filtroTipo}
             onPrazo={setFiltroPrazo}
             onTipo={setFiltroTipo}
+            locais={leads}
+            filtroEstado={filtroEstado}
+            filtroCidade={filtroCidade}
+            onEstado={setFiltroEstado}
+            onCidade={setFiltroCidade}
           />
         </div>
 
