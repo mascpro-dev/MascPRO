@@ -95,7 +95,10 @@ function LeadCard({
   }
 
   return (
-    <div className={`relative bg-zinc-900 border border-zinc-800 border-l-4 ${prazo.barra} rounded-2xl p-4 flex flex-col gap-3 hover:border-zinc-700 transition-all group`}>
+    <div
+      className="relative bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-3 hover:border-zinc-700 transition-all group border-l-4"
+      style={{ borderLeftColor: prazo.cor }}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <Link
@@ -461,7 +464,8 @@ export default function EmbaixadoraCrmPipelinePage() {
 
   return (
     <div className="space-y-4">
-      <div className="pb-4 border-b border-white/5">
+      <div>
+        <div className="pb-3">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <Kanban className="text-[#C9A66B]" size={26} />
@@ -476,14 +480,6 @@ export default function EmbaixadoraCrmPipelinePage() {
                 )}
               </p>
             </div>
-          </div>
-          <div className="flex-1 min-w-[240px] flex justify-center">
-            <CrmPipelineAtividadesBar
-              filtroPrazo={filtroPrazo}
-              filtroTipo={filtroTipo}
-              onPrazo={setFiltroPrazo}
-              onTipo={setFiltroTipo}
-            />
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative">
@@ -511,6 +507,15 @@ export default function EmbaixadoraCrmPipelinePage() {
             </button>
             <VendedorNovoPedidoButton variante="header" onFechou={() => void carregar()} />
           </div>
+        </div>
+        </div>
+        <div className="-mx-2 md:mx-0">
+          <CrmPipelineAtividadesBar
+            filtroPrazo={filtroPrazo}
+            filtroTipo={filtroTipo}
+            onPrazo={setFiltroPrazo}
+            onTipo={setFiltroTipo}
+          />
         </div>
       </div>
 

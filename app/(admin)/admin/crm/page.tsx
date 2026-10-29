@@ -200,7 +200,10 @@ function LeadCard({
   }
 
   return (
-    <div className={`relative bg-zinc-900 border border-zinc-800 border-l-4 ${prazo.barra} rounded-2xl p-4 flex flex-col gap-3 hover:border-zinc-700 transition-all group`}>
+    <div
+      className="relative bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-3 hover:border-zinc-700 transition-all group border-l-4"
+      style={{ borderLeftColor: prazo.cor }}
+    >
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -662,7 +665,8 @@ export default function CrmKanbanPage() {
 
       <main className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="shrink-0 px-4 md:px-8 pt-4 md:pt-8 pb-4 border-b border-white/5">
+        <div className="shrink-0">
+          <div className="px-4 md:px-8 pt-4 md:pt-8 pb-3">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               <Kanban className="text-[#C9A66B]" size={26} />
@@ -679,15 +683,6 @@ export default function CrmKanbanPage() {
                   )}
                 </p>
               </div>
-            </div>
-
-            <div className="flex-1 min-w-[240px] flex justify-center">
-              <CrmPipelineAtividadesBar
-                filtroPrazo={filtroPrazo}
-                filtroTipo={filtroTipo}
-                onPrazo={setFiltroPrazo}
-                onTipo={setFiltroTipo}
-              />
             </div>
 
             <div className="flex items-center gap-3 flex-wrap justify-end">
@@ -741,6 +736,13 @@ export default function CrmKanbanPage() {
               </button>
             </div>
           </div>
+          </div>
+          <CrmPipelineAtividadesBar
+            filtroPrazo={filtroPrazo}
+            filtroTipo={filtroTipo}
+            onPrazo={setFiltroPrazo}
+            onTipo={setFiltroTipo}
+          />
         </div>
 
         {aviso && !loading && !erroCarregamento && (

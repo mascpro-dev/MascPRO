@@ -9,7 +9,7 @@ import {
   Users, UserPlus, GitMerge, Zap, Clock, LayoutDashboard,
   ShieldCheck, ArrowDownToLine, ShoppingBag, UsersRound,
   Calendar, BookOpen, Bell, Package, Menu, X, ChevronRight,
-  Eye, Kanban, TrendingUp, FileText, Target, Download, RotateCcw, Settings, Boxes,
+  Eye, Kanban, TrendingUp, FileText, Target, Download, RotateCcw, Settings, Boxes, ListChecks,
 } from "lucide-react";
 
 const ADMIN_MENU_ITEMS = [
@@ -68,6 +68,7 @@ const ADMIN_MENU_ITEMS = [
     items: [
       { name: "Dashboard",        desc: "Financeiro e visão geral",         icon: LayoutDashboard, href: "/admin/crm/dashboard",   color: "text-emerald-400" },
       { name: "Pipeline de Leads",desc: "Funil de vendas e follow-ups",     icon: Kanban,          href: "/admin/crm",             color: "text-[#C9A66B]"  },
+      { name: "Atividades",       desc: "Agenda e rotina do dia",           icon: ListChecks,     href: "/admin/crm/atividades",  color: "text-orange-300" },
       { name: "Novos Pedidos",    desc: "Buscar cliente e lançar pedido",   icon: ShoppingBag,    href: "/admin/crm/pedidos/novo", color: "text-blue-400"  },
       { name: "Estoque / Contagem", desc: "Conferência e ajuste manual",    icon: Boxes,           href: "/admin/crm/estoque",     color: "text-emerald-300" },
       { name: "Saúde do Negócio", desc: "Estoque · Margem · Curva ABC",     icon: TrendingUp,      href: "/admin/crm/saude",       color: "text-pink-400"   },
@@ -109,6 +110,7 @@ const DISTRIBUIDOR_MENU_ITEMS = [
     items: [
       { name: "Dashboard",         desc: "Financeiro e geral",                icon: LayoutDashboard, href: "/admin/crm/dashboard",  color: "text-emerald-400" },
       { name: "Pipeline de Leads", desc: "Funil de vendas e follow-ups",      icon: Kanban,          href: "/admin/crm",            color: "text-[#C9A66B]"  },
+      { name: "Atividades",        desc: "Agenda e rotina do dia",            icon: ListChecks,     href: "/admin/crm/atividades", color: "text-orange-300" },
       { name: "Novos Pedidos",     desc: "Buscar cliente e lançar pedido",    icon: ShoppingBag,    href: "/admin/crm/pedidos/novo", color: "text-blue-400" },
       { name: "Equipe / Vendedores", desc: "Cadastro, preços e aprovações", icon: Users,           href: "/admin/crm/equipe",     color: "text-[#C9A66B]"  },
       { name: "Estoque / Contagem", desc: "Conferência e ajuste manual",     icon: Boxes,           href: "/admin/crm/estoque",    color: "text-emerald-300" },

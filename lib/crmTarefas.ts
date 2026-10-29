@@ -1,9 +1,15 @@
 export const TIPOS_TAREFA = [
   { value: "ligacao", label: "Retorno ligação" },
+  { value: "primeira_ligacao", label: "Primeira ligação" },
+  { value: "followup", label: "Follow-up" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "proposta", label: "Envio de proposta" },
+  { value: "reuniao", label: "Reunião" },
+  { value: "email", label: "E-mail" },
   { value: "disponibilidade", label: "Verificar disponibilidade" },
-  { value: "outro", label: "Outro" },
   { value: "visita", label: "Confirmar visita" },
   { value: "recebimento", label: "Confirmar recebimento" },
+  { value: "outro", label: "Outro" },
 ] as const;
 
 export type TipoTarefa = (typeof TIPOS_TAREFA)[number]["value"];
@@ -25,13 +31,12 @@ export const PRAZOS_ATIVIDADE: {
   value: PrazoAtividade;
   label: string;
   titulo: string;
-  dot: string;
-  barra: string;
+  cor: string;
 }[] = [
-  { value: "sem", label: "Sem atividade", titulo: "Azul: ainda não tem atividade", dot: "bg-sky-500", barra: "border-l-sky-500" },
-  { value: "inicial", label: "Inicial", titulo: "Cinza: atividade marcada, prazo ainda folgado", dot: "bg-zinc-400", barra: "border-l-zinc-400" },
-  { value: "acabando", label: "Acabando", titulo: "Amarelo: o prazo acaba em até 24h", dot: "bg-amber-400", barra: "border-l-amber-400" },
-  { value: "estourado", label: "Estourado", titulo: "Vermelho: o prazo estourou", dot: "bg-red-500", barra: "border-l-red-500" },
+  { value: "sem", label: "Sem atividade", titulo: "Laranja: ainda não tem atividade", cor: "#E8923A" },
+  { value: "inicial", label: "Inicial", titulo: "Cinza: atividade marcada, prazo ainda folgado", cor: "#C8C8C8" },
+  { value: "acabando", label: "Acabando", titulo: "Azul: o prazo acaba em até 24h", cor: "#3DB8D0" },
+  { value: "estourado", label: "Estourado", titulo: "Vermelho: o prazo estourou", cor: "#E2554A" },
 ];
 
 const TIPO_SET = new Set<string>(TIPOS_TAREFA.map((t) => t.value));
@@ -82,8 +87,66 @@ export function filtrarLeadsAtividade<
   });
 }
 
+export type StatusAgenda = "hoje" | "planejada" | "concluida" | "atrasada" | "cancelada";
+
+export function ymdLocal(d = new Date()) {
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+export function statusAgenda(
+  agendadaEm: string | null | undefined,
+  concluidaEm?: string | null,
+  canceladaEm?: string | null,
+  agora = new Date()
+): StatusAgenda {
+  if (canceladaEm) return "cancelada";
+  if (concluidaEm) return "concluida";
+  if (!agendadaEm) return "planejada";
+  const t = new Date(agendadaEm);
+  if (Number.isNaN(t.getTime())) return "planejada";
+  if (t.getTime() < agora.getTime()) return "atrasada";
+  const mesmoDia =
+    t.getFullYear() === agora.getFullYear() &&
+    t.getMonth() === agora.getMonth() &&
+    t.getDate() === agora.getDate();
+  return mesmoDia ? "hoje" : "planejada";
+}
+
+export const STATUS_AGENDA_LABEL: Record<StatusAgenda, string> = {
+  hoje: "Hoje",
+  planejada: "Planejada",
+  concluida: "Concluída",
+  atrasada: "Atrasada",
+  cancelada: "Cancelada",
+};
+
+export function periodoAgenda(periodo: string, de?: string | null, ate?: string | null) {
+  const agora = new Date();
+  const inicioDia = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const fimDia = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+  if (periodo === "hoje") {
+    return { de: inicioDia(agora).toISOString(), ate: fimDia(agora).toISOString() };
+  }
+  if (periodo === "semana") {
+    const dow = agora.getDay();
+    const seg = new Date(agora);
+    seg.setDate(agora.getDate() - (dow === 0 ? 6 : dow - 1));
+    const dom = new Date(seg);
+    dom.setDate(seg.getDate() + 6);
+    return { de: inicioDia(seg).toISOString(), ate: fimDia(dom).toISOString() };
+  }
+  if (periodo === "custom" && de && ate) {
+    return { de: inicioDia(new Date(de + "T00:00:00")).toISOString(), ate: fimDia(new Date(ate + "T00:00:00")).toISOString() };
+  }
+  const mesDe = new Date(agora.getFullYear(), agora.getMonth(), 1);
+  const mesAte = new Date(agora.getFullYear(), agora.getMonth() + 1, 0);
+  return { de: inicioDia(mesDe).toISOString(), ate: fimDia(mesAte).toISOString() };
+}
+
 export function erroColunaTarefa(message: string) {
-  if (/atividade_tipo|atividade_em|tipo_tarefa|agendada_em|concluida_em|notificacao/i.test(message)) {
+  if (/atividade_tipo|atividade_em|tipo_tarefa|agendada_em|concluida_em|notificacao|cancelada_em|titulo|resultado/i.test(message)) {
     return "Rode supabase/crm_atividades_tarefas.sql no Supabase para agendar atividades no pipeline.";
   }
   return null;

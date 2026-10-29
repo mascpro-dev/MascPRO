@@ -23,39 +23,42 @@ export default function CrmPipelineAtividadesBar({
   onTipo: (v: TipoTarefa | null) => void;
 }) {
   return (
-    <div className="flex items-center gap-3 flex-wrap justify-center">
-      <div className="flex items-center gap-1.5">
-        {PRAZOS_ATIVIDADE.map((p) => {
-          const ativo = filtroPrazo === p.value;
-          return (
-            <button
-              key={p.value}
-              type="button"
-              title={p.titulo}
-              onClick={() => onPrazo(ativo ? null : p.value)}
-              className={`w-3.5 h-3.5 rounded-full ${p.dot} transition-transform ${ativo ? "scale-125 ring-2 ring-white/80" : "opacity-80 hover:opacity-100"}`}
-            />
-          );
-        })}
-      </div>
-      <span className="w-px h-5 bg-zinc-800 hidden sm:block" />
-      <div className="flex items-center gap-0.5">
-        {FILTROS_TIPO.map(({ value, titulo, Icon }) => {
-          const ativo = filtroTipo === value;
-          return (
-            <button
-              key={value}
-              type="button"
-              title={titulo}
-              onClick={() => onTipo(ativo ? null : value)}
-              className={`w-8 h-8 rounded-lg inline-flex items-center justify-center transition-colors ${
-                ativo ? "bg-[#C9A66B] text-black" : "text-zinc-500 hover:text-white hover:bg-zinc-800"
-              }`}
-            >
-              <Icon size={15} />
-            </button>
-          );
-        })}
+    <div className="shrink-0 border-y border-white/10 bg-zinc-950/80 px-4 md:px-8 py-2.5">
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          {PRAZOS_ATIVIDADE.map((p) => {
+            const ativo = filtroPrazo === p.value;
+            return (
+              <button
+                key={p.value}
+                type="button"
+                title={p.titulo}
+                onClick={() => onPrazo(ativo ? null : p.value)}
+                className={`h-4 w-4 rounded-full shrink-0 border-2 transition-transform ${ativo ? "scale-110 border-white" : "border-black/40"}`}
+                style={{ backgroundColor: p.cor }}
+              />
+            );
+          })}
+        </div>
+        <span className="w-px h-5 bg-white/10 hidden sm:block" />
+        <div className="flex items-center gap-1">
+          {FILTROS_TIPO.map(({ value, titulo, Icon }) => {
+            const ativo = filtroTipo === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                title={titulo}
+                onClick={() => onTipo(ativo ? null : value)}
+                className={`w-8 h-8 rounded-lg inline-flex items-center justify-center transition-colors ${
+                  ativo ? "bg-[#C9A66B] text-black" : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                }`}
+              >
+                <Icon size={16} />
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
