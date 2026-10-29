@@ -8,11 +8,12 @@ import CrmCadastrarMembroPanel from "@/componentes/CrmCadastrarMembroPanel";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
 import CrmLigarBotao from "@/componentes/CrmLigarBotao";
+import CrmRegistrarTarefaModal from "@/componentes/CrmRegistrarTarefaModal";
 import {
   ArrowLeft, Loader2, Pencil, Save, X, AlertCircle,
   CheckCircle, MessageCircle, Instagram, Mail, Building2,
   Calendar, User, DollarSign, MapPin, FileText,
-  Tag, Trash2, MessageSquare, PhoneCall, Clock,
+  Tag, Trash2, MessageSquare, PhoneCall, Clock, CalendarPlus,
   Link2, ShoppingBag, Users, TrendingUp, AlertTriangle,
   Package, Star, Search,
 } from "lucide-react";
@@ -139,6 +140,7 @@ export default function LeadDetalhePage() {
   const [novaAtv, setNovaAtv] = useState("");
   const [tipoAtv, setTipoAtv] = useState<"nota" | "contato" | "followup">("nota");
   const [adicionandoAtv, setAdicionandoAtv] = useState(false);
+  const [modalTarefa, setModalTarefa] = useState(false);
 
   // Confirmar exclusão
   const [excluindo, setExcluindo] = useState(false);
@@ -640,6 +642,13 @@ export default function LeadDetalhePage() {
                 {/* Adicionar atividade */}
             <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5">
               <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-3">Registrar Atividade</p>
+              <button
+                type="button"
+                onClick={() => setModalTarefa(true)}
+                className="w-full mb-3 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest text-[#C9A66B] bg-[#C9A66B]/10 border border-[#C9A66B]/30 hover:bg-[#C9A66B]/20"
+              >
+                <CalendarPlus size={14} /> Agendar ligação, visita ou recebimento
+              </button>
 
               {/* Tipo de atividade */}
               <div className="flex gap-2 mb-3">
@@ -737,6 +746,18 @@ export default function LeadDetalhePage() {
           </div>
         </div>
       </main>
+
+      {modalTarefa && lead && (
+        <CrmRegistrarTarefaModal
+          leadId={lead.id}
+          leadNome={lead.nome}
+          onClose={() => setModalTarefa(false)}
+          onSalvo={() => {
+            setModalTarefa(false);
+            void carregar();
+          }}
+        />
+      )}
 
       {/* ─── Modal Converter Lead ─── */}
       {modalConverter && (

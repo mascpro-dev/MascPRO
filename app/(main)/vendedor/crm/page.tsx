@@ -8,11 +8,14 @@ import VendedorNovoPedidoButton from "@/componentes/VendedorNovoPedidoButton";
 import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
 import CrmLigarBotao from "@/componentes/CrmLigarBotao";
 import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
+import CrmPipelineAtividadesBar from "@/componentes/CrmPipelineAtividadesBar";
+import CrmRegistrarTarefaModal from "@/componentes/CrmRegistrarTarefaModal";
 import {
   Kanban, Plus, Loader2, Search, Upload, X, ChevronRight,
-  Mail, Building2, Calendar, User, DollarSign,
+  Mail, Building2, Calendar, CalendarPlus, User, DollarSign,
   MessageCircle, Instagram, AlertCircle,
 } from "lucide-react";
+import { estiloPrazoCard, filtrarLeadsAtividade, TIPO_TAREFA_LABEL, type PrazoAtividade, type TipoTarefa } from "@/lib/crmTarefas";
 import {
   COLUNAS_KANBAN_CRM_SIMPLIFICADO as COLUNAS,
   ORIGENS_LEAD as ORIGENS,
@@ -47,6 +50,8 @@ type Lead = {
   linha_interesse?: string | null;
   profile_id: string | null;
   order_id: string | null;
+  atividade_tipo?: string | null;
+  atividade_em?: string | null;
   updated_at: string;
 };
 
@@ -67,15 +72,18 @@ function LeadCard({
   lead,
   onMover,
   onNovoPedido,
+  onRegistrar,
   colunaAtual,
 }: {
   lead: Lead;
   onMover: (id: string, novoStatus: string) => void;
   onNovoPedido?: (lead: Lead) => void;
+  onRegistrar?: (lead: Lead) => void;
   colunaAtual: (typeof COLUNAS)[number];
 }) {
   const [movendo, setMovendo] = useState(false);
   const atrasado = followupAtrasado(lead.data_followup);
+  const prazo = estiloPrazoCard(lead.atividade_em || lead.data_followup);
   const idx = COLUNAS.findIndex((c) => c.key === lead.status);
   const proxima = COLUNAS[idx + 1];
   const anterior = COLUNAS[idx - 1];
@@ -87,7 +95,7 @@ function LeadCard({
   }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-3 hover:border-zinc-700 transition-all group relative">
+    <div className={`relative bg-zinc-900 border border-zinc-800 border-l-4 ${prazo.barra} rounded-2xl p-4 flex flex-col gap-3 hover:border-zinc-700 transition-all group`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <Link
@@ -173,7 +181,21 @@ function LeadCard({
             Sem app
           </span>
         )}
+        {lead.atividade_tipo && (
+          <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">
+            {TIPO_TAREFA_LABEL[lead.atividade_tipo] || lead.atividade_tipo}
+          </span>
+        )}
       </div>
+      {onRegistrar && (
+        <button
+          type="button"
+          onClick={() => onRegistrar(lead)}
+          className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-[#C9A66B] bg-zinc-800/60 hover:bg-zinc-800 py-1.5 rounded-lg"
+        >
+          <CalendarPlus size={12} /> Registrar atividade
+        </button>
+      )}
 
       {(anterior || proxima || onNovoPedido) && (
         <div className="flex gap-2 pt-1 border-t border-zinc-800 flex-wrap">
@@ -379,6 +401,9 @@ export default function EmbaixadoraCrmPipelinePage() {
   const [modalLista, setModalLista] = useState(false);
   const [leadFechamento, setLeadFechamento] = useState<Lead | null>(null);
   const [modalPedidoKey, setModalPedidoKey] = useState(0);
+  const [filtroPrazo, setFiltroPrazo] = useState<PrazoAtividade | null>(null);
+  const [filtroTipo, setFiltroTipo] = useState<TipoTarefa | null>(null);
+  const [leadTarefa, setLeadTarefa] = useState<Lead | null>(null);
 
   const carregar = useCallback(async () => {
     setErroCarregamento("");
@@ -428,6 +453,8 @@ export default function EmbaixadoraCrmPipelinePage() {
     setLeadFechamento(lead);
   }
 
+  const leadsVisiveis = filtrarLeadsAtividade(leads, filtroTipo, filtroPrazo);
+
   const followupsHoje = leads.filter(
     (l) => l.data_followup && followupAtrasado(l.data_followup) && statusContaFollowup(l.status)
   ).length;
@@ -449,6 +476,14 @@ export default function EmbaixadoraCrmPipelinePage() {
                 )}
               </p>
             </div>
+          </div>
+          <div className="flex-1 min-w-[240px] flex justify-center">
+            <CrmPipelineAtividadesBar
+              filtroPrazo={filtroPrazo}
+              filtroTipo={filtroTipo}
+              onPrazo={setFiltroPrazo}
+              onTipo={setFiltroTipo}
+            />
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative">
@@ -501,7 +536,7 @@ export default function EmbaixadoraCrmPipelinePage() {
         <div className="overflow-x-auto pb-8 -mx-2 px-2">
           <div className="flex gap-4 min-w-max">
             {COLUNAS.map((col) => {
-              const leadsColuna = leads.filter((l) => l.status === col.key);
+              const leadsColuna = leadsVisiveis.filter((l) => l.status === col.key);
               return (
                 <div key={col.key} className="flex flex-col w-72 shrink-0">
                   <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${col.bg} border ${col.borda} mb-3`}>
@@ -520,6 +555,7 @@ export default function EmbaixadoraCrmPipelinePage() {
                           lead={lead}
                           onMover={moverLead}
                           onNovoPedido={abrirFechamentoPedido}
+                          onRegistrar={setLeadTarefa}
                           colunaAtual={col}
                         />
                       ))
@@ -545,6 +581,19 @@ export default function EmbaixadoraCrmPipelinePage() {
         <ModalNovoLead
           onClose={() => setModalNovo(false)}
           onSalvo={(lead) => { setLeads((p) => [lead, ...p]); setModalNovo(false); }}
+        />
+      )}
+
+      {leadTarefa && (
+        <CrmRegistrarTarefaModal
+          leadId={leadTarefa.id}
+          leadNome={leadTarefa.nome}
+          tipoInicial={filtroTipo}
+          onClose={() => setLeadTarefa(null)}
+          onSalvo={() => {
+            setLeadTarefa(null);
+            void carregar();
+          }}
         />
       )}
 

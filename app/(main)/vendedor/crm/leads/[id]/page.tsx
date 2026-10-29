@@ -7,7 +7,7 @@ import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import {
   ArrowLeft, Loader2, Pencil, Save, X,
-  MessageCircle, Mail, Calendar, FileText, PhoneCall, Clock, Tag, ShoppingBag,
+  MessageCircle, Mail, Calendar, CalendarPlus, FileText, PhoneCall, Clock, Tag, ShoppingBag,
 } from "lucide-react";
 import {
   PERFIS_LEAD,
@@ -18,6 +18,7 @@ import {
 } from "@/lib/comercialClassificacao";
 import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
 import CrmLigarBotao from "@/componentes/CrmLigarBotao";
+import CrmRegistrarTarefaModal from "@/componentes/CrmRegistrarTarefaModal";
 
 type Atividade = {
   id: string;
@@ -60,6 +61,7 @@ export default function VendedorLeadDetalhePage() {
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [modalPedido, setModalPedido] = useState(false);
+  const [modalTarefa, setModalTarefa] = useState(false);
 
   const carregar = useCallback(async () => {
     const res = await fetch(`/api/vendedor/crm/leads/${id}`, { cache: "no-store" });
@@ -182,6 +184,14 @@ export default function VendedorLeadDetalhePage() {
         {lead.linha_interesse && <p className="text-sm text-zinc-400">Linha: {LINHA_LABEL[lead.linha_interesse] || lead.linha_interesse}</p>}
       </div>
 
+      <button
+        type="button"
+        onClick={() => setModalTarefa(true)}
+        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest text-[#C9A66B] bg-[#C9A66B]/10 border border-[#C9A66B]/30"
+      >
+        <CalendarPlus size={14} /> Registrar atividade
+      </button>
+
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
         <h2 className="text-xs font-black uppercase text-zinc-500 mb-3">Histórico</h2>
         <ul className="space-y-2 max-h-64 overflow-y-auto">
@@ -193,6 +203,18 @@ export default function VendedorLeadDetalhePage() {
           ))}
         </ul>
       </div>
+
+      {modalTarefa && (
+        <CrmRegistrarTarefaModal
+          leadId={lead.id}
+          leadNome={lead.nome}
+          onClose={() => setModalTarefa(false)}
+          onSalvo={() => {
+            setModalTarefa(false);
+            void carregar();
+          }}
+        />
+      )}
 
       {modalPedido && (
         <CrmFechamentoPedidoModal

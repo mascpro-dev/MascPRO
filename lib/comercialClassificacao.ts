@@ -177,6 +177,17 @@ export const CRM_LEADS_LIST_SELECT = `
   nome, empresa, telefone, email, instagram, cidade, estado,
   dono_nome, dono_telefone, cabeleireiro_nome, cabeleireiro_telefone,
   status, origem, valor_estimado, data_followup, notas,
+  atividade_tipo, atividade_em,
+  perfil, interesse, linha_interesse, dor, proximo_passo,
+  responsavel_id, created_by, profile_id, order_id,
+  responsavel:profiles!crm_leads_responsavel_id_fkey(id, full_name, avatar_url)
+`;
+
+export const CRM_LEADS_LIST_SELECT_SEM_TAREFA = `
+  id, created_at, updated_at,
+  nome, empresa, telefone, email, instagram, cidade, estado,
+  dono_nome, dono_telefone, cabeleireiro_nome, cabeleireiro_telefone,
+  status, origem, valor_estimado, data_followup, notas,
   perfil, interesse, linha_interesse, dor, proximo_passo,
   responsavel_id, created_by, profile_id, order_id,
   responsavel:profiles!crm_leads_responsavel_id_fkey(id, full_name, avatar_url)
@@ -311,6 +322,9 @@ export function validarProximoPassoProposta(params: {
 }
 
 export function erroColunaFase2(message: string) {
+  if (/atividade_tipo|atividade_em|tipo_tarefa|agendada_em/i.test(message)) {
+    return "Rode supabase/crm_atividades_tarefas.sql no Supabase para agendar atividades no pipeline.";
+  }
   if (/dono_nome|cabeleireiro_nome|dono_telefone|cabeleireiro_telefone/i.test(message)) {
     return "Rode supabase/crm_leads_pessoas_salao.sql no Supabase para salvar dono e cabeleireiro no mesmo salão.";
   }

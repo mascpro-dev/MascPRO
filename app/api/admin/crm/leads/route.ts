@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
 import {
   CRM_LEADS_LIST_SELECT,
+  CRM_LEADS_LIST_SELECT_SEM_TAREFA,
   CRM_LEADS_LIST_SELECT_LEGACY,
   parseOrigemLead,
   parseStatusLead,
@@ -112,6 +113,11 @@ export async function GET(req: NextRequest) {
     });
 
   let { data, error } = await listar(CRM_LEADS_LIST_SELECT);
+  if (error && /atividade_tipo|atividade_em|schema cache|PGRST204|does not exist/i.test(error)) {
+    const retryTarefa = await listar(CRM_LEADS_LIST_SELECT_SEM_TAREFA);
+    data = retryTarefa.data;
+    error = retryTarefa.error;
+  }
   if (error && /dono_nome|cabeleireiro|schema cache|PGRST204|does not exist/i.test(error)) {
     const retry = await listar(CRM_LEADS_LIST_SELECT_LEGACY);
     data = retry.data;

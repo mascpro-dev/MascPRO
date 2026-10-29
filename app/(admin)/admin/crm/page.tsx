@@ -8,11 +8,14 @@ import ErroComVoltar from "@/componentes/ErroComVoltar";
 import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
 import CrmLigarBotao from "@/componentes/CrmLigarBotao";
 import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
+import CrmPipelineAtividadesBar from "@/componentes/CrmPipelineAtividadesBar";
+import CrmRegistrarTarefaModal from "@/componentes/CrmRegistrarTarefaModal";
 import {
   Kanban, Plus, Loader2, Search, Upload, Trash2, X, ChevronRight, ChevronDown,
-  Mail, Building2, Calendar, User, DollarSign,
+  Mail, Building2, Calendar, CalendarPlus, User, DollarSign,
   MessageCircle, Instagram, AlertCircle, Filter, ShoppingBag,
 } from "lucide-react";
+import { estiloPrazoCard, filtrarLeadsAtividade, TIPO_TAREFA_LABEL, type PrazoAtividade, type TipoTarefa } from "@/lib/crmTarefas";
 import {
   COLUNAS_KANBAN_CRM_SIMPLIFICADO,
   ORIGENS_LEAD as ORIGENS,
@@ -50,6 +53,8 @@ type Lead = {
   linha_interesse: string | null;
   dor: string | null;
   proximo_passo: string | null;
+  atividade_tipo?: string | null;
+  atividade_em?: string | null;
   responsavel_id: string | null;
   profile_id: string | null;
   order_id: string | null;
@@ -167,6 +172,7 @@ function LeadCard({
   lead,
   onMover,
   onNovoPedido,
+  onRegistrar,
   colunaAtual,
   colunas,
   mostrarDistribuidor = false,
@@ -174,12 +180,14 @@ function LeadCard({
   lead: Lead;
   onMover: (id: string, novoStatus: string) => void;
   onNovoPedido?: (lead: Lead) => void;
+  onRegistrar?: (lead: Lead) => void;
   colunaAtual: (typeof COLUNAS_KANBAN_CRM_SIMPLIFICADO)[number];
   colunas: readonly (typeof COLUNAS_KANBAN_CRM_SIMPLIFICADO)[number][];
   mostrarDistribuidor?: boolean;
 }) {
   const [movendo, setMovendo] = useState(false);
   const atrasado = followupAtrasado(lead.data_followup);
+  const prazo = estiloPrazoCard(lead.atividade_em || lead.data_followup);
 
   const idx = colunas.findIndex((c) => c.key === normalizarStatusCrmSimplificado(lead.status));
   const proxima = colunas[idx + 1];
@@ -192,7 +200,7 @@ function LeadCard({
   }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-3 hover:border-zinc-700 transition-all group">
+    <div className={`relative bg-zinc-900 border border-zinc-800 border-l-4 ${prazo.barra} rounded-2xl p-4 flex flex-col gap-3 hover:border-zinc-700 transition-all group`}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -284,7 +292,21 @@ function LeadCard({
             <User size={10} /> {lead.responsavel.full_name.split(" ")[0]}
           </span>
         )}
+        {lead.atividade_tipo && (
+          <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">
+            {TIPO_TAREFA_LABEL[lead.atividade_tipo] || lead.atividade_tipo}
+          </span>
+        )}
       </div>
+      {onRegistrar && (
+        <button
+          type="button"
+          onClick={() => onRegistrar(lead)}
+          className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-[#C9A66B] bg-zinc-800/60 hover:bg-zinc-800 py-1.5 rounded-lg"
+        >
+          <CalendarPlus size={12} /> Registrar atividade
+        </button>
+      )}
 
       {/* Ações de mover */}
       {(anterior || proxima || colunaAtual.key === "fechado") && (
@@ -499,6 +521,9 @@ export default function CrmKanbanPage() {
   const [apagandoLista, setApagandoLista] = useState(false);
   const [leadFechamento, setLeadFechamento] = useState<Lead | null>(null);
   const [modalPedidoKey, setModalPedidoKey] = useState(0);
+  const [filtroPrazo, setFiltroPrazo] = useState<PrazoAtividade | null>(null);
+  const [filtroTipo, setFiltroTipo] = useState<TipoTarefa | null>(null);
+  const [leadTarefa, setLeadTarefa] = useState<Lead | null>(null);
 
   // Filtro por distribuidor (só visível para ADMIN)
   const [distribuidores, setDistribuidores] = useState<Distribuidor[]>([]);
@@ -625,6 +650,7 @@ export default function CrmKanbanPage() {
   }
 
   const colunasAtivas = COLUNAS_KANBAN_CRM_SIMPLIFICADO;
+  const leadsVisiveis = filtrarLeadsAtividade(leads, filtroTipo, filtroPrazo);
 
   const followupsHoje = leads.filter(
     (l) => l.data_followup && followupAtrasado(l.data_followup) && statusContaFollowup(l.status)
@@ -653,6 +679,15 @@ export default function CrmKanbanPage() {
                   )}
                 </p>
               </div>
+            </div>
+
+            <div className="flex-1 min-w-[240px] flex justify-center">
+              <CrmPipelineAtividadesBar
+                filtroPrazo={filtroPrazo}
+                filtroTipo={filtroTipo}
+                onPrazo={setFiltroPrazo}
+                onTipo={setFiltroTipo}
+              />
             </div>
 
             <div className="flex items-center gap-3 flex-wrap justify-end">
@@ -744,7 +779,7 @@ export default function CrmKanbanPage() {
           <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
             <div className="flex gap-4 p-4 md:p-6 h-full min-w-max">
               {colunasAtivas.map((col) => {
-                const leadsColuna = leads.filter((l) => normalizarStatusCrmSimplificado(l.status) === col.key);
+                const leadsColuna = leadsVisiveis.filter((l) => normalizarStatusCrmSimplificado(l.status) === col.key);
                 return (
                   <div
                     key={col.key}
@@ -775,6 +810,7 @@ export default function CrmKanbanPage() {
                               lead={lead}
                               onMover={moverLead}
                               onNovoPedido={abrirFechamentoPedido}
+                              onRegistrar={setLeadTarefa}
                               colunaAtual={col}
                               colunas={colunasAtivas}
                               mostrarDistribuidor={distribuidores.length > 0}
@@ -804,6 +840,20 @@ export default function CrmKanbanPage() {
 
       {modalNovo && (
         <ModalNovoLead onClose={() => setModalNovo(false)} onSalvo={onLeadSalvo} />
+      )}
+
+      {leadTarefa && (
+        <CrmRegistrarTarefaModal
+          leadId={leadTarefa.id}
+          leadNome={leadTarefa.nome}
+          tipoInicial={filtroTipo}
+          onClose={() => setLeadTarefa(null)}
+          onSalvo={(atualizado) => {
+            setLeads((prev) => prev.map((l) => (l.id === leadTarefa.id ? { ...l, ...atualizado } : l)));
+            setLeadTarefa(null);
+            void carregar();
+          }}
+        />
       )}
 
       {leadFechamento && (
