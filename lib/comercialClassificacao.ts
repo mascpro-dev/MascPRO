@@ -165,10 +165,24 @@ export const CAMPOS_PATCH_LEAD = [
   "notas",
   "responsavel_id",
   "profile_id",
+  "dono_nome",
+  "dono_telefone",
+  "cabeleireiro_nome",
+  "cabeleireiro_telefone",
   ...CAMPOS_CLASSIFICACAO_LEAD,
 ] as const;
 
 export const CRM_LEADS_LIST_SELECT = `
+  id, created_at, updated_at,
+  nome, empresa, telefone, email, instagram, cidade, estado,
+  dono_nome, dono_telefone, cabeleireiro_nome, cabeleireiro_telefone,
+  status, origem, valor_estimado, data_followup, notas,
+  perfil, interesse, linha_interesse, dor, proximo_passo,
+  responsavel_id, created_by, profile_id, order_id,
+  responsavel:profiles!crm_leads_responsavel_id_fkey(id, full_name, avatar_url)
+`;
+
+export const CRM_LEADS_LIST_SELECT_LEGACY = `
   id, created_at, updated_at,
   nome, empresa, telefone, email, instagram, cidade, estado,
   status, origem, valor_estimado, data_followup, notas,
@@ -297,6 +311,9 @@ export function validarProximoPassoProposta(params: {
 }
 
 export function erroColunaFase2(message: string) {
+  if (/dono_nome|cabeleireiro_nome|dono_telefone|cabeleireiro_telefone/i.test(message)) {
+    return "Rode supabase/crm_leads_pessoas_salao.sql no Supabase para salvar dono e cabeleireiro no mesmo salão.";
+  }
   if (/column|does not exist|schema cache|PGRST204/i.test(message)) {
     return "Rode supabase/comercial_fase2.sql no Supabase para habilitar a classificação da fase 2.";
   }

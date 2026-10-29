@@ -22,6 +22,10 @@ function asImport(lead: LeadLista | LeadImportacao): LeadImportacao {
     cep: extra.cep ?? null,
     telefone_normalizado: extra.telefone_normalizado || normalizarTelefoneBr(lead.telefone),
     origem_lista: extra.origem_lista ?? null,
+    dono_nome: extra.dono_nome ?? null,
+    dono_telefone: extra.dono_telefone ?? null,
+    cabeleireiro_nome: extra.cabeleireiro_nome ?? null,
+    cabeleireiro_telefone: extra.cabeleireiro_telefone ?? null,
   };
 }
 
@@ -47,6 +51,10 @@ function rowLead(lead: LeadImportacao, responsavelId: string, loteId: string | n
     cep: lead.cep,
     telefone_normalizado: lead.telefone_normalizado,
     lote_importacao_id: loteId,
+    dono_nome: lead.dono_nome || null,
+    dono_telefone: lead.dono_telefone || null,
+    cabeleireiro_nome: lead.cabeleireiro_nome || null,
+    cabeleireiro_telefone: lead.cabeleireiro_telefone || null,
   };
   return base;
 }
@@ -61,6 +69,10 @@ function rowSlim(row: Record<string, unknown>) {
     resultado_atendimento,
     perfil_comercial,
     relacionamento,
+    dono_nome,
+    dono_telefone,
+    cabeleireiro_nome,
+    cabeleireiro_telefone,
     ...rest
   } = row;
   void bairro;
@@ -71,6 +83,10 @@ function rowSlim(row: Record<string, unknown>) {
   void resultado_atendimento;
   void perfil_comercial;
   void relacionamento;
+  void dono_nome;
+  void dono_telefone;
+  void cabeleireiro_nome;
+  void cabeleireiro_telefone;
   return rest;
 }
 
@@ -125,7 +141,7 @@ export async function inserirListaLeads(
   }
 
   const tels = [...new Set(leads.map((l) => l.telefone_normalizado).filter(Boolean))] as string[];
-  const existentes: { id: string; nome: string; telefone: string | null; telefone_normalizado?: string | null; empresa?: string | null; email?: string | null; cidade?: string | null; bairro?: string | null; endereco?: string | null; cep?: string | null; notas?: string | null }[] = [];
+  const existentes: { id: string; nome: string; telefone: string | null; telefone_normalizado?: string | null; empresa?: string | null; email?: string | null; cidade?: string | null; bairro?: string | null; endereco?: string | null; cep?: string | null; notas?: string | null; dono_nome?: string | null; dono_telefone?: string | null; cabeleireiro_nome?: string | null; cabeleireiro_telefone?: string | null }[] = [];
 
   if (tels.length) {
     for (let i = 0; i < tels.length; i += 30) {
@@ -137,7 +153,7 @@ export async function inserirListaLeads(
       const orTel = chunk.map((t) => `telefone_normalizado.eq.${t}`).join(",");
       const { data, error } = await supabase
         .from("crm_leads")
-        .select("id, nome, telefone, telefone_normalizado, empresa, email, cidade, bairro, endereco, cep, notas")
+        .select("id, nome, telefone, telefone_normalizado, empresa, email, cidade, bairro, endereco, cep, notas, dono_nome, dono_telefone, cabeleireiro_nome, cabeleireiro_telefone")
         .or(orTel);
       if (error && /column|schema cache|PGRST204/i.test(error.message)) {
         const simples = await supabase
@@ -229,6 +245,10 @@ export async function inserirListaLeads(
     if (item.lead.notas) {
       patch.notas = [item.atual.notas, item.lead.notas].filter(Boolean).join("\n");
     }
+    if (!item.atual.dono_nome && item.lead.dono_nome) patch.dono_nome = item.lead.dono_nome;
+    if (!item.atual.dono_telefone && item.lead.dono_telefone) patch.dono_telefone = item.lead.dono_telefone;
+    if (!item.atual.cabeleireiro_nome && item.lead.cabeleireiro_nome) patch.cabeleireiro_nome = item.lead.cabeleireiro_nome;
+    if (!item.atual.cabeleireiro_telefone && item.lead.cabeleireiro_telefone) patch.cabeleireiro_telefone = item.lead.cabeleireiro_telefone;
     if (!Object.keys(patch).length) continue;
     const { error } = await supabase.from("crm_leads").update(patch).eq("id", item.atual.id);
     if (!error) atualizados += 1;

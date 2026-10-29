@@ -59,8 +59,19 @@ export async function POST(req: NextRequest) {
     if (!acesso) {
       return NextResponse.json({ ok: false, error: "Sem acesso a este contato." }, { status: 403 });
     }
-    const { data: lead } = await supabase.from("crm_leads").select("telefone").eq("id", leadId).maybeSingle();
-    telefone = telefone || String(lead?.telefone || "");
+    let lead: { telefone?: string | null; dono_telefone?: string | null; cabeleireiro_telefone?: string | null } | null = null;
+    const sel = await supabase
+      .from("crm_leads")
+      .select("telefone, dono_telefone, cabeleireiro_telefone")
+      .eq("id", leadId)
+      .maybeSingle();
+    if (sel.error && /dono_telefone|cabeleireiro|schema cache|PGRST204|does not exist/i.test(sel.error.message)) {
+      const simples = await supabase.from("crm_leads").select("telefone").eq("id", leadId).maybeSingle();
+      lead = simples.data;
+    } else {
+      lead = sel.data;
+    }
+    telefone = telefone || String(lead?.telefone || lead?.dono_telefone || lead?.cabeleireiro_telefone || "");
   }
 
   const destino = numeroE164(telefone);

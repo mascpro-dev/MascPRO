@@ -6,6 +6,7 @@ import ErroComVoltar from "@/componentes/ErroComVoltar";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import CrmCadastrarMembroPanel from "@/componentes/CrmCadastrarMembroPanel";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
+import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
 import {
   ArrowLeft, Loader2, Pencil, Save, X, AlertCircle,
   CheckCircle, MessageCircle, Instagram, Mail, Building2,
@@ -66,6 +67,10 @@ type Lead = {
   telefone: string | null;
   email: string | null;
   instagram: string | null;
+  dono_nome?: string | null;
+  dono_telefone?: string | null;
+  cabeleireiro_nome?: string | null;
+  cabeleireiro_telefone?: string | null;
   cidade: string | null;
   estado: string | null;
   status: string;
@@ -216,6 +221,10 @@ export default function LeadDetalhePage() {
       telefone: lead.telefone || "",
       email: lead.email || "",
       instagram: lead.instagram || "",
+      dono_nome: lead.dono_nome || "",
+      dono_telefone: lead.dono_telefone || "",
+      cabeleireiro_nome: lead.cabeleireiro_nome || "",
+      cabeleireiro_telefone: lead.cabeleireiro_telefone || "",
       cidade: lead.cidade || "",
       estado: lead.estado || "",
       status: normalizarStatusCrmSimplificado(lead.status || "novo"),
@@ -352,6 +361,7 @@ export default function LeadDetalhePage() {
                       <Building2 size={13} /> {lead.empresa}
                     </p>
                   )}
+                  <CrmPessoasSalaoResumo lead={lead} compacto={false} />
                 </div>
                 <button
                   onClick={abrirEditar}
@@ -816,10 +826,12 @@ export default function LeadDetalhePage() {
                   <label className={labelClass}>Nome *</label>
                   <input value={form.nome} onChange={(e) => setForm((f: any) => ({ ...f, nome: e.target.value }))} className={inputClass} />
                 </div>
-                <div className="col-span-2">
-                  <label className={labelClass}>Empresa</label>
-                  <input value={form.empresa} onChange={(e) => setForm((f: any) => ({ ...f, empresa: e.target.value }))} className={inputClass} />
-                </div>
+                <CrmPessoasSalaoCampos
+                  form={form}
+                  set={(k, v) => setForm((f: any) => ({ ...f, [k]: v }))}
+                  inputClass={inputClass}
+                  labelClass={labelClass}
+                />
                 <div>
                   <label className={labelClass}>WhatsApp</label>
                   <input value={form.telefone} onChange={(e) => setForm((f: any) => ({ ...f, telefone: e.target.value }))} className={inputClass} />

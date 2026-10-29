@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
 import {
   CRM_LEADS_LIST_SELECT,
+  CRM_LEADS_LIST_SELECT_LEGACY,
   parseOrigemLead,
   parseStatusLead,
   pickClassificacaoLead,
@@ -10,6 +11,7 @@ import {
   erroColunaFase2,
 } from "@/lib/comercialClassificacao";
 import { buscarTodasAsPaginas } from "@/lib/crmBuscarTodasPaginas";
+import { camposPessoasSalao, nomeDoSalao } from "@/lib/crmPessoasSalao";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -74,39 +76,47 @@ export async function GET(req: NextRequest) {
     todosIdsRede = [userId, ...redeIds];
   }
 
-  const { data, error } = await buscarTodasAsPaginas((inicio, fim) => {
-    let query = supabase
-      .from("crm_leads")
-      .select(CRM_LEADS_LIST_SELECT)
-      .order("updated_at", { ascending: false });
+  const listar = (select: string) =>
+    buscarTodasAsPaginas((inicio, fim) => {
+      let query = supabase
+        .from("crm_leads")
+        .select(select)
+        .order("updated_at", { ascending: false });
 
-    if (access.role === "ADMIN") {
-      if (distribuidorId) {
-        if (roleFiltro === "EMBAIXADOR") {
-          query = query.or(
-            `created_by.eq.${distribuidorId},responsavel_id.eq.${distribuidorId}`
-          );
-        } else if (todosIdsFiltro) {
-          query = query.or(
-            todosIdsFiltro.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
-          );
+      if (access.role === "ADMIN") {
+        if (distribuidorId) {
+          if (roleFiltro === "EMBAIXADOR") {
+            query = query.or(
+              `created_by.eq.${distribuidorId},responsavel_id.eq.${distribuidorId}`
+            );
+          } else if (todosIdsFiltro) {
+            query = query.or(
+              todosIdsFiltro.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
+            );
+          }
         }
+      } else if (todosIdsRede) {
+        query = query.or(
+          todosIdsRede.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
+        );
       }
-    } else if (todosIdsRede) {
-      query = query.or(
-        todosIdsRede.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
-      );
-    }
 
-    if (filterStatus) query = query.eq("status", filterStatus);
-    if (busca) {
-      query = query.or(
-        `nome.ilike.%${busca}%,empresa.ilike.%${busca}%,telefone.ilike.%${busca}%,email.ilike.%${busca}%`
-      );
-    }
+      if (filterStatus) query = query.eq("status", filterStatus);
+      if (busca) {
+        query = query.or(
+          `nome.ilike.%${busca}%,empresa.ilike.%${busca}%,telefone.ilike.%${busca}%,email.ilike.%${busca}%`
+        );
+      }
 
-    return query.range(inicio, fim);
-  });
+      return query.range(inicio, fim);
+    });
+
+  let { data, error } = await listar(CRM_LEADS_LIST_SELECT);
+  if (error && /dono_nome|cabeleireiro|schema cache|PGRST204|does not exist/i.test(error)) {
+    const retry = await listar(CRM_LEADS_LIST_SELECT_LEGACY);
+    data = retry.data;
+    error = retry.error;
+  }
   if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error) }, { status: 500 });
 
   const leads = (data || []).map((lead: any) => ({
@@ -130,8 +140,8 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  if (!body?.nome?.trim()) {
-    return NextResponse.json({ ok: false, error: "Nome é obrigatório." }, { status: 400 });
+  if (nomeDoSalao(body) === "Contato") {
+    return NextResponse.json({ ok: false, error: "Informe o salão, o dono ou o cabeleireiro." }, { status: 400 });
   }
 
   const statusLead = parseStatusLead(body.status, "novo");
@@ -151,10 +161,12 @@ export async function POST(req: NextRequest) {
   });
   if (avancao) return NextResponse.json({ ok: false, error: avancao }, { status: 400 });
 
+  const pessoas = camposPessoasSalao(body);
   const novo = {
-    nome: body.nome.trim(),
+    nome: nomeDoSalao(body),
     empresa: body.empresa?.trim() || null,
-    telefone: body.telefone?.trim() || null,
+    telefone: body.telefone?.trim() || pessoas.dono_telefone || pessoas.cabeleireiro_telefone,
+    ...pessoas,
     email: body.email?.trim() || null,
     instagram: body.instagram?.trim() || null,
     cidade: body.cidade?.trim() || null,
@@ -170,13 +182,19 @@ export async function POST(req: NextRequest) {
     ...classif.campos,
   };
 
-  const { data: lead, error } = await supabase
-    .from("crm_leads")
-    .insert(novo)
-    .select()
-    .single();
+  let ins = await supabase.from("crm_leads").insert(novo).select().single();
+  if (ins.error && /dono_nome|cabeleireiro|schema cache|PGRST204/i.test(ins.error.message)) {
+    const { dono_nome, dono_telefone, cabeleireiro_nome, cabeleireiro_telefone, ...semPessoas } = novo;
+    void dono_nome;
+    void dono_telefone;
+    void cabeleireiro_nome;
+    void cabeleireiro_telefone;
+    ins = await supabase.from("crm_leads").insert(semPessoas).select().single();
+  }
+  const lead = ins.data;
+  const error = ins.error;
 
-  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
+  if (error || !lead) return NextResponse.json({ ok: false, error: erroColunaFase2(error?.message || "Falha ao gravar.") }, { status: 500 });
 
   // Registra atividade de criação
   await supabase.from("crm_atividades").insert({

@@ -10,6 +10,7 @@ import {
 } from "@/lib/comercialClassificacao";
 import { sincronizarVisitasOrfasNoPipeline } from "@/lib/crmVisitaPipeline";
 import { buscarTodasAsPaginas } from "@/lib/crmBuscarTodasPaginas";
+import { camposPessoasSalao, nomeDoSalao } from "@/lib/crmPessoasSalao";
 
 export const dynamic = "force-dynamic";
 
@@ -62,8 +63,8 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  if (!body?.nome?.trim()) {
-    return NextResponse.json({ ok: false, error: "Nome é obrigatório." }, { status: 400 });
+  if (nomeDoSalao(body) === "Contato") {
+    return NextResponse.json({ ok: false, error: "Informe o salão, o dono ou o cabeleireiro." }, { status: 400 });
   }
 
   const origem = parseOrigemLead(body.origem, "manual");
@@ -78,30 +79,39 @@ export async function POST(req: NextRequest) {
   });
   if (avancao) return NextResponse.json({ ok: false, error: avancao }, { status: 400 });
 
-  const { data: lead, error } = await supabase
-    .from("crm_leads")
-    .insert({
-      nome: body.nome.trim(),
-      telefone: body.telefone?.trim() || null,
-      email: body.email?.trim() || null,
-      cidade: body.cidade?.trim() || null,
-      estado: body.estado?.trim() || null,
-      status: "novo",
-      origem: origem.value,
-      notas: body.notas?.trim() || null,
-      data_followup: body.data_followup || null,
-      valor_estimado: body.valor_estimado ? Number(body.valor_estimado) : null,
-      empresa: body.empresa?.trim() || null,
-      instagram: body.instagram?.trim() || null,
-      responsavel_id: userId,
-      created_by: userId,
-      profile_id: body.profile_id ? String(body.profile_id) : null,
-      ...classif.campos,
-    })
-    .select()
-    .single();
+  const pessoas = camposPessoasSalao(body);
+  const payload = {
+    nome: nomeDoSalao(body),
+    telefone: body.telefone?.trim() || pessoas.dono_telefone || pessoas.cabeleireiro_telefone,
+    email: body.email?.trim() || null,
+    cidade: body.cidade?.trim() || null,
+    estado: body.estado?.trim() || null,
+    status: "novo",
+    origem: origem.value,
+    notas: body.notas?.trim() || null,
+    data_followup: body.data_followup || null,
+    valor_estimado: body.valor_estimado ? Number(body.valor_estimado) : null,
+    empresa: body.empresa?.trim() || null,
+    instagram: body.instagram?.trim() || null,
+    responsavel_id: userId,
+    created_by: userId,
+    profile_id: body.profile_id ? String(body.profile_id) : null,
+    ...pessoas,
+    ...classif.campos,
+  };
+  let ins = await supabase.from("crm_leads").insert(payload).select().single();
+  if (ins.error && /dono_nome|cabeleireiro|schema cache|PGRST204/i.test(ins.error.message)) {
+    const { dono_nome, dono_telefone, cabeleireiro_nome, cabeleireiro_telefone, ...sem } = payload;
+    void dono_nome;
+    void dono_telefone;
+    void cabeleireiro_nome;
+    void cabeleireiro_telefone;
+    ins = await supabase.from("crm_leads").insert(sem).select().single();
+  }
+  const lead = ins.data;
+  const error = ins.error;
 
-  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
+  if (error || !lead) return NextResponse.json({ ok: false, error: erroColunaFase2(error?.message || "Falha ao gravar.") }, { status: 500 });
 
   await supabase.from("crm_atividades").insert({
     lead_id: lead.id,

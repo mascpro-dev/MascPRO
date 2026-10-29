@@ -6,6 +6,10 @@ export const CAMPOS_PLANILHA = [
   { value: "empresa", label: "Empresa/salão" },
   { value: "telefone", label: "Telefone" },
   { value: "whatsapp", label: "WhatsApp" },
+  { value: "dono_nome", label: "Dono (decisor)" },
+  { value: "dono_telefone", label: "WhatsApp do dono" },
+  { value: "cabeleireiro_nome", label: "Cabeleireiro" },
+  { value: "cabeleireiro_telefone", label: "WhatsApp do cabeleireiro" },
   { value: "email", label: "E-mail" },
   { value: "cidade", label: "Cidade" },
   { value: "estado", label: "Estado" },
@@ -33,6 +37,19 @@ const ALIAS_MAP: Record<string, CampoPlanilha> = {
   celular: "telefone",
   phone: "telefone",
   whatsapp: "whatsapp",
+  dono: "dono_nome",
+  "dono do salao": "dono_nome",
+  proprietario: "dono_nome",
+  "dono_nome": "dono_nome",
+  "telefone dono": "dono_telefone",
+  "whatsapp dono": "dono_telefone",
+  dono_telefone: "dono_telefone",
+  cabeleireiro: "cabeleireiro_nome",
+  profissional: "cabeleireiro_nome",
+  cabeleireiro_nome: "cabeleireiro_nome",
+  "telefone cabeleireiro": "cabeleireiro_telefone",
+  "whatsapp cabeleireiro": "cabeleireiro_telefone",
+  cabeleireiro_telefone: "cabeleireiro_telefone",
   email: "email",
   "e-mail": "email",
   cidade: "cidade",
@@ -70,6 +87,10 @@ export type LeadImportacao = LeadLista & {
   cep: string | null;
   telefone_normalizado: string | null;
   origem_lista: string | null;
+  dono_nome?: string | null;
+  dono_telefone?: string | null;
+  cabeleireiro_nome?: string | null;
+  cabeleireiro_telefone?: string | null;
 };
 
 export function sugerirMapeamento(cabecalhos: string[]): CampoPlanilha[] {
@@ -100,12 +121,12 @@ export function parseMatrizLeads(
       if (!v) return;
       if (!rec[campo]) rec[campo] = v;
     });
-    const nome = String(rec.nome || "").replace(/\s+/g, " ").trim();
+    const nome = String(rec.nome || rec.empresa || rec.dono_nome || rec.cabeleireiro_nome || "").replace(/\s+/g, " ").trim();
     if (!nome) {
       ignoradas.push({ linha, motivo: "sem nome" });
       return;
     }
-    const telRaw = rec.telefone || rec.whatsapp || null;
+    const telRaw = rec.telefone || rec.whatsapp || rec.dono_telefone || rec.cabeleireiro_telefone || null;
     const telNorm = normalizarTelefoneBr(telRaw);
     if (telRaw && !telNorm) {
       ignoradas.push({ linha, motivo: "telefone sem DDD ou malformado" });
@@ -138,6 +159,10 @@ export function parseMatrizLeads(
       cep: rec.cep || null,
       telefone_normalizado: telNorm,
       origem_lista: rec.origem_lista || origemArquivo || null,
+      dono_nome: rec.dono_nome || null,
+      dono_telefone: rec.dono_telefone || null,
+      cabeleireiro_nome: rec.cabeleireiro_nome || null,
+      cabeleireiro_telefone: rec.cabeleireiro_telefone || null,
     });
   });
 

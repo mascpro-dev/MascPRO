@@ -13,6 +13,7 @@ import {
 } from "@/lib/crmCarteira";
 import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
 import CrmLigarBotao from "@/componentes/CrmLigarBotao";
+import { CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
 
 type Cidade = {
   cidade: string;
@@ -33,6 +34,10 @@ type Contato = {
   empresa: string | null;
   nome: string;
   telefone: string | null;
+  dono_nome?: string | null;
+  dono_telefone?: string | null;
+  cabeleireiro_nome?: string | null;
+  cabeleireiro_telefone?: string | null;
   cidade: string | null;
   estado: string | null;
   bairro: string | null;
@@ -232,6 +237,8 @@ export default function ComercialCarteiras() {
                   {!readOnly && <th className="w-8 p-2" />}
                   <th className="text-left p-2 font-medium">Salão</th>
                   <th className="text-left p-2 font-medium">Contato</th>
+                  <th className="text-left p-2 font-medium">Dono</th>
+                  <th className="text-left p-2 font-medium">Cabeleireiro</th>
                   <th className="text-left p-2 font-medium">WhatsApp</th>
                   <th className="text-left p-2 font-medium">Cidade</th>
                   <th className="text-left p-2 font-medium">Bairro</th>
@@ -269,6 +276,8 @@ export default function ComercialCarteiras() {
                           {c.nome}
                         </button>
                       </td>
+                      <td className="p-2 max-w-[120px] truncate">{c.dono_nome || "—"}</td>
+                      <td className="p-2 max-w-[120px] truncate">{c.cabeleireiro_nome || "—"}</td>
                       <td className="p-2">
                         {w ? (
                           <a href={w} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#4F7A5A]">
@@ -395,6 +404,7 @@ function AtendimentoModal({
             <p className="text-[11px] uppercase tracking-widest text-[#A39C90]">Atendimento</p>
             <h3 className="text-lg font-semibold">{contato.nome}</h3>
             <p className="text-[12px] text-[#8A847A]">{contato.empresa || contato.cidade}</p>
+            <CrmPessoasSalaoResumo lead={contato} compacto={false} claro />
           </div>
           <button type="button" onClick={onClose} className="text-[#8A847A]">Fechar</button>
         </div>

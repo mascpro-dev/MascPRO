@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, Search, Plus, MessageCircle, Upload, X } from "lucide-react";
 import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
 import CrmLigarBotao from "@/componentes/CrmLigarBotao";
+import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
 import CrmFechamentoPedidoModal from "@/componentes/CrmFechamentoPedidoModal";
 import {
   COLUNAS_KANBAN_CRM_SIMPLIFICADO as COLUNAS_KANBAN_CRM,
@@ -29,6 +30,10 @@ type Lead = {
   telefone: string | null;
   email: string | null;
   instagram: string | null;
+  dono_nome?: string | null;
+  dono_telefone?: string | null;
+  cabeleireiro_nome?: string | null;
+  cabeleireiro_telefone?: string | null;
   cidade: string | null;
   estado: string | null;
   status: string;
@@ -229,6 +234,7 @@ export default function ComercialPipeline() {
                           <button type="button" onClick={() => setAberto(lead)} className="w-full text-left">
                             <p className="text-[13px] font-semibold leading-tight">{lead.nome}</p>
                             {lead.empresa && <p className="text-[11px] text-[#8A847A] mt-0.5">{lead.empresa}</p>}
+                            <CrmPessoasSalaoResumo lead={lead} claro />
                             {(lead.perfil || lead.linha_interesse) && (
                               <p className="flex flex-wrap gap-1 mt-1.5">
                                 {lead.perfil && (
@@ -256,12 +262,14 @@ export default function ComercialPipeline() {
                             )}
                           </button>
                           <div className="flex flex-wrap gap-1.5 mt-2">
-                            {w && (
+                            {w && !lead.dono_nome && !lead.cabeleireiro_nome && (
                               <a href={w} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-[#4F7A5A]">
                                 <MessageCircle size={11} /> WhatsApp
                               </a>
                             )}
-                            {lead.telefone && <CrmLigarBotao leadId={lead.id} telefone={lead.telefone} compacto claro />}
+                            {lead.telefone && !lead.dono_nome && !lead.cabeleireiro_nome && (
+                              <CrmLigarBotao leadId={lead.id} telefone={lead.telefone} compacto claro />
+                            )}
                             {prev && (
                               <button type="button" onClick={() => void mover(lead.id, prev.key)} className="text-[11px] text-[#8A847A]">
                                 ← {prev.label}
@@ -360,6 +368,7 @@ function DetalheLead({ lead, onClose }: { lead: Lead; onClose: () => void }) {
             </p>
             <h2 className="text-[18px] font-semibold mt-2">{l.nome}</h2>
             {l.empresa && <p className="text-[13px] text-[#8A847A]">{l.empresa}</p>}
+            <CrmPessoasSalaoResumo lead={l} compacto={false} claro />
           </div>
           <button type="button" onClick={onClose} className="p-1 text-[#8A847A]"><X size={18} /></button>
         </div>
@@ -400,6 +409,7 @@ function NovoLead({ onClose, onSalvo }: { onClose: () => void; onSalvo: (lead: L
   const [form, setForm] = useState({
     nome: "", empresa: "", telefone: "", email: "", instagram: "",
     origem: "manual", valor_estimado: "", data_followup: "", notas: "",
+    dono_nome: "", dono_telefone: "", cabeleireiro_nome: "", cabeleireiro_telefone: "",
     perfil: "", interesse: "", linha_interesse: "", dor: "", proximo_passo: "",
   });
   const [salvando, setSalvando] = useState(false);
@@ -407,7 +417,10 @@ function NovoLead({ onClose, onSalvo }: { onClose: () => void; onSalvo: (lead: L
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   async function salvar() {
-    if (!form.nome.trim()) { setErro("Nome é obrigatório."); return; }
+    if (!form.nome.trim() && !form.empresa.trim() && !form.dono_nome.trim() && !form.cabeleireiro_nome.trim()) {
+      setErro("Informe o salão, o dono ou o cabeleireiro.");
+      return;
+    }
     setSalvando(true);
     setErro("");
     const res = await fetch("/api/admin/crm/leads", {
@@ -435,9 +448,10 @@ function NovoLead({ onClose, onSalvo }: { onClose: () => void; onSalvo: (lead: L
         <div className="p-5 space-y-3">
           {erro && <p className="text-[13px] text-[#9A4338]">{erro}</p>}
           <div>
-            <label className={labelClass}>Nome *</label>
-            <input value={form.nome} onChange={(e) => set("nome", e.target.value)} className={inputClass} />
+            <label className={labelClass}>Nome de exibição</label>
+            <input value={form.nome} onChange={(e) => set("nome", e.target.value)} className={inputClass} placeholder="Se vazio, usa o salão ou o dono" />
           </div>
+          <CrmPessoasSalaoCampos form={form} set={set} inputClass={inputClass} labelClass={labelClass} />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>WhatsApp</label>

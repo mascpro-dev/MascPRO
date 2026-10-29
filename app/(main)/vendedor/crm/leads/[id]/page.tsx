@@ -16,6 +16,7 @@ import {
   LINHA_LABEL,
   STATUS_LEAD_LABEL,
 } from "@/lib/comercialClassificacao";
+import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
 
 type Atividade = {
   id: string;
@@ -29,6 +30,11 @@ type Lead = {
   id: string;
   nome: string;
   telefone: string | null;
+  empresa?: string | null;
+  dono_nome?: string | null;
+  dono_telefone?: string | null;
+  cabeleireiro_nome?: string | null;
+  cabeleireiro_telefone?: string | null;
   email: string | null;
   cidade: string | null;
   estado: string | null;
@@ -116,7 +122,7 @@ export default function VendedorLeadDetalhePage() {
           )}
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={() => { setForm({ nome: lead.nome, telefone: lead.telefone || "", email: lead.email || "", perfil: lead.perfil || "", linha_interesse: lead.linha_interesse || "" }); setEditando(true); }} className="px-4 py-2 rounded-xl border border-zinc-700 text-xs font-black uppercase text-zinc-400">
+          <button type="button" onClick={() => { setForm({ nome: lead.nome, telefone: lead.telefone || "", email: lead.email || "", empresa: lead.empresa || "", dono_nome: lead.dono_nome || "", dono_telefone: lead.dono_telefone || "", cabeleireiro_nome: lead.cabeleireiro_nome || "", cabeleireiro_telefone: lead.cabeleireiro_telefone || "", perfil: lead.perfil || "", linha_interesse: lead.linha_interesse || "" }); setEditando(true); }} className="px-4 py-2 rounded-xl border border-zinc-700 text-xs font-black uppercase text-zinc-400">
             <Pencil size={14} className="inline mr-1" /> Editar
           </button>
           <button type="button" onClick={() => setModalPedido(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A66B]/15 border border-[#C9A66B]/30 text-[#C9A66B] text-xs font-black uppercase">
@@ -130,6 +136,12 @@ export default function VendedorLeadDetalhePage() {
           {(["nome", "telefone", "email"] as const).map((k) => (
             <input key={k} value={form[k] || ""} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} className={inputClass} placeholder={k} />
           ))}
+          <CrmPessoasSalaoCampos
+            form={form}
+            set={(k, v) => setForm((f) => ({ ...f, [k]: v }))}
+            inputClass={inputClass}
+            labelClass="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1"
+          />
           <select value={form.perfil || ""} onChange={(e) => setForm((f) => ({ ...f, perfil: e.target.value }))} className={inputClass}>
             <option value="">Sem perfil</option>
             {PERFIS_LEAD.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -146,7 +158,8 @@ export default function VendedorLeadDetalhePage() {
       )}
 
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5 space-y-2">
-        {lead.telefone && (
+        <CrmPessoasSalaoResumo lead={lead} compacto={false} />
+        {lead.telefone && !lead.dono_nome && !lead.cabeleireiro_nome && (
           <a href={`https://wa.me/55${lead.telefone.replace(/\D/g, "")}`} className="flex items-center gap-2 text-green-400 text-sm">
             <MessageCircle size={14} /> {lead.telefone}
           </a>

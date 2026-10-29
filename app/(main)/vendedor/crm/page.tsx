@@ -7,6 +7,7 @@ import ErroComVoltar from "@/componentes/ErroComVoltar";
 import VendedorNovoPedidoButton from "@/componentes/VendedorNovoPedidoButton";
 import CrmSubirListaModal from "@/componentes/CrmSubirListaModal";
 import CrmLigarBotao from "@/componentes/CrmLigarBotao";
+import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
 import {
   Kanban, Plus, Loader2, Search, Upload, X, ChevronRight,
   Mail, Building2, Calendar, User, DollarSign,
@@ -31,6 +32,10 @@ type Lead = {
   telefone: string | null;
   email: string | null;
   instagram: string | null;
+  dono_nome?: string | null;
+  dono_telefone?: string | null;
+  cabeleireiro_nome?: string | null;
+  cabeleireiro_telefone?: string | null;
   cidade: string | null;
   estado: string | null;
   status: string;
@@ -96,6 +101,7 @@ function LeadCard({
               <Building2 size={10} /> {lead.empresa}
             </p>
           )}
+          <CrmPessoasSalaoResumo lead={lead} />
           {(lead.perfil || lead.linha_interesse) && (
             <p className="flex flex-wrap gap-1 mt-1.5">
               {lead.perfil && (
@@ -120,7 +126,7 @@ function LeadCard({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {lead.telefone && (
+        {lead.telefone && !lead.dono_nome && !lead.cabeleireiro_nome && (
           <a
             href={`https://wa.me/55${lead.telefone.replace(/\D/g, "")}`}
             target="_blank"
@@ -130,7 +136,9 @@ function LeadCard({
             <MessageCircle size={10} /> {lead.telefone}
           </a>
         )}
-        {lead.telefone && <CrmLigarBotao leadId={lead.id} telefone={lead.telefone} />}
+        {lead.telefone && !lead.dono_nome && !lead.cabeleireiro_nome && (
+          <CrmLigarBotao leadId={lead.id} telefone={lead.telefone} />
+        )}
         {lead.email && (
           <span className="flex items-center gap-1 text-[10px] text-blue-400 bg-blue-500/10 px-2 py-1 rounded-lg truncate max-w-full">
             <Mail size={10} /> {lead.email}
@@ -228,6 +236,7 @@ function ModalNovoLead({
     nome: "", empresa: "", telefone: "", email: "",
     instagram: "", origem: "indicacao", valor_estimado: "",
     data_followup: "", notas: "", cidade: "", estado: "",
+    dono_nome: "", dono_telefone: "", cabeleireiro_nome: "", cabeleireiro_telefone: "",
     perfil: "", interesse: "", linha_interesse: "", dor: "", proximo_passo: "",
   });
   const [salvando, setSalvando] = useState(false);
@@ -236,7 +245,10 @@ function ModalNovoLead({
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   async function salvar() {
-    if (!form.nome.trim()) { setErro("Nome é obrigatório."); return; }
+    if (!form.nome.trim() && !form.empresa.trim() && !form.dono_nome.trim() && !form.cabeleireiro_nome.trim()) {
+      setErro("Informe o salão, o dono ou o cabeleireiro.");
+      return;
+    }
     setSalvando(true);
     setErro("");
     const res = await fetch("/api/vendedor/crm/leads", {
@@ -275,9 +287,10 @@ function ModalNovoLead({
           )}
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label className={labelClass}>Nome *</label>
-              <input value={form.nome} onChange={(e) => set("nome", e.target.value)} className={inputClass} />
+              <label className={labelClass}>Nome de exibição</label>
+              <input value={form.nome} onChange={(e) => set("nome", e.target.value)} className={inputClass} placeholder="Se vazio, usa o salão ou o dono" />
             </div>
+            <CrmPessoasSalaoCampos form={form} set={set} inputClass={inputClass} labelClass={labelClass} />
             <div>
               <label className={labelClass}>WhatsApp</label>
               <input value={form.telefone} onChange={(e) => set("telefone", e.target.value)} className={inputClass} />
