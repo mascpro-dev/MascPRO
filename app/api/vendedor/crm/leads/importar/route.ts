@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     autorNome: access.full_name || "vendedor",
     responsavelId: userId,
     texto,
+    dryRun: Boolean(body?.dry_run),
   });
 
   if (!resultado.ok) {

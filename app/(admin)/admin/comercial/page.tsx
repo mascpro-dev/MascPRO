@@ -5,10 +5,11 @@ import Link from "next/link";
 import {
   LayoutDashboard, Filter, Target, Kanban, ShoppingBag, RefreshCw,
   ChevronDown, Menu, ArrowUpRight, ArrowDownRight, Loader2, Save,
-  Sparkles, Users, Camera, Calendar, Bell, ArrowLeft, Scissors,
+  Sparkles, Users, Camera, Calendar, Bell, ArrowLeft, Scissors, Briefcase,
 } from "lucide-react";
 import ComercialHomeCare from "@/componentes/ComercialHomeCare";
 import ComercialPipeline from "@/componentes/ComercialPipeline";
+import ComercialCarteiras from "@/componentes/ComercialCarteiras";
 import ComercialPedidos from "@/componentes/ComercialPedidos";
 import ComercialRede from "@/componentes/ComercialRede";
 import ComercialProvas from "@/componentes/ComercialProvas";
@@ -16,7 +17,7 @@ import ComercialEventos from "@/componentes/ComercialEventos";
 import ComercialAlarmes from "@/componentes/ComercialAlarmes";
 import { FASE_COMERCIAL_TOTAL, resumoFaseComercial, rotuloFaseComercial } from "@/lib/comercialFase";
 
-type Aba = "dashboard" | "pipeline" | "pedidos" | "funil" | "homecare" | "profissional" | "embaixadoras" | "distribuidores" | "provas" | "eventos" | "alarmes" | "metas";
+type Aba = "dashboard" | "pipeline" | "carteiras" | "pedidos" | "funil" | "homecare" | "profissional" | "embaixadoras" | "distribuidores" | "provas" | "eventos" | "alarmes" | "metas";
 type Semaforo = "ok" | "atencao" | "risco";
 type Formato = "int" | "moeda";
 
@@ -65,6 +66,7 @@ type Overview = {
 const ABAS: { id: Aba; nome: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", nome: "Dashboard", icon: LayoutDashboard },
   { id: "pipeline", nome: "Pipeline", icon: Kanban },
+  { id: "carteiras", nome: "Carteiras comerciais", icon: Briefcase },
   { id: "pedidos", nome: "Pedidos", icon: ShoppingBag },
   { id: "funil", nome: "Funil", icon: Filter },
   { id: "homecare", nome: "Home care", icon: RefreshCw },
@@ -403,6 +405,8 @@ export default function PainelComercialPage() {
                     ? "Produto marcado Profissional · régua 7/15/30 · recompra 30/45/60"
                   : aba === "pipeline"
                     ? "Mesmos leads do CRM · visual deste painel"
+                    : aba === "carteiras"
+                      ? "Mesmos contatos do CRM · cidade, vendedor, atendimento e distribuição"
                     : aba === "pedidos"
                       ? "Mesmos pedidos da loja · visual deste painel"
                       : aba === "embaixadoras"
@@ -418,7 +422,7 @@ export default function PainelComercialPage() {
                                 : "Pedido fechado = pago, separação, despachado ou entregue"}
               </p>
             </div>
-            {aba !== "pipeline" && aba !== "alarmes" && (
+            {aba !== "pipeline" && aba !== "alarmes" && aba !== "carteiras" && (
               <label className="flex items-center gap-1.5 bg-white border border-[#E7E1D6] rounded-2xl px-3 h-10 text-[12px] text-[#6B6560]">
                 <select
                   value={periodo}
@@ -438,6 +442,8 @@ export default function PainelComercialPage() {
         <div className={aba === "pipeline" ? "flex-1 min-h-0 px-4 md:px-8 py-4" : "px-4 md:px-8 py-6 max-w-[1400px]"}>
           {aba === "pipeline" ? (
             <ComercialPipeline />
+          ) : aba === "carteiras" ? (
+            <ComercialCarteiras />
           ) : aba === "pedidos" ? (
             <ComercialPedidos periodo={periodo} />
           ) : aba === "homecare" ? (
