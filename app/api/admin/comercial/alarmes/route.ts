@@ -7,6 +7,7 @@ import {
   TIPO_ALARME_DESTINO,
   TIPO_ALARME_LABEL,
   alarmeLead,
+  alarmeCarteiraContato,
   alarmeRecompra,
   type TipoAlarme,
 } from "@/lib/comercialAlarmes";
@@ -50,7 +51,7 @@ type Alarme = {
   titulo: string;
   detalhe: string;
   dias: number;
-  destino: "pipeline" | "homecare" | "eventos";
+  destino: "pipeline" | "homecare" | "eventos" | "carteiras";
   telefone: string | null;
   ref_id: string;
 };
@@ -81,10 +82,14 @@ export async function GET() {
     data_followup: string | null;
     proximo_passo: string | null;
     valor_estimado: number | null;
+    resultado_atendimento?: string | null;
+    proxima_acao_em?: string | null;
+    ultimo_atendimento_em?: string | null;
+    responsavel_id?: string | null;
   }>(async (from, to) =>
     supabase
       .from("crm_leads")
-      .select("id, nome, telefone, status, created_at, updated_at, data_followup, proximo_passo, valor_estimado")
+      .select("id, nome, telefone, status, created_at, updated_at, data_followup, proximo_passo, valor_estimado, resultado_atendimento, proxima_acao_em, ultimo_atendimento_em, responsavel_id")
       .not("status", "in", "(fechado,perdido,nao_qualificado)")
       .order("updated_at", { ascending: true })
       .range(from, to)
@@ -130,19 +135,76 @@ export async function GET() {
   } else {
     for (const l of leadsRes.rows) {
       const a = alarmeLead({ ...l, hoje });
-      if (!a) continue;
-      itens.push({
-        id: `${a.tipo}:${l.id}`,
-        tipo: a.tipo,
-        label: TIPO_ALARME_LABEL[a.tipo],
-        gravidade: a.gravidade,
-        titulo: l.nome,
-        detalhe: `${STATUS_LEAD_LABEL[l.status] || l.status} · ${a.detalhe}`,
-        dias: a.dias,
-        destino: TIPO_ALARME_DESTINO[a.tipo],
-        telefone: l.telefone,
-        ref_id: l.id,
+      if (a) {
+        itens.push({
+          id: `${a.tipo}:${l.id}`,
+          tipo: a.tipo,
+          label: TIPO_ALARME_LABEL[a.tipo],
+          gravidade: a.gravidade,
+          titulo: l.nome,
+          detalhe: `${STATUS_LEAD_LABEL[l.status] || l.status} · ${a.detalhe}`,
+          dias: a.dias,
+          destino: TIPO_ALARME_DESTINO[a.tipo],
+          telefone: l.telefone,
+          ref_id: l.id,
+        });
+      }
+      const c = alarmeCarteiraContato({
+        status: l.status,
+        created_at: l.created_at,
+        resultado: l.resultado_atendimento,
+        proxima_acao_em: l.proxima_acao_em,
+        data_followup: l.data_followup,
+        ultimo_atendimento_em: l.ultimo_atendimento_em,
+        hoje,
       });
+      if (c) {
+        itens.push({
+          id: `${c.tipo}:${l.id}`,
+          tipo: c.tipo,
+          label: TIPO_ALARME_LABEL[c.tipo],
+          gravidade: c.gravidade,
+          titulo: l.nome,
+          detalhe: c.detalhe,
+          dias: c.dias,
+          destino: TIPO_ALARME_DESTINO[c.tipo],
+          telefone: l.telefone,
+          ref_id: l.id,
+        });
+      }
+    }
+
+    const porVend = new Map<string, { n: number; ultimo: string | null }>();
+    for (const l of leadsRes.rows) {
+      if (!l.responsavel_id) continue;
+      const cur = porVend.get(l.responsavel_id) || { n: 0, ultimo: null };
+      cur.n += 1;
+      const u = l.ultimo_atendimento_em || l.updated_at;
+      if (u && (!cur.ultimo || u > cur.ultimo)) cur.ultimo = u;
+      porVend.set(l.responsavel_id, cur);
+    }
+    const idsV = [...porVend.keys()];
+    if (idsV.length) {
+      const { data: nomes } = await supabase.from("profiles").select("id, full_name").in("id", idsV);
+      const mapa = Object.fromEntries((nomes || []).map((p) => [p.id, p.full_name || "Vendedor"]));
+      for (const [id, info] of porVend) {
+        const ymd = info.ultimo ? String(info.ultimo).slice(0, 10) : null;
+        const dias = ymd ? Math.max(0, Math.round((Date.parse(`${hoje}T12:00:00`) - Date.parse(`${ymd}T12:00:00`)) / 86_400_000)) : 99;
+        if (info.n > 0 && dias >= 7) {
+          itens.push({
+            id: `carteira_sem_movimento:${id}`,
+            tipo: "carteira_sem_movimento",
+            label: TIPO_ALARME_LABEL.carteira_sem_movimento,
+            gravidade: dias >= 14 ? "risco" : "atencao",
+            titulo: mapa[id] || "Carteira",
+            detalhe: `${info.n} contato(s) · sem atendimento há ${dias} dias`,
+            dias,
+            destino: "carteiras",
+            telefone: null,
+            ref_id: id,
+          });
+        }
+      }
     }
   }
 
@@ -299,6 +361,11 @@ export async function GET() {
       recompra_vencida: contar("recompra_vencida"),
       regua_atrasada: contar("regua_atrasada"),
       evento_sem_followup: contar("evento_sem_followup"),
+      sem_primeira_abordagem: contar("sem_primeira_abordagem"),
+      proxima_acao_atrasada: contar("proxima_acao_atrasada"),
+      visita_hoje: contar("visita_hoje"),
+      visita_nao_concluida: contar("visita_nao_concluida"),
+      carteira_sem_movimento: contar("carteira_sem_movimento"),
     },
     alarmes: itens,
     definicoes: DEFINICOES_FASE6,

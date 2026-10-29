@@ -10,7 +10,7 @@ import { ymdSaoPaulo } from "@/lib/comercialRegua";
 const SELECT_CARTEIRA = `
   id, nome, empresa, telefone, email, cidade, estado, bairro, endereco, cep,
   status, origem, perfil, perfil_comercial, relacionamento, resultado_atendimento,
-  proxima_acao, proxima_acao_em, proxima_acao_justificativa, data_followup,
+  proxima_acao, proxima_acao_em, proxima_acao_justificativa, data_followup, valor_estimado,
   updated_at, created_at, responsavel_id, created_by, profile_id, convertido_em,
   notas, ultimo_atendimento_em, compartilhado
 `;

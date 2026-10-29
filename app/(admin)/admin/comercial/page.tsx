@@ -15,6 +15,7 @@ import ComercialRede from "@/componentes/ComercialRede";
 import ComercialProvas from "@/componentes/ComercialProvas";
 import ComercialEventos from "@/componentes/ComercialEventos";
 import ComercialAlarmes from "@/componentes/ComercialAlarmes";
+import ComercialDashboardCarteira from "@/componentes/ComercialDashboardCarteira";
 import { FASE_COMERCIAL_TOTAL, resumoFaseComercial, rotuloFaseComercial } from "@/lib/comercialFase";
 
 type Aba = "dashboard" | "pipeline" | "carteiras" | "pedidos" | "funil" | "homecare" | "profissional" | "embaixadoras" | "distribuidores" | "provas" | "eventos" | "alarmes" | "metas";
@@ -419,6 +420,8 @@ export default function PainelComercialPage() {
                               ? "Resultado comercial · flyer e data ficam no calendário"
                               : aba === "alarmes"
                                 ? "Lead parado, proposta parada, recompra vencida — agora"
+                                : aba === "dashboard"
+                                  ? "Financeiro do ciclo em cima · carteira por vendedor e cidade embaixo"
                                 : "Pedido fechado = pago, separação, despachado ou entregue"}
               </p>
             </div>
@@ -459,7 +462,7 @@ export default function PainelComercialPage() {
           ) : aba === "eventos" ? (
             <ComercialEventos periodo={periodo} readOnly={modoLeitura} />
           ) : aba === "alarmes" ? (
-            <ComercialAlarmes onNavegar={(destino) => setAba(destino)} />
+            <ComercialAlarmes onNavegar={(destino) => setAba(destino as Aba)} />
           ) : loading ? (
             <div className="flex justify-center py-24"><Loader2 className="animate-spin text-[#C9A66B]" size={28} /></div>
           ) : erro || !data ? (
@@ -469,7 +472,7 @@ export default function PainelComercialPage() {
           ) : aba === "metas" ? (
             <MetasView data={data} periodo={periodo} onSaved={carregar} />
           ) : (
-            <Dashboard data={data} />
+            <Dashboard data={data} periodo={periodo} onAbrirCarteira={() => setAba("carteiras")} />
           )}
         </div>
       </main>
@@ -477,7 +480,15 @@ export default function PainelComercialPage() {
   );
 }
 
-function Dashboard({ data }: { data: Overview }) {
+function Dashboard({
+  data,
+  periodo,
+  onAbrirCarteira,
+}: {
+  data: Overview;
+  periodo: string;
+  onAbrirCarteira: () => void;
+}) {
   const maxFunil = Math.max(1, ...data.funil.map((f) => f.n));
   return (
     <div className="flex flex-col gap-6">
@@ -675,6 +686,8 @@ function Dashboard({ data }: { data: Overview }) {
           </dl>
         </section>
       </div>
+
+      <ComercialDashboardCarteira periodo={periodo} onAbrirCarteira={onAbrirCarteira} />
     </div>
   );
 }
@@ -844,6 +857,8 @@ function MetasView({
         {msg && <p className="text-[13px] text-[#4F7A5A] mt-3">{msg}</p>}
       </section>
 
+      <MetasCarteiraForm periodo={periodo} />
+
       <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
         <h2 className="text-[15px] font-semibold mb-3">Como o número é lido</h2>
         <dl className="space-y-3">
@@ -856,5 +871,89 @@ function MetasView({
         </dl>
       </section>
     </div>
+  );
+}
+
+function MetasCarteiraForm({ periodo }: { periodo: string }) {
+  const [form, setForm] = useState({ trabalhados: "", decisores: "", visitas: "", clientes_novos: "" });
+  const [salvando, setSalvando] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    fetch(`/api/admin/comercial/carteira?periodo=${periodo}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d?.ok) return;
+        setForm({
+          trabalhados: String(d.metas?.trabalhados || ""),
+          decisores: String(d.metas?.decisores || ""),
+          visitas: String(d.metas?.visitas || ""),
+          clientes_novos: String(d.metas?.clientes_novos || ""),
+        });
+      })
+      .catch(() => {});
+  }, [periodo]);
+
+  async function salvar() {
+    setSalvando(true);
+    setMsg("");
+    const res = await fetch("/api/admin/comercial/carteira", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        periodo,
+        metas: {
+          trabalhados: Number(form.trabalhados) || 0,
+          decisores: Number(form.decisores) || 0,
+          visitas: Number(form.visitas) || 0,
+          clientes_novos: Number(form.clientes_novos) || 0,
+        },
+      }),
+    });
+    const json = await res.json().catch(() => null);
+    setSalvando(false);
+    if (!res.ok || !json?.ok) {
+      setMsg(json?.error || "Não foi possível salvar as metas da carteira.");
+      return;
+    }
+    setMsg("Metas da carteira salvas. O dashboard usa estes números no mês.");
+  }
+
+  return (
+    <section className="bg-white rounded-[22px] border border-[#E7E1D6] p-5">
+      <h2 className="text-[15px] font-semibold">Meta da carteira neste mês</h2>
+      <p className="text-[12px] text-[#8A847A] mt-1 mb-5">
+        Independente das metas de leads/pedidos/receita. Zero = o card mostra só o realizado. Faturamento da carteira só conta pedido pago com vínculo ao lead.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {[
+          ["trabalhados", "Contatos trabalhados"],
+          ["decisores", "Conversas com decisor"],
+          ["visitas", "Visitas realizadas"],
+          ["clientes_novos", "Clientes novos (1ª compra paga)"],
+        ].map(([key, label]) => (
+          <label key={key} className="text-[12px] text-[#6B6560]">
+            {label}
+            <input
+              type="number"
+              min={0}
+              value={form[key as keyof typeof form]}
+              onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+              className="mt-1 w-full h-11 px-3 rounded-2xl border border-[#E7E1D6] bg-[#FBF9F6] text-[14px] text-[#2A2723] outline-none focus:border-[#C9A66B]"
+            />
+          </label>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => void salvar()}
+        disabled={salvando}
+        className="mt-5 inline-flex items-center gap-2 h-11 px-4 rounded-2xl bg-[#2A2723] text-white text-[13px] disabled:opacity-50"
+      >
+        {salvando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+        Salvar metas da carteira
+      </button>
+      {msg && <p className="text-[13px] text-[#4F7A5A] mt-3">{msg}</p>}
+    </section>
   );
 }

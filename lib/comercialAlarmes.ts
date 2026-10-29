@@ -12,6 +12,11 @@ export const TIPOS_ALARME = [
   { value: "recompra_vencida", label: "Recompra vencida", destino: "homecare" },
   { value: "regua_atrasada", label: "Régua atrasada", destino: "homecare" },
   { value: "evento_sem_followup", label: "Evento sem follow-up", destino: "eventos" },
+  { value: "sem_primeira_abordagem", label: "Sem primeira abordagem", destino: "carteiras" },
+  { value: "proxima_acao_atrasada", label: "Próxima ação atrasada", destino: "carteiras" },
+  { value: "visita_hoje", label: "Visita hoje", destino: "carteiras" },
+  { value: "visita_nao_concluida", label: "Visita não concluída", destino: "carteiras" },
+  { value: "carteira_sem_movimento", label: "Carteira sem movimento", destino: "carteiras" },
 ] as const;
 
 export type TipoAlarme = (typeof TIPOS_ALARME)[number]["value"];
@@ -49,6 +54,22 @@ export const DEFINICOES_FASE6 = [
   {
     termo: "Evento sem follow-up",
     texto: "Data do calendário já passou e o resultado comercial não marcou follow-up.",
+  },
+  {
+    termo: "Sem primeira abordagem",
+    texto: "Contato novo ou ainda não abordado, criado há mais de 1 dia, sem atendimento registrado.",
+  },
+  {
+    termo: "Próxima ação atrasada",
+    texto: "proxima_acao_em ou data_followup anterior a hoje. Um alarme por contato, não por tentativa.",
+  },
+  {
+    termo: "Visita hoje / não concluída",
+    texto: "Resultado visita agendada: se a data é hoje, visita de hoje; se já passou, visita não concluída. Não gera os dois no mesmo contato.",
+  },
+  {
+    termo: "Carteira sem movimento",
+    texto: "Vendedor com contatos atribuídos e nenhum último atendimento nos últimos 7 dias. Um alarme por carteira, não por contato.",
   },
 ];
 
@@ -112,6 +133,55 @@ export function alarmeLead(params: {
   const gravidade: SemaforoComercial = vencido || dias >= 14 ? "risco" : "atencao";
   const detalhe = vencido ? "Follow-up vencido" : `Sem movimento há ${dias} dias`;
   return { tipo: "lead_parado", gravidade, dias, detalhe };
+}
+
+export function alarmeCarteiraContato(params: {
+  status: string;
+  created_at: string;
+  resultado?: string | null;
+  proxima_acao_em?: string | null;
+  data_followup?: string | null;
+  ultimo_atendimento_em?: string | null;
+  hoje?: string;
+}): { tipo: TipoAlarme; gravidade: SemaforoComercial; dias: number; detalhe: string } | null {
+  const hoje = params.hoje || ymdSaoPaulo();
+  const res = String(params.resultado || "") || (params.status === "novo" ? "nao_abordado" : "");
+  const dataAcao = ymdDeCampo(params.proxima_acao_em) || ymdDeCampo(params.data_followup);
+
+  if (res === "visita_agendada" && dataAcao) {
+    if (dataAcao === hoje) {
+      return { tipo: "visita_hoje", gravidade: "atencao", dias: 0, detalhe: "Visita agendada para hoje" };
+    }
+    if (dataAcao < hoje) {
+      return {
+        tipo: "visita_nao_concluida",
+        gravidade: "risco",
+        dias: diasEntre(dataAcao, hoje),
+        detalhe: `Visita prevista em ${dataAcao.split("-").reverse().join("/")}`,
+      };
+    }
+  }
+
+  if (dataAcao && dataAcao < hoje) {
+    return {
+      tipo: "proxima_acao_atrasada",
+      gravidade: diasEntre(dataAcao, hoje) >= 7 ? "risco" : "atencao",
+      dias: diasEntre(dataAcao, hoje),
+      detalhe: `Ação prevista em ${dataAcao.split("-").reverse().join("/")}`,
+    };
+  }
+
+  const criado = ymdDeCampo(params.created_at) || ymdDeIso(params.created_at);
+  const semAtend = !params.ultimo_atendimento_em;
+  if ((res === "nao_abordado" || params.status === "novo") && semAtend && criado && diasEntre(criado, hoje) >= 1) {
+    return {
+      tipo: "sem_primeira_abordagem",
+      gravidade: diasEntre(criado, hoje) >= 7 ? "risco" : "atencao",
+      dias: diasEntre(criado, hoje),
+      detalhe: "Ainda não houve primeira abordagem",
+    };
+  }
+  return null;
 }
 
 export function alarmeRecompra(params: {

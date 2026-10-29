@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { Loader2, MessageCircle } from "lucide-react";
 import { TIPOS_ALARME, type TipoAlarme } from "@/lib/comercialAlarmes";
 
-type Destino = "pipeline" | "homecare" | "eventos";
+type Destino = "pipeline" | "homecare" | "eventos" | "carteiras";
 
 type Alarme = {
   id: string;
@@ -32,6 +32,11 @@ type Payload = {
     recompra_vencida: number;
     regua_atrasada: number;
     evento_sem_followup: number;
+    sem_primeira_abordagem?: number;
+    proxima_acao_atrasada?: number;
+    visita_hoje?: number;
+    visita_nao_concluida?: number;
+    carteira_sem_movimento?: number;
   };
   alarmes: Alarme[];
   definicoes: { termo: string; texto: string }[];
@@ -124,9 +129,9 @@ export default function ComercialAlarmes({ onNavegar }: { onNavegar: (destino: D
       <div className="flex flex-wrap gap-2">
         <Chip ativo={filtro === "todos"} onClick={() => setFiltro("todos")}>Todos ({data.kpis.total})</Chip>
         <Chip ativo={filtro === "risco"} onClick={() => setFiltro("risco")}>Urgentes ({data.kpis.riscos})</Chip>
-        {TIPOS_ALARME.map((t) => (
+          {TIPOS_ALARME.map((t) => (
           <Chip key={t.value} ativo={filtro === t.value} onClick={() => setFiltro(t.value)}>
-            {t.label} ({data.kpis[t.value]})
+            {t.label} ({Number(data.kpis[t.value as keyof typeof data.kpis] || 0)})
           </Chip>
         ))}
       </div>
@@ -156,7 +161,7 @@ export default function ComercialAlarmes({ onNavegar }: { onNavegar: (destino: D
                   onClick={() => onNavegar(a.destino)}
                   className="h-9 px-3 rounded-full border border-[#E7E1D6] text-[12px] bg-[#FBF9F6]"
                 >
-                  Abrir {a.destino === "pipeline" ? "pipeline" : a.destino === "homecare" ? "home care" : "eventos"}
+                  Abrir {a.destino === "pipeline" ? "pipeline" : a.destino === "homecare" ? "home care" : a.destino === "carteiras" ? "carteiras" : "eventos"}
                 </button>
               </div>
             );
