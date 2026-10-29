@@ -17,6 +17,7 @@ import {
   STATUS_LEAD_LABEL,
 } from "@/lib/comercialClassificacao";
 import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
+import CrmLigarBotao from "@/componentes/CrmLigarBotao";
 
 type Atividade = {
   id: string;
@@ -111,9 +112,18 @@ export default function VendedorLeadDetalhePage() {
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]/80 mb-1">
-            {STATUS_LABEL[lead.status] || lead.status}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]/80">
+              {STATUS_LABEL[lead.status] || lead.status}
+            </p>
+            {(lead.telefone || lead.dono_telefone || lead.cabeleireiro_telefone) && (
+              <CrmLigarBotao
+                leadId={lead.id}
+                telefone={lead.telefone || lead.dono_telefone || lead.cabeleireiro_telefone}
+                compacto={false}
+              />
+            )}
+          </div>
           <h1 className="text-2xl font-black text-white">{lead.nome}</h1>
           {lead.order_id && (
             <div className="mt-2">

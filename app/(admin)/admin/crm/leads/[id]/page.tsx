@@ -7,6 +7,7 @@ import AdminSidebar from "@/componentes/AdminSidebar";
 import CrmCadastrarMembroPanel from "@/componentes/CrmCadastrarMembroPanel";
 import PedidoPdfClienteButton from "@/componentes/PedidoPdfClienteButton";
 import { CrmPessoasSalaoCampos, CrmPessoasSalaoResumo } from "@/componentes/CrmPessoasSalao";
+import CrmLigarBotao from "@/componentes/CrmLigarBotao";
 import {
   ArrowLeft, Loader2, Pencil, Save, X, AlertCircle,
   CheckCircle, MessageCircle, Instagram, Mail, Building2,
@@ -372,8 +373,17 @@ export default function LeadDetalhePage() {
               </div>
 
               {/* Status badge */}
-              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest mb-5 ${statusCfg.bg} ${statusCfg.cor} border ${statusCfg.borda}`}>
-                {statusCfg.label}
+              <div className="flex items-center gap-2 mb-5 flex-wrap">
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest ${statusCfg.bg} ${statusCfg.cor} border ${statusCfg.borda}`}>
+                  {statusCfg.label}
+                </div>
+                {(lead.telefone || lead.dono_telefone || lead.cabeleireiro_telefone) && (
+                  <CrmLigarBotao
+                    leadId={lead.id}
+                    telefone={lead.telefone || lead.dono_telefone || lead.cabeleireiro_telefone}
+                    compacto={false}
+                  />
+                )}
               </div>
 
               {/* Contatos */}

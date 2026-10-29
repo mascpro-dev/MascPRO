@@ -363,9 +363,19 @@ function DetalheLead({ lead, onClose }: { lead: Lead; onClose: () => void }) {
       >
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
-            <p className={`inline-flex text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${COL_TOM[l.status] || "bg-white"}`}>
-              {STATUS_LEAD_LABEL[l.status] || l.status}
-            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className={`inline-flex text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${COL_TOM[l.status] || "bg-white"}`}>
+                {STATUS_LEAD_LABEL[l.status] || l.status}
+              </p>
+              {(l.telefone || l.dono_telefone || l.cabeleireiro_telefone) && (
+                <CrmLigarBotao
+                  leadId={l.id}
+                  telefone={l.telefone || l.dono_telefone || l.cabeleireiro_telefone}
+                  compacto={false}
+                  claro
+                />
+              )}
+            </div>
             <h2 className="text-[18px] font-semibold mt-2">{l.nome}</h2>
             {l.empresa && <p className="text-[13px] text-[#8A847A]">{l.empresa}</p>}
             <CrmPessoasSalaoResumo lead={l} compacto={false} claro />
