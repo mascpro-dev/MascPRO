@@ -674,12 +674,13 @@ export default function LeadDetalhePage() {
                   );
                 })}
                 <CrmLeadCarteiraSelects
-                  key={`${lead.relacionamento}-${lead.resultado_atendimento}-${lead.proxima_acao}`}
+                  key={`${lead.relacionamento}-${lead.resultado_atendimento}-${lead.proxima_acao}-${lead.perfil}`}
                   leadId={lead.id}
                   apiBase="/api/admin/crm/leads"
                   relacionamento={lead.relacionamento}
                   resultadoAtendimento={lead.resultado_atendimento}
                   proximaAcao={lead.proxima_acao}
+                  perfil={lead.perfil}
                   onAtualizado={(campos) => setLead((l) => (l ? { ...l, ...campos } : l))}
                 />
               </div>

@@ -197,6 +197,7 @@ export default function VendedorLeadDetalhePage() {
             relacionamento={lead.relacionamento}
             resultadoAtendimento={lead.resultado_atendimento}
             proximaAcao={lead.proxima_acao}
+            perfil={lead.perfil}
             onAtualizado={(campos) => setLead((l) => (l ? { ...l, ...campos } : l))}
           />
         </div>

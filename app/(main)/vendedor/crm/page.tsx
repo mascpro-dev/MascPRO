@@ -408,6 +408,7 @@ export default function EmbaixadoraCrmPipelinePage() {
   const [filtroTipo, setFiltroTipo] = useState<TipoTarefa | null>(null);
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroCidade, setFiltroCidade] = useState("");
+  const [filtroPerfil, setFiltroPerfil] = useState("");
   const [leadTarefa, setLeadTarefa] = useState<Lead | null>(null);
 
   const carregar = useCallback(async () => {
@@ -461,6 +462,11 @@ export default function EmbaixadoraCrmPipelinePage() {
   const leadsVisiveis = filtrarLeadsAtividade(leads, filtroTipo, filtroPrazo).filter((l) => {
     if (filtroEstado && String(l.estado || "").trim().toUpperCase() !== filtroEstado) return false;
     if (filtroCidade && String(l.cidade || "").replace(/\s+/g, " ").trim().toLowerCase() !== filtroCidade.toLowerCase()) return false;
+    if (filtroPerfil === "__vazio__") {
+      if (l.perfil) return false;
+    } else if (filtroPerfil && String(l.perfil || "") !== filtroPerfil) {
+      return false;
+    }
     return true;
   });
 
@@ -488,6 +494,18 @@ export default function EmbaixadoraCrmPipelinePage() {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
+            <select
+              value={filtroPerfil}
+              onChange={(e) => setFiltroPerfil(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-[#C9A66B]/50 min-w-[180px]"
+              title="Filtrar pelo perfil do cadastro de membro"
+            >
+              <option value="">Todos os perfis</option>
+              {PERFIS_LEAD.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+              <option value="__vazio__">Sem perfil</option>
+            </select>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={14} />
               <input

@@ -6,6 +6,7 @@ import {
   RESULTADOS_ATENDIMENTO,
   PROXIMAS_ACOES,
 } from "@/lib/crmCarteira";
+import { PERFIS_LEAD } from "@/lib/comercialClassificacao";
 
 const chip =
   "bg-zinc-900 text-zinc-300 border border-zinc-800 hover:border-zinc-700 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-widest outline-none focus:border-[#C9A66B] max-w-[168px] disabled:opacity-50";
@@ -16,6 +17,7 @@ export default function CrmLeadCarteiraSelects({
   relacionamento,
   resultadoAtendimento,
   proximaAcao,
+  perfil,
   onAtualizado,
 }: {
   leadId: string;
@@ -23,11 +25,13 @@ export default function CrmLeadCarteiraSelects({
   relacionamento?: string | null;
   resultadoAtendimento?: string | null;
   proximaAcao?: string | null;
+  perfil?: string | null;
   onAtualizado: (campos: Record<string, string | null>) => void;
 }) {
   const [rel, setRel] = useState(relacionamento || "");
   const [sit, setSit] = useState(resultadoAtendimento || "");
   const [acao, setAcao] = useState(proximaAcao || "");
+  const [perf, setPerf] = useState(perfil || "");
   const [salvando, setSalvando] = useState("");
 
   async function gravar(campo: string, valor: string) {
@@ -86,6 +90,21 @@ export default function CrmLeadCarteiraSelects({
       >
         <option value="">Próxima ação</option>
         {PROXIMAS_ACOES.filter((o) => o.value !== "nenhuma").map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <select
+        value={perf}
+        disabled={Boolean(salvando)}
+        title="Perfil do cadastro de membro"
+        onChange={(e) => {
+          setPerf(e.target.value);
+          void gravar("perfil", e.target.value);
+        }}
+        className={chip}
+      >
+        <option value="">Perfil</option>
+        {PERFIS_LEAD.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
