@@ -1,0 +1,26 @@
+{
+  "id": "/forca",
+  "name": "MASC PRO Força de Vendas",
+  "short_name": "Força",
+  "description": "Rotas, visitas e pedidos do vendedor.",
+  "start_url": "/forca",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo-masc.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-masc.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -31,7 +31,9 @@ export default function LoginPage() {
       alert("Erro: " + error.message);
       setLoading(false);
     } else {
-      router.push("/");
+      const next = new URLSearchParams(window.location.search).get("next");
+      const destino = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+      router.push(destino);
       router.refresh();
     }
   };

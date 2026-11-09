@@ -3,17 +3,18 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // Rotas públicas que nunca precisam de auth
-const PUBLIC_ROUTES = ['/agendar', '/catalago', '/instalar-app', '/auth-choice', '/role-select', '/mapa']
+const PUBLIC_ROUTES = ['/agendar', '/catalago', '/instalar-app', '/forca/instalar', '/auth-choice', '/role-select', '/mapa']
 const PUBLIC_PREFIXES = ['/agendar/', '/catalago/', '/mapa/', '/api/mp-webhook', '/api/frete', '/api/config/loja', '/api/agendar/']
 
 // Rotas que requerem APENAS login (qualquer usuário autenticado)
-const AUTH_ONLY_PREFIXES = ['/home', '/agenda', '/perfil', '/comunidade', '/loja', '/evolucao', '/jornada', '/rede', '/eventos', '/aula', '/calculadora', '/embaixador', '/vendedor']
+const AUTH_ONLY_PREFIXES = ['/home', '/agenda', '/perfil', '/comunidade', '/loja', '/evolucao', '/jornada', '/rede', '/eventos', '/aula', '/calculadora', '/embaixador', '/vendedor', '/forca']
 
 // Rotas admin com acesso para ADMIN e DISTRIBUIDOR
 const ADMIN_DISTRIB_PREFIXES = ['/admin/crm', '/admin/returns', '/admin/comercial', '/admin/produtos']
 const ADMIN_STRICT_PREFIXES = ['/admin']
 const EMBAIXADORA_CRM_PREFIX = '/embaixador/crm'
 const VENDEDOR_CRM_PREFIX = '/vendedor/crm'
+const FORCA_PREFIX = '/forca'
 
 async function resolveUserRole(
   supabase: ReturnType<typeof createMiddlewareClient>,
@@ -92,7 +93,8 @@ export async function middleware(req: NextRequest) {
     session &&
     (ADMIN_STRICT_PREFIXES.some((p) => pathname.startsWith(p)) ||
       pathname.startsWith(EMBAIXADORA_CRM_PREFIX) ||
-      pathname.startsWith(VENDEDOR_CRM_PREFIX))
+      pathname.startsWith(VENDEDOR_CRM_PREFIX) ||
+      pathname.startsWith(FORCA_PREFIX))
 
   if (precisaRole && session) {
     const role = await resolveUserRole(supabase, session.user.id, req, res)
@@ -107,6 +109,10 @@ export async function middleware(req: NextRequest) {
     }
 
     if (pathname.startsWith(VENDEDOR_CRM_PREFIX) && !isVendedor) {
+      return NextResponse.redirect(new URL('/home', req.url))
+    }
+
+    if (pathname.startsWith(FORCA_PREFIX) && pathname !== '/forca/instalar' && !isVendedor) {
       return NextResponse.redirect(new URL('/home', req.url))
     }
 

@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Kanban, LayoutDashboard, ListChecks, MapPin, Target } from "lucide-react";
+import { Kanban, LayoutDashboard, ListChecks, MapPin, Route, Target } from "lucide-react";
 
 const LINKS = [
+  { href: "/forca", label: "Força", icon: Route },
   { href: "/vendedor/crm/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/vendedor/crm", label: "Pipeline", icon: Kanban },
   { href: "/vendedor/crm/atividades", label: "Atividades", icon: ListChecks },
