@@ -119,8 +119,12 @@ export function totalDaOrigem(produtos: number, frete: FreteDecisao): TotalOrige
  * O agrupador não entra nessa soma.
  */
 export function totalConsolidado(totaisPedidos: Array<number | null>): number | null {
-  if (totaisPedidos.some((v) => v == null || !Number.isFinite(v))) return null;
-  const cents = totaisPedidos.reduce((acc, v) => acc + Math.round((v as number) * 100), 0);
+  const valores: number[] = [];
+  for (const valor of totaisPedidos) {
+    if (valor == null || !Number.isFinite(valor)) return null;
+    valores.push(valor);
+  }
+  const cents = valores.reduce((acc, valor) => acc + Math.round(valor * 100), 0);
   return cents / 100;
 }
 
