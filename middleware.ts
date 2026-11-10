@@ -112,7 +112,7 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL('/home', req.url))
     }
 
-    if (pathname.startsWith(FORCA_PREFIX) && pathname !== '/forca/instalar' && !isVendedor) {
+    if (pathname.startsWith(FORCA_PREFIX) && pathname !== '/forca/instalar' && !isVendedor && !isAdmin && !isDistrib) {
       return NextResponse.redirect(new URL('/home', req.url))
     }
 

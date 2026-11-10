@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
-import { assertVendedorCrmAccess, podeAcessarLeadVendedor } from "@/lib/crmVendedorServer";
+import { assertForcaAcesso, podeOperarLeadForca } from "@/lib/forcaAcesso";
 import { PROXIMAS_ACOES } from "@/lib/crmCarteira";
 import { dataHojeSaoPaulo, intervaloDiaSaoPaulo } from "@/lib/forcaVendasDia";
 
@@ -14,36 +14,49 @@ export async function GET(req: NextRequest) {
   if (!supabase || !userId) {
     return NextResponse.json({ ok: false, error: authErr }, { status });
   }
-  const access = await assertVendedorCrmAccess(supabase, userId);
+  const access = await assertForcaAcesso(supabase, userId);
   if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
 
   const leadId = String(req.nextUrl.searchParams.get("lead") || "");
   if (!leadId) return NextResponse.json({ ok: false, error: "Informe o salão." }, { status: 400 });
-  const permitido = await podeAcessarLeadVendedor(supabase, leadId, userId);
+  const permitido = await podeOperarLeadForca(supabase, access, userId, leadId);
   if (!permitido) return NextResponse.json({ ok: false, error: "Sem acesso a este salão." }, { status: 403 });
 
   const { ini, fim } = intervaloDiaSaoPaulo(dataHojeSaoPaulo());
-  const { data: aberta } = await supabase
+  let abertaQuery = supabase
     .from("crm_visitas")
     .select("*")
-    .eq("vendedor_id", userId)
     .eq("crm_lead_id", leadId)
     .gte("data_visita", ini)
     .lt("data_visita", fim)
     .is("encerrada_em", null)
     .order("data_visita", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+  if (access.papel === "VENDEDOR") abertaQuery = abertaQuery.eq("vendedor_id", userId);
+  const { data: aberta } = await abertaQuery.maybeSingle();
 
-  const { data: historico } = await supabase
+  let historicoQuery = supabase
     .from("crm_visitas")
     .select("id, data_visita, resultado, notas, checkin_em, encerrada_em")
-    .eq("vendedor_id", userId)
     .eq("crm_lead_id", leadId)
     .order("data_visita", { ascending: false })
     .limit(5);
+  if (access.papel === "VENDEDOR") historicoQuery = historicoQuery.eq("vendedor_id", userId);
+  const { data: historico } = await historicoQuery;
 
-  return NextResponse.json({ ok: true, visita: aberta || null, historico: historico || [] });
+  const { data: lead } = await supabase
+    .from("crm_leads")
+    .select("id, nome, empresa, telefone, dono_nome, email, cidade, estado, endereco, bairro, cep, perfil_comercial, relacionamento, proxima_acao, profile_id")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  return NextResponse.json({
+    ok: true,
+    papel: access.papel,
+    lead: lead || null,
+    visita: aberta || null,
+    historico: historico || [],
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -51,7 +64,7 @@ export async function POST(req: NextRequest) {
   if (!supabase || !userId) {
     return NextResponse.json({ ok: false, error: authErr }, { status });
   }
-  const access = await assertVendedorCrmAccess(supabase, userId);
+  const access = await assertForcaAcesso(supabase, userId);
   if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
 
   const body = await req.json().catch(() => null);
@@ -62,7 +75,7 @@ export async function POST(req: NextRequest) {
   }
 
   const leadId = String(body?.crm_lead_id || "");
-  const permitido = await podeAcessarLeadVendedor(supabase, leadId, userId);
+  const permitido = await podeOperarLeadForca(supabase, access, userId, leadId);
   if (!permitido) return NextResponse.json({ ok: false, error: "Sem acesso a este salão." }, { status: 403 });
 
   const manual = Boolean(body?.manual);
@@ -103,7 +116,7 @@ export async function POST(req: NextRequest) {
     .from("crm_visitas")
     .insert({
       vendedor_id: userId,
-      distribuidor_id: access.distribuidor_id,
+      distribuidor_id: access.distribuidor_id || userId,
       crm_lead_id: lead.id,
       tipo: "visita",
       cliente_nome: lead.empresa || lead.nome,
@@ -133,7 +146,7 @@ export async function POST(req: NextRequest) {
       : "Check-in da visita com localização.",
   });
 
-  if (lead.cidade) {
+  if (lead.cidade && access.distribuidor_id) {
     await marcarParada(supabase, userId, access.distribuidor_id, lead, visita.id, hoje, "em_visita");
   }
 

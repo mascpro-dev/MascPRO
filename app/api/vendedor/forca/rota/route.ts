@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
-import { assertVendedorCrmAccess } from "@/lib/crmVendedorServer";
+import { assertForcaAcesso, listarLeadsDaForca, podeOperarLeadForca } from "@/lib/forcaAcesso";
 import { dataHojeSaoPaulo, dataValida } from "@/lib/forcaVendasDia";
 
 export const dynamic = "force-dynamic";
@@ -12,18 +12,15 @@ export async function GET(req: NextRequest) {
   if (!supabase || !userId) {
     return NextResponse.json({ ok: false, error: authErr }, { status });
   }
-  const access = await assertVendedorCrmAccess(supabase, userId);
+  const access = await assertForcaAcesso(supabase, userId);
   if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
 
   const data = dataValida(req.nextUrl.searchParams.get("data")) || dataHojeSaoPaulo();
   const cidade = String(req.nextUrl.searchParams.get("cidade") || "").trim();
 
-  const { data: leads, error } = await supabase
-    .from("crm_leads")
-    .select("id, nome, empresa, telefone, dono_nome, dono_telefone, cidade, estado, endereco, bairro, cep, perfil_comercial, relacionamento, proxima_acao, proxima_acao_em")
-    .or(`created_by.eq.${userId},responsavel_id.eq.${userId}`)
-    .limit(1000);
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  const carteiraRes = await listarLeadsDaForca(supabase, access, userId);
+  if (carteiraRes.error) return NextResponse.json({ ok: false, error: carteiraRes.error }, { status: 500 });
+  const leads = carteiraRes.leads as Array<Record<string, string | null>>;
 
   const daCidade = (leads || []).filter((l) => {
     if (!cidade) return true;
@@ -61,7 +58,7 @@ export async function GET(req: NextRequest) {
     cidade: cidade || null,
     rota: rota || null,
     paradas,
-    disponiveis: daCidade.filter((l) => !naRota.has(l.id)),
+    disponiveis: daCidade.filter((l) => l.id && !naRota.has(l.id)),
   });
 }
 
@@ -70,7 +67,7 @@ export async function POST(req: NextRequest) {
   if (!supabase || !userId) {
     return NextResponse.json({ ok: false, error: authErr }, { status });
   }
-  const access = await assertVendedorCrmAccess(supabase, userId);
+  const access = await assertForcaAcesso(supabase, userId);
   if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
 
   const body = await req.json().catch(() => null);
@@ -86,11 +83,10 @@ export async function POST(req: NextRequest) {
       .from("crm_leads")
       .select("id, created_by, responsavel_id")
       .in("id", ids);
-    const permitidos = new Set(
-      (leads || [])
-        .filter((l) => l.created_by === userId || l.responsavel_id === userId)
-        .map((l) => l.id)
-    );
+    const permitidos = new Set<string>();
+    for (const lead of leads || []) {
+      if (await podeOperarLeadForca(supabase, access, userId, lead.id)) permitidos.add(lead.id);
+    }
     if (ids.some((id) => !permitidos.has(id))) {
       return NextResponse.json({ ok: false, error: "Há um salão fora da sua carteira." }, { status: 403 });
     }
@@ -101,7 +97,7 @@ export async function POST(req: NextRequest) {
     .upsert(
       {
         vendedor_id: userId,
-        distribuidor_id: access.distribuidor_id,
+        distribuidor_id: access.distribuidor_id || userId,
         cidade,
         uf,
         data_rota: data,

@@ -19,6 +19,7 @@ type Follow = { id: string; nome: string | null; cidade: string | null; quando: 
 type Dia = {
   data: string;
   usuario: string;
+  aviso?: string | null;
   cidades: Cidade[];
   resumo: {
     planejadas: number;
@@ -98,6 +99,7 @@ export default function MeuDiaPage() {
       </label>
 
       {erro && <p className="text-sm text-red-400">{erro}</p>}
+      {dia?.aviso && <p className="text-sm text-amber-300">{dia.aviso}</p>}
 
       {dia && (
         <>

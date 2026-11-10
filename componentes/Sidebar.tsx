@@ -19,6 +19,7 @@ import {
   CheckCircle,
   Calculator,
   BarChart2,
+  MapPinned,
   type LucideIcon
 } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -238,6 +239,18 @@ export default function Sidebar() {
                       <BarChart2 size={18} className="text-[#C9A66B]" />
                       <span className="font-bold">CRM Vendedor</span>
                     </Link>
+                    <Link
+                      href="/forca"
+                      onClick={() => setDropdownOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                        pathname.startsWith("/forca")
+                          ? "bg-[#C9A66B]/10 text-[#C9A66B]"
+                          : "text-[#C9A66B]/70 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5"
+                      }`}
+                    >
+                      <MapPinned size={18} className="text-[#C9A66B]" />
+                      <span className="font-bold">Força de Vendas</span>
+                    </Link>
                   </>
                 )}
 
@@ -283,6 +296,18 @@ export default function Sidebar() {
                     >
                       <BarChart2 size={18} className="text-[#C9A66B]" />
                       <span className="font-bold">CRM / ERP</span>
+                    </Link>
+                    <Link
+                      href="/forca"
+                      onClick={() => setDropdownOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                        pathname.startsWith("/forca")
+                          ? "bg-[#C9A66B]/10 text-[#C9A66B]"
+                          : "text-[#C9A66B]/70 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5"
+                      }`}
+                    >
+                      <MapPinned size={18} className="text-[#C9A66B]" />
+                      <span className="font-bold">Força de Vendas</span>
                     </Link>
                   </>
                 )}
@@ -431,6 +456,20 @@ export default function Sidebar() {
                     <span className="text-[9px] text-slate-600 font-normal">Pipeline · Pedidos</span>
                   </div>
                 </Link>
+                <Link
+                  href="/forca"
+                  className={`mt-2 flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group ${
+                    pathname.startsWith("/forca")
+                      ? "bg-[#C9A66B]/15 border border-[#C9A66B]/30 text-[#C9A66B] font-black"
+                      : "text-slate-500 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5 border border-transparent"
+                  }`}
+                >
+                  <MapPinned size={20} className={pathname.startsWith("/forca") ? "text-[#C9A66B]" : "text-slate-500 group-hover:text-[#C9A66B]"} />
+                  <div>
+                    <span className="text-xs uppercase tracking-widest font-bold block">Força de Vendas</span>
+                    <span className="text-[9px] text-slate-600 font-normal">Rota · Visitas · Pedidos</span>
+                  </div>
+                </Link>
               </div>
             )}
 
@@ -478,6 +517,20 @@ export default function Sidebar() {
                   <div>
                     <span className="text-xs uppercase tracking-widest font-bold block">CRM / ERP</span>
                     <span className="text-[9px] text-slate-600 font-normal">Pipeline · Financeiro</span>
+                  </div>
+                </Link>
+                <Link
+                  href="/forca"
+                  className={`mt-2 flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 group ${
+                    pathname.startsWith("/forca")
+                      ? "bg-[#C9A66B]/15 border border-[#C9A66B]/30 text-[#C9A66B] font-black"
+                      : "text-slate-500 hover:text-[#C9A66B] hover:bg-[#C9A66B]/5 border border-transparent"
+                  }`}
+                >
+                  <MapPinned size={20} className={pathname.startsWith("/forca") ? "text-[#C9A66B]" : "text-slate-500 group-hover:text-[#C9A66B]"} />
+                  <div>
+                    <span className="text-xs uppercase tracking-widest font-bold block">Força de Vendas</span>
+                    <span className="text-[9px] text-slate-600 font-normal">Região · Rotas · Pedidos</span>
                   </div>
                 </Link>
               </div>

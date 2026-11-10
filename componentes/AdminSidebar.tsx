@@ -9,7 +9,7 @@ import {
   Users, UserPlus, GitMerge, Zap, Clock, LayoutDashboard,
   ShieldCheck, ArrowDownToLine, ShoppingBag, UsersRound,
   Calendar, BookOpen, Bell, Package, Menu, X, ChevronRight,
-  Eye, Kanban, TrendingUp, FileText, Target, Download, RotateCcw, Settings, Boxes, ListChecks,
+  Eye, Kanban, TrendingUp, FileText, Target, Download, RotateCcw, Settings, Boxes, ListChecks, MapPinned,
 } from "lucide-react";
 
 const ADMIN_MENU_ITEMS = [
@@ -66,6 +66,7 @@ const ADMIN_MENU_ITEMS = [
   {
     title: "CRM / ERP",
     items: [
+      { name: "Força de Vendas", desc: "Rotas, visitas e pedidos", icon: MapPinned, href: "/forca", color: "text-[#C9A66B]" },
       { name: "Dashboard",        desc: "Financeiro e visão geral",         icon: LayoutDashboard, href: "/admin/crm/dashboard",   color: "text-emerald-400" },
       { name: "Pipeline de Leads",desc: "Funil de vendas e follow-ups",     icon: Kanban,          href: "/admin/crm",             color: "text-[#C9A66B]"  },
       { name: "Atividades",       desc: "Agenda e rotina do dia",           icon: ListChecks,     href: "/admin/crm/atividades",  color: "text-orange-300" },
@@ -108,6 +109,7 @@ const DISTRIBUIDOR_MENU_ITEMS = [
   {
     title: "CRM / ERP",
     items: [
+      { name: "Força de Vendas", desc: "Região, rotas e pedidos", icon: MapPinned, href: "/forca", color: "text-[#C9A66B]" },
       { name: "Dashboard",         desc: "Financeiro e geral",                icon: LayoutDashboard, href: "/admin/crm/dashboard",  color: "text-emerald-400" },
       { name: "Pipeline de Leads", desc: "Funil de vendas e follow-ups",      icon: Kanban,          href: "/admin/crm",            color: "text-[#C9A66B]"  },
       { name: "Atividades",        desc: "Agenda e rotina do dia",            icon: ListChecks,     href: "/admin/crm/atividades", color: "text-orange-300" },

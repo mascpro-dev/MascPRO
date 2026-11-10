@@ -30,7 +30,7 @@ export default function ForcaShell({ children }: { children: ReactNode }) {
         .select("role")
         .eq("id", session.user.id)
         .maybeSingle();
-      if (String(profile?.role || "").toUpperCase() !== "VENDEDOR") {
+      if (!["VENDEDOR", "DISTRIBUIDOR", "ADMIN"].includes(String(profile?.role || "").toUpperCase())) {
         router.replace("/home");
         return;
       }

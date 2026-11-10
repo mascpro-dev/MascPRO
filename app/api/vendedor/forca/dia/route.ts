@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
-import { assertVendedorCrmAccess } from "@/lib/crmVendedorServer";
+import { assertForcaAcesso, listarLeadsDaForca } from "@/lib/forcaAcesso";
 import {
   STATUS_PEDIDO_CONFIRMADO,
   dataHojeSaoPaulo,
@@ -31,22 +31,17 @@ export async function GET(req: NextRequest) {
   if (!supabase || !userId) {
     return NextResponse.json({ ok: false, error: authErr }, { status });
   }
-  const access = await assertVendedorCrmAccess(supabase, userId);
+  const access = await assertForcaAcesso(supabase, userId);
   if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
 
   const data = dataValida(req.nextUrl.searchParams.get("data")) || dataHojeSaoPaulo();
   const cidade = String(req.nextUrl.searchParams.get("cidade") || "").trim();
   const { ini, fim } = intervaloDiaSaoPaulo(data);
 
-  const { data: leads, error: erroLeads } = await supabase
-    .from("crm_leads")
-    .select("id, nome, empresa, telefone, cidade, estado, endereco, bairro, proxima_acao, proxima_acao_em, data_followup, perfil_comercial, relacionamento, status")
-    .or(`created_by.eq.${userId},responsavel_id.eq.${userId}`)
-    .limit(1000);
+  const carteiraRes = await listarLeadsDaForca(supabase, access, userId);
+  if (carteiraRes.error) return NextResponse.json({ ok: false, error: carteiraRes.error }, { status: 500 });
 
-  if (erroLeads) return NextResponse.json({ ok: false, error: erroLeads.message }, { status: 500 });
-
-  const carteira = (leads || []) as Array<LeadResumo & { status?: string }>;
+  const carteira = carteiraRes.leads as Array<LeadResumo & { status?: string }>;
   const cidades = new Map<string, { cidade: string; uf: string | null; total: number }>();
   for (const lead of carteira) {
     const nome = String(lead.cidade || "").trim();
@@ -57,34 +52,42 @@ export async function GET(req: NextRequest) {
     else cidades.set(chave, { cidade: nome, uf: lead.estado || null, total: 1 });
   }
 
-  const { data: visitas, error: erroVisitas } = await supabase
+  let visitasQuery = supabase
     .from("crm_visitas")
     .select("id, crm_lead_id, cliente_nome, cliente_cidade, data_visita, checkin_em, encerrada_em, resultado")
-    .eq("vendedor_id", userId)
     .gte("data_visita", ini)
     .lt("data_visita", fim)
     .order("data_visita", { ascending: true });
+  if (access.papel === "VENDEDOR") visitasQuery = visitasQuery.eq("vendedor_id", userId);
+  if (access.papel === "DISTRIBUIDOR") visitasQuery = visitasQuery.eq("distribuidor_id", userId);
+  const { data: visitas, error: erroVisitas } = await visitasQuery;
 
   if (erroVisitas) {
     return NextResponse.json({ ok: false, error: erroVisitas.message }, { status: 500 });
   }
 
-  const { data: pedidos, error: erroPedidos } = await supabase
+  let pedidosQuery = supabase
     .from("orders")
     .select("id, total, status, origem_abastecimento, order_group_id, created_at")
-    .eq("vendedor_id", userId)
     .gte("created_at", ini)
     .lt("created_at", fim);
+  if (access.papel === "VENDEDOR") pedidosQuery = pedidosQuery.eq("vendedor_id", userId);
+  if (access.papel === "DISTRIBUIDOR") {
+    pedidosQuery = pedidosQuery.or(`vendedor_id.eq.${userId},distribuidor_gestor_id.eq.${userId}`);
+  }
+  const { data: pedidos, error: erroPedidos } = await pedidosQuery;
 
   if (erroPedidos) return NextResponse.json({ ok: false, error: erroPedidos.message }, { status: 500 });
 
   let paradas: Array<Record<string, unknown>> = [];
   let avisoRota: string | null = null;
-  const { data: rotas, error: erroRota } = await supabase
+  let rotasQuery = supabase
     .from("sales_routes")
     .select("id, cidade, uf, status")
-    .eq("vendedor_id", userId)
     .eq("data_rota", data);
+  if (access.papel === "VENDEDOR") rotasQuery = rotasQuery.eq("vendedor_id", userId);
+  if (access.papel === "DISTRIBUIDOR") rotasQuery = rotasQuery.eq("distribuidor_id", userId);
+  const { data: rotas, error: erroRota } = await rotasQuery;
 
   if (erroRota) {
     avisoRota = erroRota.message;
@@ -149,6 +152,9 @@ export async function GET(req: NextRequest) {
     data,
     cidade: cidade || null,
     usuario: access.full_name,
+    papel: access.papel,
+    uf: access.uf,
+    aviso: carteiraRes.aviso,
     cidades: [...cidades.values()].sort((a, b) => a.cidade.localeCompare(b.cidade, "pt-BR")),
     resumo: {
       planejadas: paradas.filter((p) => p.planejada !== false).length,
