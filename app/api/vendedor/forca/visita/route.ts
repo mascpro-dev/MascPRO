@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   const acao = String(body?.acao || "");
+  if (acao === "cadastro") return salvarCadastro(supabase, access, userId, body);
   if (acao === "encerrar") return encerrar(supabase, userId, body);
   if (acao !== "checkin") {
     return NextResponse.json({ ok: false, error: "Ação de visita inválida." }, { status: 400 });
@@ -178,6 +179,15 @@ async function encerrar(
     .maybeSingle();
   if (!visita) return NextResponse.json({ ok: false, error: "Visita não encontrada." }, { status: 404 });
 
+  const enderecoVisita = dadosDoCliente(body);
+  if (enderecoVisita.erro) return NextResponse.json({ ok: false, error: enderecoVisita.erro }, { status: 400 });
+  if (!enderecoVisita.telefone || !enderecoVisita.cidade || !enderecoVisita.endereco || !enderecoVisita.bairro) {
+    return NextResponse.json(
+      { ok: false, error: "Informe telefone, cidade, rua e bairro da visita." },
+      { status: 400 }
+    );
+  }
+
   const agora = new Date().toISOString();
   const { error } = await supabase
     .from("crm_visitas")
@@ -188,21 +198,22 @@ async function encerrar(
       proximo_passo: proxima,
       proxima_acao: proxima,
       proxima_acao_em: quando,
+      cliente_telefone: enderecoVisita.telefone,
+      cliente_cidade: enderecoVisita.cidade,
+      uf: enderecoVisita.estado,
     })
     .eq("id", visita.id);
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
   if (visita.crm_lead_id) {
-    await supabase
-      .from("crm_leads")
-      .update({
-        proxima_acao: proxima,
-        proxima_acao_em: quando,
-        data_followup: quando,
-        ultimo_atendimento_em: agora,
-        ultimo_atendimento_por: userId,
-      })
-      .eq("id", visita.crm_lead_id);
+    const gravou = await gravarDadosDoCliente(supabase, visita.crm_lead_id, enderecoVisita, {
+      proxima_acao: proxima,
+      proxima_acao_em: quando,
+      data_followup: quando,
+      ultimo_atendimento_em: agora,
+      ultimo_atendimento_por: userId,
+    });
+    if (gravou) return NextResponse.json({ ok: false, error: gravou }, { status: 500 });
     await supabase.from("crm_atividades").insert({
       lead_id: visita.crm_lead_id,
       autor_id: userId,
@@ -220,6 +231,63 @@ async function encerrar(
       .eq("status", "em_visita");
   }
 
+  return NextResponse.json({ ok: true });
+}
+
+function dadosDoCliente(body: Record<string, unknown> | null) {
+  const telefone = String(body?.telefone || "").trim();
+  const cidade = String(body?.cidade || "").trim();
+  const endereco = String(body?.endereco || "").trim();
+  const bairro = String(body?.bairro || "").trim();
+  const estadoBruto = String(body?.estado || "").trim();
+  const estado = estadoBruto.toUpperCase();
+  if (estadoBruto && !/^[A-Z]{2}$/.test(estado)) {
+    return { erro: "A UF precisa ter 2 letras.", telefone, cidade, endereco, bairro, estado: "" };
+  }
+  return { erro: "", telefone, cidade, endereco, bairro, estado };
+}
+
+async function gravarDadosDoCliente(
+  supabase: NonNullable<Awaited<ReturnType<typeof getAdminContext>>["supabase"]>,
+  leadId: string,
+  dados: { telefone: string; cidade: string; endereco: string; bairro: string; estado: string },
+  extra: Record<string, unknown>
+) {
+  const patch = {
+    ...extra,
+    telefone: dados.telefone || null,
+    cidade: dados.cidade || null,
+    estado: dados.estado || null,
+    endereco: dados.endereco || null,
+    bairro: dados.bairro || null,
+  };
+  let upd = await supabase.from("crm_leads").update(patch).eq("id", leadId);
+  if (upd.error && /endereco|bairro|schema cache|PGRST204/i.test(upd.error.message)) {
+    const { endereco: _endereco, bairro: _bairro, ...semEndereco } = patch;
+    void _endereco;
+    void _bairro;
+    upd = await supabase.from("crm_leads").update(semEndereco).eq("id", leadId);
+  }
+  return upd.error?.message || "";
+}
+
+async function salvarCadastro(
+  supabase: NonNullable<Awaited<ReturnType<typeof getAdminContext>>["supabase"]>,
+  access: Awaited<ReturnType<typeof assertForcaAcesso>>,
+  userId: string,
+  body: Record<string, unknown> | null
+) {
+  if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
+  const leadId = String(body?.crm_lead_id || "");
+  const permitido = await podeOperarLeadForca(supabase, access, userId, leadId);
+  if (!permitido) return NextResponse.json({ ok: false, error: "Sem acesso a este salão." }, { status: 403 });
+  const dados = dadosDoCliente(body);
+  if (dados.erro) return NextResponse.json({ ok: false, error: dados.erro }, { status: 400 });
+  if (!dados.telefone || !dados.cidade) {
+    return NextResponse.json({ ok: false, error: "Informe telefone e cidade." }, { status: 400 });
+  }
+  const erro = await gravarDadosDoCliente(supabase, leadId, dados, {});
+  if (erro) return NextResponse.json({ ok: false, error: erro }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
 

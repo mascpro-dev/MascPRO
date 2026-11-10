@@ -9,7 +9,7 @@ import { Loader2, MapPinned, Sun, Users } from "lucide-react";
 const LINKS = [
   { href: "/forca", label: "Meu dia", icon: Sun },
   { href: "/forca/rota", label: "Rota", icon: MapPinned },
-  { href: "/forca/carteira", label: "Carteira", icon: Users },
+  { href: "/forca/clientes", label: "Clientes", icon: Users },
 ];
 
 export default function ForcaShell({ children }: { children: ReactNode }) {
@@ -49,9 +49,9 @@ export default function ForcaShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <main className="mx-auto w-full max-w-lg px-4 pt-5 pb-28">{children}</main>
+      <main className="mx-auto w-full max-w-xl px-4 pt-5 pb-28">{children}</main>
       <nav className="fixed bottom-0 inset-x-0 border-t border-white/10 bg-black/95">
-        <div className="mx-auto grid max-w-lg grid-cols-3">
+        <div className="mx-auto grid max-w-xl grid-cols-3">
           {LINKS.map(({ href, label, icon: Icon }) => {
             const ativo = href === "/forca" ? pathname === "/forca" : pathname.startsWith(href);
             return (

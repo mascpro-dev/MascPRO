@@ -45,6 +45,11 @@ export default function VisitaPage() {
   const [notas, setNotas] = useState("");
   const [proxima, setProxima] = useState("nenhuma");
   const [quando, setQuando] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [estado, setEstado] = useState("");
+  const [endereco, setEndereco] = useState("");
+  const [bairro, setBairro] = useState("");
   const [pedido, setPedido] = useState(false);
   const [ocupado, setOcupado] = useState(false);
 
@@ -61,6 +66,11 @@ export default function VisitaPage() {
       setLead(d.lead);
       setPapel(d.papel || "VENDEDOR");
       setVisitaId(d.visita?.id || null);
+      setTelefone(d.lead?.telefone || "");
+      setCidade(d.lead?.cidade || "");
+      setEstado(d.lead?.estado || "");
+      setEndereco(d.lead?.endereco || "");
+      setBairro(d.lead?.bairro || "");
     }
     setLoading(false);
   }
@@ -115,6 +125,11 @@ export default function VisitaPage() {
         notas,
         proxima_acao: proxima,
         proxima_acao_em: quando || null,
+        telefone,
+        cidade,
+        estado,
+        endereco,
+        bairro,
       }),
     });
     const d = await res.json().catch(() => null);
@@ -183,7 +198,12 @@ export default function VisitaPage() {
         </section>
       ) : (
         <section className="space-y-3 rounded-2xl border border-white/10 p-4">
-          <p className="text-sm text-emerald-400">Visita em andamento.</p>
+          <p className="text-sm text-emerald-400">Visita em andamento. Dá para salvar sem pedido.</p>
+          <Campo rotulo="Telefone" value={telefone} onChange={setTelefone} />
+          <Campo rotulo="Cidade" value={cidade} onChange={setCidade} />
+          <Campo rotulo="UF" value={estado} onChange={setEstado} />
+          <Campo rotulo="Rua" value={endereco} onChange={setEndereco} />
+          <Campo rotulo="Bairro" value={bairro} onChange={setBairro} />
           <button
             type="button"
             onClick={() => setPedido(true)}
@@ -191,6 +211,7 @@ export default function VisitaPage() {
           >
             Pedido
           </button>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Como foi a visita</p>
           <select value={resultado} onChange={(e) => setResultado(e.target.value)} className="w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm">
             {RESULTADOS.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
@@ -214,7 +235,7 @@ export default function VisitaPage() {
             disabled={ocupado}
             className="w-full rounded-xl bg-white py-3 text-sm font-black text-black disabled:opacity-40"
           >
-            Encerrar visita
+            Salvar visita
           </button>
         </section>
       )}
@@ -225,9 +246,9 @@ export default function VisitaPage() {
             id: lead.id,
             nome: nome,
             email: lead.email,
-            telefone: lead.telefone,
-            cidade: lead.cidade,
-            estado: lead.estado,
+            telefone: telefone || lead.telefone,
+            cidade: cidade || lead.cidade,
+            estado: estado || lead.estado,
             profile_id: lead.profile_id,
           }}
           variant={papel === "VENDEDOR" ? "vendedor" : "admin"}
@@ -236,5 +257,18 @@ export default function VisitaPage() {
         />
       )}
     </div>
+  );
+}
+
+function Campo({ rotulo, value, onChange }: { rotulo: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{rotulo}</span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm"
+      />
+    </label>
   );
 }

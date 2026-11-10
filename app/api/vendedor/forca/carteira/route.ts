@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
-import { assertForcaAcesso, listarLeadsDaForca, normalizarUf, podeOperarLeadForca } from "@/lib/forcaAcesso";
+import { assertForcaAcesso, listarLeadsDaForca, normalizarUf, podeOperarLeadForca, type ForcaAcesso } from "@/lib/forcaAcesso";
 
 export const dynamic = "force-dynamic";
 
@@ -50,13 +50,13 @@ export async function POST(req: NextRequest) {
   if (!supabase || !userId) return NextResponse.json({ ok: false, error: authErr }, { status });
   const access = await assertForcaAcesso(supabase, userId);
   if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: 403 });
-  if (access.papel === "VENDEDOR") {
-    return NextResponse.json({ ok: false, error: "O vendedor vende na carteira atribuída." }, { status: 403 });
-  }
 
   const body = await req.json().catch(() => null);
   const profileId = String(body?.profile_id || "");
-  if (!profileId) return NextResponse.json({ ok: false, error: "Informe o cadastro." }, { status: 400 });
+  if (!profileId) return criarCliente(supabase, access, userId, body);
+  if (access.papel === "VENDEDOR") {
+    return NextResponse.json({ ok: false, error: "O vendedor vende na carteira atribuída." }, { status: 403 });
+  }
 
   const { data: perfil } = await supabase
     .from("profiles")
@@ -106,4 +106,64 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: error?.message || "Falha ao abrir o salão." }, { status: 500 });
   }
   return NextResponse.json({ ok: true, lead_id: criado.id });
+}
+
+async function criarCliente(
+  supabase: NonNullable<Awaited<ReturnType<typeof getAdminContext>>["supabase"]>,
+  access: ForcaAcesso,
+  userId: string,
+  body: Record<string, unknown> | null
+) {
+  const nome = String(body?.nome || body?.empresa || "").trim();
+  const telefone = String(body?.telefone || "").trim();
+  const cidade = String(body?.cidade || "").trim();
+  const endereco = String(body?.endereco || "").trim();
+  const bairro = String(body?.bairro || "").trim();
+  let estado = normalizarUf(body?.estado);
+  if (!nome) return NextResponse.json({ ok: false, error: "Informe o nome do salão." }, { status: 400 });
+  if (!telefone) return NextResponse.json({ ok: false, error: "Informe o telefone." }, { status: 400 });
+  if (!cidade) return NextResponse.json({ ok: false, error: "Informe a cidade." }, { status: 400 });
+  if (body?.estado && !estado) {
+    return NextResponse.json({ ok: false, error: "A UF precisa ter 2 letras." }, { status: 400 });
+  }
+  if (access.papel === "DISTRIBUIDOR") {
+    if (!access.uf) {
+      return NextResponse.json({ ok: false, error: "Cadastre a UF do distribuidor antes de abrir cliente na região." }, { status: 400 });
+    }
+    if (estado && estado !== access.uf) {
+      return NextResponse.json({ ok: false, error: "O cliente precisa estar na UF da sua região." }, { status: 403 });
+    }
+    estado = access.uf;
+  }
+
+  const payload = {
+    nome,
+    empresa: nome,
+    telefone,
+    cidade,
+    estado: estado || null,
+    endereco: endereco || null,
+    bairro: bairro || null,
+    status: "novo",
+    origem: "manual",
+    responsavel_id: access.distribuidor_id || userId,
+    created_by: userId,
+  };
+  let ins = await supabase.from("crm_leads").insert(payload).select("id").single();
+  if (ins.error && /endereco|bairro|schema cache|PGRST204/i.test(ins.error.message)) {
+    const { endereco: _endereco, bairro: _bairro, ...semEndereco } = payload;
+    void _endereco;
+    void _bairro;
+    ins = await supabase.from("crm_leads").insert(semEndereco).select("id").single();
+  }
+  if (ins.error || !ins.data) {
+    return NextResponse.json({ ok: false, error: ins.error?.message || "Falha ao cadastrar o cliente." }, { status: 500 });
+  }
+  await supabase.from("crm_atividades").insert({
+    lead_id: ins.data.id,
+    autor_id: userId,
+    tipo: "criacao",
+    conteudo: "Cliente cadastrado na Força de Vendas.",
+  });
+  return NextResponse.json({ ok: true, lead_id: ins.data.id });
 }
