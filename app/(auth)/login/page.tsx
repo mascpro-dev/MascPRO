@@ -90,7 +90,7 @@ export default function LoginPage() {
         
         {/* Cabeçalho Fixo */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold italic tracking-tighter mb-2">MASC PRO</h1>
+          <img src="/logo-masc-branco.png" alt="MASC PRO" className="mx-auto mb-3 h-12 w-auto" />
           <p className="text-gray-400 text-sm">
             {viewState === 'login' ? "Entre para acessar sua evolução." : "Ative seu convite exclusivo."}
           </p>

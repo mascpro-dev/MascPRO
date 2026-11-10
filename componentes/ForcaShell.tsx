@@ -49,7 +49,10 @@ export default function ForcaShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <main className="mx-auto w-full max-w-xl px-4 pt-5 pb-28">{children}</main>
+      <main className="mx-auto w-full max-w-xl px-4 pt-5 pb-28">
+        <img src="/logo-masc-branco.png" alt="MASC PRO" className="mb-4 h-9 w-auto" />
+        {children}
+      </main>
       <nav className="fixed bottom-0 inset-x-0 border-t border-white/10 bg-black/95">
         <div className="mx-auto grid max-w-xl grid-cols-3">
           {LINKS.map(({ href, label, icon: Icon }) => {

@@ -8,12 +8,13 @@ import {
 import { resolveOrderGestor, fetchIndicadorRole } from "@/lib/orderGestor";
 import {
   avaliarPedidoVendedor,
+  calcularPercentualComissaoVendedor,
   carregarTabelaPrecosDistribuidor,
 } from "@/lib/vendedorPrecos";
 import { applyOrderCatalogStock } from "@/lib/applyOrderCatalogStock";
 import { applyOrderRewards } from "@/lib/applyOrderRewards";
 import { atualizarComoPago } from "@/lib/pedidoAtivo";
-import { calcularPercentualComissaoVendedor } from "@/lib/vendedorPrecos";
+import { resolverPagamentos } from "@/lib/pagamentosPedido";
 import { notificarPedidoAguardandoAprovacao } from "@/lib/notificarCrm";
 import { calcularTotalPedidoCrm, parseDescontoFinalBody } from "@/lib/crmPedidoTotal";
 import {
@@ -115,8 +116,11 @@ export async function POST(
     .filter((i: ItemBody) => i.product_id);
 
   const tabela = await carregarTabelaPrecosDistribuidor(supabase, access.distribuidor_id);
-  const paymentMethod = String(body.payment_method || "manual").toLowerCase();
-  const avaliacao = avaliarPedidoVendedor(itensLimpos, tabela, paymentMethod);
+  const avaliacao = avaliarPedidoVendedor(
+    itensLimpos,
+    tabela,
+    String(body.payment_method || "manual").toLowerCase()
+  );
 
   const subtotal = itensLimpos.reduce(
     (acc, i) => acc + i.quantidade * (i.bonificado ? 0 : i.preco_unitario),
@@ -129,6 +133,9 @@ export async function POST(
     frete,
     descontoFinal: descontoExtra,
   });
+  const pagamento = resolverPagamentos(body, total);
+  if (!pagamento.ok) return NextResponse.json({ ok: false, error: pagamento.error }, { status: 400 });
+  const paymentMethod = pagamento.payment_method;
 
   const descontoTabela = avaliacao.itens.reduce((acc, item, idx) => {
     const qtd = itensLimpos[idx]?.quantidade || 1;
@@ -205,6 +212,7 @@ export async function POST(
     profile_id: profileId,
     total,
     payment_method: paymentMethod,
+    pagamentos: pagamento.partes,
     status: statusInicial,
     shipping_cost: Number(frete.toFixed(2)),
     shipping_cep: body.cep ? String(body.cep).trim() : null,
@@ -220,11 +228,18 @@ export async function POST(
     desconto_total: Number((descontoTabela + descontoFinal).toFixed(2)),
   };
 
-  const { data: order, error: errOrder } = await supabase
+  let gravacao = await supabase
     .from("orders")
     .insert(orderInsert)
     .select("id, status, aprovacao_status")
     .single();
+  if (gravacao.error && /pagamentos|schema cache|PGRST204/i.test(gravacao.error.message)) {
+    const { pagamentos: _pagamentos, ...semPartes } = orderInsert;
+    void _pagamentos;
+    gravacao = await supabase.from("orders").insert(semPartes).select("id, status, aprovacao_status").single();
+  }
+  const order = gravacao.data;
+  const errOrder = gravacao.error;
 
   if (errOrder || !order) {
     return NextResponse.json(

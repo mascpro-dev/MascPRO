@@ -17,6 +17,7 @@ import {
 import { salvarEnderecoProfileCrm } from "@/lib/profileEnderecoCrm";
 import { aplicarClienteNoFechamento } from "@/lib/crmFechamentoCliente";
 import { montarEnderecoTexto } from "@/lib/profileEndereco";
+import { resolverPagamentos } from "@/lib/pagamentosPedido";
 
 export const dynamic = "force-dynamic";
 
@@ -177,6 +178,8 @@ export async function POST(
     frete,
     descontoFinal: descontoExtra,
   });
+  const pagamento = resolverPagamentos(body, total);
+  if (!pagamento.ok) return NextResponse.json({ ok: false, error: pagamento.error }, { status: 400 });
   const enderecoCompleto = montarEnderecoCompleto(body);
   const confirmarPagamento = Boolean(body.confirmar_pagamento);
   const statusInicial = confirmarPagamento ? "paid" : "pending";
@@ -184,7 +187,8 @@ export async function POST(
   const orderInsert: Record<string, unknown> = {
     profile_id: profileId,
     total,
-    payment_method: body.payment_method || "manual",
+    payment_method: pagamento.payment_method,
+    pagamentos: pagamento.partes,
     status: statusInicial,
     shipping_cost: Number(frete.toFixed(2)),
     shipping_cep: body.cep ? String(body.cep).trim() : null,
@@ -195,11 +199,18 @@ export async function POST(
     desconto_total: descontoFinal,
   };
 
-  const { data: order, error: errOrder } = await supabase
+  let gravacao = await supabase
     .from("orders")
     .insert(orderInsert)
     .select("id, status, gestor_tipo, distribuidor_gestor_id")
     .single();
+  if (gravacao.error && /pagamentos|schema cache|PGRST204/i.test(gravacao.error.message)) {
+    const { pagamentos: _pagamentos, ...semPartes } = orderInsert;
+    void _pagamentos;
+    gravacao = await supabase.from("orders").insert(semPartes).select("id, status, gestor_tipo, distribuidor_gestor_id").single();
+  }
+  const order = gravacao.data;
+  const errOrder = gravacao.error;
 
   if (errOrder || !order) {
     return NextResponse.json(

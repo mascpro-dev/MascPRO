@@ -219,7 +219,7 @@ export default function AdminSidebar() {
             <ShieldCheck className="text-black w-4 h-4" />
           </div>
           <div>
-            <p className="text-white font-black text-xs tracking-tight uppercase italic leading-none">MascPRO</p>
+          <img src="/logo-masc-branco.png" alt="MASC PRO" className="h-7 w-auto" />
             <p className="text-[#C9A66B] text-[9px] font-bold uppercase tracking-widest leading-none">Admin Radar</p>
           </div>
         </div>
@@ -251,7 +251,7 @@ export default function AdminSidebar() {
               <ShieldCheck className="text-black w-4 h-4" />
             </div>
             <div>
-              <p className="text-white font-black text-sm uppercase italic">MascPRO</p>
+              <img src="/logo-masc-branco.png" alt="MASC PRO" className="h-7 w-auto" />
               <p className="text-[#C9A66B] text-[9px] font-bold uppercase tracking-widest">Admin Radar</p>
             </div>
           </div>
@@ -279,7 +279,7 @@ export default function AdminSidebar() {
               <ShieldCheck className="text-black w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-white font-black text-sm tracking-tighter uppercase italic">MascPRO</h2>
+              <img src="/logo-masc-branco.png" alt="MASC PRO" className="h-7 w-auto" />
               <p className="text-[#C9A66B] text-[9px] font-bold uppercase tracking-widest">Admin Radar</p>
             </div>
           </div>
