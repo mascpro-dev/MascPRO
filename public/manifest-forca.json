@@ -1,10 +1,10 @@
 {
   "id": "/forca",
-  "name": "MASC PRO Força de Vendas",
+  "name": "Força de Vendas",
   "short_name": "Força",
-  "description": "Rotas, visitas e pedidos do vendedor.",
+  "description": "Rotas, visitas e pedidos. O Masc PRO continua em outro ícone.",
   "start_url": "/forca",
-  "scope": "/",
+  "scope": "/forca",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",

@@ -6,6 +6,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Loader2, MapPinned, Sun, Users } from "lucide-react";
 import ForcaSincronizador from "@/componentes/ForcaSincronizador";
+import { prepararInstalacaoForca } from "@/componentes/ForcaBaixarApp";
 
 const LINKS = [
   { href: "/forca", label: "Meu dia", icon: Sun },
@@ -24,7 +25,7 @@ export default function ForcaShell({ children }: { children: ReactNode }) {
     async function check() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        router.replace("/login?next=/forca");
+        router.replace("/forca/entrar");
         return;
       }
       const { data: profile } = await supabase
@@ -37,6 +38,7 @@ export default function ForcaShell({ children }: { children: ReactNode }) {
         return;
       }
       setNome(String(profile?.full_name || "").trim());
+      prepararInstalacaoForca();
       setOk(true);
     }
     void check();

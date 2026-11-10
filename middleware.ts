@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // Rotas públicas que nunca precisam de auth
-const PUBLIC_ROUTES = ['/agendar', '/catalago', '/instalar-app', '/forca/instalar', '/auth-choice', '/role-select', '/mapa']
+const PUBLIC_ROUTES = ['/agendar', '/catalago', '/instalar-app', '/forca/instalar', '/forca/entrar', '/auth-choice', '/role-select', '/mapa']
 const PUBLIC_PREFIXES = ['/agendar/', '/catalago/', '/mapa/', '/api/mp-webhook', '/api/frete', '/api/config/loja', '/api/agendar/']
 
 // Rotas que requerem APENAS login (qualquer usuário autenticado)
@@ -79,8 +79,8 @@ export async function middleware(req: NextRequest) {
     ADMIN_STRICT_PREFIXES.some((p) => pathname.startsWith(p))
 
   if (!session && needsAuth) {
-    const url = new URL('/login', req.url)
-    url.searchParams.set('next', pathname)
+    const url = new URL(pathname.startsWith("/forca") ? "/forca/entrar" : "/login", req.url)
+    url.searchParams.set("next", pathname)
     return NextResponse.redirect(url)
   }
 

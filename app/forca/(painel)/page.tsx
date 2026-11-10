@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import {
   BarChart3,
   ClipboardList,
-  Download,
   MapPin,
   MapPinned,
   Package,
@@ -16,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import ForcaEnviarCatalogo from "@/componentes/ForcaEnviarCatalogo";
+import ForcaBaixarApp from "@/componentes/ForcaBaixarApp";
 import { listarFilaPedido } from "@/lib/forcaFilaPedido";
 
 type Dia = {
@@ -96,14 +96,6 @@ export default function MeuDiaPage() {
 
       <ForcaEnviarCatalogo />
 
-      <Link
-        href="/forca/instalar"
-        className="flex items-center justify-center gap-2 rounded-xl border border-white/10 py-3 text-sm font-black"
-      >
-        <Download size={16} />
-        Baixar app
-      </Link>
-
       <div className="grid grid-cols-2 gap-2">
         {OPCOES.map(({ href, label, icon: Icon }) => (
           <Link
@@ -141,6 +133,7 @@ export default function MeuDiaPage() {
           <X size={16} className="text-zinc-400" />
         </Link>
       </div>
+      <ForcaBaixarApp />
     </div>
   );
 }
