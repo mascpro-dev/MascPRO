@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { enderecoDaParada, urlRotaMaps } from "@/lib/forcaRota";
 
 type Lead = {
   id: string;
@@ -13,6 +14,7 @@ type Lead = {
   estado?: string | null;
   endereco?: string | null;
   bairro?: string | null;
+  cep?: string | null;
 };
 
 type Parada = { id: string; crm_lead_id: string; ordem: number; lead: Lead | null };
@@ -27,6 +29,7 @@ export default function RotaPage() {
   const [ok, setOk] = useState("");
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const [organizando, setOrganizando] = useState(false);
 
   useEffect(() => {
     const salva = window.localStorage.getItem("masc_forca_cidade") || "";
@@ -69,6 +72,62 @@ export default function RotaPage() {
     void carregarRota(nome);
   }
 
+  async function posicaoAtual() {
+    if (!navigator.geolocation) return null;
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 5000 });
+      });
+      return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    } catch {
+      return null;
+    }
+  }
+
+  async function organizar(lista: Lead[]) {
+    if (lista.length < 2) return lista;
+    setOrganizando(true);
+    setErro("");
+    const origem = await posicaoAtual();
+    const res = await fetch("/api/vendedor/forca/rota", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        acao: "sequencia",
+        origem,
+        paradas: lista.map((p) => ({
+          crm_lead_id: p.id,
+          endereco: p.endereco,
+          bairro: p.bairro,
+          cidade: p.cidade || cidade,
+          estado: p.estado || uf,
+          cep: p.cep,
+        })),
+      }),
+    });
+    const d = await res.json().catch(() => null);
+    setOrganizando(false);
+    if (!res.ok || !d?.ok) {
+      setErro(d?.error || "Não foi possível ordenar a rota.");
+      return lista;
+    }
+    const porId = new Map(lista.map((lead) => [lead.id, lead]));
+    return (d.ids as string[]).map((id) => porId.get(id)).filter(Boolean) as Lead[];
+  }
+
+  async function incluir(lead: Lead) {
+    const proximas = await organizar([...paradas, lead]);
+    setParadas(proximas);
+    setDisponiveis((lista) => lista.filter((item) => item.id !== lead.id));
+  }
+
+  async function tracarTodos() {
+    const todos = [...paradas, ...disponiveis];
+    const ordem = await organizar(todos);
+    setParadas(ordem);
+    setDisponiveis([]);
+  }
+
   function mover(index: number, delta: number) {
     const alvo = index + delta;
     if (alvo < 0 || alvo >= paradas.length) return;
@@ -97,11 +156,7 @@ export default function RotaPage() {
     else setOk("Rota salva.");
   }
 
-  function mapa(lead: Lead) {
-    const destino = [lead.endereco, lead.bairro, lead.cidade, lead.estado].filter(Boolean).join(", ");
-    if (!destino) return "#";
-    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destino)}`;
-  }
+  const rotaMaps = urlRotaMaps(paradas.map((lead) => enderecoDaParada(lead)));
 
   return (
     <div className="space-y-4">
@@ -130,12 +185,17 @@ export default function RotaPage() {
       ) : (
         <>
           <section className="space-y-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Visitas de hoje</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                Visitas de hoje · {paradas.length}
+              </p>
+              {organizando && <span className="text-[10px] font-bold text-[#C9A66B]">Ordenando pelo mais perto...</span>}
+            </div>
             {paradas.length === 0 && <p className="text-sm text-zinc-500">Nenhum salão na rota.</p>}
             {paradas.map((lead, index) => (
               <div key={lead.id} className="rounded-xl border border-white/10 px-3 py-3">
-                <p className="font-bold">{lead.empresa || lead.nome}</p>
-                <p className="text-xs text-zinc-500">{[lead.endereco, lead.bairro].filter(Boolean).join(" · ")}</p>
+                <p className="font-bold">{index + 1}. {lead.empresa || lead.nome}</p>
+                <p className="text-xs text-zinc-500">{[lead.endereco, lead.bairro, lead.cidade].filter(Boolean).join(" · ") || "Sem endereço no CRM"}</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
                   <button type="button" onClick={() => mover(index, -1)} className="text-zinc-400">Subir</button>
                   <button type="button" onClick={() => mover(index, 1)} className="text-zinc-400">Descer</button>
@@ -149,11 +209,28 @@ export default function RotaPage() {
                   >
                     Tirar
                   </button>
-                  <a href={mapa(lead)} target="_blank" rel="noreferrer" className="text-[#C9A66B]">Mapa</a>
                   <Link href={`/forca/visita/${lead.id}`} className="text-[#C9A66B]">Visita</Link>
                 </div>
               </div>
             ))}
+            <button
+              type="button"
+              onClick={() => void tracarTodos()}
+              disabled={!cidade || organizando || paradas.length + disponiveis.length === 0}
+              className="w-full rounded-xl border border-[#C9A66B] py-3 text-sm font-black text-[#C9A66B] disabled:opacity-40"
+            >
+              Traçar melhor rota da cidade
+            </button>
+            {rotaMaps && (
+              <a
+                href={rotaMaps}
+                target="_blank"
+                rel="noreferrer"
+                className="block w-full rounded-xl bg-emerald-600 py-3 text-center text-sm font-black text-white"
+              >
+                Abrir rota no Maps
+              </a>
+            )}
             <button
               type="button"
               onClick={() => void salvar()}
@@ -164,18 +241,19 @@ export default function RotaPage() {
             </button>
           </section>
           <section className="space-y-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Na cidade</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+              CRM da cidade · {disponiveis.length}
+            </p>
             {disponiveis.map((lead) => (
               <button
                 key={lead.id}
                 type="button"
-                onClick={() => {
-                  setParadas((lista) => [...lista, lead]);
-                  setDisponiveis((lista) => lista.filter((item) => item.id !== lead.id));
-                }}
-                className="block w-full rounded-xl border border-white/10 px-3 py-3 text-left"
+                onClick={() => void incluir(lead)}
+                disabled={organizando}
+                className="block w-full rounded-xl border border-white/10 px-3 py-3 text-left disabled:opacity-40"
               >
                 <p className="font-bold">{lead.empresa || lead.nome}</p>
+                <p className="text-xs text-zinc-500">{[lead.endereco, lead.bairro].filter(Boolean).join(" · ")}</p>
                 <p className="text-xs text-[#C9A66B]">Incluir na rota</p>
               </button>
             ))}
