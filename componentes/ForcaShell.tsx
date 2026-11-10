@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Loader2, MapPinned, Sun, Users } from "lucide-react";
+import ForcaSincronizador from "@/componentes/ForcaSincronizador";
 
 const LINKS = [
   { href: "/forca", label: "Meu dia", icon: Sun },
@@ -51,6 +52,7 @@ export default function ForcaShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-black text-white">
       <main className="mx-auto w-full max-w-xl px-4 pt-5 pb-28">
         <img src="/logo-masc-branco.png" alt="MASC PRO" className="mb-4 h-9 w-auto" />
+        <ForcaSincronizador />
         {children}
       </main>
       <nav className="fixed bottom-0 inset-x-0 border-t border-white/10 bg-black/95">

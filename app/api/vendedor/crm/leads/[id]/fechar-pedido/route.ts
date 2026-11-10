@@ -228,15 +228,38 @@ export async function POST(
     desconto_total: Number((descontoTabela + descontoFinal).toFixed(2)),
   };
 
+  const chave = String(body.idempotency_key || "").trim();
+  if (chave) {
+    const ja = await supabase
+      .from("orders")
+      .select("id, status, aprovacao_status")
+      .eq("idempotency_key", chave)
+      .limit(1)
+      .maybeSingle();
+    if (ja.data?.id) return NextResponse.json({ ok: true, order: ja.data, reenvio: true });
+    if (!ja.error) orderInsert.idempotency_key = chave;
+  }
+
   let gravacao = await supabase
     .from("orders")
     .insert(orderInsert)
     .select("id, status, aprovacao_status")
     .single();
-  if (gravacao.error && /pagamentos|schema cache|PGRST204/i.test(gravacao.error.message)) {
-    const { pagamentos: _pagamentos, ...semPartes } = orderInsert;
-    void _pagamentos;
-    gravacao = await supabase.from("orders").insert(semPartes).select("id, status, aprovacao_status").single();
+  if (gravacao.error && /pagamentos|idempotency_key|schema cache|PGRST204/i.test(gravacao.error.message)) {
+    const msg = gravacao.error.message;
+    const copia = { ...orderInsert };
+    if (/pagamentos/i.test(msg) || (/schema cache|PGRST204/i.test(msg) && !/idempotency_key/i.test(msg))) delete copia.pagamentos;
+    if (/idempotency_key/i.test(msg)) delete copia.idempotency_key;
+    gravacao = await supabase.from("orders").insert(copia).select("id, status, aprovacao_status").single();
+  }
+  if (gravacao.error && chave && /duplicate|23505|idempotency/i.test(gravacao.error.message)) {
+    const ja = await supabase
+      .from("orders")
+      .select("id, status, aprovacao_status")
+      .eq("idempotency_key", chave)
+      .limit(1)
+      .maybeSingle();
+    if (ja.data?.id) return NextResponse.json({ ok: true, order: ja.data, reenvio: true });
   }
   const order = gravacao.data;
   const errOrder = gravacao.error;

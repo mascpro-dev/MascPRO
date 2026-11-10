@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Minus, Package, Plus, ShoppingBag } from "lucide-react";
 import { FAIXA_LINHA, SEM_LINHA, agruparProdutosPorLinha } from "@/lib/gruposLinhaProduto";
+import ForcaEnviarCatalogo from "@/componentes/ForcaEnviarCatalogo";
+import { guardarPedidoOffline } from "@/lib/forcaFilaPedido";
 
 type Lead = {
   id: string;
@@ -200,37 +202,59 @@ export default function PedidoLojaPage() {
     setEnviando(true);
     setErro("");
     const api = papel === "VENDEDOR" ? "/api/vendedor/crm" : "/api/admin/crm";
-    const res = await fetch(`${api}/leads/${lead.id}/fechar-pedido`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        profile_id: lead.profile_id,
-        cliente_nome: lead.empresa || lead.nome,
-        cpf_cnpj: cpfDigitos,
-        telefone: lead.telefone,
-        email: lead.email,
-        items: itens.map((i) => ({
-          product_id: i.id,
-          quantidade: i.quantidade,
-          preco_unitario: i.preco,
-        })),
-        pagamentos: partes.map((p) => ({ metodo: p.metodo, valor: Number(p.valor) })),
-        shipping_cost: frete,
-        cep,
-        logradouro: lead.endereco || "Endereço da visita",
-        numero: "s/n",
-        bairro: lead.bairro,
-        municipio: lead.cidade,
-        uf: lead.estado,
-      }),
-    });
-    const d = await res.json().catch(() => null);
-    setEnviando(false);
-    if (!res.ok || !d?.ok) {
-      setErro(d?.error || "Não foi possível fechar o pedido.");
+    const url = `${api}/leads/${lead.id}/fechar-pedido`;
+    const chave = crypto.randomUUID();
+    const body = {
+      profile_id: lead.profile_id,
+      cliente_nome: lead.empresa || lead.nome,
+      cpf_cnpj: cpfDigitos,
+      telefone: lead.telefone,
+      email: lead.email,
+      items: itens.map((i) => ({
+        product_id: i.id,
+        quantidade: i.quantidade,
+        preco_unitario: i.preco,
+      })),
+      pagamentos: partes.map((p) => ({ metodo: p.metodo, valor: Number(p.valor) })),
+      shipping_cost: frete,
+      cep,
+      logradouro: lead.endereco || "Endereço da visita",
+      numero: "s/n",
+      bairro: lead.bairro,
+      municipio: lead.cidade,
+      uf: lead.estado,
+      idempotency_key: chave,
+    };
+    const corpo = {
+      id: chave,
+      criado_em: new Date().toISOString(),
+      url,
+      body,
+      cliente: lead.empresa || lead.nome || "Salão",
+    };
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      guardarPedidoOffline(corpo);
+      window.location.href = "/forca";
       return;
     }
-    window.location.href = "/forca/pedidos";
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = await res.json().catch(() => null);
+      setEnviando(false);
+      if (!res.ok || !d?.ok) {
+        setErro(d?.error || "Não foi possível fechar o pedido.");
+        return;
+      }
+      window.location.href = "/forca/pedidos";
+    } catch {
+      guardarPedidoOffline(corpo);
+      setEnviando(false);
+      window.location.href = "/forca";
+    }
   }
 
   if (loading) {
@@ -248,9 +272,12 @@ export default function PedidoLojaPage() {
         <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Força de vendas</p>
         <h1 className="text-2xl font-black">{lead ? lead.empresa || lead.nome : "Novo pedido"}</h1>
         {lead && (
-          <button type="button" onClick={() => setLead(null)} className="text-xs font-bold text-zinc-500">
-            Trocar cliente
-          </button>
+          <div className="flex items-center justify-between gap-3">
+            <button type="button" onClick={() => setLead(null)} className="text-xs font-bold text-zinc-500">
+              Trocar cliente
+            </button>
+            <ForcaEnviarCatalogo telefone={lead.telefone} classe="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#C9A66B]" />
+          </div>
         )}
       </header>
       {erro && <p className="text-sm text-red-400">{erro}</p>}
