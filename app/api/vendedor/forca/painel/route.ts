@@ -20,11 +20,14 @@ export async function GET() {
 
   let pedidosQuery = supabase
     .from("orders")
-    .select("id, total, status, created_at, crm_lead_id")
+    .select("id, total, status, created_at, crm_lead_id, profile_id")
     .gte("created_at", ini)
     .order("created_at", { ascending: false })
     .limit(30);
-  let pedidosMesQuery = supabase.from("orders").select("total, status").gte("created_at", ini);
+  let pedidosMesQuery = supabase
+    .from("orders")
+    .select("total, status, created_at, payment_method")
+    .gte("created_at", ini);
   let visitasQuery = supabase
     .from("crm_visitas")
     .select("id, crm_lead_id, cliente_nome, cliente_telefone, cliente_cidade, resultado, notas, data_visita, encerrada_em")
@@ -81,10 +84,36 @@ export async function GET() {
   const confirmados = doMes.filter((p) => STATUS_PEDIDO_CONFIRMADO.includes(String(p.status)));
   const receita = confirmados.reduce((acc, p) => acc + Number(p.total || 0), 0);
   const leadIds = [...new Set(pedidos.map((p) => p.crm_lead_id).filter(Boolean))] as string[];
-  const nomes = new Map<string, string>();
+  const profileIds = [...new Set(pedidos.map((p) => p.profile_id).filter(Boolean))] as string[];
+  const nomes = new Map<string, { nome: string; telefone: string | null }>();
+  const perfis = new Map<string, { nome: string; telefone: string | null }>();
   if (leadIds.length > 0) {
-    const { data: leads } = await supabase.from("crm_leads").select("id, nome, empresa").in("id", leadIds);
-    for (const lead of leads || []) nomes.set(lead.id, lead.empresa || lead.nome || "Salão");
+    const { data: leads } = await supabase
+      .from("crm_leads")
+      .select("id, nome, empresa, telefone")
+      .in("id", leadIds);
+    for (const lead of leads || []) {
+      nomes.set(lead.id, { nome: lead.empresa || lead.nome || "", telefone: lead.telefone || null });
+    }
+  }
+  if (profileIds.length > 0) {
+    const { data: pessoas } = await supabase
+      .from("profiles")
+      .select("id, full_name, whatsapp")
+      .in("id", profileIds);
+    for (const pessoa of pessoas || []) {
+      perfis.set(pessoa.id, { nome: pessoa.full_name || "", telefone: pessoa.whatsapp || null });
+    }
+  }
+
+  const porDia = new Map<string, number>();
+  const porForma = new Map<string, number>();
+  for (const pedido of doMes) {
+    if (!STATUS_PEDIDO_CONFIRMADO.includes(String(pedido.status))) continue;
+    const dia = new Date(pedido.created_at).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+    porDia.set(dia, (porDia.get(dia) || 0) + Number(pedido.total || 0));
+    const forma = String(pedido.payment_method || "outros");
+    porForma.set(forma, (porForma.get(forma) || 0) + Number(pedido.total || 0));
   }
 
   let precos = new Map<string, { preco_final: number }>();
@@ -131,10 +160,24 @@ export async function GET() {
       receita: Math.round(receita * 100) / 100,
       clientes: clientesRes.count || 0,
     },
-    pedidos: pedidos.map((p) => ({
-      ...p,
-      cliente: p.crm_lead_id ? nomes.get(p.crm_lead_id) || "Salão" : "Pedido",
-    })),
+    pedidos: pedidos.map((p) => {
+      const lead = p.crm_lead_id ? nomes.get(p.crm_lead_id) : undefined;
+      const perfil = p.profile_id ? perfis.get(p.profile_id) : undefined;
+      return {
+        id: p.id,
+        total: p.total,
+        status: p.status,
+        created_at: p.created_at,
+        cliente: lead?.nome || perfil?.nome || "Cliente",
+        telefone: lead?.telefone || perfil?.telefone || null,
+      };
+    }),
+    serie: [...porDia.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([dia, valor]) => ({ dia, valor: Math.round(valor * 100) / 100 })),
+    formas: [...porForma.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([forma, valor]) => ({ forma, valor: Math.round(valor * 100) / 100 })),
     visitas: visitasRes.data || [],
     metas,
     produtos: (produtosRes.data || []).map((p) => {

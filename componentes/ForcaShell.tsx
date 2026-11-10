@@ -18,6 +18,7 @@ export default function ForcaShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const supabase = createClientComponentClient();
   const [ok, setOk] = useState(false);
+  const [nome, setNome] = useState("");
 
   useEffect(() => {
     async function check() {
@@ -28,13 +29,14 @@ export default function ForcaShell({ children }: { children: ReactNode }) {
       }
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, full_name")
         .eq("id", session.user.id)
         .maybeSingle();
       if (!["VENDEDOR", "DISTRIBUIDOR", "ADMIN"].includes(String(profile?.role || "").toUpperCase())) {
         router.replace("/home");
         return;
       }
+      setNome(String(profile?.full_name || "").trim());
       setOk(true);
     }
     void check();
@@ -51,7 +53,13 @@ export default function ForcaShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-black text-white">
       <main className="mx-auto w-full max-w-xl px-4 pt-5 pb-28">
-        <img src="/logo-masc-branco.png" alt="MASC PRO" className="mb-4 h-9 w-auto" />
+        <div className="mb-5 flex items-center gap-4">
+          <img src="/logo-masc-branco.png" alt="MASC PRO" className="h-16 w-auto shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C9A66B]">Força de vendas</p>
+            <p className="truncate text-xl font-black leading-tight">{nome || "Meu dia"}</p>
+          </div>
+        </div>
         <ForcaSincronizador />
         {children}
       </main>

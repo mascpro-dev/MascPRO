@@ -6,7 +6,6 @@ import {
   BarChart3,
   ClipboardList,
   Download,
-  Loader2,
   MapPin,
   MapPinned,
   Package,
@@ -71,14 +70,6 @@ export default function MeuDiaPage() {
 
   return (
     <div className="space-y-4">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Força de vendas</p>
-          <h1 className="text-2xl font-black">{dia?.usuario || "Meu dia"}</h1>
-        </div>
-        {loading && <Loader2 className="mt-1 animate-spin text-[#C9A66B]" size={18} />}
-      </header>
-
       {erro && <p className="text-sm text-red-400">{erro}</p>}
       {dia?.aviso && <p className="text-sm text-amber-300">{dia.aviso}</p>}
 
@@ -125,7 +116,7 @@ export default function MeuDiaPage() {
           </Link>
         ))}
         <Link
-          href={dia?.papel === "VENDEDOR" ? "/vendedor/crm/dashboard" : "/admin/crm/dashboard"}
+          href="/forca/painel"
           className="flex items-center justify-between rounded-xl border border-white/10 bg-zinc-900 px-4 py-5"
         >
           <span className="text-sm font-black tracking-wide">RELATÓRIOS</span>

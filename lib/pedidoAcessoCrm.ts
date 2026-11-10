@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { idsRedeComercial } from "@/lib/crmCarteiraServidor";
 
 export async function podeVerPedidoCrm(
   supabase: SupabaseClient,
@@ -20,11 +21,10 @@ export async function podeVerPedidoCrm(
   if (role === "ADMIN") return { ok: true, role };
 
   if (role === "DISTRIBUIDOR") {
-    if (
-      String(order.gestor_tipo || "").toLowerCase() === "distribuidor" &&
-      order.distribuidor_gestor_id === userId
-    ) {
-      return { ok: true, role };
+    if (order.distribuidor_gestor_id === userId) return { ok: true, role };
+    if (order.vendedor_id) {
+      const rede = await idsRedeComercial(supabase, userId);
+      if (rede.includes(String(order.vendedor_id))) return { ok: true, role };
     }
     return { ok: false, error: "Sem acesso a este pedido." };
   }

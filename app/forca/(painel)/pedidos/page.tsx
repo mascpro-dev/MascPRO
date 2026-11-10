@@ -60,7 +60,7 @@ export default function PedidosPage() {
         <div className="space-y-2">
           {pedidos.length === 0 && <p className="text-sm text-zinc-500">Nenhum pedido neste mês.</p>}
           {pedidos.map((p) => (
-            <article key={p.id} className="rounded-xl border border-white/10 px-3 py-3">
+            <Link key={p.id} href={`/forca/pedidos/${p.id}`} className="block rounded-xl border border-white/10 px-3 py-3">
               <div className="flex items-start justify-between gap-3">
                 <p className="font-bold">{p.cliente}</p>
                 <p className="font-black">{moeda(Number(p.total || 0))}</p>
@@ -68,7 +68,7 @@ export default function PedidosPage() {
               <p className="text-xs text-zinc-500">
                 {STATUS[p.status] || p.status} · {new Date(p.created_at).toLocaleDateString("pt-BR")}
               </p>
-            </article>
+            </Link>
           ))}
         </div>
       )}
