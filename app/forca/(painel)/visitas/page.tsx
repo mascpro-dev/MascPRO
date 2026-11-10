@@ -42,11 +42,7 @@ export default function VisitasPage() {
   return (
     <div className="space-y-4">
       <Link href="/forca" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
-      <header>
-        <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Força de vendas</p>
-        <h1 className="text-2xl font-black">Visitas</h1>
-        <p className="text-sm text-zinc-400">Inclui visita encerrada sem pedido.</p>
-      </header>
+      <p className="text-sm text-zinc-400">Inclui visita encerrada sem pedido.</p>
       {erro && <p className="text-sm text-red-400">{erro}</p>}
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#C9A66B]" /></div>

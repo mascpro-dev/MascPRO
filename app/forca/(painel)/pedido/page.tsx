@@ -268,18 +268,17 @@ export default function PedidoLojaPage() {
   return (
     <div className="space-y-4 pb-24">
       <Link href="/forca" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
-      <header>
-        <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Força de vendas</p>
-        <h1 className="text-2xl font-black">{lead ? lead.empresa || lead.nome : "Novo pedido"}</h1>
-        {lead && (
+      {lead && (
+        <div>
+          <p className="font-bold">{lead.empresa || lead.nome}</p>
           <div className="flex items-center justify-between gap-3">
             <button type="button" onClick={() => setLead(null)} className="text-xs font-bold text-zinc-500">
               Trocar cliente
             </button>
             <ForcaEnviarCatalogo telefone={lead.telefone} classe="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#C9A66B]" />
           </div>
-        )}
-      </header>
+        </div>
+      )}
       {erro && <p className="text-sm text-red-400">{erro}</p>}
 
       {!lead ? (

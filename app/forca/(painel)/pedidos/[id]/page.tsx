@@ -54,8 +54,7 @@ export default function PedidoDetalhePage() {
     <div className="space-y-4">
       <Link href="/forca/pedidos" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
       <header>
-        <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Pedido</p>
-        <h1 className="text-2xl font-black">{nome}</h1>
+        <p className="font-bold">{nome}</p>
         <p className="text-sm text-zinc-400">
           {statusLabelPedido(pedido.status)} · {new Date(pedido.created_at).toLocaleDateString("pt-BR")}
         </p>

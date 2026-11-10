@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Força de Vendas",
+  title: "Masc PRO Força de Vendas",
   description: "Rotas, visitas e pedidos do vendedor MASC PRO.",
   manifest: "/manifest-forca.json",
   appleWebApp: {
     capable: true,
-    title: "Força de Vendas",
+    title: "Masc PRO Força de Vendas",
     statusBarStyle: "black-translucent",
   },
   icons: {
-    apple: "/icon-forca.png",
+    apple: "/icon-forca-192.png",
   },
 };
 

@@ -1,7 +1,7 @@
 {
   "id": "/forca",
-  "name": "Força de Vendas",
-  "short_name": "Força",
+  "name": "Masc PRO Força de Vendas",
+  "short_name": "Masc PRO Força de Vendas",
   "description": "Rotas, visitas e pedidos. O Masc PRO continua em outro ícone.",
   "start_url": "/forca",
   "scope": "/forca",
@@ -11,13 +11,13 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icon-forca.png",
+      "src": "/icon-forca-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-forca.png",
+      "src": "/icon-forca-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"

@@ -45,14 +45,10 @@ export default function PedidosPage() {
 
   return (
     <div className="space-y-4">
-      <Link href="/forca" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
-      <header className="flex items-end justify-between">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Força de vendas</p>
-          <h1 className="text-2xl font-black">Pedidos</h1>
-        </div>
+      <div className="flex items-center justify-between">
+        <Link href="/forca" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
         <Link href="/forca/pedido" className="text-xs font-black uppercase tracking-widest text-emerald-400">Novo</Link>
-      </header>
+      </div>
       {erro && <p className="text-sm text-red-400">{erro}</p>}
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#C9A66B]" /></div>

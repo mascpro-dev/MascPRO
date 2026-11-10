@@ -47,10 +47,6 @@ export default function MetasPage() {
   return (
     <div className="space-y-4">
       <Link href="/forca" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
-      <header>
-        <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Força de vendas</p>
-        <h1 className="text-2xl font-black">Metas</h1>
-      </header>
       {erro && <p className="text-sm text-red-400">{erro}</p>}
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#C9A66B]" /></div>

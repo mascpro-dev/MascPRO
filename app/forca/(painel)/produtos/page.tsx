@@ -41,11 +41,7 @@ export default function ProdutosPage() {
   return (
     <div className="space-y-4">
       <Link href="/forca" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
-      <header>
-        <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Força de vendas</p>
-        <h1 className="text-2xl font-black">Produtos</h1>
-        <p className="text-sm text-zinc-400">Preço da tabela do distribuidor. Estoque mostrado é o central.</p>
-      </header>
+      <p className="text-sm text-zinc-400">Preço da tabela do distribuidor. Estoque mostrado é o central.</p>
       {erro && <p className="text-sm text-red-400">{erro}</p>}
       <input
         value={busca}

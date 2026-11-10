@@ -103,16 +103,12 @@ export default function ClientesPage() {
 
   return (
     <div className="space-y-4">
-      <Link href="/forca" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
-      <header className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Força de vendas</p>
-          <h1 className="text-2xl font-black">Clientes</h1>
-        </div>
+      <div className="flex items-center justify-between">
+        <Link href="/forca" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
         <button type="button" onClick={() => setAberto((v) => !v)} className="text-xs font-black uppercase tracking-widest text-emerald-400">
           {aberto ? "Fechar" : "Novo"}
         </button>
-      </header>
+      </div>
       {aviso && <p className="text-sm text-amber-300">{aviso}</p>}
       {erro && <p className="text-sm text-red-400">{erro}</p>}
 

@@ -155,8 +155,7 @@ export default function VisitaPage() {
     <div className="space-y-4">
       <Link href="/forca" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
       <header>
-        <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Visita</p>
-        <h1 className="text-2xl font-black">{nome}</h1>
+        <p className="font-bold">{nome}</p>
         <p className="text-sm text-zinc-400">
           {[lead.dono_nome, lead.cidade, lead.estado].filter(Boolean).join(" · ")}
         </p>

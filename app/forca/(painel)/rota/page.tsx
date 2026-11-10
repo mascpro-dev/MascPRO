@@ -160,10 +160,6 @@ export default function RotaPage() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B]">Força de vendas</p>
-        <h1 className="text-2xl font-black">Minha rota</h1>
-      </header>
       <select
         value={cidade}
         onChange={(e) => escolher(e.target.value)}

@@ -14,6 +14,22 @@ const LINKS = [
   { href: "/forca/clientes", label: "Clientes", icon: Users },
 ];
 
+function tituloDaTela(pathname: string) {
+  if (pathname.startsWith("/forca/pedidos/")) return "Pedido";
+  if (pathname.startsWith("/forca/visita/")) return "Visita";
+  const titulos: Record<string, string> = {
+    "/forca/pedidos": "Pedidos",
+    "/forca/pedido": "Novo pedido",
+    "/forca/visitas": "Visitas",
+    "/forca/clientes": "Clientes",
+    "/forca/rota": "Rota",
+    "/forca/produtos": "Produtos",
+    "/forca/metas": "Metas",
+    "/forca/painel": "Painel",
+  };
+  return titulos[pathname] || "";
+}
+
 export default function ForcaShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -59,7 +75,9 @@ export default function ForcaShell({ children }: { children: ReactNode }) {
           <img src="/logo-masc-branco.png" alt="MASC PRO" className="h-16 w-auto shrink-0" />
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C9A66B]">Força de vendas</p>
-            <p className="truncate text-xl font-black leading-tight">{nome || "Meu dia"}</p>
+            <p className="truncate text-xl font-black leading-tight">
+              {pathname === "/forca" ? nome || "Meu dia" : tituloDaTela(pathname)}
+            </p>
           </div>
         </div>
         <ForcaSincronizador />
