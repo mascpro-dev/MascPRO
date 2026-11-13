@@ -83,6 +83,11 @@ type NovoLeadForm = {
   dono_telefone: string;
   cabeleireiro_nome: string;
   cabeleireiro_telefone: string;
+  cidade: string;
+  estado: string;
+  endereco: string;
+  bairro: string;
+  cep: string;
   perfil: string;
   interesse: string;
   linha_interesse: string;
@@ -373,6 +378,7 @@ function ModalNovoLead({
     instagram: "", origem: "manual", valor_estimado: "",
     data_followup: "", notas: "",
     dono_nome: "", dono_telefone: "", cabeleireiro_nome: "", cabeleireiro_telefone: "",
+    cidade: "", estado: "", endereco: "", bairro: "", cep: "",
     perfil: "", interesse: "", linha_interesse: "", dor: "", proximo_passo: "",
   });
   const [salvando, setSalvando] = useState(false);
@@ -444,6 +450,26 @@ function ModalNovoLead({
             <div className="col-span-2">
               <label className={labelClass}>E-mail</label>
               <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} className={inputClass} placeholder="email@exemplo.com" />
+            </div>
+            <div>
+              <label className={labelClass}>CEP</label>
+              <input value={form.cep} onChange={(e) => set("cep", e.target.value)} className={inputClass} placeholder="00000-000" />
+            </div>
+            <div>
+              <label className={labelClass}>Bairro</label>
+              <input value={form.bairro} onChange={(e) => set("bairro", e.target.value)} className={inputClass} />
+            </div>
+            <div className="col-span-2">
+              <label className={labelClass}>Rua / Logradouro</label>
+              <input value={form.endereco} onChange={(e) => set("endereco", e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Cidade</label>
+              <input value={form.cidade} onChange={(e) => set("cidade", e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Estado (UF)</label>
+              <input value={form.estado} onChange={(e) => set("estado", e.target.value)} maxLength={2} className={inputClass} />
             </div>
             <div>
               <label className={labelClass}>Origem</label>

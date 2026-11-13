@@ -76,6 +76,9 @@ type Lead = {
   cabeleireiro_telefone?: string | null;
   cidade: string | null;
   estado: string | null;
+  endereco?: string | null;
+  bairro?: string | null;
+  cep?: string | null;
   status: string;
   origem: string;
   valor_estimado: number | null;
@@ -234,6 +237,9 @@ export default function LeadDetalhePage() {
       cabeleireiro_telefone: lead.cabeleireiro_telefone || "",
       cidade: lead.cidade || "",
       estado: lead.estado || "",
+      endereco: lead.endereco || "",
+      bairro: lead.bairro || "",
+      cep: lead.cep || "",
       status: normalizarStatusCrmSimplificado(lead.status || "novo"),
       origem: lead.origem || "manual",
       valor_estimado: lead.valor_estimado != null ? String(lead.valor_estimado) : "",
@@ -415,10 +421,12 @@ export default function LeadDetalhePage() {
                     <span className="text-sm text-zinc-300 group-hover:text-white truncate">{lead.email}</span>
                   </a>
                 )}
-                {(lead.cidade || lead.estado) && (
-                  <div className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-800/50">
-                    <MapPin size={15} className="text-zinc-500 shrink-0" />
-                    <span className="text-sm text-zinc-400">{[lead.cidade, lead.estado].filter(Boolean).join(" · ")}</span>
+                {(lead.cidade || lead.estado || lead.endereco || lead.bairro || lead.cep) && (
+                  <div className="flex items-start gap-3 p-2.5 rounded-xl bg-zinc-800/50">
+                    <MapPin size={15} className="text-zinc-500 shrink-0 mt-0.5" />
+                    <span className="text-sm text-zinc-400">
+                      {[lead.endereco, lead.bairro, lead.cidade, lead.estado, lead.cep].filter(Boolean).join(" · ")}
+                    </span>
                   </div>
                 )}
               </div>
@@ -888,6 +896,18 @@ export default function LeadDetalhePage() {
                 <div className="col-span-2">
                   <label className={labelClass}>E-mail</label>
                   <input type="email" value={form.email} onChange={(e) => setForm((f: any) => ({ ...f, email: e.target.value }))} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>CEP</label>
+                  <input value={form.cep || ""} onChange={(e) => setForm((f: any) => ({ ...f, cep: e.target.value }))} className={inputClass} placeholder="00000-000" />
+                </div>
+                <div>
+                  <label className={labelClass}>Bairro</label>
+                  <input value={form.bairro || ""} onChange={(e) => setForm((f: any) => ({ ...f, bairro: e.target.value }))} className={inputClass} />
+                </div>
+                <div className="col-span-2">
+                  <label className={labelClass}>Rua / Logradouro</label>
+                  <input value={form.endereco || ""} onChange={(e) => setForm((f: any) => ({ ...f, endereco: e.target.value }))} className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Cidade</label>

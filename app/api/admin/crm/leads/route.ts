@@ -13,6 +13,8 @@ import {
 } from "@/lib/comercialClassificacao";
 import { buscarTodasAsPaginas } from "@/lib/crmBuscarTodasPaginas";
 import { camposPessoasSalao, nomeDoSalao } from "@/lib/crmPessoasSalao";
+import { ufDoUsuario } from "@/lib/adminMembrosAcesso";
+import { normalizarUf } from "@/lib/forcaAcesso";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -60,6 +62,7 @@ export async function GET(req: NextRequest) {
   let roleFiltro = "";
   let todosIdsFiltro: string[] | null = null;
   let todosIdsRede: string[] | null = null;
+  let ufRede = "";
 
   if (access.role === "ADMIN" && distribuidorId) {
     const { data: filtroPerfil } = await supabase
@@ -75,6 +78,7 @@ export async function GET(req: NextRequest) {
   } else if (access.role !== "ADMIN") {
     const redeIds = await getRedeIds(supabase, userId);
     todosIdsRede = [userId, ...redeIds];
+    ufRede = await ufDoUsuario(supabase, userId);
   }
 
   const listar = (select: string) =>
@@ -97,9 +101,9 @@ export async function GET(req: NextRequest) {
           }
         }
       } else if (todosIdsRede) {
-        query = query.or(
-          todosIdsRede.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`).join(",")
-        );
+        const partes = todosIdsRede.map((id) => `created_by.eq.${id},responsavel_id.eq.${id}`);
+        if (ufRede) partes.push(`estado.eq.${ufRede}`, `estado.ilike.${ufRede}`);
+        query = query.or(partes.join(","));
       }
 
       if (filterStatus) query = query.eq("status", filterStatus);
@@ -167,6 +171,21 @@ export async function POST(req: NextRequest) {
   });
   if (avancao) return NextResponse.json({ ok: false, error: avancao }, { status: 400 });
 
+  let estado = normalizarUf(body.estado) || String(body.estado || "").trim().toUpperCase().slice(0, 2) || null;
+  if (access.role === "DISTRIBUIDOR") {
+    const uf = await ufDoUsuario(supabase, userId);
+    if (uf) {
+      const ufBody = normalizarUf(estado);
+      if (ufBody && ufBody !== uf) {
+        return NextResponse.json(
+          { ok: false, error: "O lead precisa estar na UF da sua região." },
+          { status: 403 }
+        );
+      }
+      estado = uf;
+    }
+  }
+
   const pessoas = camposPessoasSalao(body);
   const novo = {
     nome: nomeDoSalao(body),
@@ -176,7 +195,10 @@ export async function POST(req: NextRequest) {
     email: body.email?.trim() || null,
     instagram: body.instagram?.trim() || null,
     cidade: body.cidade?.trim() || null,
-    estado: body.estado?.trim() || null,
+    estado,
+    endereco: body.endereco?.trim() || null,
+    bairro: body.bairro?.trim() || null,
+    cep: body.cep?.trim() || null,
     status: statusFinal,
     origem: origem.value,
     valor_estimado: body.valor_estimado ? Number(body.valor_estimado) : null,
@@ -189,6 +211,13 @@ export async function POST(req: NextRequest) {
   };
 
   let ins = await supabase.from("crm_leads").insert(novo).select().single();
+  if (ins.error && /endereco|bairro|cep|schema cache|PGRST204/i.test(ins.error.message)) {
+    const { endereco: _e, bairro: _b, cep: _c, ...semEndereco } = novo;
+    void _e;
+    void _b;
+    void _c;
+    ins = await supabase.from("crm_leads").insert(semEndereco).select().single();
+  }
   if (ins.error && /dono_nome|cabeleireiro|schema cache|PGRST204/i.test(ins.error.message)) {
     const { dono_nome, dono_telefone, cabeleireiro_nome, cabeleireiro_telefone, ...semPessoas } = novo;
     void dono_nome;

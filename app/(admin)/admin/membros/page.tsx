@@ -3,9 +3,10 @@ import { useEffect, useState, useCallback } from "react";
 import AdminSidebar from "@/componentes/AdminSidebar";
 import AdminMemberAvatar from "@/componentes/AdminMemberAvatar";
 import {
-  Search, Users, Instagram, MessageCircle, Loader2,
+  Search, Users, Instagram, MessageCircle, Loader2, Plus,
   ShoppingBag, Pencil, Trash2, X, Save, AlertCircle, CheckCircle, KeyRound, Link2, Copy, MapPin,
 } from "lucide-react";
+import { SENHA_PADRAO_CRM } from "@/lib/crmCadastroMembro";
 import { getProBreakdown } from "@/lib/proScore";
 
 type Membro = {
@@ -35,6 +36,7 @@ type Membro = {
   compra_30d?: boolean;
   mapa_visivel?: boolean;
   mapa_coluna?: boolean;
+  cpf_cnpj?: string | null;
 };
 
 /** value = gravado em profiles.role; label = exibicao */
@@ -42,10 +44,30 @@ const ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: "CABELEIREIRO", label: "CABELEIREIRO" },
   { value: "EMBAIXADOR", label: "EMBAIXADOR" },
   { value: "EDUCADOR_TECNICO", label: "EDUCADOR TÉCNICO" },
+  { value: "CLIENTE", label: "CLIENTE" },
   { value: "DISTRIBUIDOR", label: "DISTRIBUIDOR" },
   { value: "VENDEDOR", label: "VENDEDOR (equipe do distribuidor)" },
   { value: "ADMIN", label: "ADMIN" },
 ];
+
+const ROLE_OPTIONS_DISTRIBUIDOR = ROLE_OPTIONS.filter((r) =>
+  ["CABELEIREIRO", "EMBAIXADOR", "EDUCADOR_TECNICO", "CLIENTE"].includes(r.value)
+);
+
+function mascaraCpfCnpj(valor: string): string {
+  const d = valor.replace(/\D/g, "").slice(0, 14);
+  if (d.length <= 11) {
+    return d
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  }
+  return d
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+}
 
 function labelRole(v: string) {
   return ROLE_OPTIONS.find((r) => r.value === v)?.label ?? v;
@@ -60,6 +82,7 @@ function roleParaNivel(role: string): string {
     EDUCADOR_TECNICO: "embaixador",
     DISTRIBUIDOR: "distribuidor",
     VENDEDOR: "cabeleireiro",
+    CLIENTE: "cliente",
     ADMIN: "cabeleireiro",
   };
   return m[role] || "cabeleireiro";
@@ -86,6 +109,10 @@ export default function AdminMembrosPage() {
   const [avisoMapa, setAvisoMapa] = useState<string | null>(null);
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
   const [avisoAcao, setAvisoAcao] = useState<{ tipo: "ok" | "erro"; msg: string } | null>(null);
+  const [viewerRole, setViewerRole] = useState("");
+  const [avisoRegiao, setAvisoRegiao] = useState<string | null>(null);
+  const [modoNovo, setModoNovo] = useState(false);
+  const [senhaCriada, setSenhaCriada] = useState<string | null>(null);
 
   useEffect(() => { void carregar(); void carregarDistribuidores(); }, []);
 
@@ -110,6 +137,8 @@ export default function AdminMembrosPage() {
       );
       setMembros(sorted);
       setFiltrado(sorted);
+      setViewerRole(String(data.viewer_role || "").toUpperCase());
+      setAvisoRegiao(data.aviso || null);
     }
     setLoading(false);
   }
@@ -127,7 +156,26 @@ export default function AdminMembrosPage() {
 
   useEffect(() => { filtrar(busca, filtroRole); }, [busca, filtroRole, filtrar]);
 
+  function formVazio() {
+    return {
+      full_name: "", email: "", whatsapp: "", instagram: "",
+      city: "", state: "", cep: "", address: "", number: "", complement: "", neighborhood: "",
+      role: "CABELEIREIRO", indicado_por: "", nova_senha: "", cpf_cnpj: "",
+    };
+  }
+
+  function abrirNovo() {
+    setModoNovo(true);
+    setEditando(null);
+    setForm(formVazio());
+    setFeedback(null);
+    setSenhaCriada(null);
+    setMostrarSenha(false);
+    setLinkCopiado(false);
+  }
+
   function abrirEditar(m: Membro) {
+    setModoNovo(false);
     setEditando(m);
     setForm({
       full_name: m.full_name || "", email: m.email || "",
@@ -141,27 +189,51 @@ export default function AdminMembrosPage() {
       neighborhood: m.neighborhood || m.bairro || "",
       role: m.role || "CABELEIREIRO",
       indicado_por: m.indicado_por || "", nova_senha: "",
+      cpf_cnpj: m.cpf_cnpj || "",
     });
-    setFeedback(null); setMostrarSenha(false); setLinkCopiado(false);
+    setFeedback(null); setMostrarSenha(false); setLinkCopiado(false); setSenhaCriada(null);
   }
 
   async function salvar() {
-    if (!editando) return;
-
     const roleUp = String(form.role || "").toUpperCase();
-    if (roleUp === "VENDEDOR" && !form.indicado_por?.trim()) {
+    if (!modoNovo && roleUp === "VENDEDOR" && !form.indicado_por?.trim() && viewerRole === "ADMIN") {
       setFeedback({
         tipo: "erro",
         msg: "Vendedor precisa estar vinculado a um distribuidor. Selecione o distribuidor responsável.",
       });
       return;
     }
+    if (modoNovo && (!form.full_name?.trim() || !form.email?.trim())) {
+      setFeedback({ tipo: "erro", msg: "Informe nome e e-mail para criar o cadastro." });
+      return;
+    }
 
     setSalvando(true); setFeedback(null);
+    if (modoNovo) {
+      const res = await fetch("/api/admin/membros", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, cpf_cnpj: String(form.cpf_cnpj || "").replace(/\D/g, "") }),
+      });
+      const d = await res.json().catch(() => null);
+      if (res.ok && d?.ok) {
+        const senha = d.senha_temporaria || SENHA_PADRAO_CRM;
+        setSenhaCriada(senha);
+        setFeedback({ tipo: "ok", msg: `Cadastro criado. Envie o acesso: ${d.email} · senha ${senha}` });
+        await carregar();
+      } else {
+        setFeedback({ tipo: "erro", msg: d?.error || "Erro ao cadastrar." });
+      }
+      setSalvando(false);
+      return;
+    }
+
+    if (!editando) return;
     const body: any = {
       user_id: editando.id,
       ...form,
       nivel: roleParaNivel(form.role),
+      cpf_cnpj: String(form.cpf_cnpj || "").replace(/\D/g, ""),
     };
     if (!body.nova_senha) delete body.nova_senha;
     if (!body.indicado_por) body.indicado_por = null;
@@ -171,7 +243,7 @@ export default function AdminMembrosPage() {
     });
     const d = await res.json().catch(() => null);
     if (res.ok && d?.ok) {
-      setFeedback({ tipo: "ok", msg: "Membro atualizado com sucesso!" });
+      setFeedback({ tipo: "ok", msg: "Cadastro atualizado com sucesso!" });
       await carregar();
       setTimeout(() => setEditando(null), 1500);
     } else {
@@ -251,12 +323,25 @@ export default function AdminMembrosPage() {
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-black text-white">
       <AdminSidebar />
       <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-8">
-        <div className="flex items-center gap-3 mb-6">
-          <Users className="text-[#C9A66B]" size={26} />
-          <div>
-            <h1 className="text-2xl font-black uppercase italic">Membros <span className="text-[#C9A66B]">da Rede</span></h1>
-            <p className="text-zinc-500 text-xs">Busque, filtre e gerencie todos os membros</p>
+        <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Users className="text-[#C9A66B]" size={26} />
+            <div>
+              <h1 className="text-2xl font-black uppercase italic">Membros <span className="text-[#C9A66B]">da Rede</span></h1>
+              <p className="text-zinc-500 text-xs">
+                {viewerRole === "DISTRIBUIDOR"
+                  ? "Cadastre e edite leads e clientes da sua região. Exclusão fica só com o admin."
+                  : "Busque, filtre e gerencie todos os membros"}
+              </p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={abrirNovo}
+            className="flex items-center gap-2 bg-[#C9A66B] hover:bg-[#b08d55] text-black font-black uppercase text-xs tracking-widest px-4 py-2.5 rounded-xl"
+          >
+            <Plus size={16} /> Novo cadastro
+          </button>
         </div>
 
         <div className="flex flex-col md:flex-row gap-3 mb-6">
@@ -296,12 +381,19 @@ export default function AdminMembrosPage() {
           </p>
         )}
 
+        {avisoRegiao && (
+          <p className="mb-4 rounded-xl border border-amber-600/30 bg-amber-900/20 px-4 py-3 text-xs text-amber-300">
+            {avisoRegiao}
+          </p>
+        )}
+        {viewerRole !== "DISTRIBUIDOR" && (
         <div className="mb-6 rounded-xl border border-[#C9A66B]/20 bg-[#C9A66B]/5 px-4 py-3 text-xs text-zinc-400">
           <strong className="text-[#C9A66B]">Vendedor de campo:</strong> edite o membro, escolha role{" "}
           <strong className="text-zinc-300">VENDEDOR (equipe do distribuidor)</strong> e selecione o distribuidor
           responsável. O distribuidor também pode cadastrar em{" "}
           <strong className="text-zinc-300">CRM → Equipe / Vendedores</strong>.
         </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center mt-20"><Loader2 className="animate-spin text-[#C9A66B]" size={32} /></div>
@@ -394,7 +486,9 @@ export default function AdminMembrosPage() {
                       INATIVO
                     </span>
                   )}
-                  <BotaoMapa m={m} ocupado={mapaAlvo === m.id} onAlterar={alterarMapa} />
+                  {viewerRole === "ADMIN" && (
+                    <BotaoMapa m={m} ocupado={mapaAlvo === m.id} onAlterar={alterarMapa} />
+                  )}
                 </div>
               );
 
@@ -443,10 +537,11 @@ export default function AdminMembrosPage() {
                           type="button"
                           onClick={() => abrirEditar(m)}
                           className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 transition-all hover:bg-zinc-700 hover:text-[#C9A66B]"
-                          title="Editar membro"
+                          title="Editar cadastro"
                         >
                           <Pencil size={14} />
                         </button>
+                        {viewerRole === "ADMIN" && (
                         <button
                           type="button"
                           onClick={() => void excluirCadastro(m)}
@@ -456,6 +551,7 @@ export default function AdminMembrosPage() {
                         >
                           {excluindoId === m.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                         </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -497,6 +593,7 @@ export default function AdminMembrosPage() {
                       >
                         <Pencil size={14} />
                       </button>
+                      {viewerRole === "ADMIN" && (
                       <button
                         type="button"
                         onClick={() => void excluirCadastro(m)}
@@ -506,6 +603,7 @@ export default function AdminMembrosPage() {
                       >
                         {excluindoId === m.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                       </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -514,16 +612,16 @@ export default function AdminMembrosPage() {
           </div>
         )}
 
-        {/* MODAL EDITAR */}
-        {editando && (
+        {/* MODAL EDITAR / NOVO */}
+        {(editando || modoNovo) && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-xl max-h-[92vh] overflow-y-auto">
               <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-950 z-10">
                 <div>
-                  <h2 className="font-black uppercase text-sm tracking-widest">Editar Membro</h2>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">{editando.full_name}</p>
+                  <h2 className="font-black uppercase text-sm tracking-widest">{modoNovo ? "Novo cadastro" : "Editar cadastro"}</h2>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">{modoNovo ? "Lead ou cliente da região" : editando?.full_name}</p>
                 </div>
-                <button onClick={() => setEditando(null)}><X size={20} className="text-zinc-500 hover:text-white" /></button>
+                <button onClick={() => { setEditando(null); setModoNovo(false); }}><X size={20} className="text-zinc-500 hover:text-white" /></button>
               </div>
               <div className="p-6 space-y-4">
                 {feedback && (
@@ -534,9 +632,10 @@ export default function AdminMembrosPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2"><label className={labelClass}>Nome Completo</label><input value={form.full_name} onChange={e => set("full_name", e.target.value)} className={inputClass} /></div>
-                  <div className="col-span-2"><label className={labelClass}>E-mail (altera login)</label><input type="email" value={form.email} onChange={e => set("email", e.target.value)} className={inputClass} /></div>
+                  <div className="col-span-2"><label className={labelClass}>E-mail {modoNovo ? "(login)" : "(altera login)"}</label><input type="email" value={form.email} onChange={e => set("email", e.target.value)} className={inputClass} /></div>
                   <div><label className={labelClass}>WhatsApp</label><input value={form.whatsapp} onChange={e => set("whatsapp", e.target.value)} className={inputClass} /></div>
                   <div><label className={labelClass}>Instagram</label><input value={form.instagram} onChange={e => set("instagram", e.target.value)} placeholder="@" className={inputClass} /></div>
+                  <div className="col-span-2"><label className={labelClass}>CPF / CNPJ</label><input value={form.cpf_cnpj || ""} onChange={e => set("cpf_cnpj", mascaraCpfCnpj(e.target.value))} className={inputClass} placeholder="000.000.000-00" /></div>
                 </div>
 
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
@@ -558,25 +657,26 @@ export default function AdminMembrosPage() {
                     value={form.role}
                     onChange={(e) => set("role", e.target.value)}
                     className={inputClass}
+                    disabled={viewerRole === "DISTRIBUIDOR" && String(form.role).toUpperCase() === "VENDEDOR"}
                   >
-                    {form.role && !ROLE_OPTIONS.some((r) => r.value === form.role) && (
+                    {form.role && !(viewerRole === "DISTRIBUIDOR" ? ROLE_OPTIONS_DISTRIBUIDOR : ROLE_OPTIONS).some((r) => r.value === form.role) && (
                       <option value={form.role}>{form.role}</option>
                     )}
-                    {ROLE_OPTIONS.map(({ value, label }) => (
+                    {(viewerRole === "DISTRIBUIDOR" ? ROLE_OPTIONS_DISTRIBUIDOR : ROLE_OPTIONS).map(({ value, label }) => (
                       <option key={value} value={value}>
                         {label}
                       </option>
                     ))}
                   </select>
                   <p className="text-[10px] text-zinc-600 mt-1">Tabela de preços aplicada automaticamente: <span className="text-zinc-400 font-bold">{roleParaNivel(form.role)}</span></p>
-                  {String(form.role).toUpperCase() === "VENDEDOR" && (
+                  {String(form.role).toUpperCase() === "VENDEDOR" && viewerRole === "ADMIN" && (
                     <p className="text-[10px] text-amber-400/90 mt-2">
                       Obrigatório vincular ao distribuidor abaixo. O vendedor acessa o CRM em /vendedor/crm.
                     </p>
                   )}
                 </div>
 
-                {String(form.role).toUpperCase() === "VENDEDOR" ? (
+                {viewerRole === "ADMIN" && String(form.role).toUpperCase() === "VENDEDOR" ? (
                   <div>
                     <label className={labelClass}>Distribuidor responsável *</label>
                     <select
@@ -593,15 +693,15 @@ export default function AdminMembrosPage() {
                       <p className="text-[10px] text-red-400 mt-1">Nenhum distribuidor cadastrado no sistema.</p>
                     )}
                   </div>
-                ) : (
+                ) : viewerRole === "ADMIN" ? (
                 <div>
                   <label className={labelClass}>ID do Indicador (quem indicou)</label>
                   <input value={form.indicado_por} onChange={e => set("indicado_por", e.target.value)} placeholder="UUID do membro que indicou (ou vazio)" className={inputClass} />
-                  {editando.indicador && <p className="text-[10px] text-zinc-600 mt-1">Atual: <span className="text-zinc-400">{editando.indicador.full_name}</span></p>}
+                  {editando?.indicador && <p className="text-[10px] text-zinc-600 mt-1">Atual: <span className="text-zinc-400">{editando.indicador.full_name}</span></p>}
                 </div>
-                )}
+                ) : null}
 
-                {/* LINK DE INDICAÇÃO DO MEMBRO */}
+                {editando && (
                 <div className="bg-zinc-900 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Link2 size={13} className="text-[#C9A66B]" />
@@ -624,7 +724,9 @@ export default function AdminMembrosPage() {
                     </button>
                   </div>
                 </div>
+                )}
 
+                {editando && viewerRole === "ADMIN" && (
                 <div className="bg-zinc-900 rounded-xl p-4 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-[#C9A66B] flex items-center gap-1">
@@ -647,7 +749,9 @@ export default function AdminMembrosPage() {
                     {mapaAlvo === editando.id ? "Salvando..." : editando.mapa_visivel ? "Visível" : "Oculto"}
                   </button>
                 </div>
+                )}
 
+                {!modoNovo && (
                 <div className="bg-zinc-900 rounded-xl p-4">
                   <button onClick={() => setMostrarSenha(!mostrarSenha)} className="flex items-center gap-2 text-[10px] font-black uppercase text-zinc-500 hover:text-[#C9A66B] transition-colors">
                     <KeyRound size={13} /> {mostrarSenha ? "Ocultar" : "Alterar Senha"}
@@ -659,10 +763,17 @@ export default function AdminMembrosPage() {
                     </div>
                   )}
                 </div>
+                )}
+
+                {senhaCriada && (
+                  <p className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3">
+                    Senha temporária: <span className="font-mono font-bold">{senhaCriada}</span>
+                  </p>
+                )}
 
                 <button onClick={salvar} disabled={salvando} className="w-full bg-[#C9A66B] hover:bg-[#b08d55] disabled:opacity-60 text-black font-black uppercase text-xs tracking-widest py-3 rounded-xl flex items-center justify-center gap-2">
                   {salvando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                  {salvando ? "Salvando..." : "Salvar Alterações"}
+                  {salvando ? "Salvando..." : modoNovo ? "Criar cadastro" : "Salvar Alterações"}
                 </button>
               </div>
             </div>

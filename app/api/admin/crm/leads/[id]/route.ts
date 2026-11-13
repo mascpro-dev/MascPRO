@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
+import { assertCrmAccess, podeAcessarLead } from "@/lib/crmServer";
 import {
   CAMPOS_PATCH_LEAD,
   parseOrigemLead,
@@ -10,51 +11,10 @@ import {
   normalizarStatusCrmSimplificado,
   erroColunaFase2,
 } from "@/lib/comercialClassificacao";
+import { camposEnderecoCompletoSync } from "@/lib/profileEndereco";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-async function assertCrmAccess(supabase: any, userId: string) {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("role, full_name")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error) return { ok: false as const, error: error.message };
-  const role = String(data?.role || "").toUpperCase();
-  if (!["ADMIN", "DISTRIBUIDOR"].includes(role)) {
-    return { ok: false as const, error: "Acesso restrito ao CRM." };
-  }
-  return { ok: true as const, role, full_name: data?.full_name as string };
-}
-
-async function podeAcessarLead(
-  supabase: any,
-  leadId: string,
-  userId: string,
-  role: string
-): Promise<boolean> {
-  if (role === "ADMIN") return true;
-  // Busca membros diretos da rede
-  const { data: rede } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("indicado_por", userId);
-  const redeIds = (rede || []).map((p: { id: string }) => p.id);
-  const todosIds = [userId, ...redeIds];
-
-  const { data } = await supabase
-    .from("crm_leads")
-    .select("id, created_by, responsavel_id")
-    .eq("id", leadId)
-    .maybeSingle();
-
-  if (!data) return false;
-  return (
-    todosIds.includes(data.created_by) ||
-    todosIds.includes(data.responsavel_id)
-  );
-}
 
 // GET /api/admin/crm/leads/[id] — detalhe com atividades
 export async function GET(
@@ -137,7 +97,7 @@ export async function PATCH(
   // Busca o lead atual para registrar mudança de status
   const { data: leadAtual } = await supabase
     .from("crm_leads")
-    .select("status, nome, data_followup, proximo_passo")
+    .select("status, nome, data_followup, proximo_passo, profile_id")
     .eq("id", params.id)
     .maybeSingle();
 
@@ -185,14 +145,54 @@ export async function PATCH(
     }
   }
 
-  const { data: lead, error } = await supabase
+  let { data: lead, error } = await supabase
     .from("crm_leads")
     .update(campos)
     .eq("id", params.id)
     .select()
     .single();
 
-  if (error) return NextResponse.json({ ok: false, error: erroColunaFase2(error.message) }, { status: 500 });
+  if (error && /endereco|bairro|cep|schema cache|PGRST204/i.test(error.message)) {
+    const { endereco: _e, bairro: _b, cep: _c, ...semEndereco } = campos;
+    void _e;
+    void _b;
+    void _c;
+    const retry = await supabase
+      .from("crm_leads")
+      .update(semEndereco)
+      .eq("id", params.id)
+      .select()
+      .single();
+    lead = retry.data;
+    error = retry.error;
+  }
+
+  if (error || !lead) {
+    return NextResponse.json({ ok: false, error: erroColunaFase2(error?.message || "Falha ao salvar.") }, { status: 500 });
+  }
+
+  if (leadAtual?.profile_id) {
+    const perfil: Record<string, unknown> = {};
+    if ("nome" in campos) perfil.full_name = campos.nome;
+    if ("telefone" in campos) perfil.whatsapp = campos.telefone;
+    if ("email" in campos) perfil.email = campos.email;
+    if ("instagram" in campos) perfil.instagram = campos.instagram;
+    if ("cidade" in campos || "estado" in campos || "endereco" in campos || "bairro" in campos || "cep" in campos) {
+      Object.assign(
+        perfil,
+        camposEnderecoCompletoSync({
+          city: campos.cidade,
+          state: campos.estado,
+          address: campos.endereco,
+          neighborhood: campos.bairro,
+          cep: campos.cep,
+        })
+      );
+    }
+    if (Object.keys(perfil).length) {
+      await supabase.from("profiles").update(perfil).eq("id", leadAtual.profile_id);
+    }
+  }
 
   // Registra atividade se houve mudança de status
   if (campos.status && leadAtual && campos.status !== leadAtual.status) {

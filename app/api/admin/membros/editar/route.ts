@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { assertAdmin, getAdminContext } from "@/lib/adminServer";
+import {
+  contextoMembros,
+  podeEditarCadastro,
+  rolePermitidoParaDistribuidor,
+} from "@/lib/adminMembrosAcesso";
+import { sincronizarLeadDoPerfil } from "@/lib/criarCadastroMembro";
+import { validarCpfCnpjOpcional } from "@/lib/crmFechamentoCliente";
 import { camposLocalizacaoSync } from "@/lib/profileLocalizacao";
 import { camposEnderecoCompletoSync } from "@/lib/profileEndereco";
+import { normalizarUf } from "@/lib/forcaAcesso";
 
 function sb() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -21,14 +29,39 @@ function erroFkBloqueiaDelete(msg: string | undefined) {
 
 export async function POST(req: NextRequest) {
   try {
+    const { supabase, userId, error: authErr, status } = await getAdminContext();
+    if (!supabase || !userId) {
+      return NextResponse.json({ ok: false, error: authErr || "Não autenticado." }, { status });
+    }
+
+    const ctx = await contextoMembros(supabase, userId);
+    if (!ctx.ok) return NextResponse.json({ ok: false, error: ctx.error }, { status: 403 });
+
     const body = await req.json();
     const {
       user_id, full_name, email, whatsapp, instagram, city, state,
       cep, address, number, complement, neighborhood,
-      role, nivel, indicado_por, nova_senha,
+      role, nivel, indicado_por, nova_senha, cpf_cnpj,
     } = body;
 
     if (!user_id) return NextResponse.json({ ok: false, error: "user_id obrigatório" }, { status: 400 });
+
+    const acesso = await podeEditarCadastro(
+      supabase,
+      { role: ctx.role, userId, uf: ctx.uf, redeIds: ctx.redeIds },
+      user_id
+    );
+    if (!acesso.ok) return NextResponse.json({ ok: false, error: acesso.error }, { status: 403 });
+
+    if (ctx.role === "DISTRIBUIDOR") {
+      const ufBody = normalizarUf(state);
+      if (ctx.uf && ufBody && ufBody !== ctx.uf) {
+        return NextResponse.json(
+          { ok: false, error: "O cadastro precisa permanecer na UF da sua região." },
+          { status: 403 }
+        );
+      }
+    }
 
     const erros: string[] = [];
 
@@ -70,12 +103,33 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (role !== undefined) camposProfile.role = role;
-    if (nivel !== undefined) camposProfile.nivel = nivel;
-    if (indicado_por !== undefined) camposProfile.indicado_por = indicado_por || null;
+    if (cpf_cnpj !== undefined) {
+      const cpfCheck = validarCpfCnpjOpcional(cpf_cnpj);
+      if (!cpfCheck.ok) return NextResponse.json({ ok: false, error: cpfCheck.error }, { status: 400 });
+      camposProfile.cpf_cnpj = cpfCheck.cpf;
+    }
 
-    if (String(role || "").toUpperCase() === "VENDEDOR") {
-      let distId = indicado_por !== undefined ? indicado_por : undefined;
+    if (ctx.role === "DISTRIBUIDOR") {
+      const roleOk = rolePermitidoParaDistribuidor(role, acesso.alvo.role);
+      if (role !== undefined && !roleOk) {
+        return NextResponse.json({ ok: false, error: "Você não pode alterar este papel." }, { status: 403 });
+      }
+      if (roleOk) {
+        camposProfile.role = roleOk;
+        if (roleOk === "EMBAIXADOR" || roleOk === "EDUCADOR_TECNICO") camposProfile.nivel = "embaixador";
+        else if (roleOk === "CLIENTE") camposProfile.nivel = "cliente";
+        else camposProfile.nivel = "cabeleireiro";
+      }
+    } else {
+      if (role !== undefined) camposProfile.role = role;
+      if (nivel !== undefined) camposProfile.nivel = nivel;
+      if (indicado_por !== undefined) camposProfile.indicado_por = indicado_por || null;
+    }
+
+    if (String(camposProfile.role || role || acesso.alvo.role || "").toUpperCase() === "VENDEDOR") {
+      let distId = ctx.role === "DISTRIBUIDOR"
+        ? acesso.alvo.indicado_por
+        : (indicado_por !== undefined ? indicado_por : undefined);
       if (distId === undefined) {
         const { data: atual } = await sb()
           .from("profiles")
@@ -132,6 +186,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: erros.join(" | ") }, { status: 500 });
     }
 
+    await sincronizarLeadDoPerfil(supabase, user_id, {
+      full_name,
+      whatsapp,
+      email,
+      city,
+      state,
+      address,
+      neighborhood,
+      cep,
+    });
+
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
@@ -147,7 +212,10 @@ export async function DELETE(req: NextRequest) {
 
     const admin = await assertAdmin(supabase, userId);
     if (!admin.ok) {
-      return NextResponse.json({ ok: false, error: admin.error }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, error: "O distribuidor não pode excluir cadastros." },
+        { status: 403 }
+      );
     }
 
     const body = await req.json().catch(() => null);

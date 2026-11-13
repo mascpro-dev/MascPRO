@@ -107,6 +107,18 @@ const DISTRIBUIDOR_MENU_ITEMS = [
     ],
   },
   {
+    title: "MEMBROS",
+    items: [
+      {
+        name: "Cadastros",
+        desc: "Leads e clientes da região",
+        icon: UsersRound,
+        href: "/admin/membros",
+        color: "text-[#C9A66B]",
+      },
+    ],
+  },
+  {
     title: "CRM / ERP",
     items: [
       { name: "Força de Vendas", desc: "Região, rotas e pedidos", icon: MapPinned, href: "/forca", color: "text-[#C9A66B]" },
