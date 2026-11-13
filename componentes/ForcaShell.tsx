@@ -26,6 +26,7 @@ function tituloDaTela(pathname: string) {
     "/forca/produtos": "Produtos",
     "/forca/metas": "Metas",
     "/forca/painel": "Painel",
+    "/forca/catalogo-tecnico": "Catálogo técnico",
   };
   return titulos[pathname] || "";
 }

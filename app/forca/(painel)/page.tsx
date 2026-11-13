@@ -7,6 +7,7 @@ import {
   ClipboardList,
   MapPin,
   MapPinned,
+  BookOpen,
   Package,
   RefreshCw,
   ShoppingBag,
@@ -94,7 +95,16 @@ export default function MeuDiaPage() {
         NOVO PEDIDO
       </Link>
 
-      <ForcaEnviarCatalogo />
+      <div className="grid grid-cols-2 gap-2">
+        <ForcaEnviarCatalogo classe="flex h-full w-full items-center justify-between gap-2 rounded-xl border border-[#C9A66B] bg-zinc-900 px-3 py-5 text-left text-sm font-black uppercase leading-tight tracking-wide text-[#C9A66B]" />
+        <Link
+          href="/forca/catalogo-tecnico"
+          className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-zinc-900 px-3 py-5"
+        >
+          <span className="text-sm font-black uppercase leading-tight tracking-wide">Catálogo técnico</span>
+          <BookOpen size={18} className="shrink-0 text-zinc-400" />
+        </Link>
+      </div>
 
       <div className="grid grid-cols-2 gap-2">
         {OPCOES.map(({ href, label, icon: Icon }) => (

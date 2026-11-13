@@ -7,9 +7,11 @@ import { linkCatalogoDistribuidor, montarLinkWhatsApp, normalizarWhatsAppBr } fr
 
 export default function ForcaEnviarCatalogo({
   telefone,
+  rotulo = "Enviar catálogo",
   classe = "flex w-full items-center justify-center gap-2 rounded-xl border border-[#C9A66B] py-3 text-sm font-black text-[#C9A66B]",
 }: {
   telefone?: string | null;
+  rotulo?: string;
   classe?: string;
 }) {
   const supabase = createClientComponentClient();
@@ -47,8 +49,8 @@ export default function ForcaEnviarCatalogo({
   return (
     <div className="space-y-1">
       <button type="button" onClick={() => void enviar()} className={classe}>
-        <Send size={16} />
-        Enviar catálogo
+        <span>{rotulo}</span>
+        <Send size={16} className="shrink-0" />
       </button>
       {aviso && <p className="text-center text-xs text-emerald-400">{aviso}</p>}
     </div>
