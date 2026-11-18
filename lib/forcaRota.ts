@@ -18,6 +18,34 @@ export function mesmaCidade(a: unknown, b: unknown): boolean {
   return Boolean(esquerda) && esquerda === direita;
 }
 
+export function consultasDaParada(lead: {
+  endereco?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  cep?: string | null;
+}): string[] {
+  const rua = String(lead.endereco || "").replace(/\s+/g, " ").trim();
+  const bairro = String(lead.bairro || "").replace(/\s+/g, " ").trim();
+  const cidade = String(lead.cidade || "").replace(/\s+/g, " ").trim();
+  const uf = String(lead.estado || "").replace(/\s+/g, " ").trim();
+  const local = [cidade, uf].filter(Boolean).join(", ");
+  const cep = String(lead.cep || "").replace(/\D/g, "");
+  const brutas = [
+    [rua, bairro, local].filter(Boolean).join(", "),
+    [rua, local].filter(Boolean).join(", "),
+    cep.length === 8 ? [cep, local].filter(Boolean).join(", ") : "",
+    [bairro, local].filter(Boolean).join(", "),
+  ];
+  const vistas = new Set<string>();
+  return brutas.filter((item) => {
+    const chave = item.toLowerCase();
+    if (chave.length < 3 || vistas.has(chave)) return false;
+    vistas.add(chave);
+    return true;
+  });
+}
+
 export function enderecoDaParada(lead: {
   endereco?: string | null;
   bairro?: string | null;
@@ -25,19 +53,9 @@ export function enderecoDaParada(lead: {
   estado?: string | null;
   cep?: string | null;
 }): string {
-  const pedacos = [lead.endereco, lead.bairro, lead.cidade, lead.estado, lead.cep, "Brasil"]
-    .map((parte) => String(parte || "").replace(/\s+/g, " ").trim())
-    .filter(Boolean);
-  const usados: string[] = [];
-  for (const pedaco of pedacos) {
-    const chave = pedaco.toLowerCase();
-    const jaEntrou = usados.some((item) => {
-      const texto = item.toLowerCase();
-      return texto === chave || texto.includes(chave);
-    });
-    if (!jaEntrou) usados.push(pedaco);
-  }
-  return usados.join(", ");
+  const base = consultasDaParada(lead)[0] || "";
+  if (!base) return "";
+  return /brasil/i.test(base) ? base : `${base}, Brasil`;
 }
 
 function distanciaKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
@@ -86,12 +104,21 @@ export function ordenarPorProximidade<T extends PontoRota>(
   return [...ordem, ...semPonto];
 }
 
+export type DestinoMaps = string | { lat: number; lng: number };
+
+function destinoMaps(item: DestinoMaps): string {
+  if (typeof item !== "string" && Number.isFinite(item.lat) && Number.isFinite(item.lng)) {
+    return `${item.lat},${item.lng}`;
+  }
+  return String(item || "").trim();
+}
+
 /** Link https que o iPhone abre no Google Maps, com a partida marcada. */
 export function urlRotaMaps(
-  enderecos: string[],
+  destinos: DestinoMaps[],
   origem?: { lat: number; lng: number } | null
 ): string | null {
-  const lista = enderecos.map((e) => e.trim()).filter(Boolean);
+  const lista = destinos.map(destinoMaps).filter(Boolean);
   if (!lista.length) return null;
   const destino = lista[lista.length - 1];
   const vias = lista.slice(0, -1);
@@ -107,6 +134,7 @@ export function urlRotaMaps(
 }
 
 function textoMapsIphone(valor: string) {
+  if (/^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(valor)) return valor;
   return valor
     .trim()
     .replace(/[&?#]/g, " ")
@@ -115,10 +143,10 @@ function textoMapsIphone(valor: string) {
 
 /** Abre o aplicativo do Google Maps no iPhone e deixa o iniciar disponível. */
 export function urlRotaMapsIphone(
-  enderecos: string[],
+  destinos: DestinoMaps[],
   origem?: { lat: number; lng: number } | null
 ): string | null {
-  const lista = enderecos.map((e) => e.trim()).filter(Boolean);
+  const lista = destinos.map(destinoMaps).filter(Boolean);
   if (!lista.length) return null;
   const daddr = lista.map(textoMapsIphone).join("+to:");
   const saddr =

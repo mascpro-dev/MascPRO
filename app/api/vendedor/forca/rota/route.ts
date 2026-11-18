@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/adminServer";
 import { assertForcaAcesso, listarLeadsDaForca, normalizarUf, type ForcaAcesso } from "@/lib/forcaAcesso";
 import { dataHojeSaoPaulo, dataValida } from "@/lib/forcaVendasDia";
-import { enderecoDaParada, mesmaCidade, ordenarPorProximidade } from "@/lib/forcaRota";
+import { consultasDaParada, mesmaCidade, ordenarPorProximidade } from "@/lib/forcaRota";
 import { geocodificar } from "@/lib/mapaSaloes";
 
 export const dynamic = "force-dynamic";
@@ -201,8 +201,11 @@ async function sequenciar(body: {
 }) {
   const paradas = Array.isArray(body?.paradas) ? body.paradas : [];
   const pontos = await emLotes(paradas, 4, async (parada) => {
-    const endereco = enderecoDaParada(parada);
-    const ponto = endereco ? await geocodificar(endereco) : null;
+    let ponto: { lat: number; lng: number } | null = null;
+    for (const consulta of consultasDaParada(parada).slice(0, 2)) {
+      ponto = await geocodificar(consulta);
+      if (ponto) break;
+    }
     return {
       id: String(parada.crm_lead_id || parada.id || ""),
       lat: ponto?.lat ?? null,
@@ -218,6 +221,7 @@ async function sequenciar(body: {
   return NextResponse.json({
     ok: true,
     ids: ordem.map((p) => p.id),
+    pontos: ordem.map((p) => ({ id: p.id, lat: p.lat, lng: p.lng })),
     sem_endereco: ordem.filter((p) => p.lat == null).length,
   });
 }

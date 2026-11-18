@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { enderecoDaParada, urlRotaMaps, urlRotaMapsIphone } from "@/lib/forcaRota";
+import { urlRotaMaps, urlRotaMapsIphone } from "@/lib/forcaRota";
 
 type Lead = {
   id: string;
@@ -126,26 +126,63 @@ export default function RotaPage() {
   }
 
   async function abrirNoMaps(lista: Lead[]) {
-    const enderecos = lista.map((item) => enderecoDaParada(item)).filter(Boolean);
-    if (!enderecos.length) {
-      setErro("Esses salões não têm endereço para traçar a rota.");
+    if (!lista.length) {
+      setErro("Inclua um salão na rota.");
       return;
     }
-    setOk("Abrindo o Maps...");
+    setOk("Localizando os salões...");
     setErro("");
     const origem = await posicaoAtual();
+    const res = await fetch("/api/vendedor/forca/rota", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        acao: "sequencia",
+        origem,
+        paradas: lista.map((p) => ({
+          crm_lead_id: p.id,
+          endereco: p.endereco,
+          bairro: p.bairro,
+          cidade: p.cidade || cidade,
+          estado: p.estado || uf,
+          cep: p.cep,
+        })),
+      }),
+    });
+    const d = await res.json().catch(() => null);
+    if (!res.ok || !d?.ok || !Array.isArray(d.pontos)) {
+      setOk("");
+      setErro(d?.error || "Não foi possível localizar os salões.");
+      return;
+    }
+    const porId = new Map((d.pontos as Array<{ id: string; lat: number | null; lng: number | null }>).map((p) => [p.id, p]));
+    const achados = lista.flatMap((lead) => {
+      const ponto = porId.get(lead.id);
+      if (ponto?.lat == null || ponto.lng == null) return [];
+      return [{ lat: ponto.lat, lng: ponto.lng }];
+    });
+    const faltando = lista.filter((lead) => {
+      const ponto = porId.get(lead.id);
+      return ponto?.lat == null || ponto?.lng == null;
+    });
+    if (!achados.length) {
+      setOk("");
+      setErro("Não achei esses endereços. No cadastro, a rua precisa do número, por exemplo Rua das Flores, 120.");
+      return;
+    }
+    if (faltando.length) {
+      setErro(`Sem localização: ${faltando.map((lead) => lead.empresa || lead.nome || "Salão").join(", ")}.`);
+    }
     const iphone = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const web = urlRotaMaps(enderecos, origem);
+    const web = urlRotaMaps(achados, origem);
+    const app = urlRotaMapsIphone(achados, origem);
     if (!web) {
-      setErro("Esses salões não têm endereço para traçar a rota.");
+      setOk("");
+      setErro("Não foi possível abrir o Maps.");
       return;
     }
-    if (!iphone) {
-      abrirLinkMaps(web);
-      return;
-    }
-    const app = urlRotaMapsIphone(enderecos, origem);
-    if (!app) {
+    setOk("");
+    if (!iphone || !app) {
       abrirLinkMaps(web);
       return;
     }
