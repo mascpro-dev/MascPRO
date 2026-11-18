@@ -74,13 +74,26 @@ export function ordenarPorProximidade<T extends PontoRota>(
   return [...ordem, ...semPonto];
 }
 
-export function urlRotaMaps(enderecos: string[]): string | null {
+function trechoMaps(valor: string) {
+  if (/^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(valor)) return valor;
+  return encodeURIComponent(valor);
+}
+
+/** Rota com partida definida. Sem a partida o Maps mostra as paradas e bloqueia o iniciar. */
+export function urlRotaMaps(
+  enderecos: string[],
+  origem?: { lat: number; lng: number } | null,
+  android = false
+): string | null {
   const lista = enderecos.map((e) => e.trim()).filter(Boolean);
   if (!lista.length) return null;
-  if (lista.length === 1) {
-    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(lista[0])}&travelmode=driving`;
-  }
-  const destino = lista[lista.length - 1];
-  const vias = lista.slice(0, -1).map((e) => encodeURIComponent(e)).join("|");
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destino)}&waypoints=${vias}&travelmode=driving`;
+  const partida =
+    origem && Number.isFinite(origem.lat) && Number.isFinite(origem.lng)
+      ? `${origem.lat},${origem.lng}`
+      : "";
+  const pontos = partida ? [partida, ...lista] : lista;
+  const web = `https://www.google.com/maps/dir/${pontos.map(trechoMaps).join("/")}/?travelmode=driving&dir_action=navigate`;
+  if (!android) return web;
+  const semScheme = web.replace(/^https:\/\//, "");
+  return `intent://${semScheme}#Intent;scheme=https;package=com.google.android.apps.maps;S.browser_fallback_url=${encodeURIComponent(web)};end`;
 }

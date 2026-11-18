@@ -121,6 +121,30 @@ export default function RotaPage() {
     setDisponiveis((lista) => lista.filter((item) => item.id !== lead.id));
   }
 
+  function abrirLinkMaps(link: string) {
+    if (link.startsWith("intent:")) {
+      window.location.href = link;
+      return;
+    }
+    window.open(link, "_blank", "noopener,noreferrer");
+  }
+
+  async function abrirNoMaps(lista: Lead[]) {
+    const enderecos = lista.map((item) => enderecoDaParada(item)).filter(Boolean);
+    if (!enderecos.length) {
+      setErro("Esses salões não têm endereço para traçar a rota.");
+      return;
+    }
+    const origem = await posicaoAtual();
+    const android = /Android/i.test(navigator.userAgent);
+    const link = urlRotaMaps(enderecos, origem, android);
+    if (!link) {
+      setErro("Esses salões não têm endereço para traçar a rota.");
+      return;
+    }
+    abrirLinkMaps(link);
+  }
+
   async function tracarSelecionados() {
     if (paradas.length < 2) {
       setErro("Inclua pelo menos dois salões na rota.");
@@ -129,12 +153,7 @@ export default function RotaPage() {
     const ordem = await organizar(paradas);
     if (!ordem) return;
     setParadas(ordem);
-    const link = urlRotaMaps(ordem.map((item) => enderecoDaParada(item)));
-    if (!link) {
-      setErro("Esses salões não têm endereço para traçar a rota.");
-      return;
-    }
-    window.open(link, "_blank", "noopener,noreferrer");
+    await abrirNoMaps(ordem);
   }
 
   function mover(index: number, delta: number) {
@@ -164,8 +183,6 @@ export default function RotaPage() {
     if (!res.ok || !d?.ok) setErro(d?.error || "Não foi possível salvar a rota.");
     else setOk("Rota salva.");
   }
-
-  const rotaMaps = urlRotaMaps(paradas.map((lead) => enderecoDaParada(lead)));
 
   return (
     <div className="space-y-4">
@@ -226,15 +243,15 @@ export default function RotaPage() {
             >
               Traçar melhor rota da cidade
             </button>
-            {rotaMaps && (
-              <a
-                href={rotaMaps}
-                target="_blank"
-                rel="noreferrer"
-                className="block w-full rounded-xl bg-emerald-600 py-3 text-center text-sm font-black text-white"
+            {paradas.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void abrirNoMaps(paradas)}
+                disabled={organizando}
+                className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-black text-white disabled:opacity-40"
               >
                 Abrir rota no Maps
-              </a>
+              </button>
             )}
             <button
               type="button"
