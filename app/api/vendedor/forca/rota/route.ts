@@ -3,7 +3,7 @@ import { getAdminContext } from "@/lib/adminServer";
 import { assertForcaAcesso, listarLeadsDaForca, normalizarUf, type ForcaAcesso } from "@/lib/forcaAcesso";
 import { dataHojeSaoPaulo, dataValida } from "@/lib/forcaVendasDia";
 import { consultasDaParada, mesmaCidade, ordenarPorProximidade } from "@/lib/forcaRota";
-import { geocodificar } from "@/lib/mapaSaloes";
+import { geocodificarRapido } from "@/lib/mapaSaloes";
 
 export const dynamic = "force-dynamic";
 
@@ -202,10 +202,8 @@ async function sequenciar(body: {
   const paradas = Array.isArray(body?.paradas) ? body.paradas : [];
   const pontos = await emLotes(paradas, 4, async (parada) => {
     let ponto: { lat: number; lng: number } | null = null;
-    for (const consulta of consultasDaParada(parada).slice(0, 2)) {
-      ponto = await geocodificar(consulta);
-      if (ponto) break;
-    }
+    const consulta = consultasDaParada(parada)[0];
+    if (consulta) ponto = await geocodificarRapido(consulta);
     return {
       id: String(parada.crm_lead_id || parada.id || ""),
       lat: ponto?.lat ?? null,

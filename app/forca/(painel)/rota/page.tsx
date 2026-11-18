@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { urlRotaMaps, urlRotaMapsIphone } from "@/lib/forcaRota";
 
@@ -15,6 +15,8 @@ type Lead = {
   endereco?: string | null;
   bairro?: string | null;
   cep?: string | null;
+  lat?: number | null;
+  lng?: number | null;
 };
 
 type Parada = { id: string; crm_lead_id: string; ordem: number; lead: Lead | null };
@@ -30,6 +32,8 @@ export default function RotaPage() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [organizando, setOrganizando] = useState(false);
+  const [abrindo, setAbrindo] = useState(false);
+  const geracao = useRef(0);
 
   useEffect(() => {
     const salva = window.localStorage.getItem("masc_forca_cidade") || "";
@@ -50,10 +54,13 @@ export default function RotaPage() {
   }
 
   async function carregarRota(nome: string) {
+    const ticket = geracao.current;
     setLoading(true);
     setErro("");
+    setOk("");
     const res = await fetch(`/api/vendedor/forca/rota?cidade=${encodeURIComponent(nome)}`, { cache: "no-store" });
     const d = await res.json().catch(() => null);
+    if (ticket !== geracao.current) return;
     if (!res.ok || !d?.ok) setErro(d?.error || "Não foi possível abrir a rota.");
     else {
       const naRota = ((d.paradas || []) as Parada[]).map((p) => p.lead).filter(Boolean) as Lead[];
@@ -65,6 +72,9 @@ export default function RotaPage() {
   }
 
   function escolher(nome: string) {
+    geracao.current += 1;
+    setOrganizando(false);
+    setAbrindo(false);
     setCidade(nome);
     window.localStorage.setItem("masc_forca_cidade", nome);
     const achou = cidades.find((c) => c.cidade === nome);
@@ -76,7 +86,11 @@ export default function RotaPage() {
     if (!navigator.geolocation) return null;
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 5000 });
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: false,
+          timeout: 2500,
+          maximumAge: 120000,
+        });
       });
       return { lat: pos.coords.latitude, lng: pos.coords.longitude };
     } catch {
@@ -84,11 +98,10 @@ export default function RotaPage() {
     }
   }
 
-  async function organizar(lista: Lead[]) {
-    if (lista.length < 2) return lista;
-    setOrganizando(true);
-    setErro("");
+  async function localizar(lista: Lead[]) {
+    const ticket = geracao.current;
     const origem = await posicaoAtual();
+    if (ticket !== geracao.current) return null;
     const res = await fetch("/api/vendedor/forca/rota", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -106,14 +119,34 @@ export default function RotaPage() {
       }),
     });
     const d = await res.json().catch(() => null);
-    setOrganizando(false);
+    if (ticket !== geracao.current) return null;
     if (!res.ok || !d?.ok || !Array.isArray(d.ids)) {
-      setErro(d?.error || "Não foi possível ordenar a rota.");
+      setErro(d?.error || "Não foi possível localizar a rota.");
       return null;
     }
     const porId = new Map(lista.map((lead) => [lead.id, lead]));
-    const ordem = (d.ids as string[]).map((id) => porId.get(id)).filter(Boolean) as Lead[];
-    return ordem.length ? ordem : null;
+    const porPonto = new Map(
+      (d.pontos as Array<{ id: string; lat: number | null; lng: number | null }> | undefined)?.map((p) => [p.id, p]) || []
+    );
+    const ordem = (d.ids as string[]).map((id) => {
+      const lead = porId.get(id);
+      const ponto = porPonto.get(id);
+      if (!lead) return null;
+      return { ...lead, lat: ponto?.lat ?? null, lng: ponto?.lng ?? null };
+    }).filter(Boolean) as Lead[];
+    return ordem.length ? { ordem, origem } : null;
+  }
+
+  async function organizar(lista: Lead[]) {
+    if (lista.length < 2) return lista;
+    const ticket = geracao.current;
+    setOrganizando(true);
+    setErro("");
+    setOk("");
+    const resultado = await localizar(lista);
+    if (ticket !== geracao.current) return null;
+    setOrganizando(false);
+    return resultado?.ordem || null;
   }
 
   function incluir(lead: Lead) {
@@ -130,43 +163,33 @@ export default function RotaPage() {
       setErro("Inclua um salão na rota.");
       return;
     }
-    setOk("Localizando os salões...");
+    const ticket = geracao.current;
+    setAbrindo(true);
     setErro("");
-    const origem = await posicaoAtual();
-    const res = await fetch("/api/vendedor/forca/rota", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        acao: "sequencia",
-        origem,
-        paradas: lista.map((p) => ({
-          crm_lead_id: p.id,
-          endereco: p.endereco,
-          bairro: p.bairro,
-          cidade: p.cidade || cidade,
-          estado: p.estado || uf,
-          cep: p.cep,
-        })),
-      }),
-    });
-    const d = await res.json().catch(() => null);
-    if (!res.ok || !d?.ok || !Array.isArray(d.pontos)) {
-      setOk("");
-      setErro(d?.error || "Não foi possível localizar os salões.");
-      return;
+    setOk("");
+    let atual = lista;
+    let origem: { lat: number; lng: number } | null = null;
+    if (lista.some((lead) => lead.lat == null || lead.lng == null)) {
+      const resultado = await localizar(lista);
+      if (ticket !== geracao.current) return;
+      if (!resultado) {
+        setAbrindo(false);
+        return;
+      }
+      const porId = new Map(resultado.ordem.map((lead) => [lead.id, lead]));
+      atual = lista.map((lead) => porId.get(lead.id) || lead);
+      origem = resultado.origem;
+      setParadas(atual);
+    } else {
+      origem = await posicaoAtual();
+      if (ticket !== geracao.current) return;
     }
-    const porId = new Map((d.pontos as Array<{ id: string; lat: number | null; lng: number | null }>).map((p) => [p.id, p]));
-    const achados = lista.flatMap((lead) => {
-      const ponto = porId.get(lead.id);
-      if (ponto?.lat == null || ponto.lng == null) return [];
-      return [{ lat: ponto.lat, lng: ponto.lng }];
-    });
-    const faltando = lista.filter((lead) => {
-      const ponto = porId.get(lead.id);
-      return ponto?.lat == null || ponto?.lng == null;
-    });
+    const achados = atual.flatMap((lead) => (
+      lead.lat == null || lead.lng == null ? [] : [{ lat: lead.lat, lng: lead.lng }]
+    ));
+    const faltando = atual.filter((lead) => lead.lat == null || lead.lng == null);
     if (!achados.length) {
-      setOk("");
+      setAbrindo(false);
       setErro("Não achei esses endereços. No cadastro, a rua precisa do número, por exemplo Rua das Flores, 120.");
       return;
     }
@@ -176,12 +199,11 @@ export default function RotaPage() {
     const iphone = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     const web = urlRotaMaps(achados, origem);
     const app = urlRotaMapsIphone(achados, origem);
+    setAbrindo(false);
     if (!web) {
-      setOk("");
       setErro("Não foi possível abrir o Maps.");
       return;
     }
-    setOk("");
     if (!iphone || !app) {
       abrirLinkMaps(web);
       return;
@@ -207,7 +229,7 @@ export default function RotaPage() {
     const ordem = await organizar(paradas);
     if (!ordem) return;
     setParadas(ordem);
-    await abrirNoMaps(ordem);
+    setOk("Rota organizada. Abra no Maps quando quiser.");
   }
 
   function mover(index: number, delta: number) {
@@ -292,19 +314,19 @@ export default function RotaPage() {
             <button
               type="button"
               onClick={() => void tracarSelecionados()}
-              disabled={!cidade || organizando || paradas.length < 2}
+              disabled={!cidade || organizando || abrindo || paradas.length < 2}
               className="w-full rounded-xl border border-[#C9A66B] py-3 text-sm font-black text-[#C9A66B] disabled:opacity-40"
             >
-              Traçar melhor rota da cidade
+              {organizando ? "Organizando..." : "Traçar melhor rota da cidade"}
             </button>
             {paradas.length > 0 && (
               <button
                 type="button"
                 onClick={() => void abrirNoMaps(paradas)}
-                disabled={organizando}
+                disabled={organizando || abrindo}
                 className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-black text-white disabled:opacity-40"
               >
-                Abrir rota no Maps
+                {abrindo ? "Abrindo o Maps..." : "Abrir rota no Maps"}
               </button>
             )}
             <button
@@ -325,7 +347,7 @@ export default function RotaPage() {
                 key={lead.id}
                 type="button"
                 onClick={() => incluir(lead)}
-                disabled={organizando}
+                disabled={organizando || abrindo}
                 className="block w-full rounded-xl border border-white/10 px-3 py-3 text-left disabled:opacity-40"
               >
                 <p className="font-bold">{lead.empresa || lead.nome}</p>

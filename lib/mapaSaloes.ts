@@ -267,6 +267,18 @@ export async function geocodificar(consulta: string): Promise<{ lat: number; lng
   return ponto;
 }
 
+/** Só o Photon, para a rota não esperar o segundo serviço e travar. */
+export async function geocodificarRapido(consulta: string): Promise<{ lat: number; lng: number } | null> {
+  const q = consulta.trim();
+  if (q.length < 3) return null;
+  const key = q.toLowerCase();
+  const guardado = geoCache.get(key);
+  if (guardado) return guardado;
+  const ponto = await photon(q);
+  if (ponto) geoCache.set(key, ponto);
+  return ponto;
+}
+
 async function fetchCurto(url: string, init: RequestInit): Promise<Response | null> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 2500);
