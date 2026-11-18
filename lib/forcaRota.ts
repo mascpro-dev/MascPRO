@@ -25,7 +25,19 @@ export function enderecoDaParada(lead: {
   estado?: string | null;
   cep?: string | null;
 }): string {
-  return [lead.endereco, lead.bairro, lead.cidade, lead.estado, lead.cep, "Brasil"].filter(Boolean).join(", ");
+  const pedacos = [lead.endereco, lead.bairro, lead.cidade, lead.estado, lead.cep, "Brasil"]
+    .map((parte) => String(parte || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const usados: string[] = [];
+  for (const pedaco of pedacos) {
+    const chave = pedaco.toLowerCase();
+    const jaEntrou = usados.some((item) => {
+      const texto = item.toLowerCase();
+      return texto === chave || texto.includes(chave);
+    });
+    if (!jaEntrou) usados.push(pedaco);
+  }
+  return usados.join(", ");
 }
 
 function distanciaKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
@@ -94,6 +106,13 @@ export function urlRotaMaps(
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
+function textoMapsIphone(valor: string) {
+  return valor
+    .trim()
+    .replace(/[&?#]/g, " ")
+    .replace(/\s+/g, "+");
+}
+
 /** Abre o aplicativo do Google Maps no iPhone e deixa o iniciar disponível. */
 export function urlRotaMapsIphone(
   enderecos: string[],
@@ -101,7 +120,7 @@ export function urlRotaMapsIphone(
 ): string | null {
   const lista = enderecos.map((e) => e.trim()).filter(Boolean);
   if (!lista.length) return null;
-  const daddr = lista.map((e) => encodeURIComponent(e)).join("+to:");
+  const daddr = lista.map(textoMapsIphone).join("+to:");
   const saddr =
     origem && Number.isFinite(origem.lat) && Number.isFinite(origem.lng)
       ? `${origem.lat},${origem.lng}`
