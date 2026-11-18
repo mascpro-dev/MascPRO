@@ -10,6 +10,10 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
   icons: {
+    icon: [
+      { url: "/icon-forca-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-forca-192.png", sizes: "192x192", type: "image/png" },
+    ],
     apple: "/icon-forca-192.png",
   },
 };

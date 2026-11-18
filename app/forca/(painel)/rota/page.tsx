@@ -107,25 +107,34 @@ export default function RotaPage() {
     });
     const d = await res.json().catch(() => null);
     setOrganizando(false);
-    if (!res.ok || !d?.ok) {
+    if (!res.ok || !d?.ok || !Array.isArray(d.ids)) {
       setErro(d?.error || "Não foi possível ordenar a rota.");
-      return lista;
+      return null;
     }
     const porId = new Map(lista.map((lead) => [lead.id, lead]));
-    return (d.ids as string[]).map((id) => porId.get(id)).filter(Boolean) as Lead[];
+    const ordem = (d.ids as string[]).map((id) => porId.get(id)).filter(Boolean) as Lead[];
+    return ordem.length ? ordem : null;
   }
 
-  async function incluir(lead: Lead) {
-    const proximas = await organizar([...paradas, lead]);
-    setParadas(proximas);
+  function incluir(lead: Lead) {
+    setParadas((lista) => [...lista, lead]);
     setDisponiveis((lista) => lista.filter((item) => item.id !== lead.id));
   }
 
-  async function tracarTodos() {
-    const todos = [...paradas, ...disponiveis];
-    const ordem = await organizar(todos);
+  async function tracarSelecionados() {
+    if (paradas.length < 2) {
+      setErro("Inclua pelo menos dois salões na rota.");
+      return;
+    }
+    const ordem = await organizar(paradas);
+    if (!ordem) return;
     setParadas(ordem);
-    setDisponiveis([]);
+    const link = urlRotaMaps(ordem.map((item) => enderecoDaParada(item)));
+    if (!link) {
+      setErro("Esses salões não têm endereço para traçar a rota.");
+      return;
+    }
+    window.open(link, "_blank", "noopener,noreferrer");
   }
 
   function mover(index: number, delta: number) {
@@ -211,8 +220,8 @@ export default function RotaPage() {
             ))}
             <button
               type="button"
-              onClick={() => void tracarTodos()}
-              disabled={!cidade || organizando || paradas.length + disponiveis.length === 0}
+              onClick={() => void tracarSelecionados()}
+              disabled={!cidade || organizando || paradas.length < 2}
               className="w-full rounded-xl border border-[#C9A66B] py-3 text-sm font-black text-[#C9A66B] disabled:opacity-40"
             >
               Traçar melhor rota da cidade
@@ -244,7 +253,7 @@ export default function RotaPage() {
               <button
                 key={lead.id}
                 type="button"
-                onClick={() => void incluir(lead)}
+                onClick={() => incluir(lead)}
                 disabled={organizando}
                 className="block w-full rounded-xl border border-white/10 px-3 py-3 text-left disabled:opacity-40"
               >

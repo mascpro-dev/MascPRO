@@ -32,6 +32,8 @@ type Produto = {
 type Item = Produto & { quantidade: number };
 type Parte = { metodo: string; valor: string };
 
+const VAZIO = { nome: "", telefone: "", cidade: "", estado: "", endereco: "", bairro: "" };
+
 const COMBOS = [
   { id: "pix", label: "Pix", formas: ["pix"] },
   { id: "cartao", label: "Cartão", formas: ["cartao"] },
@@ -75,6 +77,9 @@ export default function PedidoLojaPage() {
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
+  const [cadastroAberto, setCadastroAberto] = useState(false);
+  const [salvandoCliente, setSalvandoCliente] = useState(false);
+  const [formCliente, setFormCliente] = useState(VAZIO);
 
   useEffect(() => {
     void carregar();
@@ -92,10 +97,47 @@ export default function PedidoLojaPage() {
     else {
       setLeads(clientes.leads || []);
       setPapel(clientes.papel || "VENDEDOR");
+      if (clientes.papel === "DISTRIBUIDOR" && clientes.uf) {
+        setFormCliente((atual) => ({ ...atual, estado: atual.estado || clientes.uf }));
+      }
     }
     if (!lojaRes.ok || !loja?.ok) setErro(loja?.error || "Não foi possível abrir a loja.");
     else setProdutos(loja.produtos || []);
     setLoading(false);
+  }
+
+  async function cadastrarCliente(e: React.FormEvent) {
+    e.preventDefault();
+    setSalvandoCliente(true);
+    setErro("");
+    const res = await fetch("/api/vendedor/forca/carteira", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formCliente),
+    });
+    const d = await res.json().catch(() => null);
+    setSalvandoCliente(false);
+    if (!res.ok || !d?.ok || !d.lead_id) {
+      setErro(d?.error || "Não foi possível cadastrar o cliente.");
+      return;
+    }
+    const novo: Lead = {
+      id: d.lead_id,
+      nome: formCliente.nome.trim(),
+      empresa: formCliente.nome.trim(),
+      telefone: formCliente.telefone.trim(),
+      email: null,
+      cidade: formCliente.cidade.trim(),
+      estado: formCliente.estado.trim().toUpperCase(),
+      endereco: formCliente.endereco.trim() || null,
+      bairro: formCliente.bairro.trim() || null,
+      cep: null,
+      profile_id: null,
+    };
+    setLeads((lista) => [novo, ...lista.filter((l) => l.id !== novo.id)]);
+    setFormCliente((atual) => ({ ...VAZIO, estado: papel === "DISTRIBUIDOR" ? atual.estado : "" }));
+    setCadastroAberto(false);
+    escolher(novo);
   }
 
   function escolher(cliente: Lead) {
@@ -267,7 +309,18 @@ export default function PedidoLojaPage() {
 
   return (
     <div className="space-y-4 pb-24">
-      <Link href="/forca" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
+      <div className="flex items-center justify-between">
+        <Link href="/forca" className="text-xs font-bold uppercase tracking-widest text-zinc-500">Voltar</Link>
+        {!lead && (
+          <button
+            type="button"
+            onClick={() => setCadastroAberto((v) => !v)}
+            className="text-xs font-black uppercase tracking-widest text-emerald-400"
+          >
+            {cadastroAberto ? "Fechar" : "Novo cliente"}
+          </button>
+        )}
+      </div>
       {lead && (
         <div>
           <p className="font-bold">{lead.empresa || lead.nome}</p>
@@ -283,6 +336,19 @@ export default function PedidoLojaPage() {
 
       {!lead ? (
         <>
+          {cadastroAberto && (
+            <form onSubmit={(e) => void cadastrarCliente(e)} className="space-y-2 rounded-2xl border border-white/10 p-3">
+              <Campo rotulo="Salão" value={formCliente.nome} onChange={(nome) => setFormCliente({ ...formCliente, nome })} />
+              <Campo rotulo="Telefone" value={formCliente.telefone} onChange={(telefone) => setFormCliente({ ...formCliente, telefone })} />
+              <Campo rotulo="Cidade" value={formCliente.cidade} onChange={(cidade) => setFormCliente({ ...formCliente, cidade })} />
+              <Campo rotulo="UF" value={formCliente.estado} onChange={(estado) => setFormCliente({ ...formCliente, estado })} />
+              <Campo rotulo="Rua" value={formCliente.endereco} onChange={(endereco) => setFormCliente({ ...formCliente, endereco })} />
+              <Campo rotulo="Bairro" value={formCliente.bairro} onChange={(bairro) => setFormCliente({ ...formCliente, bairro })} />
+              <button type="submit" disabled={salvandoCliente} className="w-full rounded-xl bg-[#C9A66B] py-3 text-sm font-black text-black disabled:opacity-40">
+                {salvandoCliente ? "Salvando..." : "Cadastrar"}
+              </button>
+            </form>
+          )}
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
@@ -435,5 +501,14 @@ export default function PedidoLojaPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function Campo({ rotulo, value, onChange }: { rotulo: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{rotulo}</span>
+      <input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-3 py-3 text-sm" />
+    </label>
   );
 }
