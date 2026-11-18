@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { enderecoDaParada, urlRotaMaps } from "@/lib/forcaRota";
+import { enderecoDaParada, urlRotaMaps, urlRotaMapsIphone } from "@/lib/forcaRota";
 
 type Lead = {
   id: string;
@@ -122,11 +122,7 @@ export default function RotaPage() {
   }
 
   function abrirLinkMaps(link: string) {
-    if (link.startsWith("intent:")) {
-      window.location.href = link;
-      return;
-    }
-    window.open(link, "_blank", "noopener,noreferrer");
+    window.location.href = link;
   }
 
   async function abrirNoMaps(lista: Lead[]) {
@@ -135,14 +131,35 @@ export default function RotaPage() {
       setErro("Esses salões não têm endereço para traçar a rota.");
       return;
     }
+    setOk("Abrindo o Maps...");
+    setErro("");
     const origem = await posicaoAtual();
-    const android = /Android/i.test(navigator.userAgent);
-    const link = urlRotaMaps(enderecos, origem, android);
-    if (!link) {
+    const iphone = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const web = urlRotaMaps(enderecos, origem);
+    if (!web) {
       setErro("Esses salões não têm endereço para traçar a rota.");
       return;
     }
-    abrirLinkMaps(link);
+    if (!iphone) {
+      abrirLinkMaps(web);
+      return;
+    }
+    const app = urlRotaMapsIphone(enderecos, origem);
+    if (!app) {
+      abrirLinkMaps(web);
+      return;
+    }
+    const voltarWeb = window.setTimeout(() => {
+      if (document.visibilityState === "visible") abrirLinkMaps(web);
+    }, 800);
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+        if (document.visibilityState === "hidden") window.clearTimeout(voltarWeb);
+      },
+      { once: true }
+    );
+    abrirLinkMaps(app);
   }
 
   async function tracarSelecionados() {

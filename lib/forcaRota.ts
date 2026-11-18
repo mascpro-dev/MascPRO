@@ -74,26 +74,38 @@ export function ordenarPorProximidade<T extends PontoRota>(
   return [...ordem, ...semPonto];
 }
 
-function trechoMaps(valor: string) {
-  if (/^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(valor)) return valor;
-  return encodeURIComponent(valor);
-}
-
-/** Rota com partida definida. Sem a partida o Maps mostra as paradas e bloqueia o iniciar. */
+/** Link https que o iPhone abre no Google Maps, com a partida marcada. */
 export function urlRotaMaps(
   enderecos: string[],
-  origem?: { lat: number; lng: number } | null,
-  android = false
+  origem?: { lat: number; lng: number } | null
 ): string | null {
   const lista = enderecos.map((e) => e.trim()).filter(Boolean);
   if (!lista.length) return null;
-  const partida =
+  const destino = lista[lista.length - 1];
+  const vias = lista.slice(0, -1);
+  const params = new URLSearchParams();
+  params.set("api", "1");
+  params.set("travelmode", "driving");
+  params.set("destination", destino);
+  if (origem && Number.isFinite(origem.lat) && Number.isFinite(origem.lng)) {
+    params.set("origin", `${origem.lat},${origem.lng}`);
+  }
+  if (vias.length) params.set("waypoints", vias.join("|"));
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+/** Abre o aplicativo do Google Maps no iPhone e deixa o iniciar disponível. */
+export function urlRotaMapsIphone(
+  enderecos: string[],
+  origem?: { lat: number; lng: number } | null
+): string | null {
+  const lista = enderecos.map((e) => e.trim()).filter(Boolean);
+  if (!lista.length) return null;
+  const daddr = lista.map((e) => encodeURIComponent(e)).join("+to:");
+  const saddr =
     origem && Number.isFinite(origem.lat) && Number.isFinite(origem.lng)
       ? `${origem.lat},${origem.lng}`
       : "";
-  const pontos = partida ? [partida, ...lista] : lista;
-  const web = `https://www.google.com/maps/dir/${pontos.map(trechoMaps).join("/")}/?travelmode=driving&dir_action=navigate`;
-  if (!android) return web;
-  const semScheme = web.replace(/^https:\/\//, "");
-  return `intent://${semScheme}#Intent;scheme=https;package=com.google.android.apps.maps;S.browser_fallback_url=${encodeURIComponent(web)};end`;
+  const partida = saddr ? `saddr=${saddr}&` : "";
+  return `comgooglemaps://?${partida}daddr=${daddr}&directionsmode=driving`;
 }
